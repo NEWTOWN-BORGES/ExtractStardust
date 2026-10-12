@@ -1,0 +1,14 @@
+{
+    "name": "RedDust.Editor",
+    "rootNamespace": "RedDust.EditorTools",
+    "references": ["RedDust.Core", "RedDust.Track", "RedDust.Vehicle", "RedDust.AI", "RedDust.Presentation", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime"],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

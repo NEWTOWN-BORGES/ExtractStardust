@@ -1,0 +1,54 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: World_Bark
+  m_Shader: {fileID: 4800000, guid: 8f36a9b5d39b88d4dad7cf719da89e80, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 1
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _Albedo:
+        m_Texture: {fileID: 18700000, guid: c3b261a1fde10cc4bace172553746e75, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Normal:
+        m_Texture: {fileID: 18700000, guid: 942a860e57ec63349840e773560176c2, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AOHeight: 3
+    - _Cull: 2
+    - _Detail: 0.6
+    - _Emission: 1
+    - _GroundAO: 0.45
+    - _Layer: 1
+    - _Metallic: 0
+    - _NormalStrength: 1.2
+    - _ObjectSpace: 0
+    - _TexRough: 0.5
+    - _Tiling: 2.5
+    - _Translucency: 0
+    - _Variation: 0.12
+    - _Wind: 0.28
+    - _WindHeight: 8
+    m_Colors:
+    - _Tint: {r: 1, g: 1, b: 1, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

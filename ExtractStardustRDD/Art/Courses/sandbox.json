@@ -1,0 +1,320 @@
+{
+  "name": "sandbox",
+  "title": "Laboratório de física M1",
+  "seed": 7,
+  "step": 3.0,
+  "chunk": 64,
+  "start": {
+    "pos": [
+      0.0,
+      75.0,
+      0.0
+    ],
+    "yaw": 0.0
+  },
+  "defaults": {
+    "width": 60,
+    "bank": 0,
+    "slope": 0,
+    "radius": 0,
+    "wallL": 6,
+    "wallR": 6,
+    "filletL": 14,
+    "filletR": 14,
+    "angleL": 32,
+    "angleR": 32,
+    "lipL": 6,
+    "lipR": 6,
+    "rideL": 0.2,
+    "rideR": 0.2,
+    "surface": "sand",
+    "cave": 0,
+    "ceil": 28,
+    "gap": 0
+  },
+  "segments": [
+    {
+      "id": "S00 Bacia de largada",
+      "len": 700,
+      "ease": 0
+    },
+    {
+      "id": "S01 Reta de velocidade",
+      "len": 1300,
+      "ease": 250,
+      "width": 40,
+      "wallL": 5,
+      "wallR": 5,
+      "filletL": 10,
+      "filletR": 10,
+      "angleL": 30,
+      "angleR": 30,
+      "surface": "slickrock",
+      "floor": "flat"
+    },
+    {
+      "id": "S02 Bank 30 entrada",
+      "len": 350,
+      "ease": 350,
+      "radius": 700,
+      "bank": 30,
+      "width": 44,
+      "wallL": 6,
+      "wallR": 10,
+      "filletR": 16,
+      "floor": "natural"
+    },
+    {
+      "id": "S03 Bank 30",
+      "len": 800,
+      "ease": 0
+    },
+    {
+      "id": "S04 Bank 30 saida",
+      "len": 350,
+      "ease": 350,
+      "radius": 0,
+      "bank": 0,
+      "width": 40,
+      "wallR": 5,
+      "filletR": 10
+    },
+    {
+      "id": "S05 Reta",
+      "len": 300,
+      "ease": 0
+    },
+    {
+      "id": "S06 Bank 50 entrada",
+      "len": 450,
+      "ease": 450,
+      "radius": -450,
+      "bank": -50,
+      "width": 40,
+      "wallL": 6,
+      "wallR": 14,
+      "filletR": 18,
+      "angleR": 40
+    },
+    {
+      "id": "S07 Bank 50",
+      "len": 650,
+      "ease": 0
+    },
+    {
+      "id": "S08 Bank 50 saida",
+      "len": 450,
+      "ease": 450,
+      "radius": 0,
+      "bank": 0,
+      "wallR": 5,
+      "filletR": 10,
+      "angleR": 30
+    },
+    {
+      "id": "S09 Half-pipe entrada",
+      "len": 300,
+      "ease": 300,
+      "width": 26,
+      "wallL": 42,
+      "wallR": 42,
+      "filletL": 38,
+      "filletR": 38,
+      "angleL": 74,
+      "angleR": 74,
+      "lipL": 6,
+      "lipR": 6,
+      "rideL": 0.9,
+      "rideR": 0.9
+    },
+    {
+      "id": "S10 Half-pipe",
+      "len": 1000,
+      "ease": 200,
+      "radius": 1600
+    },
+    {
+      "id": "S11 Half-pipe saida",
+      "len": 300,
+      "ease": 300,
+      "radius": 0,
+      "width": 40,
+      "wallL": 6,
+      "wallR": 6,
+      "filletL": 12,
+      "filletR": 12,
+      "angleL": 32,
+      "angleR": 32,
+      "lipL": 6,
+      "lipR": 6,
+      "rideL": 0.2,
+      "rideR": 0.2
+    },
+    {
+      "id": "S12 Parede entrada",
+      "len": 400,
+      "ease": 400,
+      "radius": 650,
+      "bank": 8,
+      "width": 34,
+      "wallR": 58,
+      "filletR": 46,
+      "angleR": 72,
+      "lipR": 6,
+      "rideR": 0.92
+    },
+    {
+      "id": "S13 Parede 65",
+      "len": 900,
+      "ease": 0
+    },
+    {
+      "id": "S14 Parede saida",
+      "len": 400,
+      "ease": 400,
+      "radius": 0,
+      "bank": 0,
+      "width": 40,
+      "wallR": 6,
+      "filletR": 12,
+      "angleR": 32,
+      "lipR": 6,
+      "rideR": 0.2
+    },
+    {
+      "id": "S15 Antes dos saltos",
+      "len": 400,
+      "ease": 0
+    },
+    {
+      "id": "S16 Crista subida",
+      "len": 140,
+      "ease": 60,
+      "slope": 4
+    },
+    {
+      "id": "S17 Crista descida",
+      "len": 220,
+      "ease": 12,
+      "slope": -3
+    },
+    {
+      "id": "S18 Patamar",
+      "len": 380,
+      "ease": 200,
+      "slope": 0
+    },
+    {
+      "id": "S19 Borda do canyon",
+      "len": 90,
+      "ease": 40,
+      "slope": 4
+    },
+    {
+      "id": "S20 Ravina",
+      "len": 48,
+      "ease": 0,
+      "slope": -3.6,
+      "gap": 1
+    },
+    {
+      "id": "S21 Rececao",
+      "len": 220,
+      "ease": 40,
+      "slope": -8,
+      "gap": 0
+    },
+    {
+      "id": "S22 Nivelar",
+      "len": 320,
+      "ease": 220,
+      "slope": 0
+    },
+    {
+      "id": "S22b Wash natural entrada",
+      "len": 250,
+      "ease": 250,
+      "width": 90,
+      "wallL": 10,
+      "wallR": 10,
+      "filletL": 20,
+      "filletR": 20,
+      "angleL": 38,
+      "angleR": 38,
+      "lipL": 6,
+      "lipR": 6,
+      "rideL": 0.3,
+      "rideR": 0.3,
+      "radius": 1400,
+      "floor": "natural"
+    },
+    {
+      "id": "S22c Wash natural",
+      "len": 1300,
+      "ease": 300,
+      "radius": -1100,
+      "floor": "natural"
+    },
+    {
+      "id": "S22d Wash natural saida",
+      "len": 250,
+      "ease": 250,
+      "radius": 0,
+      "width": 40,
+      "wallL": 6,
+      "wallR": 6,
+      "filletL": 12,
+      "filletR": 12,
+      "angleL": 32,
+      "angleR": 32,
+      "rideL": 0.2,
+      "rideR": 0.2,
+      "floor": "natural"
+    },
+    {
+      "id": "S23 Caverna entrada",
+      "len": 200,
+      "ease": 200,
+      "width": 34,
+      "wallL": 16,
+      "wallR": 16,
+      "filletL": 10,
+      "filletR": 10,
+      "angleL": 70,
+      "angleR": 70,
+      "lipL": 6,
+      "lipR": 6,
+      "radius": 380,
+      "bank": 15,
+      "rideL": 0.5,
+      "rideR": 0.5
+    },
+    {
+      "id": "S24 Caverna curva",
+      "len": 650,
+      "ease": 0,
+      "cave": 1,
+      "ceil": 26
+    },
+    {
+      "id": "S25 Saida e chegada",
+      "len": 900,
+      "ease": 200,
+      "radius": 0,
+      "bank": 0,
+      "cave": 0,
+      "width": 60,
+      "wallL": 6,
+      "wallR": 6,
+      "filletL": 14,
+      "filletR": 14,
+      "angleL": 32,
+      "angleR": 32,
+      "lipL": 6,
+      "lipR": 6,
+      "rideL": 0.2,
+      "rideR": 0.2,
+      "surface": "sand"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+# O RACESTARS é um repositório próprio do autor (Godot) — não faz parte deste
+/RACESTARS/
+
+# Unity: pastas geradas pelo editor
+**/[Ll]ibrary/
+**/[Tt]emp/
+**/[Oo]bj/
+**/[Ll]ogs/
+**/[Bb]uilds/
+**/[Bb]uild/
+**/[Uu]ser[Ss]ettings/
+**/MemoryCaptures/
+**/Recordings/
+**/*.csproj
+**/*.sln
+**/*.suo
+**/*.user
+**/*.userprefs
+**/*.pidb
+**/*.booproj
+**/*.svd
+**/*.pdb
+**/*.mdb
+**/*.opendb
+**/*.VC.db
+**/.vs/
+**/.vscode/
+**/.idea/
+**/sysinfo.txt
+**/crashlytics-build.properties
+**/*.apk
+**/*.aab
+
+# EXTRACT: STARDUST — RED DUST DIVIDE: geometria gerada pelo pipeline do Blender
+# (regenerar com: powershell -File ExtractStardustRDD/Tools/m1_pipeline.ps1)
+ExtractStardustRDD/Art/Export/
+ExtractStardustRDD/Assets/RedDust/Generated/
+ExtractStardustRDD/Assets/RedDust/Generated.meta
+
+# Jogo anterior (ilha): saída intermédia do gerador de mundo (o resultado importado está em Assets/World)
+ExtractStardust/WorldGen/out/
+ExtractStardust/WorldGen/**/__pycache__/
+
+# Blender: cópias de segurança automáticas
+*.blend1
+*.blend2
+
+# Sistema
+Thumbs.db
+Desktop.ini
+.DS_Store

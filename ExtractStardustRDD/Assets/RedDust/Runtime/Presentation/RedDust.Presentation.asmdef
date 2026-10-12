@@ -1,0 +1,14 @@
+{
+    "name": "RedDust.Presentation",
+    "rootNamespace": "RedDust.Presentation",
+    "references": ["RedDust.Core", "RedDust.Track", "RedDust.Vehicle", "RedDust.AI", "Unity.InputSystem", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

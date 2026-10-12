@@ -1,0 +1,14 @@
+{
+    "name": "RedDust.Vehicle",
+    "rootNamespace": "RedDust.Vehicle",
+    "references": ["RedDust.Core", "RedDust.Track"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
