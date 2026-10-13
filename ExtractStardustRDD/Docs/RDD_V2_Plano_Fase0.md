@@ -1,6 +1,6 @@
 # RED DUST DIVIDE V2 — Plano (resposta à Master Level Production Directive V2)
 
-Estado: **aguarda aprovação**. Nada da V2 foi criado; o mapa atual fica como protótipo legado.
+Estado: **aprovado (2026-10-14) com a decisão: não mexer nas velocidades; expedição de ~10 min ⇒ ~50–60 km (12 setores ≈ planta × 1,5; o comprimento final sai das métricas da Fase 1)**. Nada da V2 foi criado; o mapa atual fica como protótipo legado.
 Fontes: diretiva V2 (este pedido), `Docs/referencias/01_Mapas_Pistas_Expedicoes_EXTRACT_STARDUST_v1_0.pdf` (GDD),
 `Docs/referencias/rdd_v2_blueprint.webp` (planta nova), projeto Unity atual (só compatibilidade técnica).
 
@@ -54,7 +54,7 @@ A medir por chassis (5) com piloto automático e registo em CSV:
 
 ## D. Layout macro de 12 setores (da planta; comprimentos a reescalar com a Fase 1)
 
-**Decisão crítica:** a planta mostra 34,6 km para 20 min (≈ 29 m/s de média). As naves fazem ~102 m/s:
+**Decisão do produtor (2026-10-14): velocidades iguais, alvo ~10 min (~50–60 km).** Contexto: a planta mostra 34,6 km para 20 min (≈ 29 m/s de média). As naves fazem ~102 m/s:
 34,6 km ≈ **6–8 min**; 20 min ≈ **90–120 km**. Proposta: construir a V2 com a planta (≈ 35 km, 7–8 min, densa e variada) e
 decidir o formato de 20 min depois dos testes. Alternativas: escalar a planta ×2,7 (≈ 95 km) ou baixar as velocidades.
 
