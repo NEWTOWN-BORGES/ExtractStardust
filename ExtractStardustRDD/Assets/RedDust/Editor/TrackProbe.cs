@@ -164,6 +164,62 @@ namespace RedDust.EditorTools
             Debug.Log("[RDD probe] perfil OK");
         }
 
+        /// <summary>Todas as superfícies empilhadas (de 60 m acima a 20 m abaixo) em -from..-to km, u = -0,8..0,8.</summary>
+        public static void Layers3D()
+        {
+            EditorSceneManager.OpenScene(CourseImporter.ScenePathFor(CourseImporter.CourseArg));
+            var cr = Object.FindFirstObjectByType<CourseRuntime>();
+            foreach (var t in cr.GetComponentsInChildren<Transform>(true)) t.gameObject.SetActive(true);
+            Physics.SyncTransforms();
+            var d = cr.Graph.Main.Data;
+            float a = CommandLine.Float("-from", 14.85f) * 1000f, b = CommandLine.Float("-to", 15.1f) * 1000f;
+            var lines = new List<string>();
+            for (int i = 0; i < d.StationCount; i += 3)
+            {
+                if (d.Dist[i] < a || d.Dist[i] > b) continue;
+                foreach (float u in new[] { -0.8f, -0.4f, 0f, 0.4f, 0.8f })
+                {
+                    var lp = d.LanePoint(i, u);
+                    var hits = Physics.RaycastAll(lp + d.Up[i] * 60f, -d.Up[i], 80f, Layers.GroundMask).OrderBy(h => h.distance);
+                    lines.Add($"{d.Dist[i] / 1000f:0.000} u={u,4:0.0}: " + string.Join("  ", hits.Select(h => $"{Vector3.Dot(h.point - lp, d.Up[i]),6:0.0}m n{h.normal.y:0.0} {h.collider.name}")));
+                }
+            }
+            File.WriteAllLines(Path.Combine("Logs", "track_layers.txt"), lines);
+            Debug.Log("[RDD probe] camadas OK");
+        }
+
+        /// <summary>Troços da pista principal que passam por cima/baixo de si mesma (mesma zona em planta, |Δdist| > 300 m).</summary>
+        public static void SelfOverlap()
+        {
+            EditorSceneManager.OpenScene(CourseImporter.ScenePathFor(CourseImporter.CourseArg));
+            var d = Object.FindFirstObjectByType<CourseRuntime>().Graph.Main.Data;
+            var lines = new List<string>();
+            var cells = new Dictionary<long, List<int>>();
+            long K(float x, float z) => ((long)Mathf.FloorToInt(x / 40f) << 32) ^ (uint)Mathf.FloorToInt(z / 40f);
+            for (int i = 0; i < d.StationCount; i += 2) { long k = K(d.Center[i].x, d.Center[i].z); if (!cells.TryGetValue(k, out var l)) cells[k] = l = new List<int>(); l.Add(i); }
+            var hits = new List<(float a, float b, float dy, float dh)>();
+            for (int i = 0; i < d.StationCount; i += 4)
+            {
+                var c = d.Center[i];
+                for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++)
+                {
+                    long k = ((long)(Mathf.FloorToInt(c.x / 40f) + dx) << 32) ^ (uint)(Mathf.FloorToInt(c.z / 40f) + dz);
+                    if (!cells.TryGetValue(k, out var l)) continue;
+                    foreach (int j in l)
+                    {
+                        if (d.Dist[j] - d.Dist[i] < 300f) continue;
+                        var o = d.Center[j] - c; float dh = new Vector2(o.x, o.z).magnitude;
+                        float w = (d.RideLeft[i] + d.RideRight[i] + d.RideLeft[j] + d.RideRight[j]) * 0.25f + 10f;
+                        if (dh < w) hits.Add((d.Dist[i], d.Dist[j], o.y, dh));
+                    }
+                }
+            }
+            foreach (var g in hits.GroupBy(h => (Mathf.FloorToInt(h.a / 500f), Mathf.FloorToInt(h.b / 500f))))
+                lines.Add($"{g.Min(h => h.a) / 1000f:0.00}-{g.Max(h => h.a) / 1000f:0.00} km por baixo/cima de {g.Min(h => h.b) / 1000f:0.00}-{g.Max(h => h.b) / 1000f:0.00} km · desnível {g.Min(h => h.dy):0.0} a {g.Max(h => h.dy):0.0} m · {g.Count()} pares");
+            File.WriteAllLines(Path.Combine("Logs", "track_overlap.txt"), lines);
+            Debug.Log($"[RDD probe] sobreposições: {lines.Count}");
+        }
+
         static IEnumerable<List<(float dist, string kind, string mesh, float dy)>> Cluster(List<(float dist, string kind, string mesh, float dy)> ev, float gap)
         {
             var cur = new List<(float, string, string, float)>();
