@@ -43,7 +43,8 @@ namespace RedDust.Game
 
         // ---- progresso
         public int pathIdx, station;
-        public float offTrack;                  // segundos seguidos fora da pista (> 20 m → reposição automática)
+        public float offTrack;
+        public float grace = 10f;               // segundos sem dano de impacto depois da partida                  // segundos seguidos fora da pista (> 20 m → reposição automática)
         public float raceDistance, finishTime = -1f, endDistance;
         public int position, checkpoint, penalties, repairs, skillRoutes;
         public bool tookDamage, usedBoost;
@@ -100,6 +101,8 @@ namespace RedDust.Game
             if (!rules || !Active) return;
             bool craftHit = c != null && c.gameObject.layer == Layers.Craft;
             float dmg = (s - craft.tuning.impactMin) * 1.1f * spec.impactMul * (craftHit ? 0.6f : 1f);
+            if (grace > 0f) dmg = 0f;   // primeiros segundos depois da partida: encontrões sem dano
+            ImpactLog.Add(this, s, c, dmg);
             Damage(dmg);
             input?.Rumble(Mathf.Min(1f, s / 30f), Mathf.Min(1f, s / 22f), 0.28f);
         }

@@ -240,6 +240,20 @@ def build_path(pid, rows, step, col, seed, names, warp_seed, joint_seed, floor_v
     # paredes próximas: do pé (borda da secção) até à borda do planalto, em escadaria com alcovas
     sk, ext = {}, {}
     centre_xz = P[:, [0, 2]]
+    # curvas apertadas: do lado de dentro a parede não pode passar o centro da curva (senão dobra e faz abas por
+    # cima da pista). Curvatura horizontal por estação; limite suavizado ao longo do percurso.
+    Th = T.copy(); Th[:, 1] = 0.0
+    Th /= np.maximum(np.linalg.norm(Th, axis=1, keepdims=True), 1e-9)
+    dTh = np.gradient(Th, axis=0)
+    kap = np.linalg.norm(dTh, axis=1) / np.maximum(np.abs(np.gradient(dist_st)), 1e-3)
+    r_turn = 1.0 / np.maximum(kap, 1e-6)
+
+    def run_min(a, w=15):
+        o = a.copy()
+        for k in range(1, w + 1):
+            o[:-k] = np.minimum(o[:-k], a[k:])
+            o[k:] = np.minimum(o[k:], a[:-k])
+        return o
     for side, ci in ((-1, 0), (1, N - 1)):
         lip = Wr[:, ci, :]
         y0 = lip[:, 1]
@@ -279,6 +293,9 @@ def build_path(pid, rows, step, col, seed, names, warp_seed, joint_seed, floor_v
         xst = col.X(ys) - col.X(y0)[:, None]
         xw = xst - wall_warp(dist_st[:, None] * np.ones_like(ys), hw_side[:, None] + xst, warp_seed) * geo.smoothstep(0.0, 70.0, xst)
         xw = np.maximum.accumulate(np.maximum(xw, 0.0), axis=1)
+        inner = np.einsum('ij,ij->i', dTh, out) > 0.0
+        lim = run_min(np.where(inner, np.maximum(4.0, 0.8 * (r_turn - hw_side) - 14.0), 1e9))
+        xw = np.minimum(xw, lim[:, None])
         ext[side] = xw[:, -1]
         pts = lip[:, None, :] + out[:, None, :] * xw[..., None]
         pts[..., 1] = ys

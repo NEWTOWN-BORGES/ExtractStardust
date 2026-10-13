@@ -195,7 +195,7 @@ namespace RedDust.EditorTools
                             if (render == null) mr.enabled = false;
                         }
                         if (col != null && col != render && col != colMesh) AssetDatabase.CreateAsset(col, $"{genDir}/{mf.name}_{colliders}_c.asset");
-                        colMesh = col;
+                        colMesh = scatter ? null : col;   // rochas de decoração nunca colidem (só pilares, paredes e megaestruturas)
                     }
                     if (colMesh != null)
                     {
@@ -624,6 +624,7 @@ namespace RedDust.EditorTools
                 placed++;
             }
             int rivers = Rivers(name, spec, root, holder, g, recs, ride, Put, Rng, R01);
+            int megas = Megastructures(g, holder, ZoneAt, Rng, R01);
             // reescreve os dados com a vegetação das margens dos rios
             using (var bw = new BinaryWriter(File.Create(dataPath)))
             {
@@ -638,7 +639,7 @@ namespace RedDust.EditorTools
             }
             AssetDatabase.ImportAsset(dataPath);
             field.data = AssetDatabase.LoadAssetAtPath<TextAsset>(dataPath);
-            Debug.Log($"[RDD] paisagem: {recs.Count} adereços (vegetação, cactos, pedregulhos) · {placed} monumentos no horizonte · {rivers} rios · zonas: {string.Join(", ", sectors.Select(x => x.id + "=" + ZoneOfSector(x.id)))}");
+            Debug.Log($"[RDD] paisagem: {recs.Count} adereços (vegetação, cactos, pedregulhos) · {placed} monumentos no horizonte · {rivers} rios · {megas} megaestruturas · zonas: {string.Join(", ", sectors.Select(x => x.id + "=" + ZoneOfSector(x.id)))}");
         }
 
         /// <summary>
@@ -726,6 +727,104 @@ namespace RedDust.EditorTools
                             put(x < 0.25f ? "P_Tree_A" : x < 0.4f ? "P_Tree_B" : x < 0.65f ? "P_Bush_Green" : "P_Grass_Green", hit, false);
                         }
                 made++;
+            }
+            return made;
+        }
+
+        static Material MegaMat(string n)
+        {
+            string path = $"Assets/RedDust/Resources/Props/{n}.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m != null) return m;
+            m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            (Color c, float met, float sm) = n == "Mega_Metal" ? (new Color(0.42f, 0.44f, 0.47f), 0.6f, 0.45f) : n == "Mega_Rust" ? (new Color(0.47f, 0.25f, 0.14f), 0.2f, 0.25f)
+                : n == "Mega_Dark" ? (new Color(0.12f, 0.12f, 0.13f), 0.5f, 0.35f) : n == "Mega_Cloth" ? (new Color(0.62f, 0.08f, 0.06f), 0f, 0.1f) : (new Color(1f, 0.55f, 0.2f), 0f, 0.5f);
+            m.SetColor("_BaseColor", c);
+            m.SetFloat("_Metallic", met);
+            m.SetFloat("_Smoothness", sm);
+            if (n == "Mega_Glow") { m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", new Color(1f, 0.55f, 0.2f) * 3f); m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; }
+            AssetDatabase.CreateAsset(m, path);
+            return m;
+        }
+
+        /// <summary>
+        /// Megaestruturas (referências de gameplay): pórticos gigantes sobre a pista no início de cada sector (pilares fora
+        /// da pista, com colisão), anéis de naves e cascos despenhados, torres industriais e tubagens ao lado da pista.
+        /// </summary>
+        static int Megastructures(CourseGraph g, Transform holder, System.Func<float, string> zoneAt, System.Func<float, float, float> rng, System.Func<float> r01)
+        {
+            var kit = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/RedDust/Resources/Props/mega_kit.fbx");
+            if (kit == null) return 0;
+            var d = g.Main.Data;
+            int made = 0;
+            GameObject Spawn(string type, Vector3 pos, Quaternion rot, Vector3 scale, bool collide)
+            {
+                var src = kit.transform.Find(type);
+                if (src == null) return null;
+                var go = (GameObject)UnityEngine.Object.Instantiate(src.gameObject, holder);
+                go.name = $"MEGA_{type}_{made++}";
+                go.transform.position = pos;
+                go.transform.rotation = rot * src.localRotation;
+                go.transform.localScale = Vector3.Scale(src.localScale, scale);
+                var mr = go.GetComponent<MeshRenderer>();
+                if (mr != null)
+                {
+                    var mats = mr.sharedMaterials;
+                    for (int i = 0; i < mats.Length; i++) mats[i] = MegaMat(mats[i] != null ? mats[i].name.Replace(" (Instance)", "") : "Mega_Metal");
+                    mr.sharedMaterials = mats;
+                    mr.shadowCastingMode = ShadowCastingMode.On;
+                }
+                if (collide) go.AddComponent<MeshCollider>().sharedMesh = go.GetComponent<MeshFilter>().sharedMesh;
+                return go;
+            }
+            bool Clear(Vector3 c, float rad)
+            {
+                foreach (var path in g.Paths)
+                    for (int j = 0; j < path.Data.StationCount; j += 6)
+                    {
+                        var o = path.Data.Center[j] - c; o.y = 0f;
+                        if (o.magnitude < rad) return false;
+                    }
+                return true;
+            }
+            float Ground(Vector3 c, float fallback) => Physics.Raycast(c + Vector3.up * 2000f, Vector3.down, out var h, 5000f, Layers.GroundMask) ? h.point.y : fallback;
+
+            // pórticos sobre a pista: de 7 em 7 km, num troço quase a direito
+            for (float dist = 3000f; dist < d.Length - 2000f; dist += rng(6000f, 8500f))
+            {
+                for (float t = 0f; t < 1200f; t += 60f)
+                {
+                    d.Locate(dist + t, out int i, out _);
+                    d.Locate(dist + t + 120f, out int j, out _);
+                    if (d.IsGap(i) || d.IsCave(i) || Vector3.Angle(d.Tangent[i], d.Tangent[j]) > 6f) continue;
+                    float span = d.RideLeft[i] + d.RideRight[i] + 50f;
+                    if (span > 220f) continue;
+                    var right = d.Right[i]; right.y = 0f; right.Normalize();
+                    var fwd = Vector3.Cross(right, Vector3.up);
+                    var mid = d.Center[i] + right * ((d.RideRight[i] - d.RideLeft[i]) * 0.5f);
+                    Spawn("M_Gate", new Vector3(mid.x, d.Center[i].y - 4f, mid.z), Quaternion.LookRotation(fwd, Vector3.up), new Vector3(span / 130f, 1f, 1f), true);
+                    break;
+                }
+            }
+            // ao lado da pista: anéis, cascos, torres e tubagens (longe das linhas de corrida)
+            for (float dist = 1500f; dist < d.Length; dist += rng(2200f, 3800f))
+            {
+                d.Locate(dist, out int i, out _);
+                string zone = zoneAt(dist);
+                int side = r01() < 0.5f ? -1 : 1;
+                var right = d.Right[i]; right.y = 0f; right.Normalize();
+                float x = r01();
+                string type = zone == "green" ? (x < 0.6f ? "M_Tower_A" : "M_Pipeline") : x < 0.28f ? "M_Ring" : x < 0.52f ? "M_Hull" : x < 0.8f ? (r01() < 0.5f ? "M_Tower_A" : "M_Tower_B") : "M_Pipeline";
+                float rad = type == "M_Ring" ? 90f : type == "M_Hull" ? 110f : type == "M_Pipeline" ? 120f : 50f;
+                float lat = type == "M_Pipeline" ? rng(70f, 160f) : rng(170f, 650f);
+                var c = d.Center[i] + right * side * lat;
+                if (!Clear(c, rad + 40f)) continue;
+                float gy = Ground(c, d.Center[i].y);
+                var tang = d.Tangent[i]; tang.y = 0f; tang.Normalize();
+                var yaw = Quaternion.LookRotation(type == "M_Pipeline" ? tang : Quaternion.Euler(0f, rng(0f, 360f), 0f) * tang, Vector3.up);
+                if (type == "M_Ring") Spawn(type, new Vector3(c.x, gy - 18f, c.z), yaw, Vector3.one * rng(0.9f, 1.3f), false);
+                else if (type == "M_Hull") Spawn(type, new Vector3(c.x, gy - 7f, c.z), yaw * Quaternion.Euler(rng(-6f, 6f), 0f, rng(8f, 20f)), Vector3.one * rng(0.8f, 1.2f), false);
+                else Spawn(type, new Vector3(c.x, gy - 1f, c.z), yaw, Vector3.one * rng(0.8f, 1.2f), false);
             }
             return made;
         }

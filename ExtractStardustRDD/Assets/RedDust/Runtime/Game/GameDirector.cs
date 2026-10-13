@@ -39,6 +39,7 @@ namespace RedDust.Game
         CraftController preview;
         float orbitYaw = 200f, orbitDist = 13f, countdown, endTimer = -1f;
         bool autoExtract;
+        int raceLen = 1;                // 0 curta (1/3), 1 média (2/3), 2 completa
 
         // escolhas que sobrevivem à troca de pista (cena)
         static int botCount = -1, difficulty = 1;
@@ -76,6 +77,7 @@ namespace RedDust.Game
             GameInput.Init();
             if (botCount < 0) botCount = mobile ? 7 : 11;
             shake = PlayerPrefs.GetFloat("rdd_shake", 1f);
+            raceLen = Mathf.Clamp(PlayerPrefs.GetInt("rdd_len", 0), 0, 2);
             fovExtra = PlayerPrefs.GetFloat("rdd_fov", 0f);
             vibration = PlayerPrefs.GetInt("rdd_vibration", 1) == 1;
             rng = Rng.FromTime();
@@ -85,6 +87,7 @@ namespace RedDust.Game
             if (CommandLine.Has("-rddextract"))
             {
                 autoExtract = true;
+                ImpactLog.On = true;
                 botCount = Mathf.Clamp(CommandLine.Int("-bots", 7), 1, 19);
                 StartRace(GameMode.Extraction);
                 Time.timeScale = Mathf.Clamp(CommandLine.Float("-timescale", 1f), 0.5f, 8f);
@@ -190,7 +193,7 @@ namespace RedDust.Game
             if (m == GameMode.LocalVersus && profiles[1] == null) profiles[1] = ProfileStore.Load("p2", "Piloto 2");
             if (preview != null) Destroy(preview.gameObject);
             CleanupRace();
-            session = new RaceSession(m, graph, courseTitle, rng);
+            session = new RaceSession(m, graph, courseTitle, rng, autoExtract ? 1f : LenFrac(raceLen));
 
             // comandos: 2 comandos → um cada; 1 comando → J1 teclado, J2 comando; nenhum → teclado dividido
             var pads = Gamepad.all;
@@ -350,14 +353,18 @@ namespace RedDust.Game
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"[RDD extract] {courseTitle} · {session.racers.Count} pilotos · tempo {RaceHud.FormatTime(session.time)}");
             foreach (var r in session.Classification())
-                sb.AppendLine($"  {r.position,2}. {r.name,-10} {r.chassis.name,-8} {r.state,-10} casco {r.HullFrac:P0} comb. {r.fuel:P0} {(r.brain != null ? BotBrain.Label(r.brain.personality) : "")}");
+                sb.AppendLine($"  {r.position,2}. {r.name,-10} {r.chassis.name,-8} {r.state,-10} casco {r.HullFrac:P0} comb. {r.fuel:P0} fim {(r.endDistance > 0f ? r.endDistance : r.raceDistance) / 1000f:0.0} km {(r.brain != null ? BotBrain.Label(r.brain.personality) : "")}");
             sb.AppendLine($"  Pool: {session.pool.Count} peças, {Fmt.Dust(session.pool.Valuation)} · distribuídas {awarded.Count} · sem duplicar {noDup} · sem inventar {noInvent}");
             if (rep != null) sb.AppendLine($"  Jogador: {rep.state} {rep.position}/{rep.racers} · ✦ +{rep.stardustTotal} · perdeu {rep.lost.Count} · ganhou {rep.gained.Count}");
+            sb.Append(ImpactLog.Summary());
             bool ok = noDup && noInvent && rep != null;
             sb.AppendLine(ok ? "[RDD extract] OK" : "[RDD extract] FALHA");
             Debug.Log(sb.ToString());
             Application.Quit(ok ? 0 : 1);
         }
+
+        static float LenFrac(int l) => l == 0 ? 0.34f : l == 1 ? 0.67f : 1f;
+        static string LenName(int l) => l == 0 ? "Curta" : l == 1 ? "Média" : "Completa";
 
         void ChangeCourse(int dir)
         {

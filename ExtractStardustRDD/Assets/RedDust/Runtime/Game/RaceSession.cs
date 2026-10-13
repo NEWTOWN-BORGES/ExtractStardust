@@ -37,22 +37,25 @@ namespace RedDust.Game
         public bool Rules => mode != GameMode.Exploration;
         public IEnumerable<Racer> Humans => racers.Where(r => r.human);
         public int ActiveCount => racers.Count(r => r.Active);
+        /// <summary>Distância da meta (duração escolhida: curta, média ou completa).</summary>
+        public float FinishDistance { get; private set; }
         public bool HumansDone => racers.Where(r => r.human).All(r => !r.Active);
 
         static readonly string[] BotNames = { "KESTREL", "MAKO", "RUSTFANG", "DUNE-7", "VEX", "HALCYON", "ORBIT", "CINDER", "NOVA RAE", "TALON", "SABLE", "ZEPHYR",
                                               "GRIT", "MIRAGE", "BRASS", "ECHO-9", "JUNO", "RIFT", "ASHBORN", "QUILL", "STRAY", "BLAZE", "OKKO", "LUMEN" };
         static readonly uint[] BotPaints = { 0x13B5C9, 0x2F5BD9, 0xE09A1A, 0xC0249A, 0xD8D8D8, 0x7BC42A, 0x0E8C7A, 0x6A3FC8, 0xE5561B, 0x8C9196, 0x9E1027, 0xE3C51C };
 
-        public RaceSession(GameMode mode, CourseGraph graph, string title, Rng rng)
+        public RaceSession(GameMode mode, CourseGraph graph, string title, Rng rng, float lengthFrac = 1f)
         {
             this.mode = mode; this.graph = graph; this.rng = rng;
             course = graph.Main.Data;
             courseTitle = title;
             raceId = $"{title}-{DateTime.UtcNow.Ticks:x}-{rng.NextU() & 0xffff:x}";
-            checkpoints = Mathf.Clamp(Mathf.RoundToInt(course.Length / 2500f), 6, 40);
-            referenceSeconds = course.Length / 100f;            // ~360 km/h de média
+            FinishDistance = Mathf.Clamp(course.Length * Mathf.Clamp(lengthFrac, 0.2f, 1f), Mathf.Min(course.Length, 4000f), course.Length);
+            checkpoints = Mathf.Clamp(Mathf.RoundToInt(FinishDistance / 2500f), 4, 40);
+            referenceSeconds = FinishDistance / 100f;            // ~360 km/h de média
             referenceMinutes = referenceSeconds / 60f;
-            clockReference = course.Length / 104f;              // "Contra o Relógio": ~375 km/h de média
+            clockReference = FinishDistance / 104f;              // "Contra o Relógio": ~375 km/h de média
         }
 
         public void Notify(string text, Color color, float seconds = 4f, int player = -1)
@@ -160,6 +163,7 @@ namespace RedDust.Game
 
                 r.Tick(dt, referenceSeconds);
                 if (!started) continue;
+                r.grace -= dt;
 
                 // queda para fora da geologia: reposiciona (penalização para jogadores)
                 var d = graph.Paths[r.pathIdx].Data;
@@ -178,7 +182,7 @@ namespace RedDust.Game
                 else r.offTrack = 0f;
 
                 // checkpoints largos: qualquer linha, altura ou rota conta pela distância de corrida
-                int cp = Mathf.Clamp(Mathf.FloorToInt(r.raceDistance / course.Length * checkpoints), 0, checkpoints);
+                int cp = Mathf.Clamp(Mathf.FloorToInt(r.raceDistance / FinishDistance * checkpoints), 0, checkpoints);
                 if (r.Active && cp > r.checkpoint)
                 {
                     r.checkpoint = cp;
@@ -186,15 +190,25 @@ namespace RedDust.Game
                 }
 
                 // chegada (EXTRACTED)
-                if (r.Active && r.pathIdx == 0 && r.station >= course.StationCount - 3)
+                if (r.Active && ((r.pathIdx == 0 && r.station >= course.StationCount - 3) || r.raceDistance >= FinishDistance - 3f))
                 {
                     r.state = RaceState.Extracted;
                     r.finishTime = time;
-                    r.endDistance = course.Length;
+                    r.endDistance = FinishDistance;
                     if (Rules) Notify($"{r.name} EXTRACTED ({RaceHud.FormatTime(time)})", new Color(0.5f, 1f, 0.6f));
                 }
                 if (!r.Active && !handled.Contains(r)) OnRaceEnded(r);
             }
+            // último sobrevivente: se os bots estão todos fora (destruídos, sem combustível, abandonados) e nenhum extraiu,
+            // a corrida acaba e quem ainda está em pista extrai (fica com o Expedition Pool)
+            if (started && !finished && Rules && racers.Any(x => !x.human) && racers.Where(x => !x.human).All(x => !x.Active && x.state != RaceState.Extracted))
+                foreach (var h in racers.Where(x => x.human && x.Active))
+                {
+                    h.state = RaceState.Extracted;
+                    h.finishTime = time;
+                    h.endDistance = h.raceDistance;
+                    Notify("ÚLTIMO SOBREVIVENTE · EXTRACTED", new Color(0.5f, 1f, 0.6f), 6f, h.player);
+                }
             UpdatePositions();
         }
 
@@ -287,9 +301,9 @@ namespace RedDust.Game
             foreach (var r in racers.Where(r => r.Active && !r.human))
             {
                 float pace = Mathf.Max(60f, r.raceDistance / Mathf.Max(1f, time));
-                r.finishTime = time + Mathf.Max(0f, course.Length - r.raceDistance) / pace;
+                r.finishTime = time + Mathf.Max(0f, FinishDistance - r.raceDistance) / pace;
                 r.state = RaceState.Extracted;
-                r.endDistance = course.Length;
+                r.endDistance = FinishDistance;
             }
             UpdatePositions();
             var order = Classification();

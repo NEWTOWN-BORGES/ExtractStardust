@@ -395,7 +395,7 @@ namespace RedDust.Game
             // tempo, checkpoint, distância (topo ao centro)
             float t = r.state == RaceState.Extracted && r.finishTime >= 0f ? r.finishTime : session.time;
             Shadowed(new Rect(vr.center.x - 300, vr.y + pad * 0.5f, 600, 60 * k), RaceHud.FormatTime(t), St(F(48), FontStyle.Bold, TextAnchor.MiddleCenter), Color.white);
-            float left = Mathf.Max(0f, course.Length - r.raceDistance) / 1000f;
+            float left = Mathf.Max(0f, session.FinishDistance - r.raceDistance) / 1000f;
             Shadowed(new Rect(vr.center.x - 400, vr.y + pad * 0.5f + 58 * k, 800, 34 * k), $"CHECKPOINT {r.checkpoint}/{session.checkpoints}   ·   faltam {left:0.0} km   ·   {r.chassis.name}",
                 St(F(22), FontStyle.Normal, TextAnchor.MiddleCenter), new Color(1f, 1f, 1f, 0.85f));
 

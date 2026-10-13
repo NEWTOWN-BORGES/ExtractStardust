@@ -98,6 +98,72 @@ namespace RedDust.EditorTools
             Debug.Log("[RDD probe] fotos OK");
         }
 
+        /// <summary>Fotografa as megaestruturas já colocadas na pista (uma de cada tipo): Logs/mega_&lt;tipo&gt;.png.</summary>
+        public static void MegaShots()
+        {
+            string name = CourseImporter.CourseArg;
+            ProjectSetup.ConfigureUrp();
+            EditorSceneManager.OpenScene(CourseImporter.ScenePathFor(name));
+            var cr = Object.FindFirstObjectByType<CourseRuntime>();
+            foreach (var t in cr.GetComponentsInChildren<Transform>(true)) t.gameObject.SetActive(true);
+            RedDust.Presentation.EnvironmentRig.Apply(Object.FindFirstObjectByType<Light>(), false);
+            var cam = new GameObject("MegaCam").AddComponent<Camera>();
+            cam.fieldOfView = 55f; cam.nearClipPlane = 0.5f; cam.farClipPlane = 8000f;
+            cam.gameObject.AddComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+            var done = new HashSet<string>();
+            var d = cr.Graph.Main.Data;
+            foreach (var mr in cr.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (!mr.name.StartsWith("MEGA_")) continue;
+                string type = mr.name.Substring(5, mr.name.LastIndexOf('_') - 5);
+                if (!done.Add(type)) continue;
+                var b = mr.bounds;
+                // câmara do lado da pista mais próxima, um pouco acima, a enquadrar a estrutura
+                int best = 0; float bd = float.MaxValue;
+                for (int i = 0; i < d.StationCount; i += 4) { float q = (d.Center[i] - b.center).sqrMagnitude; if (q < bd) { bd = q; best = i; } }
+                var from = d.Center[best] + Vector3.up * 6f;
+                var dir = (b.center - from); dir.y = 0f;
+                float dist = Mathf.Max(b.extents.magnitude * 2.2f, 60f);
+                cam.transform.position = b.center - dir.normalized * dist + Vector3.up * (b.extents.y * 0.35f + 8f);
+                cam.transform.LookAt(b.center);
+                cr.GetComponent<PropField>()?.DrawAround(cam.transform.position);
+                var rt = new RenderTexture(1280, 720, 24);
+                cam.targetTexture = rt; cam.Render(); cam.targetTexture = null;
+                RenderTexture.active = rt;
+                var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false);
+                tex.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0); tex.Apply();
+                RenderTexture.active = null;
+                File.WriteAllBytes(Path.Combine("Logs", $"mega_{type}.png"), tex.EncodeToPNG());
+            }
+            Debug.Log($"[RDD probe] megaestruturas fotografadas: {string.Join(", ", done)}");
+        }
+
+        /// <summary>Perfil do piso entre -from e -to (km): altura prevista vs malha real e paredes à frente (Logs/track_profile.txt).</summary>
+        public static void Profile()
+        {
+            string name = CourseImporter.CourseArg;
+            EditorSceneManager.OpenScene(CourseImporter.ScenePathFor(name));
+            var cr = Object.FindFirstObjectByType<CourseRuntime>();
+            foreach (var t in cr.GetComponentsInChildren<Transform>(true)) t.gameObject.SetActive(true);
+            Physics.SyncTransforms();
+            var d = cr.Graph.Main.Data;
+            float a = CommandLine.Float("-from", 14.2f) * 1000f, b = CommandLine.Float("-to", 15.1f) * 1000f;
+            var lines = new List<string> { "km      prev_y   malha_y  dif    parede_a_frente(m)@altura" };
+            for (int i = 0; i < d.StationCount; i++)
+            {
+                if (d.Dist[i] < a || d.Dist[i] > b || i % 2 != 0) continue;
+                var c = d.LanePoint(i, 0f);
+                float my = Physics.Raycast(c + d.Up[i] * 40f, -d.Up[i], out var h, 80f, Layers.GroundMask) ? h.point.y : float.NaN;
+                string wall = "";
+                foreach (float z in new[] { 0.8f, 1.6f, 3f })
+                    if (Physics.Raycast(c + d.Up[i] * z, d.Tangent[i], out var w, 25f, Layers.GroundMask) && Vector3.Dot(w.normal, d.Up[i]) < 0.5f)
+                        wall += $" {w.distance:0}m@{z:0.0}";
+                lines.Add($"{d.Dist[i] / 1000f:0.000}  {c.y,7:0.00}  {my,7:0.00}  {my - c.y,5:0.00}  {wall}");
+            }
+            File.WriteAllLines(Path.Combine("Logs", "track_profile.txt"), lines);
+            Debug.Log("[RDD probe] perfil OK");
+        }
+
         static IEnumerable<List<(float dist, string kind, string mesh, float dy)>> Cluster(List<(float dist, string kind, string mesh, float dy)> ev, float gap)
         {
             var cur = new List<(float, string, string, float)>();

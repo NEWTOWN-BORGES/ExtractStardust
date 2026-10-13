@@ -148,6 +148,10 @@ namespace RedDust.Game
             subtitle = $"{p1.name}   ·   {Fmt.Dust(p1.stardust)}   ·   RACE. SURVIVE. EXTRACT.";
             Header("JOGAR");
             Add("Pista", $"‹ {courseTitle} ›", () => ChangeCourse(1), ChangeCourse, card: new Card { title = "PISTA", body = "Escolhe a pista com ←/→ antes de escolher o modo." });
+            float km = (course != null ? course.Length : 0f) * LenFrac(raceLen) / 1000f;
+            Add("Duração", $"‹ {LenName(raceLen)} · {km:0} km ›", () => { raceLen = (raceLen + 1) % 3; PlayerPrefs.SetInt("rdd_len", raceLen); },
+                d => { raceLen = (raceLen + d + 3) % 3; PlayerPrefs.SetInt("rdd_len", raceLen); },
+                card: new Card { title = "DURAÇÃO", body = "Curta: 1/3 da pista (corrida rápida).\nMédia: 2/3.\nCompleta: a expedição inteira.\n\nA meta (extração) fica no fim do troço escolhido." });
             Add("EXPEDIÇÃO", "extração vs bots", () => { briefingMode = GameMode.Extraction; editing = 0; Go(Page.Briefing); }, color: new Color(1f, 0.75f, 0.35f),
                 card: new Card { title = "EXPEDIÇÃO (EXTRAÇÃO)", subtitle = "EQUIPAMENTO EM RISCO", color = new Color(1f, 0.6f, 0.3f),
                     body = "Leva a tua build contra bots. Dano, combustível e calor ativos.\n\nCHEGAR AO FIM (EXTRACTED): ✦ pela posição + extração + proezas e peças do Expedition Pool.\nDESTRUÍDO/SEM COMBUSTÍVEL: perdes até 3 peças não seguradas e os consumíveis levados. A peça segurada volta sempre.\n\nO Stardust da carteira nunca se perde." });
