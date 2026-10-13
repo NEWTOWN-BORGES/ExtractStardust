@@ -6,25 +6,11 @@ import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
-SRC, OUT = sys.argv[1], sys.argv[2]
+SRC, OUT, SHIP = sys.argv[1], sys.argv[2], (sys.argv[3] if len(sys.argv) > 3 else 'STRIX')
 os.makedirs(OUT, exist_ok=True)
-INFO = json.load(open(os.path.join(SRC, 'strix_info.json'), encoding='utf-8'))
+INFO = json.load(open(os.path.join(SRC, f'{SHIP.lower()}_info.json'), encoding='utf-8'))
 BG, INK, SUB, ACC = (236, 236, 238), (22, 22, 26), (90, 92, 98), (214, 92, 40)
-
-TEXT = {
-    'A': ("WEDGE · linguagem R02 (cunha de corrida longa). Corpo baixo e facetado em cunha; cockpit a meio, metido no corpo; "
-          "dois blocos de propulsão traseiros separados por uma ranhura; estabilizadores médios planos nos flancos dos blocos.",
-          "Construção: espinha central → célula do cockpit → ponte do reator entre os blocos → blocos de propulsão → hover sob o casco → painéis.",
-          "Força: equilíbrio e leitura clara a 50 m. Fraqueza: nenhuma especialidade. Refrigeração: scoops laterais com lábio que alimentam os blocos."),
-    'B': ("SPLIT · linguagem R10/R14 (garfo com espaço negativo). O nariz são duas lâminas em garfo com vazio entre elas; "
-          "o cockpit fica na junção; dois blocos de propulsão traseiros; estabilizadores médios nos blocos.",
-          "Construção: duas lâminas de impacto → viga de impacto na junção → célula do cockpit → ponte do reator → blocos de propulsão → painéis.",
-          "Força: silhueta inconfundível e nariz leve. Fraqueza: lâminas expostas a impacto frontal. Refrigeração: scoops laterais dos blocos."),
-    'C': ("POD · linguagem R05 (pod de corrida). Corpo comprido e plano com o cockpit à frente; o corpo divide-se atrás em dois "
-          "blocos de propulsão; respiros laterais longos; estabilizadores médios dianteiros.",
-          "Construção: espinha longa → célula do cockpit à frente → reator a meio (respiros) → blocos de propulsão → hover → painéis.",
-          "Força: estabilidade e visibilidade do piloto. Fraqueza: traseira longa menos ágil. Refrigeração: respiros laterais e scoops dos blocos."),
-}
+TEXT = {k: v['texts'] for k, v in INFO.items()}
 
 
 def font(size, bold=False):
@@ -67,7 +53,7 @@ def wrap(d, text, f, width):
 
 
 def load(key, view):
-    return Image.open(os.path.join(SRC, f"STRIX_{key}_{view}.png")).convert('RGBA')
+    return Image.open(os.path.join(SRC, f"{SHIP}_{key}_{view}.png")).convert('RGBA')
 
 
 for key, meta in INFO.items():
@@ -75,9 +61,9 @@ for key, meta in INFO.items():
     sheet = Image.new('RGB', (W, H), BG)
     d = ImageDraw.Draw(sheet)
     d.rectangle((0, 0, W, 118), fill=INK)
-    d.text((40, 18), f"STRIX — PROPOSTA {key} · {meta['label']}", font=font(52, True), fill=(255, 255, 255))
+    d.text((40, 18), f"{SHIP} — PROPOSTA {key} · {meta['label']}", font=font(52, True), fill=(255, 255, 255))
     d.text((42, 80), f"Fase A · silhueta / greybox · sem materiais, decals ou microdetalhe · {meta['length']:.2f} × {meta['width']:.2f} × {meta['height']:.2f} m "
-                     f"(alvo 6,2 × 3,0 × 1,25)", font=font(24), fill=(200, 200, 205))
+                     f"(alvo {meta['target']})", font=font(24), fill=(200, 200, 205))
     d.rectangle((W - 330, 30, W - 40, 88), outline=ACC, width=3)
     d.text((W - 185, 59), "PARA APROVAÇÃO", font=font(24, True), fill=ACC, anchor='mm')
     panel(sheet, d, load(key, 'f34'), (40, 140, 1230, 720), "3/4 FRENTE")
@@ -97,14 +83,14 @@ for key, meta in INFO.items():
             d.text((40, y), line, font=font(25, i == 0), fill=INK if i == 0 else SUB)
             y += 34
         y += 6
-    sheet.save(os.path.join(OUT, f"STRIX_{key}_{meta['label']}.jpg"), quality=90)
+    sheet.save(os.path.join(OUT, f"{SHIP}_{key}_{meta['label']}.jpg"), quality=90)
 
 # comparação: as três silhuetas lado a lado (escolha rápida)
 W, H = 2560, 1440
 sheet = Image.new('RGB', (W, H), (255, 255, 255))
 d = ImageDraw.Draw(sheet)
 d.rectangle((0, 0, W, 110), fill=INK)
-d.text((40, 22), "STRIX — FASE A · 3 PROPOSTAS · ESCOLHE UMA", font=font(50, True), fill=(255, 255, 255))
+d.text((40, 22), f"{SHIP} — FASE A · 3 PROPOSTAS · ESCOLHE UMA", font=font(50, True), fill=(255, 255, 255))
 for i, (key, meta) in enumerate(INFO.items()):
     x = 40 + i * 840
     d.text((x + 400, 150), f"{key} · {meta['label']}", font=font(42, True), fill=INK, anchor='mm')
@@ -113,5 +99,5 @@ for i, (key, meta) in enumerate(INFO.items()):
         sheet.paste(im, (x + (800 - im.width) // 2, yy + (hh - im.height) // 2), im)
     im = fit(load(key, 'f34'), 800, 360)
     sheet.paste(im, (x + (800 - im.width) // 2, 1070), im)
-sheet.save(os.path.join(OUT, "STRIX_comparacao_silhuetas.jpg"), quality=90)
+sheet.save(os.path.join(OUT, f"{SHIP}_comparacao_silhuetas.jpg"), quality=90)
 print('ok')

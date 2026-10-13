@@ -402,13 +402,28 @@ def render(path, cam, w, h, silhouette=False, ground=None):
         sh.show_cavity = sh.show_object_outline = sh.show_shadows = sh.show_specular_highlight = True
 
 
+SHIP, TARGET = 'STRIX', '6,2 × 3,0 × 1,25'
+TEXTS = {
+    'A': ("WEDGE · linguagem R02 (cunha de corrida longa). Corpo baixo e facetado em cunha; cockpit a meio, metido no corpo; dois blocos de propulsão traseiros separados por uma ranhura; estabilizadores médios nos flancos dos blocos.",
+          "Construção: espinha central → célula do cockpit → ponte do reator entre os blocos → blocos de propulsão → hover sob o casco → painéis.",
+          "Força: equilíbrio e leitura clara a 50 m. Fraqueza: nenhuma especialidade. Refrigeração: scoops laterais com lábio que alimentam os blocos."),
+    'B': ("SPLIT · linguagem R10/R14 (garfo com espaço negativo). O nariz são duas lâminas em garfo com vazio entre elas; o cockpit fica na junção; dois blocos de propulsão traseiros; estabilizadores médios nos blocos.",
+          "Construção: duas lâminas de impacto → viga de impacto na junção → célula do cockpit → ponte do reator → blocos de propulsão → painéis.",
+          "Força: silhueta inconfundível e nariz leve. Fraqueza: lâminas expostas a impacto frontal. Refrigeração: scoops laterais dos blocos."),
+    'C': ("POD · linguagem R05 (pod de corrida). Corpo comprido e plano com o cockpit à frente; o corpo divide-se atrás em dois blocos de propulsão; respiros laterais longos; estabilizadores médios dianteiros.",
+          "Construção: espinha longa → célula do cockpit à frente → reator a meio (respiros) → blocos de propulsão → hover → painéis.",
+          "Força: estabilidade e visibilidade do piloto. Fraqueza: traseira longa menos ágil. Refrigeração: respiros laterais e scoops dos blocos."),
+}
+PROPOSALS = None
+
+
 def main():
     global COLL
     setup_render()
-    proposals = [('A', 'WEDGE', strix_wedge), ('B', 'SPLIT', strix_split), ('C', 'POD', strix_pod)]
+    proposals = PROPOSALS or [('A', 'WEDGE', strix_wedge), ('B', 'SPLIT', strix_split), ('C', 'POD', strix_pod)]
     colls = {}
     for key, label, fn in proposals:
-        COLL = bpy.data.collections.new(f"STRIX_{key}_{label}")
+        COLL = bpy.data.collections.new(f"{SHIP}_{key}_{label}")
         SC.collection.children.link(COLL)
         fn()
         colls[key] = COLL
@@ -430,10 +445,10 @@ def main():
         for k, c in colls.items():
             c.hide_render = k != key
         for view, (cam, w, h) in cams.items():
-            render(os.path.join(OUT, f"STRIX_{key}_{view}.png"), cam, w, h, ground=ground)
+            render(os.path.join(OUT, f"{SHIP}_{key}_{view}.png"), cam, w, h, ground=ground)
         for view in ('top', 'side', 'front'):
             cam, w, h = cams[view]
-            render(os.path.join(OUT, f"STRIX_{key}_{view}_silhouette.png"), cam, w, h, silhouette=True, ground=ground)
+            render(os.path.join(OUT, f"{SHIP}_{key}_{view}_silhouette.png"), cam, w, h, silhouette=True, ground=ground)
         # medidas reais da proposta (bounding box dos objetos avaliados)
         dg = bpy.context.evaluated_depsgraph_get()
         pts = []
@@ -443,12 +458,13 @@ def main():
         mn = [min(p[i] for p in pts) for i in range(3)]
         mx = [max(p[i] for p in pts) for i in range(3)]
         info[key] = dict(label=label, length=round(mx[1] - mn[1], 2), width=round(mx[0] - mn[0], 2), height=round(mx[2], 2),
-                         objects=len(colls[key].objects))
-        print(f"[STRIX] {key} {label}: {info[key]}", flush=True)
+                         objects=len(colls[key].objects), ship=SHIP, target=TARGET, texts=list(TEXTS.get(key, ('', '', ''))))
+        print(f"[{SHIP}] {key} {label}: { {k: v for k, v in info[key].items() if k != 'texts'} }", flush=True)
     for c in colls.values():
         c.hide_render = False
-    json.dump(info, open(os.path.join(OUT, 'strix_info.json'), 'w'), indent=1)
+    json.dump(info, open(os.path.join(OUT, f'{SHIP.lower()}_info.json'), 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
     bpy.ops.wm.save_as_mainfile(filepath=BLEND)
 
 
-main()
+if __name__ == '__main__':
+    main()
