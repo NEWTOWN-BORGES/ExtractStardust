@@ -53,7 +53,7 @@ def leg_blade(name, s, root, tip, c_root, c_tip, le_root, le_tip, t_root=0.18, t
 def hover_ski(name, x, y0, y1, z, w=0.30, h=0.16):
     """Placa hover na ponta da perna: chapa baixa e larga com a frente chanfrada, emissores por baixo e junta de tornozelo
     onde a perna encaixa (nada de tubos compridos que pareçam mísseis)."""
-    w = max(w, 0.30) + 0.06
+    w = max(w, 0.24) + 0.04
     t = 0.08
     outline = [(x - w / 2, y1), (x + w / 2, y1), (x + w / 2, y0 - 0.22), (x + w / 2 - 0.10, y0), (x - w / 2 + 0.10, y0), (x - w / 2, y0 - 0.22)]
     slab(name, outline, z - t / 2, z + t / 2, M_MECH, bevel=0.012)
@@ -76,7 +76,7 @@ def strix_y_arch():
     for s in (1, -1):
         sd = 'R' if s > 0 else 'L'
         leg_blade(f"Y1_Leg_{sd}", s, (0.58, 0.68), (1.36, 0.30), 2.0, 1.6, 0.70, 0.50)
-        hover_ski(f"Y1_Ski_{sd}", s * 1.40, 0.95, -2.75, 0.26)
+        hover_ski(f"Y1_Ski_{sd}", s * 1.38, 0.55, -0.85, 0.26, w=0.26)
         tube(f"Y1_KeelStrut_{sd}", (s * 0.16, -0.40, 0.44), (s * 1.00, -0.60, 0.46), 0.03, M_STRUCT)
         prop_unit('Y1_Prop', s, 0.62, -1.20, -3.10, 0.50, 0.50, 0.70)
         harness(f"Y1_Harness_{sd}", [(s * 0.10, -1.60, 0.70), (s * 0.30, -1.70, 0.86), (s * 0.45, -1.90, 0.92)])

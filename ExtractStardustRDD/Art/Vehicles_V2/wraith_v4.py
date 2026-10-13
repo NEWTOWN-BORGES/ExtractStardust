@@ -31,7 +31,7 @@ def wraith_arch():
     for s in (1, -1):
         sd = 'R' if s > 0 else 'L'
         leg_blade(f"W1_Leg_{sd}", s, (0.40, 0.62), (1.10, 0.28), 1.70, 1.10, 0.60, -0.10, t_root=0.11, t_tip=0.08)
-        hover_ski(f"W1_Ski_{sd}", s * 1.13, 0.90, -2.40, 0.24, w=0.22, h=0.13)
+        hover_ski(f"W1_Ski_{sd}", s * 1.12, -0.02, -1.22, 0.24, w=0.24, h=0.13)
         tube(f"W1_KeelStrut_{sd}", (s * 0.10, -0.30, 0.42), (s * 0.80, -0.60, 0.40), 0.022, M_STRUCT)
         prop_unit('W1_Prop', s, 0.22, -1.45, -3.25, 0.30, 0.36, 0.56)
         harness(f"W1_Harness_{sd}", [(s * 0.06, -1.40, 0.66), (s * 0.16, -1.60, 0.72)], n=2)
