@@ -343,4 +343,5 @@ def main_b():
     bpy.ops.wm.save_as_mainfile(filepath=BLEND)
 
 
-main_b()
+if globals().get('RUN_MAIN', True):
+    main_b()
