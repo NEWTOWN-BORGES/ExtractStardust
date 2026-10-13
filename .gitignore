@@ -30,6 +30,8 @@
 **/crashlytics-build.properties
 **/*.apk
 **/*.aab
+# exceção: cópias jogáveis guardadas pelo Git LFS (ver .gitattributes)
+!Builds_Jogaveis/*.apk
 
 # EXTRACT: STARDUST — RED DUST DIVIDE: geometria gerada pelo pipeline do Blender
 # (regenerar com: powershell -File ExtractStardustRDD/Tools/m1_pipeline.ps1)
