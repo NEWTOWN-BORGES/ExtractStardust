@@ -514,6 +514,10 @@ def clip_grid(pts, nrm, col, uv, uv2, d, who, skip, paths, xi=0):
 def main():
     global KS, KSP
     spec = json.load(open(SPEC_PATH, encoding='utf-8'))
+    # interruptores de jogabilidade: ramos (junções em camadas ainda por resolver) e features desligadas uma a uma
+    if not spec.get('branches_enabled', True):
+        spec['branches'] = []
+    spec['features'] = [f for f in spec.get('features', []) if f.get('enabled', True)]
     KS = int(spec.get('wall_samples', KS))             # amostras das paredes próximas (percursos longos: menos)
     KSP = KS + 2
     name = spec['name']

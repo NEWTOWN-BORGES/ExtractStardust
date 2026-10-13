@@ -141,7 +141,10 @@ namespace RedDust.EditorTools
             var wreck = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/WreckMetal.mat");
             var sky = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/SkyRDD.mat");
             var root = new GameObject("Course_" + name);
-            int colliders = 0, tris = 0, rocksOff = 0, rocksKept = 0;
+            int colliders = 0, tris = 0, rocksOff = 0, rocksKept = 0, rocksGone = 0;
+            var graphAsset = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dst}/{name}_graph.bytes");
+            var courseAsset = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dst}/{name}_course.bytes");
+            var ride = new RideIndex(graphAsset != null ? CourseGraph.Load(graphAsset.bytes) : CourseGraph.Single(CourseData.Load(courseAsset.bytes)));
             // pedras pequenas não colidem (pedido do jogador): só objetos grandes (pilares, blocos grandes, paredes) batem
             string genDir = $"Assets/RedDust/Generated/{name}_colliders";
             if (AssetDatabase.IsValidFolder(genDir)) AssetDatabase.DeleteAsset(genDir);
@@ -169,16 +172,18 @@ namespace RedDust.EditorTools
                     bool scatter = mf.name.StartsWith("GEO_Rocks"), onTrack = mf.name.StartsWith("GEO_Obstacles");
                     if (scatter || onTrack)
                     {
-                        var big = BigIslands(mf.sharedMesh, mf.transform.localToWorldMatrix, BigRock, out int off, out int kept);
-                        rocksOff += off; rocksKept += kept;
-                        if (big == null) colMesh = null;
-                        else if (big != mf.sharedMesh)
+                        // rochas: as que entram na zona de corrida saem; pequenas sem colisão; no traçado só ficam os pilares
+                        var (render, col) = SplitRocks(mf.sharedMesh, mf.transform.localToWorldMatrix, BigRock, scatter ? ride.Intrudes : null, onTrack,
+                                                       out int off, out int kept, out int gone);
+                        rocksOff += off; rocksKept += kept; rocksGone += gone;
+                        if (render != mf.sharedMesh)
                         {
-                            AssetDatabase.CreateAsset(big, $"{genDir}/{mf.name}_{colliders}.asset");
-                            colMesh = big;
-                            if (onTrack) mf.sharedMesh = big;   // blocos pequenos caídos no traçado saem da pista
+                            if (render != null) AssetDatabase.CreateAsset(render, $"{genDir}/{mf.name}_{colliders}_r.asset");
+                            mf.sharedMesh = render;
+                            if (render == null) mr.enabled = false;
                         }
-                        if (onTrack && big == null) { mr.enabled = false; }
+                        if (col != null && col != render && col != colMesh) AssetDatabase.CreateAsset(col, $"{genDir}/{mf.name}_{colliders}_c.asset");
+                        colMesh = col;
                     }
                     if (colMesh != null)
                     {
@@ -186,7 +191,7 @@ namespace RedDust.EditorTools
                         mc.sharedMesh = colMesh;
                         colliders++;
                     }
-                    tris += mf.sharedMesh.triangles.Length / 3;
+                    if (mf.sharedMesh != null) tris += mf.sharedMesh.triangles.Length / 3;
                 }
             }
             var course = root.AddComponent<CourseRuntime>();
@@ -211,7 +216,7 @@ namespace RedDust.EditorTools
             EditorSceneManager.SaveScene(scene, scenePath);
             EditorBuildSettings.scenes = AllScenes().Select(s => new EditorBuildSettingsScene(s, true)).ToArray();
             AssetDatabase.SaveAssets();
-            Debug.Log($"[RDD] pedras: {rocksOff} pequenas sem colisão (< {BigRock} m) · {rocksKept} grandes com colisão");
+            Debug.Log($"[RDD] pedras: {rocksGone} retiradas da zona de corrida · {rocksOff} pequenas sem colisão (< {BigRock} m) · {rocksKept} grandes com colisão");
             Debug.Log($"[RDD] cena {scenePath}: {parts.Count} ficheiros, {colliders} colliders, {tris / 1000}k triângulos, percurso {course.Data.Length / 1000f:0.00} km, {course.Graph.BranchCount} ramos");
         }
 
@@ -219,11 +224,13 @@ namespace RedDust.EditorTools
         const float BigRock = 8f;
 
         /// <summary>
-        /// Separa uma malha de pedras em ilhas (vértices soldados por posição, para juntar as costuras do FBX) e devolve
-        /// uma malha só com as ilhas grandes (mesmos vértices, cores de superfície incluídas). Devolve a própria malha se
-        /// todas forem grandes e null se nenhuma for.
+        /// Separa uma malha de pedras em ilhas (vértices soldados por posição, para juntar as costuras do FBX).
+        /// Saem por completo: as ilhas que entram na zona de corrida (intrudes) e, no traçado (dropSmall), as pequenas
+        /// soltas. Colisão: só ilhas grandes (maior dimensão >= minSize) e as peças encostadas a elas (chapéu dos pilares).
+        /// Devolve (malha visível, malha de colisão): a própria src quando não muda e null quando fica vazia.
         /// </summary>
-        static Mesh BigIslands(Mesh src, Matrix4x4 toWorld, float minSize, out int dropped, out int kept)
+        static (Mesh render, Mesh col) SplitRocks(Mesh src, Matrix4x4 toWorld, float minSize, System.Func<Bounds, bool> intrudes, bool dropSmall,
+                                                  out int dropped, out int kept, out int gone)
         {
             var v = src.vertices;
             var t = src.triangles;
@@ -252,25 +259,83 @@ namespace RedDust.EditorTools
                 var sz = kv.Value.size;
                 if (Mathf.Max(sz.x, Mathf.Max(sz.y, sz.z)) >= minSize) big.Add(kv.Key);
             }
-            // peças pequenas encostadas a uma grande (chapéu dos pilares, lascas) contam como parte dela
             var bigBounds = big.Select(k => { var b = bounds[k]; b.Expand(1f); return b; }).ToList();
             foreach (var kv in bounds)
                 if (!big.Contains(kv.Key) && bigBounds.Any(b => b.Intersects(kv.Value))) big.Add(kv.Key);
+            var removed = new HashSet<int>();
+            foreach (var kv in bounds)
+                if ((intrudes != null && intrudes(kv.Value)) || (dropSmall && !big.Contains(kv.Key))) removed.Add(kv.Key);
+            big.ExceptWith(removed);
+            gone = intrudes != null ? removed.Count : 0;
             kept = big.Count;
-            dropped = bounds.Count - big.Count;
-            if (dropped == 0) return src;
-            if (kept == 0) return null;
-            var keep = new List<int>(t.Length);
-            for (int i = 0; i + 2 < t.Length; i += 3)
-                if (big.Contains(Find(id[t[i]]))) { keep.Add(t[i]); keep.Add(t[i + 1]); keep.Add(t[i + 2]); }
-            var m = new Mesh { name = src.name + "_big", indexFormat = v.Length > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
-            m.vertices = v;
-            m.normals = src.normals;
-            if (src.colors32 != null && src.colors32.Length == v.Length) m.colors32 = src.colors32;
-            if (src.uv != null && src.uv.Length == v.Length) m.uv = src.uv;
-            m.SetTriangles(keep, 0);
-            m.RecalculateBounds();
-            return m;
+            dropped = bounds.Count - big.Count - removed.Count;
+            Mesh Sub(System.Func<int, bool> keep, string suffix)
+            {
+                var idx = new List<int>(t.Length);
+                for (int i = 0; i + 2 < t.Length; i += 3)
+                    if (keep(Find(id[t[i]]))) { idx.Add(t[i]); idx.Add(t[i + 1]); idx.Add(t[i + 2]); }
+                if (idx.Count == t.Length) return src;
+                if (idx.Count == 0) return null;
+                var m = new Mesh { name = src.name + suffix, indexFormat = v.Length > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
+                m.vertices = v;
+                m.normals = src.normals;
+                if (src.colors32 != null && src.colors32.Length == v.Length) m.colors32 = src.colors32;
+                if (src.uv != null && src.uv.Length == v.Length) m.uv = src.uv;
+                m.SetTriangles(idx, 0);
+                m.RecalculateBounds();
+                return m;
+            }
+            var render = removed.Count == 0 ? src : Sub(k => !removed.Contains(k), "_vis");
+            bool sameSet = big.Count == bounds.Count - removed.Count;
+            var col = sameSet ? render : Sub(k => big.Contains(k), "_col");
+            return (render, col);
+        }
+
+        /// <summary>
+        /// Índice espacial das estações de todos os percursos: diz se uma caixa (rocha) entra na zona de corrida
+        /// (lateralmente dentro das linhas de corrida e à altura do chão).
+        /// </summary>
+        sealed class RideIndex
+        {
+            const float Cell = 40f;
+            readonly Dictionary<long, List<(CourseData d, int i)>> cells = new Dictionary<long, List<(CourseData d, int i)>>();
+
+            public RideIndex(CourseGraph g)
+            {
+                foreach (var p in g.Paths)
+                    for (int i = 0; i < p.Data.StationCount; i++)
+                    {
+                        var c = p.Data.Center[i];
+                        long k = Key(Mathf.FloorToInt(c.x / Cell), Mathf.FloorToInt(c.z / Cell));
+                        if (!cells.TryGetValue(k, out var list)) cells[k] = list = new List<(CourseData d, int i)>();
+                        list.Add((p.Data, i));
+                    }
+            }
+
+            static long Key(int x, int z) => ((long)x << 32) ^ (uint)z;
+
+            public bool Intrudes(Bounds b)
+            {
+                float y = b.min.y + Mathf.Min(0.8f, b.size.y * 0.5f);
+                var pts = new[] { new Vector3(b.center.x, y, b.center.z), new Vector3(b.min.x, y, b.min.z), new Vector3(b.max.x, y, b.min.z),
+                                  new Vector3(b.min.x, y, b.max.z), new Vector3(b.max.x, y, b.max.z) };
+                int cx = Mathf.FloorToInt(b.center.x / Cell), cz = Mathf.FloorToInt(b.center.z / Cell);
+                int r = 1 + Mathf.CeilToInt(Mathf.Max(b.extents.x, b.extents.z) / Cell);
+                for (int dx = -r; dx <= r; dx++)
+                    for (int dz = -r; dz <= r; dz++)
+                    {
+                        if (!cells.TryGetValue(Key(cx + dx, cz + dz), out var list)) continue;
+                        foreach (var (d, i) in list)
+                            foreach (var p in pts)
+                            {
+                                if (Mathf.Abs(Vector3.Dot(p - d.Center[i], d.Tangent[i])) > 3.5f) continue;
+                                float h = Vector3.Dot(p - d.LanePoint(i, 0f), d.Up[i]);
+                                if (h < -3f || h > 8f) continue;
+                                if (d.OutsideRide(p, i) <= 0.5f) return true;
+                            }
+                    }
+                return false;
+            }
         }
 
         /// <summary>Título da pista (campo "title" do JSON em Art/Courses).</summary>

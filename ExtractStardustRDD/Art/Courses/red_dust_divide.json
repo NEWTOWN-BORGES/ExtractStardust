@@ -1784,7 +1784,8 @@
    "from": 5172.0,
    "to": 5800.0,
    "every": 220,
-   "gap_m": 18
+   "gap_m": 18,
+   "enabled": false
   },
   {
    "type": "rockfall",
@@ -1792,7 +1793,8 @@
    "from": 66638.0,
    "to": 67538.0,
    "every": 180,
-   "gap_m": 16
+   "gap_m": 16,
+   "enabled": false
   },
   {
    "type": "pillars",
@@ -1834,7 +1836,8 @@
    "from": 13296.0,
    "to": 14256.0,
    "every": 240,
-   "gap_m": 16
+   "gap_m": 16,
+   "enabled": false
   },
   {
    "type": "rockfall",
@@ -1842,7 +1845,8 @@
    "from": 32270.0,
    "to": 33003.0,
    "every": 200,
-   "gap_m": 15
+   "gap_m": 15,
+   "enabled": false
   },
   {
    "type": "rockfall",
@@ -1850,7 +1854,8 @@
    "from": 58966.0,
    "to": 60166.0,
    "every": 200,
-   "gap_m": 18
+   "gap_m": 18,
+   "enabled": false
   },
   {
    "type": "pillars",
@@ -2123,5 +2128,6 @@
     }
    ]
   }
- ]
+ ],
+ "branches_enabled": false
 }

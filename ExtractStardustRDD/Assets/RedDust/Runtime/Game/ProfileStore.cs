@@ -21,11 +21,18 @@ namespace RedDust.Game
                 if (File.Exists(path))
                 {
                     var p = JsonUtility.FromJson<PlayerProfile>(File.ReadAllText(path));
-                    if (p != null) { p.slot = slot; Economy.Sanitize(p); return p; }
+                    if (p != null)
+                    {
+                        p.slot = slot;
+                        Economy.Sanitize(p);
+                        if (Economy.GrantWelcomeKit(p, (ulong)DateTime.UtcNow.Ticks)) Save(p);   // perfis antigos também recebem o kit
+                        return p;
+                    }
                 }
             }
             catch (Exception e) { Debug.LogWarning($"[RDD perfil] {slot} ilegível, a criar novo: {e.Message}"); }
             var fresh = Economy.NewProfile(slot, defaultName, (ulong)DateTime.UtcNow.Ticks ^ Economy.StableHash(slot));
+            Economy.GrantWelcomeKit(fresh, (ulong)DateTime.UtcNow.Ticks);
             Save(fresh);
             return fresh;
         }

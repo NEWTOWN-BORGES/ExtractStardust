@@ -258,6 +258,7 @@ namespace RedDust.Vehicle
             UpRateDeg = Vector3.Angle(lastUp, up) / dt;
             UpRateSmoothed = Mathf.Lerp(UpRateSmoothed, UpRateDeg, MathX.Damp(10f, dt));
             lastUp = up;
+            preVel = Body.linearVelocity;
         }
 
         /// <summary>No ar: inclinar para a superfície onde a trajetória balística vai aterrar.</summary>
@@ -282,7 +283,28 @@ namespace RedDust.Vehicle
             return Vector3.up;
         }
 
-        void OnCollisionEnter(Collision c) => ReportImpact(c);
+        Vector3 preVel;   // velocidade antes da simulação física (para não perder velocidade em degraus/emendas do chão)
+
+        void OnCollisionEnter(Collision c) { if (!GroundGraze(c)) ReportImpact(c); }
+        void OnCollisionStay(Collision c) => GroundGraze(c);
+
+        /// <summary>
+        /// Toques do casco no chão (barriga, degraus, emendas e falhas da malha): não são batidas. Mantém a velocidade ao
+        /// longo da superfície, dá um pequeno impulso para cima e não conta impacto. Paredes e rochas de frente contam.
+        /// </summary>
+        bool GroundGraze(Collision c)
+        {
+            if (c.contactCount == 0 || ((1 << c.gameObject.layer) & Layers.GroundMask) == 0) return false;
+            var cp = c.GetContact(0);
+            Vector3 n = cp.normal;
+            float upDot = Vector3.Dot(n, Up);
+            bool low = Vector3.Dot(cp.point - Position, Up) < -tuning.hullSize.y * 0.2f;
+            bool facing = Vector3.Dot(n, Forward) < -0.75f && upDot < 0.35f;   // parede/rocha mesmo à frente
+            if (facing || (upDot < 0.35f && !low)) return false;
+            Vector3 v = Vector3.ProjectOnPlane(preVel, n);
+            if (Vector3.Dot(preVel, n) < 0f) Body.linearVelocity = v + Up * 0.8f;
+            return true;
+        }
 
         void ReportImpact(Collision c)
         {

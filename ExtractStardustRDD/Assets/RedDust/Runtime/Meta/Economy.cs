@@ -191,6 +191,44 @@ namespace RedDust.Meta
             return p;
         }
 
+        public const long WelcomeBonus = 25000;
+
+        /// <summary>
+        /// Kit de boas-vindas generoso (pedido do jogador): ✦ extra, STRIX completa com peças Incomuns/Raras nos sockets
+        /// vazios, peças extra para experimentar builds e consumíveis de todos os tipos. Idempotente: aplica-se uma vez a
+        /// cada perfil, novo ou antigo.
+        /// </summary>
+        public static bool GrantWelcomeKit(PlayerProfile p, ulong seed)
+        {
+            if (AlreadyApplied(p, "kit:welcome_v2")) return false;
+            var rng = new Rng(seed ^ 0x5EED5EEDUL);
+            p.stardust += WelcomeBonus;
+            Log(p, "bonus", WelcomeBonus, "Kit de boas-vindas");
+            EquipmentInstance Add(string id, Rarity r)
+            {
+                var def = Catalog.Def(id);
+                if (def == null) return null;
+                var it = ItemFactory.Create(def, r, rng, "kit", p.slot);
+                p.items.Add(it);
+                return it;
+            }
+            var b = p.Build("strix");
+            foreach (var (id, sock, r) in new[] { ("prop_vector", "Propulsion", Rarity.Rare), ("rea_steady", "Reactor", Rarity.Rare),
+                                                  ("tail_twin", "Tail", Rarity.Uncommon), ("util_scanner", "Utility", Rarity.Uncommon) })
+            {
+                var it = Add(id, r);
+                var s = b?.slots.Find(x => x.socket == sock);
+                if (it != null && s != null && string.IsNullOrEmpty(s.item)) s.item = it.id;
+            }
+            foreach (var (id, r) in new[] { ("eng_hx", Rarity.Rare), ("eng_ironcore", Rarity.Uncommon), ("prop_twin", Rarity.Uncommon), ("prop_heavy", Rarity.Uncommon),
+                                            ("wing_blade", Rarity.Rare), ("wing_brace", Rarity.Uncommon), ("arm_plate", Rarity.Uncommon), ("arm_skin", Rarity.Rare),
+                                            ("rea_flux", Rarity.Rare), ("cool_vent", Rarity.Uncommon), ("tail_compact", Rarity.Uncommon), ("util_drone", Rarity.Uncommon) })
+                Add(id, r);
+            foreach (var (id, n) in new[] { ("foam", 6), ("fuel", 5), ("coolant", 5), ("stab", 3), ("surge", 3), ("nanogel", 2) })
+                AddStock(p, id, n);
+            return true;
+        }
+
         /// <summary>Repara perfis antigos ou editados: listas nulas, peças inexistentes, loadout acima do stock.</summary>
         public static void Sanitize(PlayerProfile p)
         {

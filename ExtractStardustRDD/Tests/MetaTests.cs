@@ -130,6 +130,15 @@ static class MetaTests
         Check(p.stardust == 1000, "saldo inicial ✦1000");
         Check(p.Equipped().Count == 4 && p.insured == p.Equipped()[0].id, "kit inicial montado e segurado");
         Check(BuildValidator.Validate(p, "strix").Count == 0, "build inicial válida");
+        {   // kit de boas-vindas: generoso, válido e só uma vez
+            var k = Economy.NewProfile("pk", "Kit", 77);
+            long kb = k.stardust; int ki = k.items.Count;
+            Check(Economy.GrantWelcomeKit(k, 5), "kit de boas-vindas aplicado");
+            Check(k.stardust == kb + Economy.WelcomeBonus && k.items.Count == ki + 16, "kit: ✦ e 16 peças");
+            Check(k.Build("strix").slots.TrueForAll(sl => !string.IsNullOrEmpty(sl.item)), "kit: STRIX com todos os sockets");
+            Check(BuildValidator.Validate(k, "strix").Count == 0, "kit: build da STRIX válida");
+            Check(!Economy.GrantWelcomeKit(k, 6) && k.stardust == kb + Economy.WelcomeBonus, "kit: idempotente");
+        }
         Check(Economy.BuyConsumable(p, "foam") == null && p.stardust == 900 && p.StockCount("foam") == 3, "comprar Repair Foam");
         var bastionArmor = p.items.First(i => i.Def.family == Family.Armor);
         Check(Economy.Equip(p, "bastion", "Armor", bastionArmor) != null, "armadura M recusada no BASTION (L)");
