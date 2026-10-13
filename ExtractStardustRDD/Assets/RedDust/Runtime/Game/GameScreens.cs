@@ -161,9 +161,9 @@ namespace RedDust.Game
             Add("MERCADO", "consumíveis · peças · caixas", () => Go(Page.Market), card: new Card { title = "MERCADO", body = "Consumíveis, componentes em rotação e Supply Caches de 10 itens aleatórios (Standard, Advanced, Elite)." });
             Add("ÚLTIMA EXPEDIÇÃO", P.last != null ? $"{P.last.state} {P.last.position}/{P.last.racers}" : "—", () => Go(Page.Report),
                 card: new Card { title = "RELATÓRIO", body = "O que levaste, o que perdeste e o que ganhaste na última expedição." });
-            Add("Pista", $"◀ {courseTitle} ▶", () => ChangeCourse(1), ChangeCourse);
-            Add("Bots", $"◀ {botCount} ▶", null, d => botCount = Mathf.Clamp(botCount + d, 1, 19));
-            Add("Dificuldade", $"◀ {Difficulty(difficulty)} ▶", null, d => difficulty = (difficulty + d + 3) % 3);
+            Add("Pista", $"‹ {courseTitle} ›", () => ChangeCourse(1), ChangeCourse);
+            Add("Bots", $"‹ {botCount} ›", null, d => botCount = Mathf.Clamp(botCount + d, 1, 19));
+            Add("Dificuldade", $"‹ {Difficulty(difficulty)} ›", null, d => difficulty = (difficulty + d + 3) % 3);
             Add("Opções", "", () => { optionsReturn = Page.Main; Go(Page.Options); });
             Add("Sair", "", () => Application.Quit());
         }
@@ -180,8 +180,8 @@ namespace RedDust.Game
             var c = Catalog.ChassisOf(p.chassis);
             title = "HANGAR";
             subtitle = $"{p.name}  ·  {Fmt.Dust(p.stardust)}  ·  build {Fmt.Dust(p.BuildValue)}  ·  em risco {Fmt.Dust(p.ValueAtRisk)}";
-            Add("Piloto", $"◀ {p.name} ▶", () => SwitchPilot(1), SwitchPilot);
-            Add("Chassis", $"◀ {c.name} ▶", null, d =>
+            Add("Piloto", $"‹ {p.name} ›", () => SwitchPilot(1), SwitchPilot);
+            Add("Chassis", $"‹ {c.name} ›", null, d =>
             {
                 int i = Array.IndexOf(Catalog.Chassis, c);
                 p.chassis = Catalog.Chassis[(i + d + Catalog.Chassis.Length) % Catalog.Chassis.Length].id;
@@ -200,7 +200,7 @@ namespace RedDust.Game
             Header("EXPEDIÇÃO");
             var eq = p.Equipped();
             var ins = p.Item(p.insured);
-            Add("Peça segurada", ins != null ? $"◀ {ins.Label} ▶" : (eq.Count > 0 ? "◀ nenhuma ▶" : "monta uma peça primeiro"), null, d =>
+            Add("Peça segurada", ins != null ? $"‹ {ins.Label} ›" : (eq.Count > 0 ? "‹ nenhuma ›" : "monta uma peça primeiro"), null, d =>
             {
                 if (eq.Count == 0) return;
                 int i = eq.FindIndex(x => x.id == p.insured);
@@ -214,7 +214,7 @@ namespace RedDust.Game
                 int slot = k;
                 var st = p.loadout[slot];
                 var cd = Catalog.Consumable(st.id);
-                Add($"Consumível {slot + 1}", cd != null ? $"◀ {cd.name} ×{st.count} ▶" : "◀ (vazio) ▶", () =>
+                Add($"Consumível {slot + 1}", cd != null ? $"‹ {cd.name} ×{st.count} ›" : "‹ (vazio) ›", () =>
                 {
                     if (cd == null) return;
                     Economy.SetLoadout(p, slot, st.id, st.count >= Economy.UnitsPerSlot ? 0 : st.count + 1);
@@ -272,7 +272,7 @@ namespace RedDust.Game
         {
             title = "MOCHILA";
             subtitle = $"{p.name}  ·  {Fmt.Dust(p.stardust)}  ·  {p.items.Count} peças  ·  avaliação {Fmt.Dust(p.items.Sum(i => (long)i.value))}";
-            Add("Piloto", $"◀ {p.name} ▶", () => SwitchPilot(1), SwitchPilot);
+            Add("Piloto", $"‹ {p.name} ›", () => SwitchPilot(1), SwitchPilot);
             Header("PEÇAS");
             foreach (var it in p.items.OrderByDescending(i => i.rarity).ThenBy(i => i.Def.family).ThenByDescending(i => i.value))
             {
@@ -297,7 +297,7 @@ namespace RedDust.Game
         {
             title = "MERCADO";
             subtitle = $"{p.name}  ·  {Fmt.Dust(p.stardust)}";
-            Add("Piloto", $"◀ {p.name} ▶", () => SwitchPilot(1), SwitchPilot);
+            Add("Piloto", $"‹ {p.name} ›", () => SwitchPilot(1), SwitchPilot);
             Header("CONSUMÍVEIS");
             foreach (var c in Catalog.Consumables)
             {
@@ -351,7 +351,7 @@ namespace RedDust.Game
         {
             title = "ÚLTIMA EXPEDIÇÃO";
             subtitle = P.name;
-            Add("Piloto", $"◀ {P.name} ▶", () => SwitchPilot(1), SwitchPilot);
+            Add("Piloto", $"‹ {P.name} ›", () => SwitchPilot(1), SwitchPilot);
             Add("VOLTAR", "", () => Go(Page.Main));
         }
 
@@ -359,11 +359,11 @@ namespace RedDust.Game
         {
             title = "OPÇÕES";
             subtitle = "";
-            Add("Tremor da câmera", $"◀ {Mathf.RoundToInt(shake * 100)}% ▶", null, d => { shake = Mathf.Clamp(shake + 0.25f * d, 0f, 1.5f); ApplyOptions(); });
-            Add("Campo de visão extra", $"◀ {fovExtra:+0;-0;0}° ▶", null, d => { fovExtra = Mathf.Clamp(fovExtra + 5f * d, -10f, 10f); ApplyOptions(); });
-            Add("Vibração do comando", vibration ? "◀ ligada ▶" : "◀ desligada ▶", () => { vibration = !vibration; ApplyOptions(); }, d => { vibration = !vibration; ApplyOptions(); });
-            Add("Bots", $"◀ {botCount} ▶", null, d => botCount = Mathf.Clamp(botCount + d, 1, 19));
-            Add("Dificuldade", $"◀ {Difficulty(difficulty)} ▶", null, d => difficulty = (difficulty + d + 3) % 3);
+            Add("Tremor da câmera", $"‹ {Mathf.RoundToInt(shake * 100)}% ›", null, d => { shake = Mathf.Clamp(shake + 0.25f * d, 0f, 1.5f); ApplyOptions(); });
+            Add("Campo de visão extra", $"‹ {fovExtra:+0;-0;0}° ›", null, d => { fovExtra = Mathf.Clamp(fovExtra + 5f * d, -10f, 10f); ApplyOptions(); });
+            Add("Vibração do comando", vibration ? "‹ ligada ›" : "‹ desligada ›", () => { vibration = !vibration; ApplyOptions(); }, d => { vibration = !vibration; ApplyOptions(); });
+            Add("Bots", $"‹ {botCount} ›", null, d => botCount = Mathf.Clamp(botCount + d, 1, 19));
+            Add("Dificuldade", $"‹ {Difficulty(difficulty)} ›", null, d => difficulty = (difficulty + d + 3) % 3);
             Add($"Recomeçar perfil de {P.name}", "apaga carteira e garagem", () =>
             {
                 if (!Armed("reset" + editing, "Carrega outra vez: o perfil volta ao início (✦1 000 e kit inicial)")) return;
@@ -417,8 +417,8 @@ namespace RedDust.Game
                 body = "Sem loot na pista: a corrida continua sempre corrida.\n\nSe fores destruído ou ficares sem combustível: perdes até 3 peças não seguradas (vão para o Expedition Pool) e os consumíveis que levas.\n\nNo fim, as peças reais do Pool são distribuídas pelos EXTRACTED, com prioridade às melhores posições. O Pool nunca inventa peças.\n\nNa corrida: L1 / 1-2-3 consumíveis · Triângulo / R reposiciona (penalização).",
             });
             start.enabled = ok;
-            Add("Bots", $"◀ {botCount} ▶", null, d => botCount = Mathf.Clamp(botCount + d, 1, 19));
-            Add("Dificuldade", $"◀ {Difficulty(difficulty)} ▶", null, d => difficulty = (difficulty + d + 3) % 3);
+            Add("Bots", $"‹ {botCount} ›", null, d => botCount = Mathf.Clamp(botCount + d, 1, 19));
+            Add("Dificuldade", $"‹ {Difficulty(difficulty)} ›", null, d => difficulty = (difficulty + d + 3) % 3);
             Add("VOLTAR", "", () => Go(Page.Main));
         }
 

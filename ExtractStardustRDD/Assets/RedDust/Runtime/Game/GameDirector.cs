@@ -37,7 +37,7 @@ namespace RedDust.Game
         readonly List<View> views = new List<View>();
         Camera menuCam;
         CraftController preview;
-        float orbitYaw = 200f, orbitDist = 10.5f, countdown, endTimer = -1f;
+        float orbitYaw = 200f, orbitDist = 13f, countdown, endTimer = -1f;
         bool autoExtract;
 
         // escolhas que sobrevivem à troca de pista (cena)
@@ -177,9 +177,8 @@ namespace RedDust.Game
             Vector3 target = preview.transform.position + preview.transform.up * 0.4f;
             Quaternion q = preview.transform.rotation * Quaternion.Euler(14f, orbitYaw, 0f);
             Vector3 pos = target + q * new Vector3(0f, 0f, -orbitDist);
-            // enquadramento: nave ligeiramente à direita do centro (a lista de menus ocupa a esquerda)
+            // nave ao centro, entre a lista (esquerda) e o cartão de informação (direita): é a protagonista do Hangar
             menuCam.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(target - pos, preview.transform.up));
-            menuCam.transform.position -= menuCam.transform.right * orbitDist * 0.18f;
             menuCam.fieldOfView = 50f;
         }
 

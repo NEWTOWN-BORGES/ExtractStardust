@@ -123,7 +123,9 @@ namespace RedDust.Game
             Shadowed(new Rect(56, 34, W - 112, 64), title, St(52, FontStyle.Bold), Color.white);
             Shadowed(new Rect(58, 92, W - 116, 34), subtitle, St(24), new Color(1f, 0.86f, 0.66f));
 
-            float x = 48, y = 140, w = 760, rowH = 54, headH = 38;
+            // com cartão (Hangar, Mercado…) a lista estreita para deixar a nave 3D visível ao centro
+            float x = 48, y = 140, w = withCard ? 640 : 760, rowH = 54, headH = 38;
+            int labelSize = withCard ? 25 : 27, valueSize = withCard ? 21 : 23;
             float maxH = H - y - 60;
             // janela de itens à volta da seleção (listas longas na Mochila)
             float total = items.Sum(i => i.header ? headH : rowH);
@@ -139,7 +141,7 @@ namespace RedDust.Game
             {
                 var it = items[i];
                 float h = it.header ? headH : rowH;
-                if (cy + h > y + maxH) { Text(new Rect(x, cy - 6, w, 24), "▼", St(20, FontStyle.Bold, TextAnchor.MiddleCenter), new Color(1f, 1f, 1f, 0.5f)); break; }
+                if (cy + h > y + maxH) { Text(new Rect(x, cy - 6, w, 24), "↓", St(20, FontStyle.Bold, TextAnchor.MiddleCenter), new Color(1f, 1f, 1f, 0.5f)); break; }
                 var row = new Rect(x, cy, w, h - 4);
                 if (it.header)
                 {
@@ -152,8 +154,8 @@ namespace RedDust.Game
                     float tx = x + 18;
                     if (it.icon != null) { GUI.DrawTexture(new Rect(x + 14, cy + 3, h - 10, h - 10), it.icon); tx += h; }
                     var col = it.enabled ? it.color : new Color(0.5f, 0.5f, 0.52f);
-                    Text(new Rect(tx, cy, w * 0.56f - (tx - x), h - 4), it.label, St(27, selected ? FontStyle.Bold : FontStyle.Normal), col);
-                    Text(new Rect(x + w * 0.5f, cy, w * 0.5f - 16, h - 4), it.value, St(23, FontStyle.Normal, TextAnchor.MiddleRight), it.enabled ? new Color(0.9f, 0.9f, 0.92f) : col);
+                    Text(new Rect(tx, cy, w * 0.56f - (tx - x), h - 4), it.label, St(labelSize, selected ? FontStyle.Bold : FontStyle.Normal), col);
+                    Text(new Rect(x + w * 0.5f, cy, w * 0.5f - 16, h - 4), it.value, St(valueSize, FontStyle.Normal, TextAnchor.MiddleRight), it.enabled ? new Color(0.9f, 0.9f, 0.92f) : col);
                     // rato/toque: clicar seleciona e confirma; setas laterais nos itens com valores
                     if (it.lr != null)
                     {
@@ -169,7 +171,7 @@ namespace RedDust.Game
                 cy += h;
             }
             Text(new Rect(x, H - 50, W - 100, 30), $"{GameInput.BtnConfirm} escolher · {GameInput.BtnBack} voltar · ←/→ mudar valores · clica para escolher", St(20), new Color(1f, 1f, 1f, 0.55f));
-            if (withCard && sel < items.Count && items[sel].card != null) DrawCard(items[sel].card, new Rect(W - 680, 140, 632, H - 220));
+            if (withCard && sel < items.Count && items[sel].card != null) DrawCard(items[sel].card, new Rect(W - 608, 140, 560, H - 220));
         }
 
         void DrawCard(Card c, Rect r)
@@ -400,7 +402,7 @@ namespace RedDust.Game
                 {
                     var ahead = session.racers.Where(o => o.Active && o != r && o.raceDistance > r.raceDistance).OrderBy(o => o.raceDistance).FirstOrDefault();
                     var behind = session.racers.Where(o => o.Active && o != r && o.raceDistance < r.raceDistance).OrderByDescending(o => o.raceDistance).FirstOrDefault();
-                    string intel = $"SENSORES  ▲ {(ahead != null ? $"{ahead.name} +{ahead.raceDistance - r.raceDistance:0} m" : "—")}   ▼ {(behind != null ? $"{behind.name} -{r.raceDistance - behind.raceDistance:0} m" : "—")}";
+                    string intel = $"SENSORES  ↑ {(ahead != null ? $"{ahead.name} +{ahead.raceDistance - r.raceDistance:0} m" : "—")}   ↓ {(behind != null ? $"{behind.name} -{r.raceDistance - behind.raceDistance:0} m" : "—")}";
                     Shadowed(new Rect(vr.center.x - 400, vr.y + pad * 0.5f + 92 * k, 800, 30 * k), intel, St(F(19), FontStyle.Normal, TextAnchor.MiddleCenter), new Color(0.55f, 1f, 0.85f));
                 }
             }
