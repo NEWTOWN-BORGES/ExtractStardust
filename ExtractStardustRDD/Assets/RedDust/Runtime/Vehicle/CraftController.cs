@@ -103,6 +103,13 @@ namespace RedDust.Vehicle
             wasGrounded = true;
         }
 
+        /// <summary>Energia de boost extra (consumível Surge Cell): soma ao depósito e desbloqueia-o.</summary>
+        public void AddNitro(float amount)
+        {
+            Nitro = Mathf.Clamp01(Nitro + amount);
+            if (Nitro >= tuning.nitroRestart) nitroLocked = false;
+        }
+
         void FixedUpdate()
         {
             if (autoStep) Step(Time.fixedDeltaTime);

@@ -37,9 +37,22 @@ namespace RedDust.Presentation
             return fx;
         }
 
+        /// <summary>
+        /// Ecrã dividido: o volume de pós-processamento e as partículas desta câmera passam para uma camada própria
+        /// (a câmera usa essa camada no volumeLayerMask e a outra câmera exclui-a do culling).
+        /// </summary>
+        public void Isolate(int layer)
+        {
+            foreach (var t in GetComponentsInChildren<Transform>(true)) if (t != transform) t.gameObject.layer = layer;
+            foreach (var ps in new[] { dust, flame, sparks })
+                if (ps != null) foreach (var t in ps.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer;
+        }
+
         void OnDestroy()
         {
             if (craft != null) craft.Impacted -= OnImpact;
+            // as partículas em espaço do mundo não são filhas da câmera: saem com ela (corridas seguidas)
+            foreach (var ps in new[] { dust, flame, sparks }) if (ps != null) Destroy(ps.gameObject);
         }
 
         void Build()

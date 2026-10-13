@@ -1,4 +1,5 @@
-﻿using UnityEditor;
+﻿using System.Linq;
+using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
@@ -18,15 +19,22 @@ namespace RedDust.EditorTools
         public static void BuildAndroid()
         {
             EditorUserBuildSettings.buildAppBundle = false;
-            int code = Build(BuildTarget.Android, "Builds/Android/RedDustDivide.apk");
+            int code = Build(BuildTarget.Android, "Builds/Android/RedDustDivide.apk", AndroidScenes());
             if (Application.isBatchMode) EditorApplication.Exit(code);
         }
 
-        static int Build(BuildTarget target, string path)
+        /// <summary>
+        /// Android: só o laboratório (26 km). A expedição completa (~106 km, ~730 MB de geologia) precisa de uma versão
+        /// móvel com menos resolução antes de caber na memória de um telemóvel; -androidAll força todas as pistas.
+        /// </summary>
+        static string[] AndroidScenes() =>
+            CommandLine.Has("-androidAll") ? CourseImporter.AllScenes() : CourseImporter.AllScenes().Where(s => s.EndsWith("RDD_Sandbox.unity")).ToArray();
+
+        static int Build(BuildTarget target, string path, string[] scenes = null)
         {
             var opts = new BuildPlayerOptions
             {
-                scenes = CourseImporter.AllScenes(),
+                scenes = scenes ?? CourseImporter.AllScenes(),
                 locationPathName = path,
                 target = target,
                 options = BuildOptions.None,

@@ -18,6 +18,8 @@ namespace RedDust.AI
         public float steerGain = 1.0f;
         public float lateralDamping = 0.02f;
         public float speedLimit = float.PositiveInfinity;
+        [Tooltip("Margem de aderência nas curvas (personalidade/dificuldade dos bots): mais alto = mais perto do limite")]
+        public float cornerMargin = 0.82f;
         public bool useBoost;
         /// <summary>Obstáculos do percurso atual (pilares, rocha caída), ordenados pela distância.</summary>
         public CourseObstacle[] obstacles;
@@ -88,7 +90,7 @@ namespace RedDust.AI
 
             // controlo de velocidade: curvatura à frente e limite pedido
             float kappa = course.CurvatureAhead(Distance, 60f + speed * 1.2f);
-            float vCurve = c.tuning.CornerSpeed(kappa, course.Bank[Mathf.Clamp(Station, 0, course.StationCount - 1)]);
+            float vCurve = c.tuning.CornerSpeed(kappa, course.Bank[Mathf.Clamp(Station, 0, course.StationCount - 1)], cornerMargin);
             float vMax = Mathf.Min(vCurve, speedLimit);
             input.throttle = speed > vMax ? 0f : 1f;
             input.brake = speed > vMax + 4f && Mathf.Abs(input.steer) < 0.3f;
