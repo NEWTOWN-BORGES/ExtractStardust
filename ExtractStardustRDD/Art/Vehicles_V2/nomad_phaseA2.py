@@ -219,4 +219,5 @@ TEXTS = {
           "Força: robustez e proteção. Fraqueza: área frontal e massa. Refrigeração: radiadores atrás das grelhas laterais com escotilha de serviço."),
 }
 PROPOSALS = [('A', 'HAULER', nomad_hauler), ('B', 'SPINE', nomad_spine), ('C', 'SHELL', nomad_shell)]
-main()
+if globals().get('RUN_MAIN2', True):
+    main()
