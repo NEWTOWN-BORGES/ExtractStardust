@@ -4,33 +4,51 @@
 
 | Pasta | O que é | Estado |
 |---|---|---|
-| `ExtractStardustRDD/` | **Projeto principal.** Expedição RED DUST DIVIDE: canyon natural (Utah/Arizona reinterpretado), física antigravidade nova a 400–450 km/h, geologia modelada no Blender. | Milestone 1 (laboratório de física) validado: 18/18 testes. A seguir: M2 (blockout da RED DUST DIVIDE). |
-| `ExtractStardust/` | Protótipo anterior: ilha de 24 km em mundo aberto (porte do RACESTARS), com expedição, circuitos, Wi-Fi e tela dividida. | Arquivo/teste. |
+| `ExtractStardustRDD/` | **Projeto principal.** Expedição RED DUST DIVIDE: canyons naturais (Utah/Arizona reinterpretados), naves a 400–450 km/h, geologia modelada no Blender. | Laboratório validado (21/22 testes). Expedição completa (105,7 km, 9 setores, ~20 min) gerada no Blender, por importar no Unity. |
+| `ExtractStardust/` | Protótipo anterior: ilha de 24 km em mundo aberto (porte do RACESTARS), com expedição, circuitos, Wi-Fi e tela dividida. | Arquivo. |
+| `Builds_Jogaveis/` | Jogos compilados (Git LFS). | Ver abaixo. |
 
-## Projeto principal (ExtractStardustRDD)
+## Jogar sem o Unity
 
+| Ficheiro | Conteúdo |
+|---|---|
+| `Builds_Jogaveis/RedDustDivide_Windows.zip` | Laboratório da RED DUST DIVIDE (última build, antes da expedição). Extrair a pasta inteira e abrir `RedDustDivide.exe`. |
+| `Builds_Jogaveis/IlhaPrototipo_Windows.zip` | Protótipo da ilha (Windows). |
+| `Builds_Jogaveis/IlhaPrototipo_Android.apk` | Protótipo da ilha (Android). |
+
+Os ficheiros grandes estão no Git LFS, que vem com o Git para Windows. Depois de clonar, se aparecerem ficheiros de 1 KB, correr `git lfs pull`.
+
+## Documentação
+
+- Expedição (setores, física, ferramentas): `ExtractStardustRDD/Docs/RDD_01_Expedicao.md`
 - Plano e decisões: `ExtractStardustRDD/Docs/RDD_00_Plano_Vertical_Slice.md`
-- Relatório de validação da física: `ExtractStardustRDD/Docs/M1_Relatorio_Fisica.md`
-- Pipeline da geologia: `Art/Courses/*.json` (percurso por segmentos) → Blender `Art/Blender/rdd_build_course.py` → FBX + dados do percurso → Unity (`Red Dust` no menu do editor).
+- Validação da física: `ExtractStardustRDD/Docs/M1_Relatorio_Fisica.md`
+- Documentos de design (mapas, naves, economia), imagens e vídeo de referência: `ExtractStardustRDD/Docs/referencias/`
+- Fotos: `ExtractStardustRDD/Docs/fotos/` (`expedicao` = renders do Blender das paisagens dos 9 setores; `laboratorio_m1` e `zonas_laboratorio` = capturas do Unity). Fotos do protótipo da ilha: `ExtractStardust/Docs/fotos/`.
 
-### Gerar a geologia e abrir o projeto
+## Gerar a geologia e compilar
 
-A geometria gerada (FBX de dezenas de MB) não vai para o repositório: gera-se em ~2 minutos.
+A geometria gerada (FBX, ~1,4 GB) não vai para o repositório. Gera-se a partir dos scripts, sempre igual (sementes fixas): ~2 min o laboratório, ~10 min a expedição.
 
 ```powershell
 # requisitos: Unity 6000.3.26f1 (com Android Build Support), Blender 5.2
-powershell -ExecutionPolicy Bypass -File ExtractStardustRDD/Tools/m1_pipeline.ps1 -Build
+powershell -ExecutionPolicy Bypass -File ExtractStardustRDD/Tools/m1_pipeline.ps1 -Course sandbox -Build
+powershell -ExecutionPolicy Bypass -File ExtractStardustRDD/Tools/m1_pipeline.ps1 -Course red_dust_divide -Build
 ```
 
-O script corre o Blender (geologia), importa no Unity (com teste automático de eixos/escala do FBX), valida a física (`Docs/M1_Relatorio_Fisica.md`) e compila `Builds/Windows/RedDustDivide.exe`.
+O script corre o Blender (`Art/Blender/rdd_build_route.py`), importa no Unity, valida (física, ramos, folgas) e compila `ExtractStardustRDD/Builds/Windows/RedDustDivide.exe`.
 
-### Controlos
+Os percursos são desenhados em `ExtractStardustRDD/Art/Courses/`. `make_red_dust_divide.py` gera `red_dust_divide.json`. `Art/Blender/rdd_plan.py` mostra o mapa, o tempo e as sobreposições sem abrir o Blender.
+
+## Controlos
 
 | Ação | Comando PS4/PS5 | Teclado |
 |---|---|---|
 | Direção | analógico esquerdo | A / D |
-| Boost | R2 ou X | W / Shift |
-| Travão / derrapagem (com direção) | L2 ou Quadrado | S / Espaço |
+| Acelerar | R2 | W |
+| Travar | L2 | S |
+| Derrapagem | Quadrado | Espaço |
+| Nitro (regenera) | X ou R1 | Shift |
 | Reposicionar | Triângulo | R |
 | Olhar à volta / para trás | analógico direito / R3 | C |
 | Pausa | OPTIONS | Esc |
