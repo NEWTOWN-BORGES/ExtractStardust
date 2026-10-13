@@ -202,8 +202,8 @@ def wreck(pb, f, col, seed):
         sink = rng.uniform(0.0, 4.0)
         apex = floor + clearance + 6.0 * math.sin(math.pi * k / nrib) + rng.uniform(-2.5, 2.5) + 2.0 - sink
         half_ring = max(abs(lat[pb.ringL]), abs(lat[pb.ringR]))
-        lL = _anchor(lat, y, floor + 7.0, -1, -half_ring * 0.4) - 3.0      # pernas fora das linhas de corrida
-        lR = _anchor(lat, y, floor + 7.0, 1, half_ring * 0.4) + 3.0
+        lL = _anchor(lat, y, floor + 9.0, -1, -half_ring * 0.4) - 5.0      # pernas fora das linhas de corrida
+        lR = _anchor(lat, y, floor + 9.0, 1, half_ring * 0.4) + 5.0
         mid = 0.5 * (lL + lR)
         broken = rng.random() < 0.3
         lo, hi = (lL, lR) if not broken else ((lL, mid + rng.uniform(-5, 10)) if rng.random() < 0.5 else (mid + rng.uniform(-10, 5), lR))

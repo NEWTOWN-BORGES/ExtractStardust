@@ -1,6 +1,6 @@
 # M1 — Relatório de validação da física e da câmera
 
-Gerado automaticamente em 2026-10-13 02:32 · passo fixo 1/90 s · 12 s de simulação real.
+Gerado automaticamente em 2026-10-13 02:44 · passo fixo 1/90 s · 12 s de simulação real.
 Percurso: laboratório (`Art/Courses/sandbox.json`), 26,12 km + 2 ramos (R1 Fenda (direita, mais funda) 1,70 km, R2 Bancada (esquerda, mais alta) 1,69 km). Nave: STRIX provisória (CraftTuning por omissão, 425 km/h).
 
 **Resultado: 21/22 testes passam.**
@@ -23,9 +23,9 @@ Percurso: laboratório (`Art/Courses/sandbox.json`), 26,12 km + 2 ramos (R1 Fend
 | T7 | Sem tunneling a 1,3-1,5x a velocidade máxima | 0 atravessamentos (1000 paredes + 200 quedas no leito) | paredes 0/1000 · leito 0/200 | ✅ PASSA |
 | T9 | Leito natural: três linhas viáveis (canal / bancadas) | todas terminam sem quedas nem impactos; diferença de tempo ≤ 12% | u=-0.55: 16.1 s, ar 0.0 s, aterragem máx. 0.0 m/s, Slickrock 78%, Sand 12%, Rock 10% · u=0.00: 16.9 s, ar 0.0 s, aterragem máx. 0.0 m/s, Sand 90%, DeepSand 8%, Slickrock 2% · u=0.55: 16.6 s, ar 0.0 s, aterragem máx. 0.0 m/s, Slickrock 72%, Sand 16%, Rock 12% · diferença 5.2% | ✅ PASSA |
 | G2 | Junções e ramos: superfície contínua | 0 buracos; 0 rocha a menos de 6 m por cima da linha de corrida; degrau entre amostras (3 m) ≤ 3 m | 24466 raios · buracos 0 · rocha por cima 0 · maior degrau 1.72 m (R2 Bancada (esquerda, mais alta) 14751 m u=0.60) | ✅ PASSA |
-| A1 | Arcos e destroços por cima da pista | arcos/destroços/pedras ≥ 6 m e paredes ≥ 2,5 m acima das linhas de corrida (fora das cavernas) | 33565 pontos · 315 sob arcos/destroços · folga mín. 1.1 m (R2 Bancada (esquerda, mais alta) 15351 m u=-0.9 (GEO_Rocks_R1_001)) · obstruídos 5 | ❌ FALHA |
-| G1 R1 | Ramo R1 Fenda (direita, mais funda) | sai, percorre e volta ao principal; 0 quedas; 0 impactos; contacto ≥ 97%; Δcima ≤ 120°/s; reconhecido pelo grafo ≥ 80% | 21.9 s · contacto 100.0% · Δcima máx. 55°/s · impactos 0 · quedas 0 · no ramo 86% do tempo (pelo grafo) · 21.9 s vs 21.7 s no principal | ✅ PASSA |
+| A1 | Arcos e destroços por cima da pista | arcos/destroços/pedras ≥ 6 m e paredes ≥ 2,5 m acima das linhas de corrida (fora das cavernas) | 33565 pontos · 308 sob arcos/destroços · folga mín. 5.6 m (main 13637 m u=-0.9 (GEO_Wreck_ma_13300)) · obstruídos 1 | ❌ FALHA |
+| G1 R1 | Ramo R1 Fenda (direita, mais funda) | sai, percorre e volta ao principal; 0 quedas; 0 impactos; contacto ≥ 97%; Δcima ≤ 120°/s; reconhecido pelo grafo ≥ 80% | 21.9 s · contacto 100.0% · Δcima máx. 56°/s · impactos 0 · quedas 0 · no ramo 86% do tempo (pelo grafo) · 21.9 s vs 21.7 s no principal | ✅ PASSA |
 | G1 R2 | Ramo R2 Bancada (esquerda, mais alta) | sai, percorre e volta ao principal; 0 quedas; 0 impactos; contacto ≥ 97%; Δcima ≤ 120°/s; reconhecido pelo grafo ≥ 80% | 22.4 s · contacto 100.0% · Δcima máx. 58°/s · impactos 0 · quedas 0 · no ramo 86% do tempo (pelo grafo) · 22.4 s vs 21.7 s no principal | ✅ PASSA |
 | T8 | Volta completa automática ao laboratório | termina; 0 quedas; sem ficar preso (v > 20 m/s após 20 s) | terminou em 233.1 s · média 403 km/h · v mín. 339 km/h · solo 98.7% · quedas 0 · impactos 0 | ✅ PASSA |
 | C1 | Câmera: horizonte | roll da câmera ≤ 40% do roll da nave (+3° de tremor) | excesso máx. 0,0° | ✅ PASSA |
-| C2 | Câmera: nunca dentro da geometria | 0 frames | 0 de 44146 frames | ✅ PASSA |
+| C2 | Câmera: nunca dentro da geometria | 0 frames | 0 de 44143 frames | ✅ PASSA |
