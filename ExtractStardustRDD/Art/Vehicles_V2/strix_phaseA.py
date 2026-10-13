@@ -415,6 +415,7 @@ TEXTS = {
           "Força: estabilidade e visibilidade do piloto. Fraqueza: traseira longa menos ágil. Refrigeração: respiros laterais e scoops dos blocos."),
 }
 PROPOSALS = None
+VIEW_SCALE = 1.0          # naves maiores (NOMAD) afastam as câmeras
 
 
 def main():
@@ -433,12 +434,12 @@ def main():
     ground.data.materials.append(gm)
 
     cams = dict(
-        top=(camera('Cam_Top', (0, 0, 20), rot=(0, 0, 90), ortho=7.0), 1200, 700),
-        side=(camera('Cam_Side', (20, 0, 0.62), rot=(90, 0, 90), ortho=7.0), 1200, 420),
-        front=(camera('Cam_Front', (0, 20, 0.62), rot=(90, 0, 180), ortho=3.6), 900, 450),
-        rear=(camera('Cam_Rear', (0, -20, 0.62), rot=(90, 0, 0), ortho=3.6), 900, 450),
-        f34=(camera('Cam_Front34', (6.4, 7.4, 3.0), look=(0.0, 0.25, 0.50), lens=55), 1600, 1000),
-        r34=(camera('Cam_Rear34', (-5.8, -7.6, 2.9), look=(0.0, -0.55, 0.50), lens=55), 1600, 1000),
+        top=(camera('Cam_Top', (0, 0, 20), rot=(0, 0, 90), ortho=7.0 * VIEW_SCALE), 1200, 700),
+        side=(camera('Cam_Side', (20, 0, 0.62), rot=(90, 0, 90), ortho=7.0 * VIEW_SCALE), 1200, 420),
+        front=(camera('Cam_Front', (0, 20, 0.62), rot=(90, 0, 180), ortho=3.6 * VIEW_SCALE), 900, 450),
+        rear=(camera('Cam_Rear', (0, -20, 0.62), rot=(90, 0, 0), ortho=3.6 * VIEW_SCALE), 900, 450),
+        f34=(camera('Cam_Front34', (6.4 * VIEW_SCALE, 7.4 * VIEW_SCALE, 3.0 * VIEW_SCALE), look=(0.0, 0.25, 0.50), lens=55), 1600, 1000),
+        r34=(camera('Cam_Rear34', (-5.8 * VIEW_SCALE, -7.6 * VIEW_SCALE, 2.9 * VIEW_SCALE), look=(0.0, -0.55, 0.50), lens=55), 1600, 1000),
     )
     info = {}
     for key, label, fn in proposals:
