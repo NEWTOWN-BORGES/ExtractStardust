@@ -797,12 +797,12 @@ namespace RedDust.EditorTools
                     d.Locate(dist + t, out int i, out _);
                     d.Locate(dist + t + 120f, out int j, out _);
                     if (d.IsGap(i) || d.IsCave(i) || Vector3.Angle(d.Tangent[i], d.Tangent[j]) > 6f) continue;
-                    float span = d.RideLeft[i] + d.RideRight[i] + 50f;
-                    if (span > 220f) continue;
+                    float span = d.RideLeft[i] + d.RideRight[i] + 90f;   // pilares 45 m para lá das linhas de corrida
+                    if (span > 260f) continue;
                     var right = d.Right[i]; right.y = 0f; right.Normalize();
                     var fwd = Vector3.Cross(right, Vector3.up);
                     var mid = d.Center[i] + right * ((d.RideRight[i] - d.RideLeft[i]) * 0.5f);
-                    Spawn("M_Gate", new Vector3(mid.x, d.Center[i].y - 4f, mid.z), Quaternion.LookRotation(fwd, Vector3.up), new Vector3(span / 130f, 1f, 1f), true);
+                    Spawn("M_Gate", new Vector3(mid.x, d.Center[i].y - 4f, mid.z), Quaternion.LookRotation(fwd, Vector3.up), new Vector3(span / 130f, 1f, 1f), false);   // decoração: sem colisão (as naves batiam nos pilares)
                     break;
                 }
             }
