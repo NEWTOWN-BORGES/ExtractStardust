@@ -140,6 +140,24 @@ namespace RedDust.Track
             return Mathf.Clamp(Dist[i] + d, Start, Length);
         }
 
+        /// <summary>Metros fora da zona de corrida na estação i: arco além das linhas de corrida + afastamento horizontal
+        /// da secção (0 = dentro). Ignora a altura (saltos não contam).</summary>
+        public float OutsideRide(Vector3 p, int i)
+        {
+            i = Mathf.Clamp(i, 0, StationCount - 1);
+            int N = RingCount, o = i * N;
+            int best = 0; float bd = float.MaxValue;
+            for (int k = 0; k < N; k++)
+            {
+                float d = (Ring[o + k] - p).sqrMagnitude;
+                if (d < bd) { bd = d; best = k; }
+            }
+            float arc = RingArc[o + best];
+            float beyond = arc < 0f ? Mathf.Max(0f, -arc - RideLeft[i]) : Mathf.Max(0f, arc - RideRight[i]);
+            float away = Vector3.ProjectOnPlane(p - Ring[o + best], Up[i]).magnitude;
+            return beyond + Mathf.Max(0f, away - 3f);
+        }
+
         /// <summary>Coordenada lateral normalizada u (-1..1) do ponto p na estação i (via arco da secção real).</summary>
         public float LateralU(Vector3 p, int i)
         {

@@ -364,6 +364,26 @@ namespace RedDust.Game
             Shadowed(new Rect(vr.center.x - 400, vr.y + pad * 0.5f + 58 * k, 800, 34 * k), $"CHECKPOINT {r.checkpoint}/{session.checkpoints}   ·   faltam {left:0.0} km   ·   {r.chassis.name}",
                 St(F(22), FontStyle.Normal, TextAnchor.MiddleCenter), new Color(1f, 1f, 1f, 0.85f));
 
+            // seta de direção: aponta para onde a pista segue (verde = certo, vermelho = sentido errado)
+            if (r.craft != null && r.Active)
+            {
+                var up = r.craft.Up;
+                var fwd = Vector3.ProjectOnPlane(r.craft.Forward, up);
+                var to = Vector3.ProjectOnPlane(session.AheadPoint(r, 90f) - r.craft.Position, up);
+                float ang = to.sqrMagnitude > 1f ? Vector3.SignedAngle(fwd, to, up) : 0f;
+                float abs = Mathf.Abs(ang);
+                var col = abs < 45f ? new Color(0.45f, 1f, 0.55f) : abs < 110f ? new Color(1f, 0.85f, 0.35f) : new Color(1f, 0.35f, 0.3f);
+                var ac = new Vector2(vr.center.x, vr.y + pad * 0.5f + 140 * k);
+                var keep = GUI.matrix;
+                GUIUtility.RotateAroundPivot(ang, ac);
+                Shadowed(new Rect(ac.x - 60 * k, ac.y - 60 * k, 120 * k, 120 * k), "↑", St(F(96), FontStyle.Bold, TextAnchor.MiddleCenter), col);
+                GUI.matrix = keep;
+                if (abs > 110f && r.Speed > 8f)
+                    Shadowed(new Rect(vr.center.x - 300, ac.y + 56 * k, 600, 44 * k), "SENTIDO ERRADO", St(F(34), FontStyle.Bold, TextAnchor.MiddleCenter), col);
+                else if (r.offTrack > 0f)
+                    Shadowed(new Rect(vr.center.x - 300, ac.y + 56 * k, 600, 44 * k), "FORA DA PISTA", St(F(30), FontStyle.Bold, TextAnchor.MiddleCenter), new Color(1f, 0.8f, 0.4f));
+            }
+
             // velocidade e boost (canto inferior esquerdo)
             Shadowed(new Rect(vr.x + pad, vr.yMax - 170 * k, 420, 110 * k), $"{Units.ToKmh(r.Speed):0}<size={F(30)}> km/h</size>", St(F(96), FontStyle.Bold, TextAnchor.LowerLeft), Color.white);
             var c = r.craft;

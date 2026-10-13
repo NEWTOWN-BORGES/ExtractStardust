@@ -164,6 +164,18 @@ namespace RedDust.Game
                 // queda para fora da geologia: reposiciona (penalização para jogadores)
                 var d = graph.Paths[r.pathIdx].Data;
                 if (r.Active && r.craft.Position.y < d.Center[Mathf.Clamp(r.station, 0, d.StationCount - 1)].y - 60f) Respawn(r, true);
+                // mais de 20 m fora da pista durante 1,5 s: volta à pista sozinho (sem penalização de casco)
+                if (r.Active && !d.IsGap(r.station) && d.OutsideRide(r.craft.Position, r.station) > OffTrackMeters)
+                {
+                    r.offTrack += dt;
+                    if (r.offTrack > 1.5f)
+                    {
+                        r.offTrack = 0f;
+                        Respawn(r, false);
+                        if (r.human) Notify("Fora da pista · reposicionado", new Color(1f, 0.8f, 0.4f), 2.5f, r.player);
+                    }
+                }
+                else r.offTrack = 0f;
 
                 // checkpoints largos: qualquer linha, altura ou rota conta pela distância de corrida
                 int cp = Mathf.Clamp(Mathf.FloorToInt(r.raceDistance / course.Length * checkpoints), 0, checkpoints);
@@ -184,6 +196,18 @@ namespace RedDust.Game
                 if (!r.Active && !handled.Contains(r)) OnRaceEnded(r);
             }
             UpdatePositions();
+        }
+
+        public const float OffTrackMeters = 20f;
+
+        /// <summary>Ponto do centro da pista ~meters à frente do piloto no percurso atual (para a seta de direção).</summary>
+        public Vector3 AheadPoint(Racer r, float meters)
+        {
+            var d = graph.Paths[r.pathIdx].Data;
+            int st = Mathf.Clamp(r.station, 0, d.StationCount - 1);
+            float target = d.Dist[st] + meters;
+            while (st < d.StationCount - 1 && d.Dist[st] < target) st++;
+            return d.Center[st];
         }
 
         public void Respawn(Racer r, bool penalty)

@@ -43,6 +43,7 @@ namespace RedDust.Game
 
         // ---- progresso
         public int pathIdx, station;
+        public float offTrack;                  // segundos seguidos fora da pista (> 20 m → reposição automática)
         public float raceDistance, finishTime = -1f, endDistance;
         public int position, checkpoint, penalties, repairs, skillRoutes;
         public bool tookDamage, usedBoost;

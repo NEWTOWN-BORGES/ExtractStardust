@@ -71,7 +71,11 @@ namespace RedDust.Presentation
         static PadKind Classify(Gamepad p)
         {
             if (p == null) return PadKind.None;
+#if UNITY_EDITOR || UNITY_STANDALONE
             if (p is DualSenseGamepadHID) return PadKind.DualSense;
+#else
+            if ((p.layout ?? "").Contains("DualSense") || (p.description.product ?? "").Contains("DualSense")) return PadKind.DualSense;   // Android: sem a classe HID
+#endif
             if (p is DualShockGamepad) return PadKind.DualShock4;
             if (p is XInputController) return PadKind.Xbox;
             return PadKind.Generic;
