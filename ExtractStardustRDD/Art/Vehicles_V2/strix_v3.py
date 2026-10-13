@@ -51,12 +51,15 @@ def leg_blade(name, s, root, tip, c_root, c_tip, le_root, le_tip, t_root=0.18, t
 
 
 def hover_ski(name, x, y0, y1, z, w=0.30, h=0.16):
-    """Esqui hover na ponta da perna: corpo baixo com emissores por baixo e sensor de superfície à frente."""
-    pod(name, (x, y0), (x, y1), (w * 0.6, w, w, w * 0.8), (h * 0.6, h, h, h * 0.8), (z, z, z, z), M_MECH, n=8, chamfer=0.25, top=0.8,
-        rake=0.10, intake=False, nozzle=False)
-    for k, yy in enumerate(np.linspace(y0 - 0.35, y1 + 0.35, 3)):
-        box(f"{name}_Emitter{k}", (x, yy, z - h / 2 - 0.02), (w * 0.8, 0.42, 0.03), M_HOVER, bevel=0.006)
-    box(name + '_Sensor', (x, y0 + 0.02, z), (0.06, 0.05, 0.05), M_SOCK, bevel=0.006)
+    """Placa hover na ponta da perna: chapa baixa e larga com a frente chanfrada, emissores por baixo e junta de tornozelo
+    onde a perna encaixa (nada de tubos compridos que pareçam mísseis)."""
+    w = max(w, 0.30) + 0.06
+    t = 0.08
+    outline = [(x - w / 2, y1), (x + w / 2, y1), (x + w / 2, y0 - 0.22), (x + w / 2 - 0.10, y0), (x - w / 2 + 0.10, y0), (x - w / 2, y0 - 0.22)]
+    slab(name, outline, z - t / 2, z + t / 2, M_MECH, bevel=0.012)
+    for k, yy in enumerate(np.linspace(y0 - 0.45, y1 + 0.35, 3)):
+        box(f"{name}_Emitter{k}", (x, yy, z - t / 2 - 0.015), (w * 0.78, 0.42, 0.025), M_HOVER, bevel=0.005)
+    box(name + '_AnkleJoint', (x, (y0 + y1) / 2 + 0.25, z + t / 2 + 0.04), (0.12, 0.50, 0.08), M_STRUCT, bevel=0.01)
 
 
 STRIX_CTRL = dict(y=[3.10, 2.30, 1.10, -0.20, -1.40, -2.20], hw=[0.06, 0.40, 0.62, 0.66, 0.60, 0.46], hwb=[0.03, 0.12, 0.18, 0.20, 0.18, 0.14],
