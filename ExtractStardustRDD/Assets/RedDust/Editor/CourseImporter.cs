@@ -141,7 +141,12 @@ namespace RedDust.EditorTools
             var wreck = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/WreckMetal.mat");
             var sky = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/SkyRDD.mat");
             var root = new GameObject("Course_" + name);
-            int colliders = 0, tris = 0;
+            int colliders = 0, tris = 0, rocksOff = 0, rocksKept = 0;
+            // pedras pequenas não colidem (pedido do jogador): só objetos grandes (pilares, blocos grandes, paredes) batem
+            string genDir = $"Assets/RedDust/Generated/{name}_colliders";
+            if (AssetDatabase.IsValidFolder(genDir)) AssetDatabase.DeleteAsset(genDir);
+            Directory.CreateDirectory(genDir);
+            AssetDatabase.Refresh();
             // corredor e terreno, num ficheiro ou em vários setores (<nome>_corridor_00.fbx, ...)
             var parts = Directory.GetFiles(dst, "*.fbx").Select(f => f.Replace('\\', '/'))
                 .Where(f => Path.GetFileName(f).StartsWith(name + "_corridor") || Path.GetFileName(f).StartsWith(name + "_terrain"))
@@ -160,9 +165,27 @@ namespace RedDust.EditorTools
                     mr.sharedMaterial = mf.name.StartsWith("GEO_Wreck") && wreck != null ? wreck : geo;
                     mr.shadowCastingMode = ShadowCastingMode.On;
                     mr.receiveShadows = true;
-                    var mc = mf.gameObject.AddComponent<MeshCollider>();
-                    mc.sharedMesh = mf.sharedMesh;
-                    colliders++;
+                    var colMesh = mf.sharedMesh;
+                    bool scatter = mf.name.StartsWith("GEO_Rocks"), onTrack = mf.name.StartsWith("GEO_Obstacles");
+                    if (scatter || onTrack)
+                    {
+                        var big = BigIslands(mf.sharedMesh, mf.transform.localToWorldMatrix, BigRock, out int off, out int kept);
+                        rocksOff += off; rocksKept += kept;
+                        if (big == null) colMesh = null;
+                        else if (big != mf.sharedMesh)
+                        {
+                            AssetDatabase.CreateAsset(big, $"{genDir}/{mf.name}_{colliders}.asset");
+                            colMesh = big;
+                            if (onTrack) mf.sharedMesh = big;   // blocos pequenos caídos no traçado saem da pista
+                        }
+                        if (onTrack && big == null) { mr.enabled = false; }
+                    }
+                    if (colMesh != null)
+                    {
+                        var mc = mf.gameObject.AddComponent<MeshCollider>();
+                        mc.sharedMesh = colMesh;
+                        colliders++;
+                    }
                     tris += mf.sharedMesh.triangles.Length / 3;
                 }
             }
@@ -188,7 +211,66 @@ namespace RedDust.EditorTools
             EditorSceneManager.SaveScene(scene, scenePath);
             EditorBuildSettings.scenes = AllScenes().Select(s => new EditorBuildSettingsScene(s, true)).ToArray();
             AssetDatabase.SaveAssets();
+            Debug.Log($"[RDD] pedras: {rocksOff} pequenas sem colisão (< {BigRock} m) · {rocksKept} grandes com colisão");
             Debug.Log($"[RDD] cena {scenePath}: {parts.Count} ficheiros, {colliders} colliders, {tris / 1000}k triângulos, percurso {course.Data.Length / 1000f:0.00} km, {course.Graph.BranchCount} ramos");
+        }
+
+        /// <summary>Tamanho mínimo (maior dimensão, m) para uma pedra/obstáculo ter colisão.</summary>
+        const float BigRock = 8f;
+
+        /// <summary>
+        /// Separa uma malha de pedras em ilhas (vértices soldados por posição, para juntar as costuras do FBX) e devolve
+        /// uma malha só com as ilhas grandes (mesmos vértices, cores de superfície incluídas). Devolve a própria malha se
+        /// todas forem grandes e null se nenhuma for.
+        /// </summary>
+        static Mesh BigIslands(Mesh src, Matrix4x4 toWorld, float minSize, out int dropped, out int kept)
+        {
+            var v = src.vertices;
+            var t = src.triangles;
+            var keyOf = new Dictionary<Vector3Int, int>();
+            var id = new int[v.Length];
+            for (int i = 0; i < v.Length; i++)
+            {
+                var k = new Vector3Int(Mathf.RoundToInt(v[i].x * 200f), Mathf.RoundToInt(v[i].y * 200f), Mathf.RoundToInt(v[i].z * 200f));
+                if (!keyOf.TryGetValue(k, out int j)) { j = keyOf.Count; keyOf[k] = j; }
+                id[i] = j;
+            }
+            var parent = Enumerable.Range(0, keyOf.Count).ToArray();
+            int Find(int x) { while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+            void Union(int a, int b) { a = Find(a); b = Find(b); if (a != b) parent[b] = a; }
+            for (int i = 0; i + 2 < t.Length; i += 3) { Union(id[t[i]], id[t[i + 1]]); Union(id[t[i]], id[t[i + 2]]); }
+            var bounds = new Dictionary<int, Bounds>();
+            for (int i = 0; i < v.Length; i++)
+            {
+                int r = Find(id[i]);
+                var w = toWorld.MultiplyPoint3x4(v[i]);
+                if (bounds.TryGetValue(r, out var b)) { b.Encapsulate(w); bounds[r] = b; } else bounds[r] = new Bounds(w, Vector3.zero);
+            }
+            var big = new HashSet<int>();
+            foreach (var kv in bounds)
+            {
+                var sz = kv.Value.size;
+                if (Mathf.Max(sz.x, Mathf.Max(sz.y, sz.z)) >= minSize) big.Add(kv.Key);
+            }
+            // peças pequenas encostadas a uma grande (chapéu dos pilares, lascas) contam como parte dela
+            var bigBounds = big.Select(k => { var b = bounds[k]; b.Expand(1f); return b; }).ToList();
+            foreach (var kv in bounds)
+                if (!big.Contains(kv.Key) && bigBounds.Any(b => b.Intersects(kv.Value))) big.Add(kv.Key);
+            kept = big.Count;
+            dropped = bounds.Count - big.Count;
+            if (dropped == 0) return src;
+            if (kept == 0) return null;
+            var keep = new List<int>(t.Length);
+            for (int i = 0; i + 2 < t.Length; i += 3)
+                if (big.Contains(Find(id[t[i]]))) { keep.Add(t[i]); keep.Add(t[i + 1]); keep.Add(t[i + 2]); }
+            var m = new Mesh { name = src.name + "_big", indexFormat = v.Length > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
+            m.vertices = v;
+            m.normals = src.normals;
+            if (src.colors32 != null && src.colors32.Length == v.Length) m.colors32 = src.colors32;
+            if (src.uv != null && src.uv.Length == v.Length) m.uv = src.uv;
+            m.SetTriangles(keep, 0);
+            m.RecalculateBounds();
+            return m;
         }
 
         /// <summary>Título da pista (campo "title" do JSON em Art/Courses).</summary>

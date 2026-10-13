@@ -159,12 +159,13 @@ namespace RedDust.Game
                     // rato/toque: clicar seleciona e confirma; setas laterais nos itens com valores
                     if (it.lr != null)
                     {
-                        if (GUI.Button(new Rect(x + w * 0.5f - 6, cy, 60, h - 4), "", GUIStyle.none)) { sel = i; it.lr(-1); }
-                        if (GUI.Button(new Rect(x + w - 60, cy, 60, h - 4), "", GUIStyle.none)) { sel = i; it.lr(1); }
+                        if (GUI.Button(new Rect(x + w * 0.5f - 6, cy, 60, h - 4), "", GUIStyle.none)) { sel = i; GameAudio.Play("ui_move", 0.6f, 1.2f); it.lr(-1); }
+                        if (GUI.Button(new Rect(x + w - 60, cy, 60, h - 4), "", GUIStyle.none)) { sel = i; GameAudio.Play("ui_move", 0.6f, 1.2f); it.lr(1); }
                     }
                     if (GUI.Button(new Rect(x, cy, it.lr != null ? w * 0.5f - 6 : w, h - 4), "", GUIStyle.none))
                     {
-                        if (sel == i && it.enabled) it.ok?.Invoke();
+                        if (sel == i && it.enabled) { GameAudio.Play("ui_ok", 0.7f); it.ok?.Invoke(); }
+                        else GameAudio.Play("ui_move", 0.6f);
                         sel = i;
                     }
                 }

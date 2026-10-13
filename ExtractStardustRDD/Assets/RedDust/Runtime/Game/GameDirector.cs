@@ -257,13 +257,18 @@ namespace RedDust.Game
 
         void Update()
         {
+            if (profiles[0] == null) return;   // cena a ser trocada por -pista: ainda sem perfil (evita NullReference no 1.º frame)
             GameInput.Tick();
+            GameAudio.MusicLevel(screen == Page.Race || screen == Page.Countdown ? 0.08f : 0.22f);
             switch (screen)
             {
                 case Page.Countdown:
+                    int beepBefore = Mathf.CeilToInt(countdown);
                     countdown -= Time.deltaTime;
+                    if (Mathf.CeilToInt(countdown) != beepBefore && countdown > 0f && beepBefore <= 3) GameAudio.Play("beep", 0.8f);
                     if (countdown <= 0f)
                     {
+                        GameAudio.Play("go", 0.9f);
                         session.started = true;
                         screen = Page.Race;
                         foreach (var r in session.Humans) r.input?.Rumble(0.5f, 0.6f, 0.25f);

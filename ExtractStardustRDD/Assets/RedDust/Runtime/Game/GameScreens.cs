@@ -465,6 +465,7 @@ namespace RedDust.Game
             }
             if (items.Count == 0) return;
             int ny = GameInput.NavY();
+            if (ny != 0) GameAudio.Play("ui_move", 0.6f);
             if (ny != 0)
                 for (int k = 0; k < items.Count; k++)
                 {
@@ -473,9 +474,9 @@ namespace RedDust.Game
                 }
             var it = items[sel];
             int nx = GameInput.NavX();
-            if (nx != 0 && it.lr != null && it.enabled) it.lr(nx);
-            if (GameInput.Confirm() && it.enabled) it.ok?.Invoke();
-            else if (GameInput.Back() || (screen == Page.Pause && GameInput.Pause())) Back();
+            if (nx != 0 && it.lr != null && it.enabled) { GameAudio.Play("ui_move", 0.6f, 1.2f); it.lr(nx); }
+            if (GameInput.Confirm() && it.enabled) { GameAudio.Play("ui_ok", 0.7f); it.ok?.Invoke(); }
+            else if (GameInput.Back() || (screen == Page.Pause && GameInput.Pause())) { GameAudio.Play("ui_back", 0.7f); Back(); }
         }
 
         void Back()

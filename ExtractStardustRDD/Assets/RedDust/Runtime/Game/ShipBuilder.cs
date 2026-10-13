@@ -73,7 +73,7 @@ namespace RedDust.Game
 
         static readonly Dictionary<string, Material> mats = new Dictionary<string, Material>();
 
-        static Material Mat(string resource, Color c, float emission = 0f)
+        public static Material Mat(string resource, Color c, float emission = 0f)
         {
             string key = resource + ColorUtility.ToHtmlStringRGB(c) + emission;
             if (mats.TryGetValue(key, out var m) && m != null) return m;
@@ -134,7 +134,7 @@ namespace RedDust.Game
             return mb.Build(false);
         }
 
-        static Color GlowFor(EquipmentInstance it)
+        public static Color GlowFor(EquipmentInstance it)
         {
             if (it == null) return new Color(1f, 0.42f, 0.12f);
             switch (it.Def?.visual)
@@ -159,6 +159,9 @@ namespace RedDust.Game
             EquipmentInstance M(string socket) => mounted != null && mounted.TryGetValue(socket, out var it) ? it : null;
             string V(string socket) => M(socket)?.Def?.visual ?? "";
             float Sz(string socket, float stock = 1f) { var d = M(socket)?.Def; return d == null ? stock : d.size == SizeClass.S ? 0.8f : d.size == SizeClass.L ? 1.3f : 1f; }
+
+            var v2 = V2ShipVisual.Build(craft, c, mounted, paint, GlowFor(M("Reactor")));   // naves V2 (fase A aprovada)
+            if (v2 != null) return v2;
 
             var k = new Kit { root = new GameObject("Visual") };
             k.root.transform.SetParent(craft.transform, false);
@@ -327,6 +330,7 @@ namespace RedDust.Game
             craft.Body.mass = tuning.mass;
             craft.Body.centerOfMass = tuning.centerOfMass;
             BuildVisual(craft, c, mounted, paint);
+            craft.gameObject.AddComponent<EngineAudio>().craft = craft;   // motor, boost, vento, impactos
             return craft;
         }
 

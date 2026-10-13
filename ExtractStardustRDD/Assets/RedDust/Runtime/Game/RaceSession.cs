@@ -55,8 +55,11 @@ namespace RedDust.Game
             clockReference = course.Length / 104f;              // "Contra o Relógio": ~375 km/h de média
         }
 
-        public void Notify(string text, Color color, float seconds = 4f, int player = -1) =>
+        public void Notify(string text, Color color, float seconds = 4f, int player = -1)
+        {
             feed.Add(new Note { text = text, color = color, until = Time.time + seconds, player = player });
+            GameAudio.OnNote(text, player >= 0 || racers.Exists(r => r.human && text.Contains(r.name)));
+        }
 
         // ------------------------------------------------------------------ pilotos
 
