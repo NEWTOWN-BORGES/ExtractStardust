@@ -255,6 +255,8 @@ def build_path(pid, rows, step, col, seed, names, warp_seed, joint_seed, floor_v
         first = np.where(reach.any(axis=1), reach.argmax(axis=1), len(xs) - 1)
         y_rim = np.maximum(plat[np.arange(S), first], y0 + 4.0 - 3.5 * open_st)
         y_rim = np.where(open_st > 0.5, np.minimum(y_rim, y0 + 6.0), y_rim)
+        apron_st = np.array([r.get('apron', 0.0) for r in rows])
+        y_rim = np.where(apron_st > 1.0, np.minimum(y_rim, y0 + 1.0), y_rim)
         ys = np.zeros((S, KS + 1))
         for i in range(S):
             brk = col.Yb[(col.Yb > y0[i] + 0.2) & (col.Yb < y_rim[i] - 0.2)]
@@ -566,25 +568,25 @@ def main():
                 i += 1
         is_main = pb is main_pb
         for (a, b) in runs:
-            planes = []
-            if a > 0 and pb.cave[a - 1]:
-                planes.append((pb.centre[a], -pb.Th[a]))
-            if b < S - 1 and pb.cave[b + 1]:
-                planes.append((pb.centre[b], pb.Th[b]))
+            start_planes = [(pb.centre[a], -pb.Th[a])] if a > 0 and pb.cave[a - 1] else []
+            end_planes = [(pb.centre[b], pb.Th[b])] if b < S - 1 and pb.cave[b + 1] else []
+            apron = np.array([r.get('apron', 0.0) for r in pb.rows])
             sl = slice(a, b + 1)
             xz, fL, fR, wL, wR, fl = pb.centre[sl], pb.footL[sl], pb.footR[sl], pb.hwL[sl], pb.hwR[sl], pb.floorY[sl]
-            sL, sR, al = skL[sl], skR[sl], pb.dist[sl]
+            sL, sR, al, ap = skL[sl], skR[sl], pb.dist[sl], apron[sl]
             # prolongamento virtual no início/fim do percurso principal: o canyon continua para lá da pista
             if is_main and a == 0:
                 ext = np.array([pb.centre[0] - pb.Th[0] * k for k in np.linspace(1500.0, 30.0, 50)])
                 xz = np.concatenate([ext, xz]); fL = np.r_[np.full(50, pb.footL[0]), fL]; fR = np.r_[np.full(50, pb.footR[0]), fR]
                 wL = np.r_[np.full(50, pb.hwL[0]), wL]; wR = np.r_[np.full(50, pb.hwR[0]), wR]; fl = np.r_[np.full(50, pb.floorY[0] + 11.5), fl]
                 sL = np.r_[np.zeros(50), sL]; sR = np.r_[np.zeros(50), sR]; al = np.r_[-np.linspace(1500.0, 30.0, 50), al]
+                ap = np.r_[np.full(50, ap[0]), ap]
             if is_main and b == S - 1:
                 ext = np.array([pb.centre[-1] + pb.Th[-1] * k for k in np.linspace(30.0, 1500.0, 50)])
                 xz = np.concatenate([xz, ext]); fL = np.r_[fL, np.full(50, pb.footL[-1])]; fR = np.r_[fR, np.full(50, pb.footR[-1])]
                 wL = np.r_[wL, np.full(50, pb.hwL[-1])]; wR = np.r_[wR, np.full(50, pb.hwR[-1])]; fl = np.r_[fl, np.full(50, pb.floorY[-1] + 11.5)]
                 sL = np.r_[sL, np.zeros(50)]; sR = np.r_[sR, np.zeros(50)]; al = np.r_[al, pb.dist[-1] + np.linspace(30.0, 1500.0, 50)]
+                ap = np.r_[ap, np.full(50, ap[-1])]
             n_all = len(xz)
             cn = max(20, int(float(spec.get('line_chunk', 600.0)) / max(pb.step, 1.0)))
             ov = max(4, int(40.0 / max(pb.step, 1.0)))
@@ -594,9 +596,9 @@ def main():
             for ci, c0 in enumerate(starts):
                 c1 = n_all if ci == len(starts) - 1 else min(n_all, c0 + cn + ov)
                 cs = slice(max(0, c0 - ov), c1)
-                pl = [pp for pp in planes if (ci == 0 and np.dot(pp[1], pb.Th[a]) < 0) or (ci == len(starts) - 1 and np.dot(pp[1], pb.Th[b]) > 0)]
+                pl = (start_planes if ci == 0 else []) + (end_planes if ci == len(starts) - 1 else [])
                 lines.append(CanyonLine(xz[cs], fL[cs], fR[cs], wL[cs], wR[cs], 'course', pb.warp_seed, pl,
-                                        skirtL=sL[cs], skirtR=sR[cs], floor=fl[cs], along=al[cs]))
+                                        skirtL=sL[cs], skirtR=sR[cs], floor=fl[cs], along=al[cs], apron=ap[cs]))
 
     allP = np.concatenate([pb.P for pb in paths])
     kd_course = kdtree.KDTree(len(allP))
@@ -974,11 +976,11 @@ def main():
             skipq = zq & lq
         mo.add_grid(TG, TN, TC, TUV, TUV2, adaptive=True, skipq=skipq)
         # saias anti-fendas nas 4 bordas (descem 14 m)
-        for edge in (TG[0, :], TG[-1, :], TG[:, 0], TG[:, -1]):
+        for edge, ecol in ((TG[0, :], TC[0, :]), (TG[-1, :], TC[-1, :]), (TG[:, 0], TC[:, 0]), (TG[:, -1], TC[:, -1])):
             e2 = edge.copy(); e2[:, 1] -= 14.0
             strip = np.stack([edge, e2], axis=0)
             nrm = np.repeat(np.array([[0.0, 1.0, 0.0]]), strip.shape[1], 0)[None].repeat(2, 0)
-            cc = colors(np.full(strip.shape[:2], 0.75), np.full(strip.shape[:2], 0), np.full(strip.shape[:2], 0), np.zeros(strip.shape[:2]))
+            cc = np.stack([ecol, ecol], axis=0)
             mo.add_grid(strip, nrm, cc, np.zeros(strip.shape[:2] + (2,)), np.zeros(strip.shape[:2] + (2,)))
             mo.add_grid(strip, nrm, cc, np.zeros(strip.shape[:2] + (2,)), np.zeros(strip.shape[:2] + (2,)), flip=True)
         tverts += n * n

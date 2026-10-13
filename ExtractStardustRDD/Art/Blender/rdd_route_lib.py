@@ -53,7 +53,7 @@ KV = 14                       # faces de falésia (ravina)
 RIM_SEARCH = 760.0            # alcance da procura da borda do planalto (m)
 
 EASED = ['width', 'bank', 'slope', 'curv', 'wallL', 'wallR', 'filletL', 'filletR', 'angleL', 'angleR',
-         'lipL', 'lipR', 'rideL', 'rideR', 'ceil', 'open']
+         'lipL', 'lipR', 'rideL', 'rideR', 'ceil', 'open', 'apron']
 OPEN_FIELDS = []              # percursos à superfície (open > 0): o planalto vem ter com a borda da secção
 SURFACES = {'sand': 0, 'slickrock': 1, 'gravel': 2, 'rock': 3, 'deepsand': 4}
 PAL_SAND = 12
@@ -290,9 +290,12 @@ class CanyonLine:
     end_planes: (ponto, normal) — além do plano o canyon termina (boca de caverna / fim abrupto).
     """
 
-    def __init__(self, xz, footL, footR, hwL, hwR, kind, seed, end_planes=(), skirtL=None, skirtR=None, floor=None, along=None):
+    def __init__(self, xz, footL, footR, hwL, hwR, kind, seed, end_planes=(), skirtL=None, skirtR=None, floor=None, along=None,
+                 apron=None):
         self.xz = np.asarray(xz, dtype=np.float64)
         n0 = len(self.xz)
+        # apron: faixa plana ao nível da borda da pista antes de as falésias começarem (bacias e bancadas abertas)
+        self.apron = np.asarray(apron if apron is not None else np.zeros(n0), float)
         self.skirtL = np.asarray(skirtL if skirtL is not None else np.zeros(n0), float)
         self.skirtR = np.asarray(skirtR if skirtR is not None else np.zeros(n0), float)
         self.footL, self.footR = np.asarray(footL, float), np.asarray(footR, float)
@@ -336,6 +339,15 @@ class CanyonLine:
         # alcovas, esporões e reentrâncias ao longo das paredes
         xeff = xoff + wall_warp(self.along[near], dperp, self.seed) * geo.smoothstep(0.0, 70.0, xoff)
         h = col.height_from(foot, xeff)
+        if self.kind == 'course' and self.apron.any():
+            apr = self.apron[near]
+            has = apr > 1.0
+            if has.any():
+                xa = xoff - apr
+                xeff_a = xa + wall_warp(self.along[near], dperp, self.seed) * geo.smoothstep(0.0, 70.0, xa)
+                h_out = col.height_from(foot, xeff_a)
+                h_ap = foot + 0.9 * geo.fbm2(fx / 70.0, fz / 70.0, 2, seed=self.seed + 5) + 0.4
+                h = np.where(has, np.where(xoff < apr, h_ap, h_out), h)
         if self.kind == 'course':
             under = (skirt > 0.0) & (xoff < skirt + 4.0)
             h = np.where(xoff <= 0.0, self.floor[near] - 12.0, h)

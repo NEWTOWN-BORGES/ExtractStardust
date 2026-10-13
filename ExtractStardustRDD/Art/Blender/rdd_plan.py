@@ -19,7 +19,7 @@ sys.path.insert(0, HERE)
 import rdd_geology as geo  # noqa: E402
 
 EASED = ['width', 'bank', 'slope', 'curv', 'wallL', 'wallR', 'filletL', 'filletR', 'angleL', 'angleR',
-         'lipL', 'lipR', 'rideL', 'rideR', 'ceil', 'open']
+         'lipL', 'lipR', 'rideL', 'rideR', 'ceil', 'open', 'apron']
 PLATEAU = 318.0
 TOP, BOOST, ACC, BRAKE, GRAV = 118.0, 133.0, 26.0, 44.0, 22.0
 

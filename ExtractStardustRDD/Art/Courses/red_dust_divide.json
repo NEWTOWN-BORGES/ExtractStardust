@@ -91,6 +91,7 @@
    "ease": 0,
    "width": 56,
    "surface": "sand",
+   "apron": 260,
    "open": 1,
    "wallL": 3,
    "wallR": 3,
@@ -237,7 +238,8 @@
    "len": 1000,
    "ease": 300,
    "radius": 0,
-   "width": 36
+   "width": 36,
+   "apron": 60
   },
   {
    "id": "2 Lajes partidas · subida",
@@ -316,7 +318,8 @@
    "ease": 400,
    "to_y": 335,
    "bank": 0,
-   "width": 36
+   "width": 36,
+   "apron": 120
   },
   {
    "id": "2 Esses do topo esquerda",
@@ -381,6 +384,7 @@
    "ease": 200,
    "to_y": 328.0,
    "width": 34,
+   "apron": 0,
    "open": 1,
    "wallL": 3,
    "wallR": 3,
@@ -589,6 +593,7 @@
    "bank": 0,
    "width": 32,
    "open": 0,
+   "apron": 0,
    "wallL": 8,
    "wallR": 8,
    "filletL": 12,
@@ -977,6 +982,7 @@
    "width": 44,
    "surface": "sand",
    "open": 0,
+   "apron": 0,
    "wallL": 30,
    "wallR": 30,
    "filletL": 26,
@@ -1106,6 +1112,7 @@
    "ease": 400,
    "width": 40,
    "open": 0,
+   "apron": 0,
    "wallL": 30,
    "wallR": 30,
    "filletL": 26,
@@ -1231,6 +1238,7 @@
    "to_y": 40,
    "width": 30,
    "open": 0,
+   "apron": 0,
    "wallL": 8,
    "wallR": 8,
    "filletL": 12,
@@ -1380,6 +1388,7 @@
    "ease": 400,
    "width": 40,
    "to_y": 170,
+   "apron": 150,
    "open": 1,
    "wallL": 3,
    "wallR": 3,
@@ -1405,6 +1414,7 @@
    "width": 34,
    "radius": 0,
    "open": 0,
+   "apron": 0,
    "wallL": 8,
    "wallR": 8,
    "filletL": 12,
@@ -1646,6 +1656,7 @@
    "to_y": 46,
    "width": 44,
    "surface": "slickrock",
+   "apron": 200,
    "open": 1,
    "wallL": 3,
    "wallR": 3,
@@ -1905,11 +1916,11 @@
   {
    "type": "arch",
    "path": "main",
-   "at": 5600,
+   "at": 30602.0,
    "clearance": 18,
    "thick": 14,
    "depth": 22,
-   "sag": 12
+   "sag": 10
   },
   {
    "type": "arch",

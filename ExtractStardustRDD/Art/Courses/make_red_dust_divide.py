@@ -73,13 +73,13 @@ def esses(prefix, r=110.0, deg=65.0, bank=10.0, width=None):
 
 
 OPEN = dict(open=1, wallL=3, wallR=3, filletL=14, filletR=14, angleL=22, angleR=22, rideL=0.4, rideR=0.4)
-CANYON = dict(open=0, wallL=8, wallR=8, filletL=12, filletR=12, angleL=40, angleR=40, lipL=6, lipR=6, rideL=0.3, rideR=0.3)
-HALFPIPE = dict(open=0, wallL=30, wallR=30, filletL=26, filletR=26, angleL=66, angleR=66, rideL=0.8, rideR=0.8)
+CANYON = dict(open=0, apron=0, wallL=8, wallR=8, filletL=12, filletR=12, angleL=40, angleR=40, lipL=6, lipR=6, rideL=0.3, rideR=0.3)
+HALFPIPE = dict(open=0, apron=0, wallL=30, wallR=30, filletL=26, filletR=26, angleL=66, angleR=66, rideL=0.8, rideR=0.8)
 FINS = dict(wallL=22, wallR=22, filletL=8, filletR=8, angleL=82, angleR=82, rideL=0.4, rideR=0.4)
 
 # ---------------------------------------------------------------- 1 THE BASIN (0:00-2:00)
 sector("THE BASIN")
-seg("1 Bacia · grelha 5x4", 600, ease=0, width=56, surface="sand", **OPEN)
+seg("1 Bacia · grelha 5x4", 600, ease=0, width=56, surface="sand", apron=260, **OPEN)
 turn("1 Bacia · saída larga", 2400, 25, ease=500, width=48)
 seg("1 Bacia · planície", 900, ease=400, radius=0)
 turn("1 Bacia · ondulações de slickrock", -1700, 45, ease=500, width=44, surface="slickrock")
@@ -93,7 +93,7 @@ turn("1 Mega arco", 1600, 70, ease=500, width=40, surface="sand", bank=0)
 crest("1 Laje 2")
 turn("1 Curva rápida", -900, 50, ease=400, width=38)
 esses("1 Esses de saída", r=130, deg=55, bank=10)
-seg("1 Corredor de saída", 1000, ease=300, radius=0, width=36)
+seg("1 Corredor de saída", 1000, ease=300, radius=0, width=36, apron=60)
 
 # ---------------------------------------------------------------- 2 BROKEN MESA (2:00-4:00)
 sector("BROKEN MESA")
@@ -107,7 +107,7 @@ mark("mesa_rockfall_to")
 crest("2 Laje alta", base=1.0, up=5.0, down=-2.5)
 turn("2 Gancho técnico esquerda", -115, 80, ease=120, bank=-14, width=30, to_y=322)
 mark("mesa_fork_to")
-seg("2 Topo da mesa", 1300, ease=400, to_y=335, bank=0, width=36)
+seg("2 Topo da mesa", 1300, ease=400, to_y=335, bank=0, width=36, apron=120)
 esses("2 Esses do topo", r=115, deg=60)
 crest("2 Laje do topo", base=0.0, up=5.0, down=-3.0)
 turn("2 Gancho do topo", 125, 120, ease=150, bank=16, width=32)
@@ -116,7 +116,7 @@ turn("2 Borda do Shafer · vista", -1200, 120, ease=400, width=34, to_y=335, ban
 # ---------------------------------------------------------------- 3 SHAFER FALL (4:00-6:00)
 sector("SHAFER FALL")
 y = 328.0
-seg("3 Borda · início da descida", 500, ease=200, to_y=y, width=34, **OPEN)
+seg("3 Borda · início da descida", 500, ease=200, to_y=y, width=34, apron=0, **OPEN)
 for k in range(11):
     y -= 22.0
     seg(f"3 Perna {k + 1}", 450, ease=150, to_y=y, radius=0, bank=0, width=30)
@@ -128,6 +128,7 @@ seg("3 Base do Shafer · White Rim", 800, ease=300, to_y=50, radius=0, bank=0, w
 
 # ---------------------------------------------------------------- 4 THE RED WALL (6:00-9:00)
 sector("THE RED WALL")
+mark("arch_wall_canyon")
 seg("4 Canyon de aproximação", 1200, ease=400, to_y=48, width=30)
 esses("4 S técnico", r=110, deg=70, bank=12, width=26)
 seg("4 Reta do canyon", 600, ease=200, width=30)
@@ -227,7 +228,7 @@ mark("arches_slalom2_from")
 seg("7 Slalom 2", 1100, ease=300, width=34, radius=0, bank=0, wallL=6, wallR=6, angleL=40, angleR=40, rideL=0.3, rideR=0.3)
 mark("arches_slalom2_to")
 mark("arch_3")
-turn("7 Planície da rocha equilibrada", -800, 60, ease=400, width=40, to_y=170, **OPEN)
+turn("7 Planície da rocha equilibrada", -800, 60, ease=400, width=40, to_y=170, apron=150, **OPEN)
 seg("7 Saída da planície", 800, ease=300, radius=0)
 
 # ---------------------------------------------------------------- 8 THE HOLLOW (16:00-18:00)
@@ -261,7 +262,7 @@ seg("8 Chegada à White Rim", 600, ease=300, to_y=48)
 # ---------------------------------------------------------------- 9 WHITE RIM FINALE (18:00-20:00)
 sector("WHITE RIM FINALE")
 mark("rim_from")
-turn("9 White Rim", 2000, 40, ease=500, to_y=46, width=44, surface="slickrock", **OPEN)
+turn("9 White Rim", 2000, 40, ease=500, to_y=46, width=44, surface="slickrock", apron=200, **OPEN)
 turn("9 Curva larga", -1400, 70, ease=500, width=48)
 crest("9 Ondulação 1")
 seg("9 Reta longa", 1800, ease=400, radius=0)
@@ -310,7 +311,7 @@ spec = {
         {"type": "arch", "path": "main", "at": M["arch_1"] + 400, "clearance": 16, "thick": 12, "depth": 18, "sag": 8},
         {"type": "arch", "path": "main", "at": M["arch_2"] + 200, "clearance": 14, "thick": 10, "depth": 14, "sag": 6},
         {"type": "arch", "path": "main", "at": M["arch_3"] + 500, "clearance": 22, "thick": 16, "depth": 26, "sag": 14},
-        {"type": "arch", "path": "main", "at": 5600, "clearance": 18, "thick": 14, "depth": 22, "sag": 12},
+        {"type": "arch", "path": "main", "at": M["arch_wall_canyon"] + 700, "clearance": 18, "thick": 14, "depth": 22, "sag": 10},
         {"type": "arch", "path": "main", "at": M["arch_rim"] + 500, "clearance": 24, "thick": 18, "depth": 30, "sag": 18},
         {"type": "wreck", "path": "main", "from": M["wash_wreck"] + 150, "to": M["wash_wreck"] + 450, "clearance": 14, "tilt": 18},
         {"type": "gorge_along", "path": "main", "from": M["rim_from"], "to": M["rim_to"], "side": 1, "offset": 340,
