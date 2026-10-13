@@ -142,4 +142,5 @@ TEXTS = {
            "Força: silhueta mais agressiva e banking forte. Fraqueza: mecanismo do joelho mais complexo. Hover: emissores nos joelhos e na quilha."),
 }
 PROPOSALS = [('Y1', 'ARCH', strix_y_arch), ('Y2', 'FEET', strix_y_feet), ('Y3', 'GULL', strix_y_gull)]
-main()
+if globals().get('RUN_V3', True):
+    main()
