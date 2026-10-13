@@ -47,11 +47,11 @@ W, H = 2560, 1700
 sheet = Image.new('RGB', (W, H), (236, 236, 238))
 d = ImageDraw.Draw(sheet)
 d.rectangle((0, 0, W, 110), fill=INK)
-d.text((40, 16), f"{SHIP} · A WEDGE — FASE B · GREYBOX DE ENGENHARIA (de dentro para fora)", font=font(46, True), fill=(255, 255, 255))
-d.text((42, 72), "estrutura → célula → espinha → reator → frame de propulsão → hover → refrigeração → sockets → cablagens → painéis em chapa → estabilizadores",
+d.text((40, 16), INFO.get('title', f"{SHIP} · A WEDGE — FASE B · GREYBOX DE ENGENHARIA (de dentro para fora)"), font=font(46, True), fill=(255, 255, 255))
+d.text((42, 72), INFO.get('order', "estrutura → célula → espinha → reator → frame de propulsão → hover → refrigeração → sockets → cablagens → painéis em chapa → estabilizadores"),
        font=font(22), fill=(200, 200, 205))
 panel(sheet, d, 'assembled_f34', (30, 130, 1240, 640), "MONTADA · painéis em chapa separados, dobradiças, entradas com malha")
-panel(sheet, d, 'exploded_f34', (1290, 130, 1240, 640), "EXPLODIDA · painéis, blocos, canopy e estabilizadores fora do sítio")
+panel(sheet, d, 'exploded_f34', (1290, 130, 1240, 640), "EXPLODIDA · painéis, propulsores, canopy e pernas/estabilizadores fora do sítio")
 panel(sheet, d, 'cutaway_r34', (30, 790, 830, 520), "CORTE TRASEIRO · reator, radiadores, cablagens, suportes")
 panel(sheet, d, 'underside', (880, 790, 830, 520), "FUNDO · emissores hover com suportes e bobinas, sensores")
 panel(sheet, d, 'socketmap_top', (1730, 790, 800, 520), "MAPA DE SOCKETS (rail + grampo + conector)", INFO['labels'])
@@ -59,7 +59,7 @@ panel(sheet, d, 'cutaway_top', (30, 1330, 1240, 340), "CIMA SEM PAINÉIS · rail
 panel(sheet, d, 'side', (1290, 1330, 1240, 340), "LADO")
 leg = [((0.70, 0.71, 0.73), "painéis"), ((0.40, 0.41, 0.43), "estrutura"), ((0.50, 0.51, 0.53), "mecânica"), ((0.10, 0.10, 0.11), "cablagens"),
        ((0.30, 0.42, 0.56), "refrigerante"), ((0.95, 0.50, 0.14), "sockets/conectores"), ((0.98, 0.84, 0.52), "núcleo do reator")]
-x = 1720
+x = 1580
 for c, t in leg:
     d.rectangle((x, 82, x + 18, 100), fill=tuple(int(v * 255) for v in c))
     d.text((x + 24, 78), t, font=font(18), fill=(220, 220, 225))
