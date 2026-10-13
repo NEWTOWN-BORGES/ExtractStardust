@@ -18,11 +18,31 @@ namespace RedDust.Game
         static readonly Color Panel = new Color(0.03f, 0.035f, 0.045f, 0.78f);
         static readonly Color Accent = new Color(1f, 0.62f, 0.25f);
 
+        static Font uiFont;
+        static bool uiFontTried;
+
+        /// <summary>
+        /// Fonte do sistema com cadeia de recurso: a fonte por omissão não tem o símbolo ✦ do Stardust (sai um quadrado);
+        /// Segoe UI Symbol (Windows) e Noto Sans Symbols (Android) têm-no.
+        /// </summary>
+        static Font UiFont
+        {
+            get
+            {
+                if (uiFontTried) return uiFont;
+                uiFontTried = true;
+                try { uiFont = Font.CreateDynamicFontFromOSFont(new[] { "Segoe UI", "Segoe UI Symbol", "Arial", "Roboto", "Noto Sans", "Noto Sans Symbols", "Noto Sans Symbols 2", "Droid Sans" }, 32); }
+                catch (System.Exception) { uiFont = null; }
+                return uiFont;
+            }
+        }
+
         GUIStyle St(int size, FontStyle fs = FontStyle.Normal, TextAnchor a = TextAnchor.MiddleLeft, bool wrap = false)
         {
             string key = $"{size}{fs}{a}{wrap}";
             if (styles.TryGetValue(key, out var s)) return s;
             s = new GUIStyle(GUI.skin.label) { fontSize = size, fontStyle = fs, alignment = a, richText = true, wordWrap = wrap, clipping = TextClipping.Clip };
+            if (UiFont != null) s.font = UiFont;
             s.normal.textColor = Color.white;
             styles[key] = s;
             return s;
