@@ -160,12 +160,11 @@ namespace RedDust.Vehicle
                 ForwardSpeed = vf;
 
                 // travão de mão: com direção = derrapagem; a direito = travagem
-                if (input.brake || input.drift)
-                {
-                    // uma derrapagem iniciada mantém-se com o botão premido (dá para contra-brecar sem travar)
-                    if ((wasDrifting && speed > 18f) || (Mathf.Abs(steer) > 0.25f && speed > 25f)) drift = true;
-                    else braking = true;
-                }
+                // travão (L2 / S): trava a sério mesmo a virar (trail-braking: roda mais e aguenta a curva).
+                // derrapagem só no botão de drift (Quadrado / Espaço): com direção derrapa, a direito trava;
+                // uma derrapagem iniciada mantém-se com o botão premido (dá para contra-brecar).
+                if (input.drift && ((wasDrifting && speed > 18f) || (Mathf.Abs(steer) > 0.25f && speed > 25f))) drift = true;
+                else if (input.brake || input.drift) braking = true;
 
                 var st = Sensor.traits;
                 float top = t.topSpeed * st.topSpeed * (Boosting ? t.boostTopMul : 1f);
@@ -210,7 +209,7 @@ namespace RedDust.Vehicle
                     slipAngle = ang;
                     // a aderência volta aos poucos depois de largar a derrapagem (sem estalo)
                     gripBlend = drift ? 0f : Mathf.MoveTowards(gripBlend, 1f, dt / Mathf.Max(0.05f, t.driftRecoverTime));
-                    float latMax = Mathf.Lerp(t.driftLateralMax, t.gripLateralMax, gripBlend);
+                    float latMax = Mathf.Lerp(t.driftLateralMax, t.gripLateralMax, gripBlend) * (braking ? t.brakeGripMul : 1f);
                     float redirect = Mathf.Lerp(t.driftRedirect, t.gripRedirect, gripBlend);
                     // ângulo de deriva acima do máximo: a velocidade alcança a proa mais depressa (desliza, não roda)
                     float over = Mathf.Abs(ang) * Mathf.Rad2Deg - t.driftMaxSlip;
@@ -228,6 +227,18 @@ namespace RedDust.Vehicle
                 LateralSpeed = Vector3.Dot(v, Vector3.Cross(n, f));
             }
             Drifting = drift;
+            // mini-turbo (como no RACESTARS): derrapar carrega até 2,5 s; ao largar, impulso para a frente
+            if (drift && grounded && speed > 30f && Mathf.Abs(slipAngle) > 0.15f) driftCharge = Mathf.Min(driftCharge + dt, 2.5f);
+            else if (!drift)
+            {
+                if (driftCharge > 0.6f && grounded)
+                {
+                    Vector3 fb = Vector3.ProjectOnPlane(fwd, n).normalized;
+                    v += fb * (t.driftBoost * Mathf.Clamp(driftCharge / 2f, 0.35f, 1f));
+                    MiniTurbo = true;
+                }
+                driftCharge = 0f;
+            }
 
             // ---------------- atitude: alinhar o "cima" e rodar (yaw) pela direção
             Vector3 desiredUp = grounded ? n : AirTargetUp(pos, v, up);
@@ -240,7 +251,7 @@ namespace RedDust.Vehicle
                 float ang = Mathf.Atan2(sin, Vector3.Dot(up, desiredUp));
                 spinAlign = axis / sin * Mathf.Min(ang / Mathf.Max(dt, t.alignTime), rateLimit);
             }
-            float turn = t.TurnRate(speed) * (drift ? t.driftTurnMul : 1f) * (grounded ? 1f : t.airTurnMul);
+            float turn = t.TurnRate(speed) * (drift ? t.driftTurnMul : braking ? t.brakeTurnMul : 1f) * (grounded ? 1f : t.airTurnMul);
             yawRate = Mathf.Lerp(yawRate, steer * turn, MathX.Damp(t.steerResponse, dt));
             if (drift && !wasDrifting) yawRate += Mathf.Sign(steer) * t.driftKick;     // a traseira solta-se
             // sem piões: se a deriva já passou do máximo e a rotação a aumenta, a rotação é travada
@@ -296,7 +307,9 @@ namespace RedDust.Vehicle
             return Vector3.up;
         }
 
-        float gripBlend = 1f, slipAngle;   // 0 = aderência de derrapagem, 1 = normal; ângulo velocidade→proa (rad)
+        float gripBlend = 1f, slipAngle, driftCharge;
+        /// <summary>Verdadeiro no passo em que saiu um mini-turbo (som/efeito; quem lê limpa).</summary>
+        public bool MiniTurbo { get; set; }   // 0 = aderência de derrapagem, 1 = normal; ângulo velocidade→proa (rad)
         Vector3 preVel;   // velocidade antes da simulação física (para não perder velocidade em degraus/emendas do chão)
 
         void OnCollisionEnter(Collision c) { if (!GroundGraze(c)) ReportImpact(c); }

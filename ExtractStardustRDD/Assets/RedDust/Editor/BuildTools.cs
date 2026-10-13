@@ -11,7 +11,7 @@ namespace RedDust.EditorTools
         [MenuItem("Red Dust/4. Build Windows")]
         public static void BuildWindows()
         {
-            int code = Build(BuildTarget.StandaloneWindows64, "Builds/Windows/RedDustDivide.exe");
+            int code = Build(BuildTarget.StandaloneWindows64, CommandLine.Value("-buildDir", "Builds/Windows").TrimEnd('/', '\\') + "/RedDustDivide.exe");
             if (Application.isBatchMode) EditorApplication.Exit(code);
         }
 

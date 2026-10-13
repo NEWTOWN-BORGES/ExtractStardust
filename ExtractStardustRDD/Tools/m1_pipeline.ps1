@@ -1,8 +1,8 @@
-# EXTRACT: STARDUST - RED DUST DIVIDE - pipeline das pistas (Blender -> Unity -> validacao -> build)
+﻿# EXTRACT: STARDUST - RED DUST DIVIDE - pipeline das pistas (Blender -> Unity -> validacao -> build)
 # Uso:  powershell -ExecutionPolicy Bypass -File Tools\m1_pipeline.ps1 [-Course sandbox|red_dust_divide] [-SkipBlender] [-SkipImport] [-SkipValidate] [-Build] [-Android] [-Test]
 #   -Build  exe Windows (todas as pistas)   -Android  APK (laboratorio)   -Test  extracao automatica com bots no exe
 # Jogo completo:  powershell -ExecutionPolicy Bypass -File Tools\m1_pipeline.ps1 -Course red_dust_divide -SkipBlender -SkipValidate -Build -Test -Android
-param([string]$Course = "sandbox", [switch]$SkipBlender, [switch]$SkipImport, [switch]$SkipValidate, [switch]$Build, [switch]$Android, [switch]$Test)
+param([string]$Course = "sandbox", [string]$BuildDir = "Builds\Windows", [switch]$SkipBlender, [switch]$SkipImport, [switch]$SkipValidate, [switch]$Build, [switch]$Android, [switch]$Test)
 $ErrorActionPreference = "Continue"
 $P = Split-Path -Parent $PSScriptRoot
 $unity = "C:\Program Files\Unity\Hub\Editor\6000.3.26f1\Editor\Unity.exe"
@@ -29,10 +29,10 @@ if (-not $SkipValidate) {
   $null = Step "Unity (validacao $Course)" $unity @("-batchmode", "-nographics", "-projectPath", $P, "-executeMethod", "RedDust.EditorTools.SandboxValidation.Run", "-course", $Course, "-logFile", "$logs\unity_validate_$Course.log") "$logs\unity_validate_$Course.log" "\[RDD M1\]|error CS|Exception"
 }
 if ($Build) {
-  $null = Step "Unity (build Windows)" $unity @("-batchmode", "-projectPath", $P, "-buildTarget", "Win64", "-executeMethod", "RedDust.EditorTools.BuildTools.BuildWindows", "-logFile", "$logs\unity_build.log") "$logs\unity_build.log" "error CS|\[RDD\]|error:"
+  $null = Step "Unity (build Windows)" $unity @("-batchmode", "-projectPath", $P, "-buildTarget", "Win64", "-executeMethod", "RedDust.EditorTools.BuildTools.BuildWindows", "-buildDir", $BuildDir, "-logFile", "$logs\unity_build.log") "$logs\unity_build.log" "error CS|\[RDD\]|error:"
 }
 if ($Test) {
-  $exe = Join-Path $P "Builds\Windows\RedDustDivide.exe"
+  $exe = Join-Path $P "$BuildDir\RedDustDivide.exe"
   $null = Step "Teste extracao (exe, laboratorio, 7 bots)" $exe @("-batchmode", "-nographics", "-pista", "sandbox", "-rddextract", "-bots", "7", "-timescale", "3", "-logFile", "$logs\extract_test.log") "$logs\extract_test.log" "\[RDD extract\]|^  [ 0-9]|Pool:|Jogador:|Exception"
 }
 if ($Android) {

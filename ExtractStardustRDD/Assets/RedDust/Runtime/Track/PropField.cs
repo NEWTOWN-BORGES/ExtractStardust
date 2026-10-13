@@ -46,6 +46,7 @@ namespace RedDust.Track
         public void Load()
         {
             if (kinds != null || data == null) return;
+            if (!SystemInfo.supportsInstancing) { enabled = false; return; }   // testes sem gráficos
             var kit = Resources.Load<GameObject>("Props/props_kit");
             if (kit == null) { enabled = false; return; }
             var baseMat = Resources.Load<Material>("Props/PropLit");

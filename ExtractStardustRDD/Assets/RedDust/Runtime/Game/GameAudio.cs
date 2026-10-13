@@ -146,6 +146,7 @@ namespace RedDust.Game
             if (boost != null) boost.volume = Mathf.MoveTowards(boost.volume, craft.Boosting ? 0.5f : 0f, Time.deltaTime * 3f);
             if (slide != null) { slide.volume = Mathf.MoveTowards(slide.volume, craft.Drifting ? 0.25f + sp * 0.3f : 0f, Time.deltaTime * 5f); slide.pitch = 0.85f + sp * 0.35f; }
             if (wind != null) { wind.volume = sp * sp * 0.4f; wind.pitch = 0.8f + sp * 0.5f; }
+            if (craft.MiniTurbo) { craft.MiniTurbo = false; GameAudio.PlayAt("go", craft.Position, 0.35f); }
         }
     }
 }

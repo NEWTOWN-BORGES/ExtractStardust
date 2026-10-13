@@ -539,10 +539,20 @@ namespace RedDust.EditorTools
                             if (ride.Intrudes(new Bounds(hit.point + Vector3.up, Vector3.one * 3f))) continue;
                             Put(type, hit, false);
                         }
-                        // terreno: mais esparso, peças maiores (sem erva)
-                        if (i % 6 == 0 && R01() < 0.75f * dens)
+                        // zonas verdes: tapete de erva extra nas bermas
+                        if (zone == "green")
+                            for (int k = 0; k < 3; k++)
+                            {
+                                float extra = 1.5f + 22f * R01();
+                                var p0 = d.LanePoint(i, side * (1f + extra / rideSide)) + d.Tangent[i] * Rng(-5f, 5f);
+                                if (!Physics.Raycast(p0 + d.Up[i] * 8f, -d.Up[i], out var hit, 30f, Layers.GroundMask, QueryTriggerInteraction.Ignore)) continue;
+                                if (hit.normal.y < 0.6f || ride.Intrudes(new Bounds(hit.point + Vector3.up, Vector3.one * 3f))) continue;
+                                Put(R01() < 0.8f ? "P_Grass_Green" : "P_Bush_Green", hit, false);
+                            }
+                        // terreno: mais esparso, peças maiores (sem erva), até 700 m
+                        if (i % 4 == 0 && R01() < 0.75f * dens)
                         {
-                            float lat = 45f + 300f * Mathf.Pow(R01(), 1.3f);
+                            float lat = 45f + 650f * Mathf.Pow(R01(), 1.5f);
                             var p0 = d.Center[i] + d.Right[i] * side * lat + d.Tangent[i] * Rng(-15f, 15f);
                             if (!Physics.Raycast(p0 + Vector3.up * 500f, Vector3.down, out var hit, 1400f, Layers.GroundMask, QueryTriggerInteraction.Ignore)) continue;
                             if (hit.normal.y < 0.6f) continue;
@@ -578,13 +588,17 @@ namespace RedDust.EditorTools
             int placed = 0;
             var holder = new GameObject("LANDMARKS").transform;
             holder.SetParent(root.transform, false);
-            for (float dist = 600f; dist < main.Length; dist += Rng(900f, 2200f))
+            var giants = new[] { ("P_Mesa_A", 330f), ("P_Mesa_B", 240f) };
+            float nextGiant = 1500f;
+            for (float dist = 400f; dist < main.Length; dist += Rng(450f, 1100f))
             {
                 main.Locate(dist, out int i, out _);
                 int side = R01() < 0.5f ? -1 : 1;
-                var (type, rad) = mons[rnd.Next(mons.Length)];
-                float sc = Rng(0.7f, 1.5f);
-                float lat = Rng(Mathf.Max(450f, rad * sc * 2f), 2600f);
+                bool giant = dist >= nextGiant;
+                if (giant) nextGiant = dist + Rng(3500f, 6000f);
+                var (type, rad) = giant ? giants[rnd.Next(giants.Length)] : mons[rnd.Next(mons.Length)];
+                float sc = giant ? Rng(2.5f, 4f) : type.StartsWith("P_Spire") ? Rng(1f, 2.2f) : Rng(1.2f, 3f);
+                float lat = giant ? Rng(2600f, 3800f) : Rng(Mathf.Max(350f, rad * sc * 1.6f), 2400f);
                 var c = main.Center[i] + main.Right[i] * side * lat + main.Tangent[i] * Rng(-200f, 200f);
                 bool clear = true;
                 foreach (var path in g.Paths)
@@ -609,7 +623,111 @@ namespace RedDust.EditorTools
                 if (mr != null) { mr.sharedMaterial = geo; mr.shadowCastingMode = ShadowCastingMode.On; }
                 placed++;
             }
-            Debug.Log($"[RDD] paisagem: {recs.Count} adereços (vegetação, cactos, pedregulhos) · {placed} monumentos no horizonte · zonas: {string.Join(", ", sectors.Select(x => x.id + "=" + ZoneOfSector(x.id)))}");
+            int rivers = Rivers(name, spec, root, holder, g, recs, ride, Put, Rng, R01);
+            // reescreve os dados com a vegetação das margens dos rios
+            using (var bw = new BinaryWriter(File.Create(dataPath)))
+            {
+                bw.Write(recs.Count);
+                foreach (var r in recs)
+                {
+                    bw.Write(r.t);
+                    bw.Write(r.p.x); bw.Write(r.p.y); bw.Write(r.p.z);
+                    bw.Write(r.yaw); bw.Write(r.s);
+                    bw.Write(r.up.x); bw.Write(r.up.y); bw.Write(r.up.z);
+                }
+            }
+            AssetDatabase.ImportAsset(dataPath);
+            field.data = AssetDatabase.LoadAssetAtPath<TextAsset>(dataPath);
+            Debug.Log($"[RDD] paisagem: {recs.Count} adereços (vegetação, cactos, pedregulhos) · {placed} monumentos no horizonte · {rivers} rios · zonas: {string.Join(", ", sectors.Select(x => x.id + "=" + ZoneOfSector(x.id)))}");
+        }
+
+        /// <summary>
+        /// Rios no fundo das gargantas (features "gorge_along" do JSON): fita de água que segue o fundo, com o nível
+        /// suavizado, e margens verdes (choupos, arbustos e erva verde) dos dois lados.
+        /// </summary>
+        static int Rivers(string name, string spec, GameObject root, Transform holder, CourseGraph g, List<(byte t, Vector3 p, float yaw, float s, Vector3 up)> recs,
+                          RideIndex ride, System.Action<string, RaycastHit, bool> put, System.Func<float, float, float> rng, System.Func<float> r01)
+        {
+            if (!File.Exists(spec)) return 0;
+            const string waterPath = "Assets/RedDust/Resources/Props/Water.mat";
+            var water = AssetDatabase.LoadAssetAtPath<Material>(waterPath);
+            if (water == null)
+            {
+                water = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                water.SetColor("_BaseColor", new Color(0.16f, 0.34f, 0.32f));
+                water.SetFloat("_Smoothness", 0.93f);
+                water.SetFloat("_Metallic", 0f);
+                AssetDatabase.CreateAsset(water, waterPath);
+            }
+            var d = g.Main.Data;
+            int made = 0;
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(spec),
+                     "\"type\":\\s*\"gorge_along\"[^}]*?\"from\":\\s*([0-9.]+),\\s*\"to\":\\s*([0-9.]+),\\s*\"side\":\\s*(-?[0-9]+),\\s*\"offset\":\\s*([0-9.]+),\\s*\"depth\":\\s*([0-9.]+),\\s*\"half_width\":\\s*([0-9.]+)"))
+            {
+                var ci = System.Globalization.CultureInfo.InvariantCulture;
+                float a = float.Parse(m.Groups[1].Value, ci), b = float.Parse(m.Groups[2].Value, ci);
+                int side = int.Parse(m.Groups[3].Value, ci);
+                float off = float.Parse(m.Groups[4].Value, ci), half = float.Parse(m.Groups[6].Value, ci);
+                var pts = new List<Vector3>();
+                var rights = new List<Vector3>();
+                for (float dist = a + 60f; dist < b - 60f; dist += 18f)
+                {
+                    d.Locate(dist, out int i, out _);
+                    var c = d.Center[i] + d.Right[i] * side * off;
+                    if (!Physics.Raycast(c + Vector3.up * 600f, Vector3.down, out var hit, 1500f, Layers.GroundMask, QueryTriggerInteraction.Ignore)) continue;
+                    pts.Add(hit.point);
+                    var rh = d.Right[i]; rh.y = 0f;
+                    rights.Add(rh.normalized);
+                }
+                if (pts.Count < 8) continue;
+                // nível da água: mínimo local suavizado + 1,2 m (a água não sobe encostas)
+                var lvl = new float[pts.Count];
+                for (int k = 0; k < pts.Count; k++)
+                {
+                    float mn = float.MaxValue;
+                    for (int q = Mathf.Max(0, k - 4); q <= Mathf.Min(pts.Count - 1, k + 4); q++) mn = Mathf.Min(mn, pts[q].y);
+                    lvl[k] = mn + 1.2f;
+                }
+                var verts = new List<Vector3>();
+                var tris = new List<int>();
+                float w = half * 0.75f;
+                for (int k = 0; k < pts.Count; k++)
+                {
+                    var c = new Vector3(pts[k].x, lvl[k], pts[k].z);
+                    verts.Add(c - rights[k] * w);
+                    verts.Add(c + rights[k] * w);
+                    if (k > 0)
+                    {
+                        int o = verts.Count - 4;
+                        tris.AddRange(new[] { o, o + 2, o + 1, o + 1, o + 2, o + 3 });
+                    }
+                }
+                var mesh = new Mesh { name = $"River_{name}_{made}", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+                mesh.SetVertices(verts);
+                mesh.SetTriangles(tris, 0);
+                mesh.RecalculateNormals();
+                mesh.RecalculateBounds();
+                AssetDatabase.CreateAsset(mesh, $"Assets/RedDust/Generated/{name}_colliders/river_{made}.asset");
+                var go = new GameObject($"RIVER_{made}");
+                go.transform.SetParent(holder, false);
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var mr = go.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = water;
+                mr.shadowCastingMode = ShadowCastingMode.Off;
+                // margens verdes
+                for (int k = 0; k < pts.Count; k++)
+                    for (int sd = -1; sd <= 1; sd += 2)
+                        for (int n = 0; n < 3; n++)
+                        {
+                            var p0 = new Vector3(pts[k].x, lvl[k], pts[k].z) + rights[k] * sd * (w + rng(0.5f, 18f)) + new Vector3(rng(-8f, 8f), 0f, rng(-8f, 8f));
+                            if (!Physics.Raycast(p0 + Vector3.up * 40f, Vector3.down, out var hit, 90f, Layers.GroundMask, QueryTriggerInteraction.Ignore)) continue;
+                            if (hit.normal.y < 0.55f || hit.point.y < lvl[k] - 0.3f) continue;
+                            float x = r01();
+                            put(x < 0.25f ? "P_Tree_A" : x < 0.4f ? "P_Tree_B" : x < 0.65f ? "P_Bush_Green" : "P_Grass_Green", hit, false);
+                        }
+                made++;
+            }
+            return made;
         }
 
         static string ReadTitle(string name)

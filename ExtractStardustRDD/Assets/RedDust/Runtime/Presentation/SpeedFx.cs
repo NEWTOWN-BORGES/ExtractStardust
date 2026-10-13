@@ -149,15 +149,16 @@ namespace RedDust.Presentation
             driftSmooth = Mathf.MoveTowards(driftSmooth, craft.Drifting ? 1f : 0f, dt * 4f);
 
             // pós-processamento
-            if (blur != null) blur.intensity.value = 0.6f * V + 0.2f * boostSmooth;
-            chroma.intensity.value = 0.03f + 0.3f * V + 0.3f * boostSmooth;
-            lens.intensity.value = -(0.07f * V + 0.13f * boostSmooth);
-            vignette.intensity.value = 0.18f + 0.12f * V + 0.1f * boostSmooth;
+            // sem motion blur (pedido do jogador: a nave tem de se ver sempre); o resto muito discreto
+            if (blur != null) { blur.intensity.value = 0f; blur.active = false; }
+            chroma.intensity.value = 0.06f * boostSmooth;
+            lens.intensity.value = -(0.02f * V + 0.05f * boostSmooth);
+            vignette.intensity.value = 0.14f + 0.04f * V + 0.05f * boostSmooth;
 
             var ep = new ParticleSystem.EmitParams();
 
             // riscos de vento: anel à volta do eixo de visão, a passar pela câmera
-            streakAcc += ((mobile ? 120f : 280f) * V + 90f * V * boostSmooth) * dt;
+            streakAcc += ((mobile ? 60f : 120f) * V + 60f * V * boostSmooth) * dt;
             while (streakAcc >= 1f)
             {
                 streakAcc -= 1f;
