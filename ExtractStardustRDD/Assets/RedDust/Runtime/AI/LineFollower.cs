@@ -30,6 +30,12 @@ namespace RedDust.AI
             laneU = lane; u = lane; Station = -1;
         }
 
+        /// <summary>Mudança de percurso (bifurcação): mantém a linha lateral, procura de novo a estação.</summary>
+        public void Rebase() => Station = -1;
+
+        /// <summary>Distância de antecipação do alvo à velocidade v.</summary>
+        public float LookAhead(float v) => lookBase + lookPerSpeed * v;
+
         public CraftInput Drive(CraftController c, CourseData course, float dt)
         {
             var input = CraftInput.Auto;
@@ -39,7 +45,7 @@ namespace RedDust.AI
             u = Mathf.MoveTowards(u, laneU, laneResponse * dt);
 
             float speed = c.Speed;
-            float look = lookBase + lookPerSpeed * speed;
+            float look = LookAhead(speed);
             Vector3 target = course.LanePoint(Distance + look, u);
             Vector3 up = c.Grounded ? c.SurfaceNormal : c.Up;
             Vector3 to = Vector3.ProjectOnPlane(target - c.Position, up);

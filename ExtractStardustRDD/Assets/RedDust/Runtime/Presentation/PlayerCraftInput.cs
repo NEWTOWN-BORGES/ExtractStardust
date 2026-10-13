@@ -1,15 +1,15 @@
-using RedDust.Vehicle;
+﻿using RedDust.Vehicle;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace RedDust.Presentation
 {
     /// <summary>
-    /// Pilotagem do jogador (aceleração automática, como no jogo anterior). Teclado e comando funcionam ao
-    /// mesmo tempo; os nomes dos botões vêm de GameInput.
-    /// Comando PS4/PS5: analógico esq. = direção · R2 ou X = boost · L2 ou Quadrado = travão/derrapagem ·
-    /// analógico dir. vertical no ar = picar/levantar.
-    /// Teclado: A/D ou ←/→ · W/↑/Shift = boost · S/↓/Espaço = travão · Q/E = picar no ar.
+    /// Pilotagem do jogador. A nave só acelera com o acelerador (R2 analógico / W); sem acelerar, o motor trava.
+    /// Teclado e comando funcionam ao mesmo tempo; os nomes dos botões vêm de GameInput.
+    /// Comando PS4/PS5: analógico esq. = direção · R2 = acelerar · L2 = travar (com direção = derrapagem) ·
+    /// Quadrado = travão de mão (derrapagem radical) · X ou R1 = nitro · analógico dir. vertical no ar = picar/levantar.
+    /// Teclado: A/D ou ←/→ · W/↑ = acelerar · S/↓ = travar · Espaço = travão de mão · Shift = nitro · Q/E = picar no ar.
     /// </summary>
     public class PlayerCraftInput : MonoBehaviour
     {
@@ -20,7 +20,7 @@ namespace RedDust.Presentation
 
         public CraftInput Read(float dt)
         {
-            var input = CraftInput.Auto;
+            var input = new CraftInput();
             var kb = Keyboard.current;
             var pad = GameInput.Pad;
             float steer = 0f;
@@ -31,8 +31,10 @@ namespace RedDust.Presentation
                 if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) target += 1f;
                 kbSteer = Mathf.MoveTowards(kbSteer, target, keyboardSteerRamp * dt * (target == 0f ? 1.6f : 1f));
                 steer = kbSteer;
-                if (kb.sKey.isPressed || kb.downArrowKey.isPressed || kb.spaceKey.isPressed) input.brake = true;
-                if (kb.wKey.isPressed || kb.upArrowKey.isPressed || kb.leftShiftKey.isPressed) input.boost = true;
+                if (kb.wKey.isPressed || kb.upArrowKey.isPressed) input.throttle = 1f;
+                if (kb.sKey.isPressed || kb.downArrowKey.isPressed) input.brake = true;
+                if (kb.spaceKey.isPressed) input.drift = true;
+                if (kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed) input.boost = true;
                 if (kb.qKey.isPressed) input.airPitch -= 1f;
                 if (kb.eKey.isPressed) input.airPitch += 1f;
             }
@@ -43,8 +45,11 @@ namespace RedDust.Presentation
                     steer = Mathf.Sign(x) * Mathf.Pow(Mathf.InverseLerp(stickDeadzone, 1f, Mathf.Abs(x)), stickCurve);
                 else if (pad.dpad.left.isPressed) steer = -1f;
                 else if (pad.dpad.right.isPressed) steer = 1f;
-                if (pad.leftTrigger.ReadValue() > 0.25f || pad.buttonWest.isPressed) input.brake = true;
-                if (pad.rightTrigger.ReadValue() > 0.25f || pad.buttonSouth.isPressed) input.boost = true;
+                float r2 = Mathf.InverseLerp(0.05f, 0.95f, pad.rightTrigger.ReadValue());
+                input.throttle = Mathf.Max(input.throttle, r2);
+                if (pad.leftTrigger.ReadValue() > 0.25f) input.brake = true;
+                if (pad.buttonWest.isPressed) input.drift = true;
+                if (pad.buttonSouth.isPressed || pad.rightShoulder.isPressed) input.boost = true;
                 float ry = pad.rightStick.ReadValue().y;
                 if (Mathf.Abs(ry) > 0.2f) input.airPitch = -ry;
             }

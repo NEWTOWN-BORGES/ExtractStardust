@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using RedDust.Track;
 using UnityEngine;
 
@@ -37,6 +37,10 @@ namespace RedDust.Vehicle
         public Collider LastImpactCollider { get; private set; }
         public bool Drifting { get; private set; }
         public bool Boosting { get; private set; }
+        /// <summary>Depósito de nitro (0..1): gasta-se no boost; regenera sozinho, mais depressa a derrapar e no ar.</summary>
+        public float Nitro { get; private set; } = 1f;
+        public bool NitroLocked => nitroLocked;
+        bool nitroLocked;
         public Vector3 SurfaceNormal => Grounded ? Sensor.normal : Vector3.up;
         public float SurfaceAngle => Grounded ? Vector3.Angle(Sensor.normal, Vector3.up) : 0f;
         public float HoverMeasured => Sensor.hits > 0 ? Sensor.height : float.PositiveInfinity;
@@ -93,6 +97,7 @@ namespace RedDust.Vehicle
             LastLandingSpeed = 0f;
             LastImpactSpeed = 0f;
             UpRateSmoothed = 0f;
+            Nitro = 1f; nitroLocked = false;
             Sensor.Reset(rotation * Vector3.up);
             lastUp = rotation * Vector3.up;
             wasGrounded = true;
@@ -119,9 +124,20 @@ namespace RedDust.Vehicle
 
             // ---------------- forças lineares (como variação de velocidade)
             Vector3 acc = Vector3.down * t.gravity;
-            bool drift = false, braking = false;
+            bool drift = false, braking = false, wasDrifting = Drifting;
             float steer = Mathf.Clamp(input.steer, -1f, 1f);
-            Boosting = input.boost;
+            // nitro: gasta o depósito; vazio = bloqueado até recuperar nitroRestart
+            Boosting = input.boost && Nitro > 0f && !nitroLocked;
+            if (Boosting)
+            {
+                Nitro = Mathf.Max(0f, Nitro - dt / Mathf.Max(0.1f, t.nitroSeconds));
+                if (Nitro <= 0f) nitroLocked = true;
+            }
+            else
+            {
+                Nitro = Mathf.Min(1f, Nitro + dt * (t.nitroRegen + (wasDrifting ? t.nitroDriftRegen : 0f) + (Grounded ? 0f : t.nitroAirRegen)));
+                if (Nitro >= t.nitroRestart) nitroLocked = false;
+            }
 
             if (grounded)
             {
@@ -137,9 +153,9 @@ namespace RedDust.Vehicle
                 ForwardSpeed = vf;
 
                 // travão de mão: com direção = derrapagem; a direito = travagem
-                if (input.brake)
+                if (input.brake || input.drift)
                 {
-                    if (Mathf.Abs(steer) > 0.3f && speed > 30f) drift = true;
+                    if (Mathf.Abs(steer) > 0.25f && speed > 25f) drift = true;
                     else braking = true;
                 }
 
@@ -154,6 +170,7 @@ namespace RedDust.Vehicle
                 else thrust = -(vf - top) * t.overspeedBleed;
                 acc += f * (thrust * Mathf.Clamp01(input.throttle));
                 if (braking && vf > 0f) acc -= f * Mathf.Min(t.brakeDecel, vf / dt);
+                else if (input.throttle < 0.05f && vf > 0f) acc -= f * Mathf.Min(t.coastDecel, vf / dt);   // travagem do motor
                 if (drift) acc -= v.normalized * t.driftDecel;
                 // arrasto da superfície (areia funda, cascalho, rocha rugosa)
                 if (st.drag > 0f && speed > 1f)
@@ -189,7 +206,7 @@ namespace RedDust.Vehicle
                     // atrito lateral residual (perde alguma velocidade quando desliza)
                     Vector3 r = Vector3.Cross(n, f);
                     float vr = Vector3.Dot(v, r);
-                    v -= r * vr * Mathf.Clamp01((drift ? 0.3f : 1f) * t.gripFriction * t.GripFactor(sp) * dt);
+                    v -= r * vr * Mathf.Clamp01((drift ? 0.18f : 1f) * t.gripFriction * t.GripFactor(sp) * dt);
                 }
                 LateralSpeed = Vector3.Dot(v, Vector3.Cross(n, f));
             }
@@ -208,6 +225,7 @@ namespace RedDust.Vehicle
             }
             float turn = t.TurnRate(speed) * (drift ? t.driftTurnMul : 1f) * (grounded ? 1f : t.airTurnMul);
             yawRate = Mathf.Lerp(yawRate, steer * turn, MathX.Damp(t.steerResponse, dt));
+            if (drift && !wasDrifting) yawRate += Mathf.Sign(steer) * t.driftKick;     // a traseira solta-se de repente
             Vector3 spin = spinAlign + up * yawRate;
             if (!grounded) spin += (rot * Vector3.right) * (input.airPitch * t.airPitchRate);
 

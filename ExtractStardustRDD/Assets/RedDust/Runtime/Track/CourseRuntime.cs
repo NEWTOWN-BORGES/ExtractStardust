@@ -10,33 +10,47 @@ namespace RedDust.Track
     public class CourseRuntime : MonoBehaviour
     {
         public TextAsset courseBytes;
+        [Tooltip("Grafo de percursos (principal + ramos); opcional")] public TextAsset graphBytes;
         [Tooltip("Desenhar a cada N estações")] public int gizmoStride = 6;
         public bool drawLanes = true;
 
         public static CourseRuntime Active { get; private set; }
-        CourseData data;
+        CourseGraph graph;
 
-        public CourseData Data
+        /// <summary>Grafo de percursos (só o principal quando não há ficheiro de grafo).</summary>
+        public CourseGraph Graph
         {
             get
             {
-                if (data == null && courseBytes != null) data = CourseData.Load(courseBytes.bytes);
-                return data;
+                if (graph == null)
+                {
+                    if (graphBytes != null) graph = CourseGraph.Load(graphBytes.bytes);
+                    else if (courseBytes != null) graph = CourseGraph.Single(CourseData.Load(courseBytes.bytes));
+                }
+                return graph;
             }
         }
+
+        /// <summary>Percurso principal.</summary>
+        public CourseData Data => Graph?.Main.Data;
 
         void OnEnable() => Active = this;
         void OnDisable() { if (Active == this) Active = null; }
 
         void OnDrawGizmos()
         {
-            var d = Data;
-            if (d == null) return;
+            var g = Graph;
+            if (g == null) return;
+            foreach (var p in g.Paths) DrawPath(p.Data, p.IsMain);
+        }
+
+        void DrawPath(CourseData d, bool main)
+        {
             int stride = Mathf.Max(1, gizmoStride);
             for (int i = stride; i < d.StationCount; i += stride)
             {
                 int j = i - stride;
-                Gizmos.color = d.IsGap(i) ? Color.red : d.IsCave(i) ? new Color(0.6f, 0.4f, 1f) : Color.white;
+                Gizmos.color = d.IsGap(i) ? Color.red : d.IsCave(i) ? new Color(0.6f, 0.4f, 1f) : main ? Color.white : new Color(1f, 0.75f, 0.2f);
                 Gizmos.DrawLine(d.Center[j] + d.Up[j] * 0.5f, d.Center[i] + d.Up[i] * 0.5f);
                 if (drawLanes)
                 {

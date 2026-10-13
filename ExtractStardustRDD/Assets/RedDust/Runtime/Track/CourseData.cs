@@ -27,8 +27,12 @@ namespace RedDust.Track
         public float[] RingArc;      // comprimento de arco (com sinal) desde o eixo, por vértice do anel
         public string[] SegmentIds;
 
+        /// <summary>Distância no fim do percurso (num ramo, conta desde o início da corrida: começa em Start).</summary>
         public float Length => Dist[StationCount - 1];
+        /// <summary>Distância da primeira estação (0 no principal; o ponto de saída num ramo).</summary>
+        public float Start => Dist[0];
         public int CenterIndex => RingCount / 2;
+        public Bounds Bounds { get; private set; }
 
         public static CourseData Load(byte[] bytes)
         {
@@ -36,8 +40,14 @@ namespace RedDust.Track
             if (Encoding.ASCII.GetString(br.ReadBytes(4)) != "RDDC") throw new InvalidDataException("percurso: assinatura inválida");
             int version = br.ReadInt32();
             if (version != 1) throw new InvalidDataException($"percurso: versão {version} não suportada");
-            var c = new CourseData { StationCount = br.ReadInt32(), RingCount = br.ReadInt32(), Step = br.ReadSingle() };
-            int S = c.StationCount, N = c.RingCount;
+            int S = br.ReadInt32(), N = br.ReadInt32();
+            return ReadBody(br, S, N, br.ReadSingle());
+        }
+
+        /// <summary>Estações e nomes dos segmentos (formato comum ao RDDC v1 e a cada percurso do RDDG v2).</summary>
+        internal static CourseData ReadBody(BinaryReader br, int S, int N, float step)
+        {
+            var c = new CourseData { StationCount = S, RingCount = N, Step = step };
             c.Dist = new float[S]; c.Center = new Vector3[S]; c.Tangent = new Vector3[S]; c.Right = new Vector3[S]; c.Up = new Vector3[S];
             c.Width = new float[S]; c.Bank = new float[S]; c.Slope = new float[S]; c.RideLeft = new float[S]; c.RideRight = new float[S];
             c.Flags = new int[S]; c.Segment = new int[S]; c.Surface = new int[S];
@@ -61,6 +71,10 @@ namespace RedDust.Track
             int segs = br.ReadInt32();
             c.SegmentIds = new string[segs];
             for (int i = 0; i < segs; i++) c.SegmentIds[i] = Encoding.UTF8.GetString(br.ReadBytes(br.ReadInt32()));
+            var b = new Bounds(c.Ring[0], Vector3.zero);
+            for (int i = 0; i < c.Ring.Length; i += 7) b.Encapsulate(c.Ring[i]);
+            b.Expand(80f);
+            c.Bounds = b;
             return c;
         }
 
@@ -68,7 +82,26 @@ namespace RedDust.Track
         public bool IsCave(int i) => (Flags[Mathf.Clamp(i, 0, StationCount - 1)] & FlagCave) != 0;
         public string SegmentName(int i) => SegmentIds[Mathf.Clamp(Segment[Mathf.Clamp(i, 0, StationCount - 1)], 0, SegmentIds.Length - 1)];
 
-        public int StationAt(float dist) => Mathf.Clamp(Mathf.RoundToInt(dist / Step), 0, StationCount - 1);
+        /// <summary>Estação e fração (para interpolar até à seguinte) à distância dist (procura binária: passos não uniformes).</summary>
+        public void Locate(float dist, out int i, out float t)
+        {
+            if (dist <= Dist[0]) { i = 0; t = 0f; return; }
+            if (dist >= Dist[StationCount - 1]) { i = StationCount - 2; t = 1f; return; }
+            int lo = 0, hi = StationCount - 1;
+            while (hi - lo > 1)
+            {
+                int m = (lo + hi) >> 1;
+                if (Dist[m] <= dist) lo = m; else hi = m;
+            }
+            i = lo;
+            t = Mathf.InverseLerp(Dist[lo], Dist[hi], dist);
+        }
+
+        public int StationAt(float dist)
+        {
+            Locate(dist, out int i, out float t);
+            return Mathf.Clamp(t < 0.5f ? i : i + 1, 0, StationCount - 1);
+        }
 
         /// <summary>Estação mais próxima (procura local em torno de hint; global se não houver hint ou ficar longe).</summary>
         public int Nearest(Vector3 p, int hint = -1, int window = 160)
@@ -104,7 +137,7 @@ namespace RedDust.Track
         {
             i = Mathf.Clamp(i, 0, StationCount - 1);
             float d = Vector3.Dot(p - Center[i], Tangent[i]);
-            return Mathf.Clamp(Dist[i] + d, 0f, Length);
+            return Mathf.Clamp(Dist[i] + d, Start, Length);
         }
 
         /// <summary>Coordenada lateral normalizada u (-1..1) do ponto p na estação i (via arco da secção real).</summary>
@@ -142,9 +175,8 @@ namespace RedDust.Track
 
         public Vector3 LanePoint(float dist, float u)
         {
-            float f = Mathf.Clamp(dist / Step, 0f, StationCount - 1.001f);
-            int i = (int)f;
-            return Vector3.Lerp(LanePoint(i, u), LanePoint(i + 1, u), f - i);
+            Locate(dist, out int i, out float t);
+            return Vector3.Lerp(LanePoint(i, u), LanePoint(i + 1, u), t);
         }
 
         /// <summary>Normal da superfície (aproximada pelo anel) para a coordenada lateral u na estação i.</summary>
@@ -158,9 +190,7 @@ namespace RedDust.Track
 
         public void Frame(float dist, out Vector3 pos, out Vector3 tangent, out Vector3 right, out Vector3 up)
         {
-            float f = Mathf.Clamp(dist / Step, 0f, StationCount - 1.001f);
-            int i = (int)f;
-            float t = f - i;
+            Locate(dist, out int i, out float t);
             pos = Vector3.Lerp(Center[i], Center[i + 1], t);
             tangent = Vector3.Slerp(Tangent[i], Tangent[i + 1], t).normalized;
             right = Vector3.Slerp(Right[i], Right[i + 1], t).normalized;

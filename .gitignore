@@ -49,3 +49,6 @@ ExtractStardust/WorldGen/**/__pycache__/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Python: caches
+**/__pycache__/

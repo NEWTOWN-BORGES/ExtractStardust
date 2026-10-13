@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -24,17 +24,19 @@ namespace RedDust.Presentation
         enum Phase { Title, Countdown, Racing, Finished }
 
         public CraftController Craft { get; private set; }
-        CourseData course;
+        CourseGraph graph;
+        CourseData course;                 // percurso principal (largada, chegada, progresso)
         ChaseCamera chase;
         DebugOverlay overlay;
         PlayerCraftInput player;
         RaceHud hud;
-        readonly LineFollower pilot = new LineFollower();
+        RouteFollower pilot;
         Phase phase = Phase.Title;
         bool paused, optionsOpen, autopilot, autotest, mobile;
         int menuIndex;
         float raceTime, bestTime, countdown, hintTimer;
-        int station;
+        int station, pathIdx;              // onde a nave está: percurso do grafo e estação nele
+        CourseData Here => graph.Paths[pathIdx].Data;
         string shotDir;
         float wallLane = 0.8f;
         static readonly int GridId = Shader.PropertyToID("_RD_Grid");
@@ -63,8 +65,11 @@ namespace RedDust.Presentation
 
         IEnumerator Start()
         {
-            course = CourseRuntime.Active != null ? CourseRuntime.Active.Data : null;
+            graph = CourseRuntime.Active != null ? CourseRuntime.Active.Graph : null;
+            course = graph?.Main.Data;
             if (course == null) { Debug.LogError("[RDD] percurso em falta"); yield break; }
+            // piloto automático: em cada bifurcação escolhe ao acaso (o autoteste fotografa o principal)
+            pilot = new RouteFollower(graph) { chooseBranch = _ => !autotest && Random.value < 0.5f };
             EnvironmentRig.Apply(sun, mobile);
             EnvironmentRig.CreatePost(transform, mobile);
             Shader.SetGlobalFloat(GridId, 0f);
@@ -85,6 +90,7 @@ namespace RedDust.Presentation
             camGo.AddComponent<AudioListener>();
             chase = camGo.AddComponent<ChaseCamera>();
             chase.Attach(Craft);
+            SpeedFx.Attach(cam, Craft, chase, mobile);
             ApplyOptions();
 
             overlay = gameObject.AddComponent<DebugOverlay>();
@@ -97,7 +103,7 @@ namespace RedDust.Presentation
             for (int i = 0; i < course.StationCount; i++) if (course.SegmentName(i).StartsWith("S13")) { wi = i + 60; break; }
             wallLane = course.LaneForAngle(wi, 65f, 1);
 
-            Respawn(course.StationAt(30f), 0f);
+            Respawn(0, course.StationAt(30f), 0f);
             if (CommandLine.Has("-rddsmoke"))
             {
                 StartCoroutine(Smoke());
@@ -136,14 +142,16 @@ namespace RedDust.Presentation
             return 0f;
         }
 
-        void Respawn(int st, float speed)
+        void Respawn(int path, int st, float speed)
         {
-            st = Mathf.Clamp(st, 0, course.StationCount - 2);
-            while (st > 0 && course.IsGap(st)) st--;
-            Vector3 p = course.Center[st] + course.Up[st] * (Craft.tuning.hoverHeight + 0.2f);
-            Craft.Place(p, Quaternion.LookRotation(course.Tangent[st], course.Up[st]), speed);
-            pilot.Reset(LaneFor(st));
+            var d = graph.Paths[path].Data;
+            st = Mathf.Clamp(st, 0, d.StationCount - 2);
+            while (st > 0 && d.IsGap(st)) st--;
+            Vector3 p = d.Center[st] + d.Up[st] * (Craft.tuning.hoverHeight + 0.2f);
+            Craft.Place(p, Quaternion.LookRotation(d.Tangent[st], d.Up[st]), speed);
+            pathIdx = path;
             station = st;
+            pilot.Reset(path, path == 0 ? LaneFor(st) : 0f);
         }
 
         void Update()
@@ -179,11 +187,11 @@ namespace RedDust.Presentation
                     break;
                 case Phase.Racing:
                     raceTime += Time.deltaTime;
-                    if (GameInput.Reset()) { Respawn(Mathf.Max(0, station - 10), 40f); hud.Center("", "Reposicionado", 1.2f); }
+                    if (GameInput.Reset()) { Respawn(pathIdx, Mathf.Max(0, station - 10), 40f); hud.Center("", "Reposicionado", 1.2f); }
                     if (GameInput.Pause()) OpenPause();
                     break;
                 case Phase.Finished:
-                    if (GameInput.Confirm()) { Respawn(course.StationAt(30f), 0f); StartCountdown(); }
+                    if (GameInput.Confirm()) { Respawn(0, course.StationAt(30f), 0f); StartCountdown(); }
                     if (GameInput.Pause()) OpenPause();
                     break;
             }
@@ -199,15 +207,17 @@ namespace RedDust.Presentation
                 if (Craft.Drifting) GameInput.Sustain(0.12f, 0.05f);
             }
 
-            hud.Race(Units.ToKmh(Craft.Speed), raceTime, bestTime, course.SegmentName(station), Craft.Boosting, Craft.Drifting, !Craft.Grounded && Craft.AirTime > 0.2f);
+            hud.Race(Units.ToKmh(Craft.Speed), raceTime, bestTime, Here.SegmentName(station), Craft.Boosting, Craft.Drifting, !Craft.Grounded && Craft.AirTime > 0.2f);
+            hud.NitroBar(Craft.Nitro, Craft.Boosting, Craft.NitroLocked);
+            hud.Progress(graph.Paths[pathIdx].ToRaceDistance(Here.Dist[station]) / course.Length);
             hintTimer -= Time.deltaTime;
             hud.Hints(hintTimer > 0f || phase != Phase.Racing ? HintText() : "");
             overlay.extra = autopilot ? "PILOTO AUTOMÁTICO (F3)" : "F3 piloto automático · G grelha · F2 câmera lenta";
         }
 
         string HintText() =>
-            $"Direção: <b>{GameInput.BtnSteer}</b>    Boost: <b>{GameInput.BtnBoost}</b>    Travão / derrapagem: <b>{GameInput.BtnBrake}</b> (+ direção)\n" +
-            $"Reposicionar: <b>{GameInput.BtnReset}</b>    Câmera: <b>{GameInput.BtnLook}</b>    Pausa: <b>{GameInput.BtnPause}</b>";
+            $"Acelerar: <b>{GameInput.BtnThrottle}</b>    Direção: <b>{GameInput.BtnSteer}</b>    Nitro: <b>{GameInput.BtnBoost}</b> (regenera; mais depressa a derrapar)\n" +
+            $"Travar: <b>{GameInput.BtnBrake}</b> (+ direção = derrapagem)    Travão de mão: <b>{GameInput.BtnDrift}</b>    Reposicionar: <b>{GameInput.BtnReset}</b>    Câmera: <b>{GameInput.BtnLook}</b>    Pausa: <b>{GameInput.BtnPause}</b>";
 
         void StartCountdown()
         {
@@ -271,7 +281,7 @@ namespace RedDust.Presentation
                     switch (menuIndex)
                     {
                         case 0: ClosePause(); return;
-                        case 1: ClosePause(); Respawn(course.StationAt(30f), 0f); StartCountdown(); return;
+                        case 1: ClosePause(); Respawn(0, course.StationAt(30f), 0f); StartCountdown(); return;
                         case 2: optionsOpen = true; menuIndex = 0; break;
                         case 3: Application.Quit(); break;
                     }
@@ -305,11 +315,11 @@ namespace RedDust.Presentation
         {
             if (Craft == null) return;
             float dt = Time.fixedDeltaTime;
-            station = course.Nearest(Craft.Position, station);
+            graph.Locate(Craft.Position, ref pathIdx, ref station);
             if (autopilot || autotest)
             {
-                pilot.laneU = LaneFor(Mathf.Max(0, pilot.Station));
-                Craft.input = pilot.Drive(Craft, course, dt);
+                pilot.line.laneU = pilot.Path.IsMain ? LaneFor(Mathf.Max(0, pilot.Station)) : 0f;
+                Craft.input = pilot.Drive(Craft, dt);
             }
             else if (phase == Phase.Racing) Craft.input = player.Read(dt);
             else Craft.input = new CraftInput();     // título, contagem, fim: nave parada a pairar
@@ -318,9 +328,9 @@ namespace RedDust.Presentation
             {
                 Craft.Body.linearVelocity = Vector3.Lerp(Craft.Body.linearVelocity, Vector3.zero, 0.2f);
             }
-            bool fell = Craft.Position.y < course.Center[station].y - 60f;
-            if (fell && !autotest) { Respawn(Mathf.Max(0, station - 15), 30f); hud.Center("", "Reposicionado", 1.2f); }
-            if (phase == Phase.Racing && !autotest && station >= course.StationCount - 3) Finish();
+            bool fell = Craft.Position.y < Here.Center[station].y - 60f;
+            if (fell && !autotest) { Respawn(pathIdx, Mathf.Max(0, station - 15), 30f); hud.Center("", "Reposicionado", 1.2f); }
+            if (phase == Phase.Racing && !autotest && pathIdx == 0 && station >= course.StationCount - 3) Finish();
         }
 
         void Finish()
@@ -347,9 +357,9 @@ namespace RedDust.Presentation
             for (int k = 0; k < 12; k++)
             {
                 yield return new WaitForSeconds(1f);
-                Debug.Log($"[RDD smoke] t={k + 1}s fase {phase} pos {Craft.Position} solo {Craft.Grounded} sensores {Craft.Sensor.hits} hover {Craft.HoverMeasured:0.0} v {Units.ToKmh(Craft.Speed):0} estação {station} dist {pilot.Distance:0} timeScale {Time.timeScale} fixedDt {Time.fixedDeltaTime:0.0000}");
+                Debug.Log($"[RDD smoke] t={k + 1}s fase {phase} pos {Craft.Position} solo {Craft.Grounded} sensores {Craft.Sensor.hits} hover {Craft.HoverMeasured:0.0} v {Units.ToKmh(Craft.Speed):0} estação {station} dist {pilot.RaceDistance:0} timeScale {Time.timeScale} fixedDt {Time.fixedDeltaTime:0.0000}");
             }
-            float d = pilot.Distance;
+            float d = pilot.RaceDistance;
             OpenPause();
             optionsOpen = true; ChangeOption(0, 1); ChangeOption(1, 1); ChangeOption(2, 1); ChangeOption(3, 1); RefreshPause();
             optionsOpen = false; RefreshPause();
@@ -386,11 +396,11 @@ namespace RedDust.Presentation
             {
                 timing.Tick(Time.unscaledDeltaTime);
                 fpsAcc += 1f / Mathf.Max(1e-4f, Time.unscaledDeltaTime); fpsN++; worst = Mathf.Max(worst, Time.unscaledDeltaTime);
-                if (pilot.Distance >= marks[next].dist)
+                if (pilot.RaceDistance >= marks[next].dist)
                 {
                     yield return new WaitForEndOfFrame();
                     ScreenCapture.CaptureScreenshot(Path.Combine(shotDir, marks[next].name + ".png"));
-                    log.AppendLine($"{marks[next].name}: dist {pilot.Distance:0} m  v {Units.ToKmh(Craft.Speed):0} km/h  solo {Craft.Grounded}  {timing.Summary}");
+                    log.AppendLine($"{marks[next].name}: dist {pilot.RaceDistance:0} m  v {Units.ToKmh(Craft.Speed):0} km/h  solo {Craft.Grounded}  {timing.Summary}");
                     next++;
                 }
                 if (Time.time - t0 > 240f) { log.AppendLine("TIMEOUT"); break; }

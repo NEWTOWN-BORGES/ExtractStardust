@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -112,6 +112,7 @@ namespace RedDust.EditorTools
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var geo = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/Geology.mat");
+            var wreck = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/WreckMetal.mat");
             var sky = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/SkyRDD.mat");
             var root = new GameObject("Course_" + name);
             int colliders = 0, tris = 0;
@@ -125,7 +126,7 @@ namespace RedDust.EditorTools
                 {
                     mf.gameObject.layer = Layers.Ground;
                     var mr = mf.GetComponent<MeshRenderer>();
-                    mr.sharedMaterial = geo;
+                    mr.sharedMaterial = mf.name.StartsWith("GEO_Wreck") && wreck != null ? wreck : geo;
                     mr.shadowCastingMode = ShadowCastingMode.On;
                     mr.receiveShadows = true;
                     var mc = mf.gameObject.AddComponent<MeshCollider>();
@@ -136,6 +137,7 @@ namespace RedDust.EditorTools
             }
             var course = root.AddComponent<CourseRuntime>();
             course.courseBytes = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dst}/{name}_course.bytes");
+            course.graphBytes = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dst}/{name}_graph.bytes");
 
             var sunGo = new GameObject("Sun");
             var sun = sunGo.AddComponent<Light>();
@@ -151,7 +153,7 @@ namespace RedDust.EditorTools
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
-            Debug.Log($"[RDD] cena {ScenePath}: {colliders} colliders, {tris / 1000}k triângulos, percurso {course.Data.Length / 1000f:0.00} km");
+            Debug.Log($"[RDD] cena {ScenePath}: {colliders} colliders, {tris / 1000}k triângulos, percurso {course.Data.Length / 1000f:0.00} km, {course.Graph.BranchCount} ramos");
         }
     }
 }

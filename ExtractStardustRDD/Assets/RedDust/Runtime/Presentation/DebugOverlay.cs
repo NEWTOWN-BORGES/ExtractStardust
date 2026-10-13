@@ -23,7 +23,7 @@ namespace RedDust.Presentation
         readonly FrameStats stats = new FrameStats();
         readonly StringBuilder sb = new StringBuilder(512);
         GUIStyle style;
-        int station = -1;
+        int station = -1, path;
 
         void OnEnable() => RenderPipelineManager.endCameraRendering += DrawLines;
         void OnDisable() => RenderPipelineManager.endCameraRendering -= DrawLines;
@@ -38,16 +38,19 @@ namespace RedDust.Presentation
             if (!visible || craft == null) return;
             style ??= new GUIStyle(GUI.skin.label) { fontSize = Mathf.Max(13, Screen.height / 52), richText = true };
             var c = craft;
-            var course = CourseRuntime.Active != null ? CourseRuntime.Active.Data : null;
+            var graph = CourseRuntime.Active != null ? CourseRuntime.Active.Graph : null;
             sb.Clear();
             sb.Append($"<b>{Units.ToKmh(c.Speed):0} km/h</b>   frente {Units.ToKmh(c.ForwardSpeed):0}   lateral {c.LateralSpeed:0.0} m/s\n");
             sb.Append($"hover {(float.IsInfinity(c.HoverMeasured) ? "--" : c.HoverMeasured.ToString("0.00"))} m   sensores {c.Sensor.hits}/5   {(c.Grounded ? "<color=#7f7>SOLO</color>" : $"<color=#fc6>AR {c.AirTime:0.00}s</color>")}\n");
             sb.Append($"bank nave {Vector3.Angle(c.Up, Vector3.up):0}°   superfície {c.SurfaceAngle:0}°   Δcima {c.UpRateDeg:0}°/s\n");
             sb.Append($"aterragem {c.LastLandingSpeed:0.0} m/s   impacto {c.LastImpactSpeed:0.0} m/s   {(c.Drifting ? "DERRAPAGEM " : "")}{(c.Boosting ? "BOOST" : "")}\n");
-            if (course != null)
+            if (graph != null)
             {
-                station = course.Nearest(c.Position, station);
-                sb.Append($"{course.SegmentName(station)}   {course.Dist[station] / 1000f:0.00}/{course.Length / 1000f:0.00} km   u {course.LateralU(c.Position, station):0.00}\n");
+                graph.Locate(c.Position, ref path, ref station);
+                var p = graph.Paths[path];
+                var course = p.Data;
+                string where = p.IsMain ? "" : $"<color=#fc6>[{p.Id}]</color> ";
+                sb.Append($"{where}{course.SegmentName(station)}   {p.ToRaceDistance(course.Dist[station]) / 1000f:0.00}/{graph.Main.Data.Length / 1000f:0.00} km   u {course.LateralU(c.Position, station):0.00}\n");
             }
             if (chase != null) sb.Append($"câmera roll {chase.CameraRollDeg:0}° (nave {chase.CraftRollDeg:0}°)\n");
             sb.Append(stats.Summary);

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -16,6 +16,12 @@ namespace RedDust.Presentation
         Text pauseTitle, pauseFoot;
         float centerUntil;
         Font font;
+
+        const int SpeedSegs = 24;
+        readonly List<Image> speedSegs = new List<Image>();
+        Image progressLine, progressMark;
+        Image nitroBack, nitroFill;
+        Text nitroLabel;
 
         public static RaceHud Create()
         {
@@ -36,15 +42,26 @@ namespace RedDust.Presentation
             scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 0.5f;
 
-            speed = Label("Speed", new Vector2(0.5f, 0f), new Vector2(0, 70), 104, TextAnchor.LowerCenter, FontStyle.Bold);
-            speedUnit = Label("Unit", new Vector2(0.5f, 0f), new Vector2(0, 40), 26, TextAnchor.LowerCenter);
-            speedUnit.text = "km/h";
-            state = Label("State", new Vector2(0.5f, 0f), new Vector2(0, 190), 28, TextAnchor.LowerCenter, FontStyle.Bold);
+            // velocidade: canto inferior esquerdo, número grande + barra segmentada fina (estilo linhas finas)
+            speed = Label("Speed", new Vector2(0f, 0f), new Vector2(64, 58), 108, TextAnchor.LowerLeft, FontStyle.Bold);
+            speedUnit = Label("Unit", new Vector2(0f, 0f), new Vector2(70, 38), 22, TextAnchor.LowerLeft);
+            speedUnit.text = "KM/H";
+            for (int i = 0; i < SpeedSegs; i++)
+                speedSegs.Add(Bar("Seg" + i, new Color(1f, 1f, 1f, 0.15f), new Vector2(0f, 0f), new Vector2(66 + i * 15, 196), new Vector2(11, 5)));
+            state = Label("State", new Vector2(0.5f, 0f), new Vector2(0, 120), 30, TextAnchor.LowerCenter, FontStyle.Bold);
+            // progresso no percurso: linha fina no topo com o marcador do jogador
+            progressLine = Bar("Progress", new Color(0.75f, 0.9f, 1f, 0.35f), new Vector2(0.5f, 1f), new Vector2(-450, -150), new Vector2(900, 2));
+            progressMark = Bar("ProgressMark", new Color(0.55f, 0.95f, 1f, 1f), new Vector2(0.5f, 1f), new Vector2(-450, -155), new Vector2(4, 12));
             timer = Label("Timer", new Vector2(0.5f, 1f), new Vector2(0, -40), 48, TextAnchor.UpperCenter, FontStyle.Bold);
             best = Label("Best", new Vector2(0.5f, 1f), new Vector2(0, -100), 24, TextAnchor.UpperCenter);
             zone = Label("Zone", new Vector2(0f, 1f), new Vector2(40, -40), 26, TextAnchor.UpperLeft);
             device = Label("Device", new Vector2(1f, 1f), new Vector2(-40, -40), 22, TextAnchor.UpperRight);
             hints = Label("Hints", new Vector2(0f, 0f), new Vector2(40, 40), 22, TextAnchor.LowerLeft);
+            // barra de nitro (por cima do estado)
+            nitroBack = Bar("NitroBack", new Color(0f, 0f, 0f, 0.45f), new Vector2(1f, 0f), new Vector2(-486, 58), new Vector2(424, 20));
+            nitroFill = Bar("NitroFill", new Color(0.45f, 0.9f, 1f, 0.95f), new Vector2(1f, 0f), new Vector2(-484, 60), new Vector2(420, 16));
+            nitroLabel = Label("NitroLabel", new Vector2(1f, 0f), new Vector2(-64, 84), 22, TextAnchor.LowerRight, FontStyle.Bold);
+            nitroLabel.text = "NITRO";
             center = Label("Center", new Vector2(0.5f, 0.5f), new Vector2(0, 80), 128, TextAnchor.MiddleCenter, FontStyle.Bold);
             sub = Label("Sub", new Vector2(0.5f, 0.5f), new Vector2(0, -40), 34, TextAnchor.MiddleCenter);
 
@@ -88,6 +105,31 @@ namespace RedDust.Presentation
             return t;
         }
 
+        Image Bar(string name, Color c, Vector2 anchor, Vector2 pos, Vector2 size)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(transform, false);
+            var rt = go.AddComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = anchor;
+            rt.pivot = new Vector2(0f, 0f);
+            rt.anchoredPosition = pos;
+            rt.sizeDelta = size;
+            var img = go.AddComponent<Image>();
+            img.color = c;
+            return img;
+        }
+
+        /// <summary>Depósito de nitro: cheio = ciano; a gastar = branco a pulsar; vazio/bloqueado = vermelho.</summary>
+        public void NitroBar(float fill, bool boosting, bool locked)
+        {
+            var rt = nitroFill.rectTransform;
+            rt.sizeDelta = new Vector2(420f * Mathf.Clamp01(fill), rt.sizeDelta.y);
+            float pulse = 0.75f + 0.25f * Mathf.Sin(Time.unscaledTime * 18f);
+            nitroFill.color = locked ? new Color(1f, 0.32f, 0.22f, 0.9f)
+                : boosting ? new Color(0.85f * pulse + 0.15f, 1f, 1f, 1f)
+                : fill >= 0.999f ? new Color(0.45f, 0.95f, 1f, 1f) : new Color(0.3f, 0.65f, 0.95f, 0.9f);
+        }
+
         GameObject Panel(string name, Color c)
         {
             var go = new GameObject(name);
@@ -111,6 +153,9 @@ namespace RedDust.Presentation
         {
             speed.gameObject.SetActive(on); speedUnit.gameObject.SetActive(on); timer.gameObject.SetActive(on);
             best.gameObject.SetActive(on); zone.gameObject.SetActive(on); state.gameObject.SetActive(on);
+            nitroBack.gameObject.SetActive(on); nitroFill.gameObject.SetActive(on); nitroLabel.gameObject.SetActive(on);
+            progressLine.gameObject.SetActive(on); progressMark.gameObject.SetActive(on);
+            foreach (var g in speedSegs) g.gameObject.SetActive(on);
         }
 
         public void Center(string big, string small, float seconds)
@@ -124,10 +169,22 @@ namespace RedDust.Presentation
         public void Race(float kmh, float time, float bestTime, string zoneName, bool boosting, bool drifting, bool airborne)
         {
             speed.text = $"{kmh:0}";
+            int lit = Mathf.RoundToInt(Mathf.Clamp01(kmh / 520f) * SpeedSegs);
+            for (int i = 0; i < speedSegs.Count; i++)
+            {
+                float f = i / (float)SpeedSegs;
+                speedSegs[i].color = i < lit ? (f > 0.82f ? new Color(1f, 0.45f, 0.25f, 0.95f) : new Color(0.55f, 0.95f, 1f, 0.9f)) : new Color(1f, 1f, 1f, 0.15f);
+            }
             timer.text = FormatTime(time);
             best.text = bestTime > 0f ? $"melhor {FormatTime(bestTime)}" : "";
             zone.text = zoneName;
-            state.text = boosting ? "<color=#7fe8ff>BOOST</color>" : drifting ? "<color=#ffcf6a>DERRAPAGEM</color>" : airborne ? "<color=#ffffff>NO AR</color>" : "";
+            state.text = boosting ? "<color=#7fe8ff>NITRO</color>" : drifting ? "<color=#ffcf6a>DERRAPAGEM</color>" : airborne ? "<color=#ffffff>NO AR</color>" : "";
+        }
+
+        /// <summary>Progresso (0..1) no percurso: marcador na linha do topo.</summary>
+        public void Progress(float frac)
+        {
+            progressMark.rectTransform.anchoredPosition = new Vector2(-450 + 896 * Mathf.Clamp01(frac), -155);
         }
 
         public void Device(string text) => device.text = text;

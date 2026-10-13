@@ -177,6 +177,33 @@ Tecnicamente isto exige:
 
 Tudo é gerado por ferramenta de editor a partir de `TrackSegmentDefinition`. Mudar um número regenera o setor.
 
+### E.1b Regras de desenho confirmadas no laboratório (12/10/2026)
+
+1. **Não há "estrada".** O leito do canyon é terreno natural com várias linhas, todas boas e cada uma com o seu custo:
+   - canal de areia que serpenteia (mais longo, com manchas de areia funda que travam);
+   - bancadas de slickrock (mais retas e rápidas, mas com degraus, buracos e pequenas quedas);
+   - cascalho junto às paredes (escorrega);
+   - paredes ridable (o caminho mais curto nas curvas, mas exigente).
+   Medido no troço S22b–d: as três linhas terminam com diferença de 5 %.
+2. **A pista não fica sempre no fundo.** Alterna fundo de canyon, bancadas a meia altura e a superfície do planalto, com vista aberta para mesas, descampados e canyons no horizonte.
+3. **Saltos a 450 km/h:** velocidade de aterragem ≈ v·sen(Δθ da borda).
+   - Flow jump: borda viva ≤ 7°. Até ~1,2 m de altura, fica dentro do alcance dos repulsores.
+   - Canyon jump: ≤ 7,5°, com receção inclinada a acompanhar a trajetória (laboratório: 195 m de voo, 12–15 m/s na aterragem).
+4. **Leitos estreitos** (fundo de half-pipe, curvas inclinadas) só têm canal suave. Degraus e bancadas ficam para os leitos largos (≥ 45 m).
+5. **Bifurcações**, em três tipos:
+   - **ilha:** uma butte ou fin divide um leito largo em duas linhas;
+   - **vertical:** uma linha alta na parede ou numa bancada que prepara um atalho;
+   - **percurso próprio:** um atalho por cima de um promontório ou por uma fenda, com saída e reentrada no canyon principal.
+
+### E.3b Vertical slice revisto (~7 min a ~95 m/s ≈ 38–40 km)
+
+| Setor | Tempo | Nível | Conteúdo |
+|---|---|---|---|
+| **S01 THE BASIN + BROKEN MESA** | 0:00–1:10 | **superfície** (bancada do Kayenta, ~300 m) | Grelha 5×4 numa bacia de slickrock e areia, com mesas e cordilheira no horizonte. Lajes a subir com flow jumps. **Bifurcação 1 (ilha):** butte ao meio; esquerda = areia (mais longa, segura), direita = lajes com saltos (rápida). Entrada no canyon: o canyon "cresce à volta" enquanto a pista desce. |
+| **S02 THE RED WALL** | 1:10–3:00 | descida do planalto ao fundo (~60 m) | Curva à direita contínua de vários km (R 1 225 → ~400 m), com bank progressivo 8° → 50° na falésia vermelha. A linha alta prepara um **salto de parede** por cima de um promontório (atalho). |
+| **S03 THE WASH** | 3:00–5:40 | fundo do canyon | Half-pipe natural assimétrico com meandros. Numa curva em ferradura (estilo Horseshoe Bend), um **atalho pela bancada da borda** com vista para a garganta e queda de volta ao wash. Termina numa bacia natural. |
+| **S04 THE HOLLOW + saída** | 5:40–7:00 | subida à superfície → caverna → bancada final | Sobe a canyon lateral até ao planalto (vista aberta). Entra na **caverna** sob uma mesa (boca numa falésia, descida, câmara, dois braços) e sai com um salto de rocha para uma bancada estilo White Rim, com vista. Zona de **EXTRAÇÃO**. |
+
 ### E.2 Campos de `TrackSegmentDefinition`
 
 `SegmentID`, `MainSpline`, `AltSplines[]`, `WidthTarget` (curva), `BankTarget` (curva), `CurveRadiusTarget`, `CrossSection` (+ parâmetros), `SurfaceType` (Sand, Slickrock, Gravel, DeepSand, Rock), `RiskLevel`, `ShortcutID`, `StreamingBounds`, `RecoveryZones[]`, `Checkpoints[]`, `Landmarks[]`, `ExpectedTime`, `TelemetryID`.

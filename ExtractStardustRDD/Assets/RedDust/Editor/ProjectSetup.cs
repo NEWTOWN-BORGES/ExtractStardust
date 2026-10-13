@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEngine;
@@ -97,7 +97,13 @@ namespace RedDust.EditorTools
                 m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
             });
             Mat($"{ResourcesDir}/DebugLines.mat", Shader.Find("RedDust/DebugLines"), null);
+            // efeitos de velocidade: aditivo (riscos, faíscas, chama) e transparente (pó)
+            var fx = Shader.Find("RedDust/FxParticle");
+            Mat($"{ResourcesDir}/FxAdd.mat", fx, m => { m.SetFloat("_Src", (float)BlendMode.SrcAlpha); m.SetFloat("_Dst", (float)BlendMode.One); m.SetFloat("_Soft", 1.5f); });
+            Mat($"{ResourcesDir}/FxDust.mat", fx, m => { m.SetFloat("_Src", (float)BlendMode.SrcAlpha); m.SetFloat("_Dst", (float)BlendMode.OneMinusSrcAlpha); m.SetFloat("_Soft", 2.2f); });
             Mat($"{MaterialsDir}/Geology.mat", Shader.Find("RedDust/Geology"), null);
+            // destroços de naves de extração caídas no canyon (metal escuro gasto)
+            Mat($"{MaterialsDir}/WreckMetal.mat", lit, m => { m.SetColor("_BaseColor", new Color(0.36f, 0.25f, 0.18f)); m.SetFloat("_Metallic", 0.55f); m.SetFloat("_Smoothness", 0.28f); });
             Mat($"{MaterialsDir}/SkyRDD.mat", Shader.Find("RedDust/Sky"), null);
             Mat($"{MaterialsDir}/SkyDesert.mat", Shader.Find("Skybox/Procedural"), m =>
             {

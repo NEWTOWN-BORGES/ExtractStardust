@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using RedDust.Presentation;
 using RedDust.Track;
@@ -107,6 +107,71 @@ namespace RedDust.EditorTools
             View("10_caverna_boca", caveIn - 60, 0f, new Vector3(-30f, course.Center[caveIn].y + 30f, -170f), 55f, 0f, course.Center[caveIn] + Vector3.up * 15f);
             Chase("11_caverna_dentro", cave, 0f);
             View("12_aerea", s10, 0f, new Vector3(-900f, course.Center[s10].y + 650f, -500f), 60f, 0f, course.Center[s10]);
+
+            // ramos (grafo de percursos): saída, dentro do ramo, ilha/fin entre canyons, vista aérea da bifurcação
+            var graph = Object.FindFirstObjectByType<CourseRuntime>().Graph;
+            int nb = 0;
+            foreach (var br in graph.Paths)
+            {
+                if (br.IsMain) continue;
+                nb++;
+                var d = br.Data;
+                int split = course.StationAt(br.From);
+                int bmid = d.StationCount / 2, bq = d.StationCount / 4;
+                // à saída: câmera no principal, um pouco antes, a olhar para a boca do ramo
+                PlaceCraft(split - 30, 0f);
+                chase.enabled = false;
+                Vector3 mouth = d.Center[Mathf.Min(d.StationCount - 1, 80)] + Vector3.up * 6f;
+                Vector3 camPos = course.Center[split] - course.Tangent[split] * 140f + Vector3.up * 22f;
+                cam.transform.SetPositionAndRotation(camPos, Quaternion.LookRotation(mouth - camPos, Vector3.up));
+                cam.fieldOfView = 60f;
+                Shot(cam, Path.Combine(outDir, $"2{nb}a_ramo_saida.png"));
+                // dentro do ramo: perseguição
+                PlaceOn(d, bq, 0f);
+                chase.enabled = true;
+                chase.Attach(craft);
+                for (int k = 0; k < 240; k++) chase.Tick(1f / 60f);
+                Shot(cam, Path.Combine(outDir, $"2{nb}b_ramo_dentro.png"));
+                PlaceOn(d, bmid, 0f);
+                for (int k = 0; k < 240; k++) chase.Tick(1f / 60f);
+                Shot(cam, Path.Combine(outDir, $"2{nb}c_ramo_meio.png"));
+                // vista aérea da bifurcação (de trás e de cima)
+                chase.enabled = false;
+                Vector3 c0 = course.Center[split];
+                Vector3 look = d.Center[bmid];
+                Vector3 air = c0 - course.Tangent[split] * 420f + Vector3.up * 260f - d.Right[bmid] * 0f;
+                cam.transform.SetPositionAndRotation(air, Quaternion.LookRotation(look - air, Vector3.up));
+                cam.fieldOfView = 55f;
+                Shot(cam, Path.Combine(outDir, $"2{nb}d_bifurcacao_aerea.png"));
+            }
+
+            // kit de rocha do laboratório (posições do sandbox.json): a chegar a arcos e dentro do destroço
+            if (course.Length > 13700f)
+            {
+                Chase("31_arco_wash", course.StationAt(11400f) - 45, 0f);
+                Chase("32_arco_reta", course.StationAt(1250f) - 30, 0f);
+                Chase("33_destroco", course.StationAt(13420f), 0f);
+            }
+            if (First("S30") > 0)
+            {
+                int top = Mid("S30"), climb = Mid("S29");
+                Chase("34_planalto", top, 0f);
+                Chase("35_subida_planalto", climb, 0f);
+                View("36_planalto_aereo", top, 0f, new Vector3(-260f, course.Center[top].y + 140f, -380f), 60f, 0f, course.Center[top]);
+            }
+
+            void PlaceOn(CourseData d, int s, float u)
+            {
+                s = Mathf.Clamp(s, 1, d.StationCount - 2);
+                Vector3 p = d.LanePoint(s, u);
+                Vector3 n = d.LaneNormal(s, u);
+                Vector3 f = Vector3.ProjectOnPlane(d.Tangent[s], n).normalized;
+                craft.Place(p + n * craft.tuning.hoverHeight, Quaternion.LookRotation(f, n), craft.tuning.topSpeed);
+                Physics.SyncTransforms();
+                craft.Body.linearVelocity = f * craft.tuning.topSpeed;
+                craft.Step(1f / 90f);
+                craft.Body.linearVelocity = f * craft.tuning.topSpeed;
+            }
 
             Object.DestroyImmediate(craft.gameObject);
             Object.DestroyImmediate(camGo);

@@ -18,7 +18,7 @@ function Step($name, $exe, $argList, $log, $pattern) {
 }
 
 if (-not $SkipBlender) {
-  $null = Step "Blender (geologia)" $blender @("-b", "--factory-startup", "-P", "$P\Art\Blender\rdd_build_course.py", "--", "$P\Art\Courses\sandbox.json", "$P\Art\Export\sandbox") "$logs\blender_sandbox.log" "relat|Error|Traceback"
+  $null = Step "Blender (geologia)" $blender @("-b", "--factory-startup", "-P", "$P\Art\Blender\rdd_build_route.py", "--", "$P\Art\Courses\sandbox.json", "$P\Art\Export\sandbox") "$logs\blender_sandbox.log" "relat|Error|Traceback"
 }
 $null = Step "Unity (importar + cena)" $unity @("-batchmode", "-nographics", "-projectPath", $P, "-executeMethod", "RedDust.EditorTools.CourseImporter.ImportSandbox", "-logFile", "$logs\unity_import.log") "$logs\unity_import.log" "error CS|\[RDD\]|Exception:"
 if (-not $SkipValidate) {

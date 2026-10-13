@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -28,6 +28,7 @@ namespace RedDust.EditorTools
             public bool pass;
         }
 
+        static CourseGraph graph;
         static CourseData course;
         static CraftController craft;
         static ChaseCamera chase;
@@ -40,7 +41,8 @@ namespace RedDust.EditorTools
         public static void Run()
         {
             EditorSceneManager.OpenScene(CourseImporter.ScenePath);
-            course = UnityEngine.Object.FindFirstObjectByType<CourseRuntime>().Data;
+            graph = UnityEngine.Object.FindFirstObjectByType<CourseRuntime>().Graph;
+            course = graph.Main.Data;
             var prevMode = Physics.simulationMode;
             Physics.simulationMode = SimulationMode.Script;
             results.Clear();
@@ -66,6 +68,9 @@ namespace RedDust.EditorTools
                 TestCave();
                 TestTunnelling();
                 TestNaturalLines();
+                TestBranchSurfaces();
+                TestOverhead();
+                TestBranchRoutes();
                 TestFullLap();
                 // câmera (acumulado em todos os percursos)
                 Add("C1", "Câmera: horizonte", "roll da câmera ≤ 40% do roll da nave (+3° de tremor)", $"excesso máx. {maxCamRollExcess:0.0}°", maxCamRollExcess <= 3f);
@@ -144,6 +149,18 @@ namespace RedDust.EditorTools
         {
             Vector3 target = course.LanePoint(station, u);
             return Mathf.Abs(Vector3.Dot(craft.Position - target, course.Right[station]));
+        }
+
+        static bool IsKit(Collider c) => c.name.StartsWith("GEO_Arch") || c.name.StartsWith("GEO_Wreck") || c.name.StartsWith("GEO_Boulders") || c.name.StartsWith("GEO_Rocks");
+
+        /// <summary>Primeiro impacto para baixo que seja chão/parede do percurso (ignora arcos, destroços e pedras).</summary>
+        static bool GroundBelow(Vector3 from, float maxDist, out RaycastHit hit)
+        {
+            hit = default;
+            float best = float.MaxValue; bool found = false;
+            foreach (var h in Physics.RaycastAll(from, Vector3.down, maxDist, Layers.GroundMask))
+                if (!IsKit(h.collider) && h.distance < best) { best = h.distance; hit = h; found = true; }
+            return found;
         }
 
         static string F(float v, string fmt = "0.00") => v.ToString(fmt, CultureInfo.InvariantCulture);
@@ -390,7 +407,7 @@ namespace RedDust.EditorTools
                     Physics.Simulate(Dt);
                 }
                 Vector3 c = craft.Position;
-                if (Physics.Raycast(c + Vector3.up * 200f, Vector3.down, out var h, 400f, Layers.GroundMask) && c.y < h.point.y - 0.3f) floorFails++;
+                if (GroundBelow(c + Vector3.up * 200f, 400f, out var h) && c.y < h.point.y - 0.3f) floorFails++;
             }
             Add("T7", "Sem tunneling a 1,3-1,5x a velocidade máxima", "0 atravessamentos (1000 paredes + 200 quedas no leito)",
                 $"paredes {fails}/1000 · leito {floorFails}/200", fails == 0 && floorFails == 0);
@@ -428,6 +445,152 @@ namespace RedDust.EditorTools
             float spread = (times.Max() - times.Min()) / Mathf.Max(0.01f, times.Min());
             Add("T9", "Leito natural: três linhas viáveis (canal / bancadas)", "todas terminam sem quedas nem impactos; diferença de tempo ≤ 12%",
                 string.Join(" · ", res) + $" · diferença {F(spread * 100f, "0.0")}%", ok && spread <= 0.12f);
+        }
+
+        /// <summary>
+        /// Junções e ramos: raios verticais sobre as linhas de corrida de cada percurso (zona dos ramos). Sem buracos,
+        /// sem degraus bruscos que não estejam no desenho e sem rocha a sobrar por cima da pista.
+        /// </summary>
+        static void TestBranchSurfaces()
+        {
+            if (graph.BranchCount == 0) return;
+            float lo = float.MaxValue, hi = 0f;
+            foreach (var q in graph.Paths) if (!q.IsMain) { lo = Mathf.Min(lo, q.From); hi = Mathf.Max(hi, q.To); }
+            int holes = 0, ceilings = 0, samples = 0;
+            float maxStep = 0f; string where = "-", holeAt = "", ceilAt = "";
+            foreach (var p in graph.Paths)
+            {
+                var d = p.Data;
+                int a = p.IsMain ? d.StationAt(lo - 300f) : 0;
+                int b = p.IsMain ? d.StationAt(hi + 300f) : d.StationCount - 1;
+                var us = new List<float>();
+                for (float u = -0.9f; u <= 0.901f; u += 0.15f) us.Add(u);
+                var prev = new float[us.Count];
+                for (int j = 0; j < prev.Length; j++) prev[j] = float.NaN;
+                for (int s = a; s <= b; s++)
+                {
+                    if (d.IsGap(s) || d.IsCave(s)) { for (int j = 0; j < prev.Length; j++) prev[j] = float.NaN; continue; }
+                    for (int j = 0; j < us.Count; j++)
+                    {
+                        Vector3 lp = d.LanePoint(s, us[j]);
+                        samples++;
+                        // o terreno fica 9-12 m abaixo dos percursos: se o raio lá chega, há uma fenda na malha
+                        if (!GroundBelow(lp + Vector3.up * 25f, 70f, out var h) || h.collider.name.StartsWith("GEO_Terrain"))
+                        {
+                            holes++;
+                            if (holes <= 3) holeAt += $" {p.Id} {F(d.Dist[s], "0")} m u={F(us[j], "0.00")};";
+                            prev[j] = float.NaN;
+                            continue;
+                        }
+                        float off = h.point.y - lp.y;          // superfície real em relação à secção deste percurso
+                        if (!float.IsNaN(prev[j]))
+                        {
+                            float step = Mathf.Abs(off - prev[j]);
+                            if (step > maxStep) { maxStep = step; where = $"{p.Id} {F(d.Dist[s], "0")} m u={F(us[j], "0.00")}"; }
+                        }
+                        prev[j] = off;
+                        if (Mathf.Abs(us[j]) <= 0.6f && Physics.Raycast(h.point + Vector3.up * 1.0f, Vector3.up, out var c, 5f, Layers.GroundMask))
+                        {
+                            ceilings++;
+                            if (ceilings <= 3) ceilAt += $" {p.Id} {F(d.Dist[s], "0")} m u={F(us[j], "0.00")} a {F(c.distance + 1f, "0.0")} m;";
+                        }
+                    }
+                }
+            }
+            Add("G2", "Junções e ramos: superfície contínua", "0 buracos; 0 rocha a menos de 6 m por cima da linha de corrida; degrau entre amostras (3 m) ≤ 3 m",
+                $"{samples} raios · buracos {holes}{holeAt} · rocha por cima {ceilings}{ceilAt} · maior degrau {F(maxStep, "0.00")} m ({where})",
+                holes == 0 && ceilings == 0 && maxStep <= 3f);
+        }
+
+        /// <summary>Arcos, destroços e tetos: folga vertical sobre as linhas de corrida em todos os percursos.</summary>
+        static void TestOverhead()
+        {
+            int samples = 0, blocked = 0, arches = 0;
+            float minClear = float.MaxValue; string where = "-";
+            foreach (var p in graph.Paths)
+            {
+                var d = p.Data;
+                for (int s = 1; s < d.StationCount - 1; s += 2)
+                {
+                    if (d.IsGap(s) || d.IsCave(s) || d.IsCave(s - 6) || d.IsCave(s + 6)) continue;     // bocas das cavernas: teto de propósito
+                    for (float u = -0.9f; u <= 0.901f; u += 0.3f)
+                    {
+                        Vector3 lp = d.LanePoint(s, u);
+                        if (!GroundBelow(lp + Vector3.up * 25f, 70f, out var h)) continue;
+                        samples++;
+                        if (!Physics.Raycast(h.point + Vector3.up * 0.5f, Vector3.up, out var c, 60f, Layers.GroundMask)) continue;
+                        float clear = c.distance + 0.5f;
+                        bool kit = c.collider.name.StartsWith("GEO_Arch") || c.collider.name.StartsWith("GEO_Wreck") || c.collider.name.StartsWith("GEO_Boulders") || c.collider.name.StartsWith("GEO_Rocks");
+                        if (kit) arches++;
+                        if (clear < minClear) { minClear = clear; where = $"{p.Id} {F(d.Dist[s], "0")} m u={F(u, "0.0")} ({c.collider.name})"; }
+                        if ((kit && clear < 6f) || clear < 2.5f) blocked++;      // relevo das paredes pode fazer pequenas saliências
+                    }
+                }
+            }
+            Add("A1", "Arcos e destroços por cima da pista", "arcos/destroços/pedras ≥ 6 m e paredes ≥ 2,5 m acima das linhas de corrida (fora das cavernas)",
+                $"{samples} pontos · {arches} sob arcos/destroços · folga mín. {(minClear < float.MaxValue ? F(minClear, "0.0") : "-")} m ({where}) · obstruídos {blocked}", blocked == 0);
+        }
+
+        /// <summary>Cada ramo: o piloto sai do principal, percorre o ramo e volta, sem quedas nem impactos.</summary>
+        static void TestBranchRoutes()
+        {
+            if (graph.BranchCount == 0) return;
+            float RunRoute(int branch, float from, float to, out string info, out bool ok)
+            {
+                var route = new RouteFollower(graph) { chooseBranch = q => q.Index == branch };
+                Place(course.StationAt(from), 0f, craft.tuning.topSpeed);
+                route.Reset(0, 0f);
+                float t = 0f, maxRate = 0f; int n = 0, ground = 0, onBranch = 0, branchSteps = 0, falls = 0;
+                int lp = 0, ls = -1;
+                bool tookBranch = false;
+                var csv = new StringBuilder("t;corrida;percurso;dist;kmh;solo;hover;dcima;superficie\n");
+                int steps = Mathf.CeilToInt(60f / Dt);
+                for (int k = 0; k < steps; k++)
+                {
+                    craft.input = route.Drive(craft, Dt);
+                    craft.Step(Dt);
+                    Physics.Simulate(Dt);
+                    CameraCheck();
+                    t += Dt;
+                    graph.Locate(craft.Position, ref lp, ref ls);
+                    if (k > 60)
+                    {
+                        n++;
+                        if (craft.Grounded) ground++;
+                        maxRate = Mathf.Max(maxRate, craft.UpRateSmoothed);
+                    }
+                    if (branch > 0 && route.PathIndex == branch) { tookBranch = true; branchSteps++; if (lp == branch) onBranch++; }
+                    if (k % 3 == 0)
+                        csv.Append($"{F(t, "0.00")};{F(route.RaceDistance, "0")};{route.PathIndex};{F(route.Distance, "0")};{F(Units.ToKmh(craft.Speed), "0")};{(craft.Grounded ? 1 : 0)};{F(float.IsInfinity(craft.HoverMeasured) ? -1f : craft.HoverMeasured)};{F(craft.UpRateSmoothed, "0")};{F(craft.SurfaceAngle, "0")}\n");
+                    if (craft.Position.y < graph.Paths[lp].Data.Center[ls].y - 40f) { falls++; break; }
+                    if (route.Path.IsMain && route.RaceDistance >= to) break;
+                }
+                Directory.CreateDirectory("Logs");
+                File.WriteAllText($"Logs/rdd_rota_{branch}.csv", csv.ToString());
+                bool done = route.Path.IsMain && route.RaceDistance >= to - 5f;
+                float located = branchSteps > 0 ? 100f * onBranch / branchSteps : 0f;
+                ok = done && falls == 0 && impacts == 0 && ground >= 0.97f * n && maxRate <= 120f && (branch == 0 || (tookBranch && located >= 80f));
+                info = $"{F(t, "0.0")} s · contacto {F(100f * ground / Mathf.Max(1, n), "0.0")}% · Δcima máx. {F(maxRate, "0")}°/s · impactos {impacts} · quedas {falls}" +
+                       (branch > 0 ? $" · no ramo {F(located, "0")}% do tempo (pelo grafo)" : "") + (done ? "" : " · NÃO TERMINOU");
+                return t;
+            }
+
+            float lo = float.MaxValue, hi = 0f;
+            foreach (var q in graph.Paths) if (!q.IsMain) { lo = Mathf.Min(lo, q.From); hi = Mathf.Max(hi, q.To); }
+            float tMain = RunRoute(0, lo - 500f, hi + 300f, out string infoMain, out bool okMain);
+            var lines = new List<string> { $"principal: {infoMain}" };
+            bool all = okMain;
+            foreach (var b in graph.Paths)
+            {
+                if (b.IsMain) continue;
+                float tb = RunRoute(b.Index, lo - 500f, hi + 300f, out string info, out bool ok);
+                lines.Add($"{b.Id}: {info} · {(tb >= tMain ? "+" : "")}{F(100f * (tb - tMain) / Mathf.Max(0.01f, tMain), "0.0")}% vs principal");
+                Add($"G1 {b.Id.Split(' ')[0]}", $"Ramo {b.Id}", "sai, percorre e volta ao principal; 0 quedas; 0 impactos; contacto ≥ 97%; Δcima ≤ 120°/s; reconhecido pelo grafo ≥ 80%",
+                    $"{info} · {F(tb, "0.0")} s vs {F(tMain, "0.0")} s no principal", ok);
+                all &= ok;
+            }
+            Debug.Log("[RDD M1] rotas: " + string.Join(" | ", lines));
+            if (!okMain) Add("G1 main", "Principal na zona dos ramos", "termina sem quedas nem impactos", infoMain, false);
         }
 
         static void TestFullLap()
@@ -474,7 +637,7 @@ namespace RedDust.EditorTools
             sb.AppendLine("# M1 — Relatório de validação da física e da câmera");
             sb.AppendLine();
             sb.AppendLine($"Gerado automaticamente em {DateTime.Now:yyyy-MM-dd HH:mm} · passo fixo 1/90 s · {seconds:0} s de simulação real.");
-            sb.AppendLine($"Percurso: laboratório (`Art/Courses/sandbox.json`), {course.Length / 1000f:0.00} km. Nave: STRIX provisória (CraftTuning por omissão, {Units.ToKmh(new CraftTuning().topSpeed):0} km/h).");
+            sb.AppendLine($"Percurso: laboratório (`Art/Courses/sandbox.json`), {course.Length / 1000f:0.00} km + {graph.BranchCount} ramos ({string.Join(", ", graph.Paths.Where(p => !p.IsMain).Select(p => $"{p.Id} {p.Length / 1000f:0.00} km"))}). Nave: STRIX provisória (CraftTuning por omissão, {Units.ToKmh(new CraftTuning().topSpeed):0} km/h).");
             sb.AppendLine();
             sb.AppendLine($"**Resultado: {pass}/{results.Count} testes passam.**");
             sb.AppendLine();

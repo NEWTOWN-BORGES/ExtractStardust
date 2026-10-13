@@ -1,4 +1,4 @@
-using RedDust.Vehicle;
+﻿using RedDust.Vehicle;
 using UnityEngine;
 
 namespace RedDust.Presentation
@@ -17,11 +17,12 @@ namespace RedDust.Presentation
     {
         public CraftController target;
         [Header("Enquadramento")]
-        public float distance = 8.2f;
-        public float distanceAtSpeed = 3.4f;
-        public float height = 2.3f;
-        public float lookAhead = 13f;
-        public float lookHeight = 1.1f;
+        public float distance = 6.4f;
+        [Tooltip("Negativo: aproxima-se à velocidade máxima (mais sensação de velocidade)")] public float distanceAtSpeed = -1.0f;
+        public float height = 1.6f;
+        public float heightAtSpeed = -0.35f;
+        public float lookAhead = 16f;
+        public float lookHeight = 0.8f;
         [Header("Banking")]
         [Range(0f, 1f)] public float upFollow = 0.7f;
         [Range(0f, 1f)] public float rollFollow = 0.4f;
@@ -30,9 +31,10 @@ namespace RedDust.Presentation
         public float upSmoothing = 6f;
         public float headingSmoothing = 8f;
         [Header("FOV")]
-        public float fovMin = 64f;
-        public float fovMax = 88f;
-        public float fovBoost = 6f;
+        public float fovMin = 62f;
+        public float fovMax = 100f;
+        public float fovBoost = 9f;
+        [Tooltip("Velocidades (km/h) entre as quais entra a sensação de vertigem")] public Vector2 vertigoKmh = new Vector2(230f, 450f);
         [Header("Acessibilidade")]
         [Range(0f, 2f)] public float shakeScale = 1f;
         [Range(-10f, 10f)] public float fovOffset = 0f;
@@ -47,6 +49,10 @@ namespace RedDust.Presentation
         public float CameraRollDeg { get; private set; }
         public float CraftRollDeg { get; private set; }
         public bool Blocked { get; private set; }
+        /// <summary>0..1: quanto a velocidade está na zona "vertiginosa" (efeitos, partículas e som usam isto).</summary>
+        public float Vertigo { get; private set; }
+        float boostPunch, driftSwing;
+        bool wasBoosting;
 
         Vector3 offset;           // posição da câmera relativa à nave (suavizada)
         Vector3 smoothUp = Vector3.up;
@@ -107,14 +113,21 @@ namespace RedDust.Presentation
             // olhar à volta (analógico direito) / para trás (R3): roda o enquadramento à volta do "cima"
             float yawTarget = lookBack ? 180f : lookYawInput * lookYawMax;
             lookYaw = Mathf.Lerp(lookYaw, yawTarget, MathX.Damp(lookBack ? 18f : 7f, dt));
-            Vector3 viewHeading = Quaternion.AngleAxis(lookYaw, smoothUp) * smoothHeading;
+            // derrapagem: a câmera abre para fora e mostra a nave de lado
+            driftSwing = Mathf.Lerp(driftSwing, t.Drifting ? Mathf.Clamp(-t.LateralSpeed * 0.7f, -20f, 20f) : 0f, MathX.Damp(t.Drifting ? 3f : 2f, dt));
+            Vector3 viewHeading = Quaternion.AngleAxis(lookYaw + driftSwing, smoothUp) * smoothHeading;
+            float kmh = speed * 3.6f;
+            Vertigo = MathX.Smoothstep(vertigoKmh.x, vertigoKmh.y, kmh);
+            if (t.Boosting && !wasBoosting) boostPunch = 1f;       // ao acender o nitro: "soco" de FOV
+            wasBoosting = t.Boosting;
+            boostPunch = Mathf.MoveTowards(boostPunch, 0f, dt * 1.8f);
 
             // recuo com a aceleração
             float accel = dt > 0f ? (speed - lastSpeed) / dt : 0f;
             lastSpeed = speed;
             float pull = Mathf.Clamp(accel * 0.03f, -0.6f, 1.2f);
             float dist = distance + distanceAtSpeed * Mathf.Clamp01(speed / top) + pull;
-            Vector3 desiredOffset = -viewHeading * dist + smoothUp * height;
+            Vector3 desiredOffset = -viewHeading * dist + smoothUp * (height + heightAtSpeed * Mathf.Clamp01(speed / top));
             offset = Vector3.Lerp(offset, desiredOffset, MathX.Damp(offsetStiffness, dt));
 
             // impulso de aterragem (mola)
@@ -136,20 +149,26 @@ namespace RedDust.Presentation
             Vector3 look = p + viewHeading * lookAhead + smoothUp * lookHeight;
             Quaternion rot = Quaternion.LookRotation(look - camPos, upRoll);
 
-            // tremor: velocidade (leve) + impactos, escalado pela opção de acessibilidade
-            shakeTime += dt * (6f + 14f * Mathf.Clamp01(speed / top));
+            // tremor de alta frequência: cresce com a vertigem e com o chão (areia, cascalho, rocha); nitro, derrapagem
+            // e impactos somam. Escalado pela opção de acessibilidade.
+            shakeTime += dt * (8f + 34f * Mathf.Clamp01(speed / top));
             impactShake = Mathf.MoveTowards(impactShake, 0f, dt * 2.5f);
-            float amp = shakeScale * (0.12f * Mathf.Pow(Mathf.Clamp01(speed / top), 2f) + 1.6f * impactShake);
+            float ground = t.Grounded ? t.SurfaceShake : 0f;
+            float amp = shakeScale * (Vertigo * (0.3f + 1.7f * ground) + (t.Boosting ? 0.45f * Mathf.Max(Vertigo, 0.3f) : 0f)
+                                      + (t.Drifting ? 0.35f : 0f) + 1.6f * impactShake);
             if (amp > 0f)
             {
-                rot *= Quaternion.Euler((Mathf.PerlinNoise(shakeTime, 0.3f) - 0.5f) * amp,
-                                        (Mathf.PerlinNoise(0.7f, shakeTime) - 0.5f) * amp, 0f);
+                float n1 = Mathf.PerlinNoise(shakeTime, 0.3f) - 0.5f + 0.5f * (Mathf.PerlinNoise(shakeTime * 2.7f, 5.1f) - 0.5f);
+                float n2 = Mathf.PerlinNoise(0.7f, shakeTime) - 0.5f + 0.5f * (Mathf.PerlinNoise(9.3f, shakeTime * 2.7f) - 0.5f);
+                rot *= Quaternion.Euler(n1 * amp, n2 * amp, 0f);
+                camPos += (rot * Vector3.up) * (n2 * 0.06f * amp) + (rot * Vector3.right) * (n1 * 0.05f * amp);
             }
             transform.SetPositionAndRotation(camPos, rot);
 
-            float targetFov = Mathf.Lerp(fovMin, fovMax, Mathf.Pow(Mathf.Clamp01(speed / top), 1.2f)) + (t.Boosting ? fovBoost : 0f) + fovOffset;
-            fov = Mathf.Lerp(fov, targetFov, MathX.Damp(3f, dt));
-            if (Cam != null) Cam.fieldOfView = fov;
+            float targetFov = Mathf.Lerp(fovMin, fovMax, 0.3f * Mathf.Clamp01(speed / top) + 0.7f * Vertigo) + (t.Boosting ? fovBoost : 0f) + fovOffset;
+            fov = Mathf.Lerp(fov, targetFov, MathX.Damp(3f, dt)) ;
+            float fovNow = fov + 7f * boostPunch * boostPunch;
+            if (Cam != null) Cam.fieldOfView = fovNow;
 
             // métricas para os testes de aceitação
             CraftRollDeg = Vector3.Angle(craftUp, Vector3.up);

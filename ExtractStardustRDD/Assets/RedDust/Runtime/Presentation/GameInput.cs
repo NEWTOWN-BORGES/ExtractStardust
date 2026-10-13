@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.DualShock;
 using UnityEngine.InputSystem.XInput;
@@ -184,8 +184,10 @@ namespace RedDust.Presentation
 
         // ------------------------------------------------------------------ nomes dos botões para as dicas
 
-        public static string BtnBoost => LastUsedPad && Pad != null ? (IsPlayStation ? "R2 / X" : "RT / A") : "W / Shift";
-        public static string BtnBrake => LastUsedPad && Pad != null ? (IsPlayStation ? "L2 / Quadrado" : "LT / X") : "S / Espaço";
+        public static string BtnBoost => LastUsedPad && Pad != null ? (IsPlayStation ? "X / R1" : "A / RB") : "Shift";
+        public static string BtnThrottle => LastUsedPad && Pad != null ? (IsPlayStation ? "R2" : "RT") : "W";
+        public static string BtnDrift => LastUsedPad && Pad != null ? (IsPlayStation ? "Quadrado" : "X") : "Espaço";
+        public static string BtnBrake => LastUsedPad && Pad != null ? (IsPlayStation ? "L2" : "LT") : "S";
         public static string BtnReset => LastUsedPad && Pad != null ? (IsPlayStation ? "Triângulo" : "Y") : "R";
         public static string BtnPause => LastUsedPad && Pad != null ? (IsPlayStation ? "OPTIONS" : "Menu") : "Esc";
         public static string BtnConfirm => LastUsedPad && Pad != null ? (IsPlayStation ? "X" : "A") : "Enter";
