@@ -306,6 +306,23 @@ namespace RedDust.Vehicle
         /// Toques do casco no chão (barriga, degraus, emendas e falhas da malha): não são batidas. Mantém a velocidade ao
         /// longo da superfície, dá um pequeno impulso para cima e não conta impacto. Paredes e rochas de frente contam.
         /// </summary>
+        /// <summary>
+        /// Degrau à frente (espelho quase vertical, contacto baixo): se o topo for plano e estiver até 3,6 m acima da
+        /// base do casco, a nave sobe para cima dele e mantém a velocidade, como um "step offset". Paredes altas não.
+        /// </summary>
+        bool ClimbStep(Vector3 contact)
+        {
+            var probe = contact + Forward * 0.9f + Up * 3.8f;
+            if (!Physics.Raycast(probe, -Up, out var top, 3.8f, Layers.GroundMask, QueryTriggerInteraction.Ignore)) return false;
+            if (Vector3.Dot(top.normal, Up) < 0.6f || Vector3.Dot(top.point - contact, Up) < 0.05f) return false;
+            Vector3 bottom = Position - Up * (tuning.hullSize.y * 0.5f);
+            float need = Vector3.Dot(top.point - bottom, Up) + 0.15f;
+            if (need <= 0f || need > 3.6f) return false;
+            Body.position += Up * Mathf.Min(need, 1.4f);
+            Body.linearVelocity = preVel * 0.98f + Up * 1.2f;
+            return true;
+        }
+
         bool GroundGraze(Collision c)
         {
             if (c.contactCount == 0 || ((1 << c.gameObject.layer) & Layers.GroundMask) == 0) return false;
@@ -314,6 +331,7 @@ namespace RedDust.Vehicle
             float upDot = Vector3.Dot(n, Up);
             bool low = Vector3.Dot(cp.point - Position, Up) < -tuning.hullSize.y * 0.2f;
             bool facing = Vector3.Dot(n, Forward) < -0.75f && upDot < 0.35f;   // parede/rocha mesmo à frente
+            if (facing && low && ClimbStep(cp.point)) return true;            // degrau baixo: sobe sem parar
             if (facing || (upDot < 0.35f && !low)) return false;
             Vector3 v = Vector3.ProjectOnPlane(preVel, n);
             if (Vector3.Dot(preVel, n) < 0f) Body.linearVelocity = v + Up * 0.8f;

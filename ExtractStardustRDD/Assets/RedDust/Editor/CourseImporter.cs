@@ -212,6 +212,7 @@ namespace RedDust.EditorTools
             course.obstaclesJson = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dst}/{name}_obstacles.json");
             course.title = ReadTitle(name);
             root.AddComponent<SectorStreamer>();
+            ScatterProps(name, genDir, root, ride, course.Graph, geo);
 
             var sunGo = new GameObject("Sun");
             var sun = sunGo.AddComponent<Light>();
@@ -422,6 +423,195 @@ namespace RedDust.EditorTools
         }
 
         /// <summary>Título da pista (campo "title" do JSON em Art/Courses).</summary>
+        // ------------------------------------------------------------------ paisagem: vegetação, adereços e monumentos
+
+        /// <summary>Zonas da paisagem: densidade e pesos por tipo (nomes de PropField.Types).</summary>
+        static readonly Dictionary<string, (float dens, (string t, float w)[] mix)> Zones = new Dictionary<string, (float, (string, float)[])>
+        {
+            ["desert"] = (1.0f, new[] { ("P_DeadTree_A", 1f), ("P_DeadTree_B", 1f), ("P_DeadTree_C", 1f), ("P_Saguaro_A", 1.5f), ("P_Saguaro_B", 1.5f), ("P_PricklyPear", 2f),
+                                        ("P_Barrel", 1f), ("P_Bush_Dry_A", 3f), ("P_Bush_Dry_B", 3f), ("P_Grass_Dry", 5f), ("P_Boulder_A", 1f), ("P_Boulder_B", 1f), ("P_Boulder_C", 1f), ("P_Joshua", 1f) }),
+            ["rocky"] = (0.8f, new[] { ("P_DeadTree_A", 1f), ("P_DeadTree_C", 1f), ("P_PricklyPear", 1.5f), ("P_Barrel", 1.5f), ("P_Bush_Dry_A", 2f), ("P_Bush_Dry_B", 2f),
+                                       ("P_Grass_Dry", 2f), ("P_Boulder_A", 3f), ("P_Boulder_B", 3f), ("P_Boulder_C", 3f) }),
+            ["canyon"] = (0.9f, new[] { ("P_DeadTree_A", 1.5f), ("P_DeadTree_B", 1.5f), ("P_DeadTree_C", 1.5f), ("P_Bush_Dry_A", 2.5f), ("P_Bush_Dry_B", 2.5f), ("P_Grass_Dry", 3f),
+                                        ("P_Boulder_A", 2f), ("P_Boulder_B", 2f), ("P_Boulder_C", 2f), ("P_Juniper", 2f), ("P_PricklyPear", 1f) }),
+            ["green"] = (1.9f, new[] { ("P_Tree_A", 3f), ("P_Tree_B", 3f), ("P_Bush_Green", 6f), ("P_Grass_Green", 10f), ("P_Juniper", 1f), ("P_Boulder_A", 1f),
+                                       ("P_Boulder_B", 1f), ("P_DeadTree_A", 0.5f) }),
+            ["wash"] = (1.3f, new[] { ("P_DeadTree_A", 2f), ("P_DeadTree_B", 2f), ("P_DeadTree_C", 2f), ("P_Tree_A", 1f), ("P_Bush_Dry_A", 3f), ("P_Bush_Dry_B", 3f),
+                                      ("P_Bush_Green", 2f), ("P_Grass_Dry", 5f), ("P_Grass_Green", 2f), ("P_Boulder_A", 1.5f), ("P_Boulder_C", 1.5f) }),
+            ["arches"] = (1.0f, new[] { ("P_Juniper", 5f), ("P_PricklyPear", 2f), ("P_Bush_Dry_A", 2f), ("P_Bush_Dry_B", 2f), ("P_Grass_Dry", 3f), ("P_Boulder_A", 1.5f),
+                                        ("P_Boulder_B", 1.5f), ("P_DeadTree_B", 1f), ("P_Barrel", 1f) }),
+            ["rim"] = (0.7f, new[] { ("P_Bush_Dry_A", 3f), ("P_Bush_Dry_B", 3f), ("P_Grass_Dry", 4f), ("P_Boulder_A", 2f), ("P_Boulder_B", 2f), ("P_Boulder_C", 2f),
+                                     ("P_DeadTree_C", 1f), ("P_Saguaro_A", 0.5f) }),
+        };
+
+        static string ZoneOfSector(string id)
+        {
+            id = id.ToUpperInvariant();
+            if (id.Contains("BASIN")) return "desert";
+            if (id.Contains("MESA")) return "rocky";
+            if (id.Contains("SHAFER") || id.Contains("RED WALL")) return "canyon";
+            if (id.Contains("HORSESHOE") || id.Contains("HOLLOW")) return "green";
+            if (id.Contains("WASH")) return "wash";
+            if (id.Contains("ARCH")) return "arches";
+            if (id.Contains("RIM")) return "rim";
+            return "desert";
+        }
+
+        static readonly string[] ZoneCycle = { "desert", "green", "wash", "arches", "rocky", "canyon" };
+
+        static (float lo, float hi) ScaleRange(string t, bool far) => t.StartsWith("P_Boulder") ? (far ? (1.5f, 4.2f) : (0.4f, 1.5f))
+            : t.StartsWith("P_Grass") ? (0.7f, 1.4f) : t.StartsWith("P_Bush") ? (0.6f, 1.4f) : t.StartsWith("P_Tree") ? (0.85f, 1.35f)
+            : t.StartsWith("P_Barrel") || t.StartsWith("P_Prickly") ? (0.8f, 1.5f) : (0.8f, 1.3f);
+
+        /// <summary>
+        /// Espalha a paisagem: bermas (2 a 32 m para lá das linhas de corrida) e terreno (45 a 350 m) com a mistura da zona do
+        /// sector; monumentos (mesas, buttes, agulhas) no horizonte. Nada entra na zona de corrida; adereços sem colisão.
+        /// </summary>
+        static void ScatterProps(string name, string genDir, GameObject root, RideIndex ride, CourseGraph g, Material geo)
+        {
+            const string matPath = "Assets/RedDust/Resources/Props/PropLit.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(matPath) == null)
+                AssetDatabase.CreateAsset(new Material(Shader.Find("Universal Render Pipeline/Lit")) { enableInstancing = true }, matPath);
+            var kit = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/RedDust/Resources/Props/props_kit.fbx");
+            if (kit == null) { Debug.LogWarning("[RDD] paisagem: kit de adereços em falta"); return; }
+            Physics.SyncTransforms();
+
+            // sectores (id, de, até) a partir do JSON da pista
+            var sectors = new List<(string id, float a, float b)>();
+            string spec = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Art", "Courses", name + ".json");
+            if (File.Exists(spec))
+                foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(spec),
+                         "\\{\\s*\"id\":\\s*\"([^\"]+)\",\\s*\"from\":\\s*([0-9.]+),\\s*\"to\":\\s*([0-9.]+)\\s*\\}"))
+                    if (!m.Groups[1].Value.StartsWith("SAFE") && !m.Groups[1].Value.StartsWith("SKILL"))
+                        sectors.Add((m.Groups[1].Value, float.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture),
+                                     float.Parse(m.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture)));
+            string ZoneAt(float dist)
+            {
+                foreach (var sc in sectors) if (dist >= sc.a && dist < sc.b) return ZoneOfSector(sc.id);
+                return ZoneCycle[Mathf.FloorToInt(dist / 4000f) % ZoneCycle.Length];
+            }
+
+            var rnd = new System.Random(4242 + name.Length * 97);
+            float R01() => (float)rnd.NextDouble();
+            float Rng(float a, float b) => a + (b - a) * R01();
+            string Pick(string zone)
+            {
+                var mix = Zones[zone].mix;
+                float tot = 0f;
+                foreach (var e in mix) tot += e.w;
+                float x = R01() * tot;
+                foreach (var e in mix) { x -= e.w; if (x <= 0f) return e.t; }
+                return mix[mix.Length - 1].t;
+            }
+            var recs = new List<(byte t, Vector3 p, float yaw, float s, Vector3 up)>();
+            void Put(string type, RaycastHit hit, bool far)
+            {
+                int t = System.Array.IndexOf(PropField.Types, type);
+                if (t < 0) return;
+                bool upright = type.StartsWith("P_Tree") || type.StartsWith("P_Saguaro") || type.StartsWith("P_DeadTree") || type.StartsWith("P_Joshua");
+                var up = Vector3.Slerp(Vector3.up, hit.normal, upright ? 0.1f : 0.6f).normalized;
+                var (lo, hi) = ScaleRange(type, far);
+                recs.Add(((byte)t, hit.point - up * 0.05f, Rng(0f, 360f), Rng(lo, hi), up));
+            }
+
+            foreach (var path in g.Paths)
+            {
+                var d = path.Data;
+                for (int i = 2; i < d.StationCount - 2; i += 2)
+                {
+                    if (d.IsGap(i) || d.IsCave(i)) continue;
+                    string zone = ZoneAt(d.Dist[i]);
+                    float dens = Zones[zone].dens;
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        // bermas: grupos com manchas (ruído) para não ficar uniforme
+                        float clump = 0.25f + 1.5f * Mathf.PerlinNoise(d.Dist[i] * 0.004f + side * 17.3f, 3.7f);
+                        float want = 1.5f * dens * clump;
+                        int n = Mathf.FloorToInt(want) + (R01() < want - Mathf.Floor(want) ? 1 : 0);
+                        float rideSide = Mathf.Max(4f, side < 0 ? d.RideLeft[i] : d.RideRight[i]);
+                        for (int k = 0; k < n; k++)
+                        {
+                            float extra = 2f + 30f * Mathf.Pow(R01(), 1.6f);
+                            var p0 = d.LanePoint(i, side * (1f + extra / rideSide)) + d.Tangent[i] * Rng(-5f, 5f);
+                            if (!Physics.Raycast(p0 + d.Up[i] * 8f, -d.Up[i], out var hit, 30f, Layers.GroundMask, QueryTriggerInteraction.Ignore)) continue;
+                            string type = Pick(zone);
+                            if (hit.normal.y < (type.StartsWith("P_Boulder") ? 0.4f : 0.6f)) continue;
+                            if (ride.Intrudes(new Bounds(hit.point + Vector3.up, Vector3.one * 3f))) continue;
+                            Put(type, hit, false);
+                        }
+                        // terreno: mais esparso, peças maiores (sem erva)
+                        if (i % 6 == 0 && R01() < 0.75f * dens)
+                        {
+                            float lat = 45f + 300f * Mathf.Pow(R01(), 1.3f);
+                            var p0 = d.Center[i] + d.Right[i] * side * lat + d.Tangent[i] * Rng(-15f, 15f);
+                            if (!Physics.Raycast(p0 + Vector3.up * 500f, Vector3.down, out var hit, 1400f, Layers.GroundMask, QueryTriggerInteraction.Ignore)) continue;
+                            if (hit.normal.y < 0.6f) continue;
+                            string type = Pick(zone);
+                            if (type.StartsWith("P_Grass")) type = zone == "green" ? "P_Tree_A" : "P_Bush_Dry_A";
+                            if (ride.Intrudes(new Bounds(hit.point + Vector3.up, Vector3.one * 6f))) continue;
+                            Put(type, hit, true);
+                        }
+                    }
+                }
+            }
+
+            // dados para o PropField (binário: tipo, posição, yaw, escala, cima)
+            string dataPath = $"{genDir}/{name}_props.bytes";
+            using (var bw = new BinaryWriter(File.Create(dataPath)))
+            {
+                bw.Write(recs.Count);
+                foreach (var r in recs)
+                {
+                    bw.Write(r.t);
+                    bw.Write(r.p.x); bw.Write(r.p.y); bw.Write(r.p.z);
+                    bw.Write(r.yaw); bw.Write(r.s);
+                    bw.Write(r.up.x); bw.Write(r.up.y); bw.Write(r.up.z);
+                }
+            }
+            AssetDatabase.ImportAsset(dataPath);
+            var field = root.AddComponent<PropField>();
+            field.data = AssetDatabase.LoadAssetAtPath<TextAsset>(dataPath);
+
+            // monumentos de horizonte: mesas, buttes e agulhas com o material de geologia (relevo e skyline variados)
+            var main = g.Main.Data;
+            var mons = new[] { ("P_Mesa_A", 330f), ("P_Mesa_B", 240f), ("P_Butte_A", 85f), ("P_Butte_B", 62f), ("P_Spire_A", 22f), ("P_Spire_B", 16f) };
+            int placed = 0;
+            var holder = new GameObject("LANDMARKS").transform;
+            holder.SetParent(root.transform, false);
+            for (float dist = 600f; dist < main.Length; dist += Rng(900f, 2200f))
+            {
+                main.Locate(dist, out int i, out _);
+                int side = R01() < 0.5f ? -1 : 1;
+                var (type, rad) = mons[rnd.Next(mons.Length)];
+                float sc = Rng(0.7f, 1.5f);
+                float lat = Rng(Mathf.Max(450f, rad * sc * 2f), 2600f);
+                var c = main.Center[i] + main.Right[i] * side * lat + main.Tangent[i] * Rng(-200f, 200f);
+                bool clear = true;
+                foreach (var path in g.Paths)
+                {
+                    var pd = path.Data;
+                    for (int j = 0; j < pd.StationCount && clear; j += 8)
+                    {
+                        var o = pd.Center[j] - c; o.y = 0f;
+                        if (o.magnitude < rad * sc * 1.3f + 160f) clear = false;
+                    }
+                }
+                if (!clear) continue;
+                float y = Physics.Raycast(new Vector3(c.x, main.Center[i].y + 3000f, c.z), Vector3.down, out var gh, 7000f, Layers.GroundMask) ? gh.point.y - 8f : main.Center[i].y - 40f;
+                var src = kit.transform.Find(type);
+                if (src == null) continue;
+                var go = (GameObject)UnityEngine.Object.Instantiate(src.gameObject, holder);
+                go.name = $"LANDMARK_{type}_{placed}";
+                go.transform.position = new Vector3(c.x, y, c.z);
+                go.transform.rotation = Quaternion.Euler(0f, Rng(0f, 360f), 0f) * src.localRotation;
+                go.transform.localScale = src.localScale * sc;
+                var mr = go.GetComponent<MeshRenderer>();
+                if (mr != null) { mr.sharedMaterial = geo; mr.shadowCastingMode = ShadowCastingMode.On; }
+                placed++;
+            }
+            Debug.Log($"[RDD] paisagem: {recs.Count} adereços (vegetação, cactos, pedregulhos) · {placed} monumentos no horizonte · zonas: {string.Join(", ", sectors.Select(x => x.id + "=" + ZoneOfSector(x.id)))}");
+        }
+
         static string ReadTitle(string name)
         {
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;

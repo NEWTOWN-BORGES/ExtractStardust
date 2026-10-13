@@ -84,9 +84,10 @@ namespace RedDust.EditorTools
                 float km = float.Parse(tok, System.Globalization.CultureInfo.InvariantCulture);
                 int i = 0;
                 while (i < d.StationCount - 1 && d.Dist[i] < km * 1000f) i++;
-                cam.transform.position = d.Center[i] - d.Tangent[i] * 16f + d.Up[i] * 6f;
+                cam.transform.position = d.Center[i] - d.Tangent[i] * CommandLine.Float("-camback", 22f) + d.Up[i] * CommandLine.Float("-camup", 9f);
                 cam.transform.rotation = Quaternion.LookRotation(d.Center[Mathf.Min(d.StationCount - 1, i + 8)] - cam.transform.position, d.Up[i]);
                 var rt = new RenderTexture(1280, 720, 24);
+                cr.GetComponent<PropField>()?.DrawAround(cam.transform.position);
                 cam.targetTexture = rt; cam.Render(); cam.targetTexture = null;
                 RenderTexture.active = rt;
                 var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false);
