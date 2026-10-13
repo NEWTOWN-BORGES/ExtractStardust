@@ -30,13 +30,13 @@ def wraith_arch():
     hoop('W1_RollHoop', -0.25, 0.22, 0.78, 0.98, r=0.024)
     for s in (1, -1):
         sd = 'R' if s > 0 else 'L'
-        leg_blade(f"W1_Leg_{sd}", s, (0.40, 0.62), (1.10, 0.28), 1.70, 1.10, 0.60, -0.10, t_root=0.11, t_tip=0.08)
-        hover_ski(f"W1_Ski_{sd}", s * 1.12, -0.02, -1.22, 0.24, w=0.24, h=0.13)
-        tube(f"W1_KeelStrut_{sd}", (s * 0.10, -0.30, 0.42), (s * 0.80, -0.60, 0.40), 0.022, M_STRUCT)
+        leg_blade(f"W1_Leg_{sd}", s, (0.40, 0.62), (1.10, 0.28), 1.40, 1.00, -0.30, 0.70, t_root=0.11, t_tip=0.08)
+        hover_ski(f"W1_Ski_{sd}", s * 1.12, 0.80, -0.40, 0.24, w=0.24, h=0.13)
+        tube(f"W1_KeelStrut_{sd}", (s * 0.10, -1.10, 0.42), (s * 0.80, -0.10, 0.40), 0.022, M_STRUCT)
         prop_unit('W1_Prop', s, 0.22, -1.45, -3.25, 0.30, 0.36, 0.56)
         harness(f"W1_Harness_{sd}", [(s * 0.06, -1.40, 0.66), (s * 0.16, -1.60, 0.72)], n=2)
     hover_units('W1', [(0.0, 1.75, 0.38)], size=(0.16, 0.44))
-    for nm, p in (('Socket_Wing_R', (0.42, -0.20, 0.62)), ('Socket_Wing_L', (-0.42, -0.20, 0.62)), ('Socket_Engine', (0.0, -2.40, 0.50))):
+    for nm, p in (('Socket_Wing_R', (0.42, -1.00, 0.62)), ('Socket_Wing_L', (-0.42, -1.00, 0.62)), ('Socket_Engine', (0.0, -2.40, 0.50))):
         socket('W1_' + nm, p, 0.35)
 
 
@@ -69,11 +69,11 @@ def wraith_gull():
     hoop('W3_RollHoop', -0.25, 0.22, 0.78, 0.98, r=0.024)
     for s in (1, -1):
         sd = 'R' if s > 0 else 'L'
-        leg_blade(f"W3_LegUpper_{sd}", s, (0.40, 0.62), (0.80, 0.30), 1.30, 1.10, -0.40, -0.55, t_root=0.12, t_tip=0.11)
-        leg_blade(f"W3_LegOuter_{sd}", s, (0.78, 0.30), (1.16, 0.38), 1.10, 0.80, -0.55, -0.75, t_root=0.11, t_tip=0.08)
-        box(f"W3_KneeEmitter_{sd}", (s * 0.80, -1.10, 0.22), (0.24, 1.00, 0.05), M_HOVER, bevel=0.008)
-        box(f"W3_KneeJoint_{sd}", (s * 0.80, -1.10, 0.32), (0.12, 0.92, 0.10), M_STRUCT, bevel=0.012)
-        box(f"W3_Endplate_{sd}", (s * 1.17, -1.15, 0.32), (0.04, 0.70, 0.20), M_STRUCT, bevel=0.01)
+        leg_blade(f"W3_LegUpper_{sd}", s, (0.40, 0.62), (0.80, 0.30), 1.30, 1.10, -0.90, -0.60, t_root=0.12, t_tip=0.11)
+        leg_blade(f"W3_LegOuter_{sd}", s, (0.78, 0.30), (1.16, 0.38), 1.10, 0.80, -0.60, -0.10, t_root=0.11, t_tip=0.08)
+        box(f"W3_KneeEmitter_{sd}", (s * 0.80, -1.15, 0.22), (0.24, 1.00, 0.05), M_HOVER, bevel=0.008)
+        box(f"W3_KneeJoint_{sd}", (s * 0.80, -1.15, 0.32), (0.12, 0.92, 0.10), M_STRUCT, bevel=0.012)
+        box(f"W3_Endplate_{sd}", (s * 1.17, -0.50, 0.32), (0.04, 0.70, 0.20), M_STRUCT, bevel=0.01)
         prop_unit('W3_Prop', s, 0.20, -1.20, -3.25, 0.30, 0.36, 0.60)
     hover_units('W3', [(0.0, 1.75, 0.38)], size=(0.16, 0.44))
     for nm, p in (('Socket_Wing_R', (0.42, -0.90, 0.62)), ('Socket_Wing_L', (-0.42, -0.90, 0.62)), ('Socket_Engine', (0.0, -2.50, 0.54))):
@@ -82,15 +82,15 @@ def wraith_gull():
 
 SHIP, TARGET, VIEW_SCALE = 'WRAITH', '6,5 × 2,4 × 1,10', 1.05
 TEXTS = {
-    'W1': ("W1 ARCH · linguagem Y1 com só duas pernas: agulha em diamante; uma perna fina por lado, inclinada para trás, desce até um esqui "
-           "comprido; escoras da quilha à vista; propulsores compactos na cauda.",
+    'W1': ("W1 ARCH · linguagem Y1 com só duas pernas: agulha em diamante; uma perna fina por lado, varrida para a FRENTE (<), desce até uma placa "
+           "hover curta; escoras da quilha à vista; propulsores compactos na cauda.",
            "Construção: quilha → célula + arco → raízes das pernas → pernas → esquis → propulsores → chapas.",
            "Força: leveza e agilidade. Fraqueza: pernas finas expostas. Hover: esquis + emissor no nariz."),
     'W2': ("W2 TRIDENT · os dois propulsores avançam até à zona do cockpit: de cima são três pontas para a frente, a do meio (agulha) mais "
            "avançada. Pernas curtas ligam o corpo aos propulsores; pernas traseiras pequenas até emissores; cockpit ABERTO; reator e quilha à vista.",
            "Construção: quilha → banco + arco → propulsores avançados nas pernas → pernas traseiras + emissores → reator → chapas.",
            "Força: propulsão à frente puxa a nave nas curvas, nariz leve. Fraqueza: piloto exposto. Hover: propulsores baixos + quilha + cauda."),
-    'W3': ("W3 GULL · linguagem Y3: agulha; pernas em gaivota invertida finas — joelhos com emissor junto ao chão e pontas curtas com placas "
+    'W3': ("W3 GULL · linguagem Y3: agulha; pernas em gaivota invertida finas varridas para a FRENTE (<) — joelhos com emissor junto ao chão e pontas curtas com placas "
            "terminais; propulsão compacta em cima da cauda.",
            "Construção: quilha → célula + arco → pernas superiores → joelhos com emissores → pontas com placas → propulsores → chapas.",
            "Força: banking agressivo nas paredes. Fraqueza: joelhos complexos. Hover: emissores nos joelhos + nariz."),
