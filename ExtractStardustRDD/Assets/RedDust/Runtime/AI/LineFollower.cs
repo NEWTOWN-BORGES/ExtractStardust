@@ -1,4 +1,4 @@
-using RedDust.Track;
+﻿using RedDust.Track;
 using RedDust.Vehicle;
 using UnityEngine;
 
@@ -19,6 +19,9 @@ namespace RedDust.AI
         public float lateralDamping = 0.02f;
         public float speedLimit = float.PositiveInfinity;
         public bool useBoost;
+        /// <summary>Obstáculos do percurso atual (pilares, rocha caída), ordenados pela distância.</summary>
+        public CourseObstacle[] obstacles;
+        public float obstacleMargin = 4.5f;        // m livres entre a nave e o obstáculo
 
         public int Station { get; private set; } = -1;
         public float Distance { get; private set; }
@@ -36,13 +39,40 @@ namespace RedDust.AI
         /// <summary>Distância de antecipação do alvo à velocidade v.</summary>
         public float LookAhead(float v) => lookBase + lookPerSpeed * v;
 
+        /// <summary>
+        /// Linha desejada com os obstáculos à frente contornados: se a linha passa a menos de r + margem de um pilar ou
+        /// bloco, desvia para o lado livre mais próximo (dentro dos limites de corrida).
+        /// </summary>
+        float AvoidObstacles(CourseData course, float lane, float look)
+        {
+            if (obstacles == null || obstacles.Length == 0) return lane;
+            float a = Distance - 6f, b = Distance + look + 140f;
+            int lo = 0, hi = obstacles.Length;
+            while (lo < hi) { int m = (lo + hi) >> 1; if (obstacles[m].dist < a) lo = m + 1; else hi = m; }
+            float target = lane;
+            for (int k = lo; k < obstacles.Length && obstacles[k].dist <= b; k++)
+            {
+                var o = obstacles[k];
+                int st = course.StationAt(o.dist);
+                float ride = Mathf.Max(6f, 0.5f * (course.RideLeft[st] + course.RideRight[st]));
+                float half = (o.r + obstacleMargin) / ride;
+                if (Mathf.Abs(target - o.u) >= half) continue;
+                float left = o.u - half, right = o.u + half;
+                bool leftOk = left > -0.95f, rightOk = right < 0.95f;
+                if (leftOk && (!rightOk || Mathf.Abs(left - target) <= Mathf.Abs(right - target))) target = left;
+                else if (rightOk) target = right;
+            }
+            return target;
+        }
+
         public CraftInput Drive(CraftController c, CourseData course, float dt)
         {
             var input = CraftInput.Auto;
             Station = course.Nearest(c.Position, Station);
             Distance = course.DistanceAlong(c.Position, Station);
             CurrentU = course.LateralU(c.Position, Station);
-            u = Mathf.MoveTowards(u, laneU, laneResponse * dt);
+            float laneTarget = AvoidObstacles(course, laneU, LookAhead(c.Speed));
+            u = Mathf.MoveTowards(u, laneTarget, (laneTarget != laneU ? 3.5f : laneResponse) * dt);
 
             float speed = c.Speed;
             float look = LookAhead(speed);
@@ -58,7 +88,7 @@ namespace RedDust.AI
 
             // controlo de velocidade: curvatura à frente e limite pedido
             float kappa = course.CurvatureAhead(Distance, 60f + speed * 1.2f);
-            float vCurve = kappa > 1e-5f ? Mathf.Sqrt(c.tuning.gripLateralMax * 0.82f / kappa) : float.PositiveInfinity;
+            float vCurve = c.tuning.CornerSpeed(kappa, course.Bank[Mathf.Clamp(Station, 0, course.StationCount - 1)]);
             float vMax = Mathf.Min(vCurve, speedLimit);
             input.throttle = speed > vMax ? 0f : 1f;
             input.brake = speed > vMax + 4f && Mathf.Abs(input.steer) < 0.3f;

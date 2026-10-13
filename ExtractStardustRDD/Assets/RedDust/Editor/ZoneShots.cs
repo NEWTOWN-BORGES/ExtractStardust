@@ -23,7 +23,7 @@ namespace RedDust.EditorTools
         public static void Run()
         {
             ProjectSetup.ConfigureUrp();
-            EditorSceneManager.OpenScene(CourseImporter.ScenePath);
+            EditorSceneManager.OpenScene(CourseImporter.ScenePathFor(CourseImporter.CourseArg));
             var course = Object.FindFirstObjectByType<CourseRuntime>().Data;
             var sun = Object.FindFirstObjectByType<Light>();
             EnvironmentRig.Apply(sun, false);

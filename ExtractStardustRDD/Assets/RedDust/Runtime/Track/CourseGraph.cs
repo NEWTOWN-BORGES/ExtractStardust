@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using UnityEngine;
@@ -16,6 +16,14 @@ namespace RedDust.Track
 
         /// <summary>Distância de corrida (no principal) equivalente à distância d deste percurso.</summary>
         public float ToRaceDistance(float d) => IsMain ? d : Mathf.Lerp(From, To, Mathf.InverseLerp(Data.Start, Data.Length, d));
+    }
+
+    /// <summary>Obstáculo natural dentro das linhas de corrida: pilar, agulha ou bloco caído (u = coordenada lateral, r = raio em m).</summary>
+    [System.Serializable]
+    public struct CourseObstacle
+    {
+        public int path;
+        public float dist, u, r;
     }
 
     /// <summary>
@@ -92,6 +100,33 @@ namespace RedDust.Track
             }
             return Mathf.Sqrt(best);
         }
+
+        // ------------------------------------------------------------------ obstáculos
+
+        static readonly CourseObstacle[] none = new CourseObstacle[0];
+        CourseObstacle[][] obstacles;
+
+        /// <summary>Obstáculos do percurso (ordenados pela distância).</summary>
+        public CourseObstacle[] Obstacles(int path) => obstacles != null && path >= 0 && path < obstacles.Length ? obstacles[path] : none;
+
+        /// <summary>Lê o JSON gerado pelo Blender: {"obstacles": [{"path", "dist", "u", "r"}, ...]}.</summary>
+        public void LoadObstacles(string json)
+        {
+            var list = JsonUtility.FromJson<ObstacleList>(json);
+            var by = new List<CourseObstacle>[Paths.Length];
+            for (int k = 0; k < by.Length; k++) by[k] = new List<CourseObstacle>();
+            if (list?.obstacles != null)
+                foreach (var o in list.obstacles)
+                    if (o.path >= 0 && o.path < by.Length) by[o.path].Add(o);
+            obstacles = new CourseObstacle[by.Length][];
+            for (int k = 0; k < by.Length; k++)
+            {
+                by[k].Sort((x, y) => x.dist.CompareTo(y.dist));
+                obstacles[k] = by[k].ToArray();
+            }
+        }
+
+        [System.Serializable] class ObstacleList { public CourseObstacle[] obstacles; }
 
         /// <summary>Ramos que saem do principal entre as distâncias a e b.</summary>
         public IEnumerable<CoursePath> BranchesLeaving(float a, float b)

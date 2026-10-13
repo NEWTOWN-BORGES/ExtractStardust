@@ -261,3 +261,70 @@ def wreck(pb, f, col, seed):
         mo.add_grid(pts, nrm, C, uv, uv2, flip=flip)
     log(f"destroço em {pb.id} {d0:.0f}-{d1:.0f} m: {nrib + 1} costelas, {plates} chapas")
     return mo
+
+
+def _ring_point(pb, i, u):
+    """Ponto da secção real na estação i para a coordenada lateral u (-1..1 = limites de corrida)."""
+    ring = pb.Wr[i]
+    arc = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(ring, axis=0), axis=1))]
+    arc -= arc[pb.N // 2]
+    target = u * (pb.ride[i, 1] if u > 0 else pb.ride[i, 0])
+    return np.array([np.interp(target, arc, ring[:, k]) for k in range(3)])
+
+
+def obstacles(pb, f, col, seed):
+    """
+    Obstáculos naturais DENTRO das linhas de corrida (Doc 01 §17.11), sempre com passagem livre e legíveis de longe:
+      - pillars:  agulhas/pilares (estilo hoodoo) em slalom ou dispersos — obrigam a escolher lado;
+      - rockfall: blocos caídos da falésia em grupos, deixando uma brecha (gap_m) num lado aleatório.
+    Devolve a malha e a lista (dist, u, r) para a IA se desviar.
+    """
+    import rdd_rockscatter as rs
+    rng = np.random.default_rng(seed)
+    kind = f['type']
+    d0, d1 = float(f['from']), float(f['to'])
+    every = float(f.get('every', 140.0))
+    mo = MeshOut(f"GEO_Obstacles_{pb.id[:2]}_{int(d0)}")
+    obs = []
+    d, k = d0, 0
+    while d < d1:
+        i = _station(pb, d)
+        if pb.gap[i] or (pb.cave[i] and kind == "rockfall"):
+            d += every
+            continue
+        if kind == 'pillars':
+            amp = float(f.get('u', 0.42))
+            u = (amp if k % 2 == 0 else -amp) if f.get('pattern', 'slalom') == 'slalom' else rng.uniform(-amp, amp)
+            r = rng.uniform(*f.get('radius', [2.2, 3.4]))
+            h = rng.uniform(*f.get('height', [14.0, 30.0]))
+            p = _ring_point(pb, i, u)
+            R = rs._rot(rng, 3)
+            rs._shape(mo, p + np.array([0.0, h * 0.45, 0.0]), np.array([r, h * 0.52, r * rng.uniform(0.85, 1.15)]), R, 0.45, 0.14, 10, 12, col, seed + k)
+            cap = r * rng.uniform(1.5, 2.3)
+            rs._shape(mo, p + np.array([0.0, h * 0.97 + cap * 0.3, 0.0]), np.array([cap, cap * 0.55, cap * rng.uniform(0.8, 1.2)]),
+                      rs._rot(rng, 10), 0.4, 0.12, 8, 12, col, seed + k + 1)
+            obs.append(dict(dist=float(pb.dist[i]), u=float(u), r=float(r)))
+        else:
+            gap = float(f.get('gap_m', 16.0))
+            ride = 0.5 * (pb.ride[i, 0] + pb.ride[i, 1])
+            gu = rng.uniform(-0.45, 0.45)                         # centro da brecha livre
+            half_gap = gap * 0.5 / max(6.0, ride)
+            for _ in range(int(rng.integers(2, 5))):
+                side = -1.0 if rng.random() < 0.5 else 1.0
+                lo, hi = (-0.9, gu - half_gap) if side < 0 else (gu + half_gap, 0.9)
+                if hi - lo < 0.15:
+                    continue
+                size = rng.uniform(*f.get('size', [2.5, 5.5]))
+                su = size / max(6.0, ride)
+                if hi - lo < 2 * su:
+                    continue
+                u = rng.uniform(lo + su, hi - su)
+                dd = float(pb.dist[i]) + rng.uniform(-12.0, 12.0)
+                ii = _station(pb, dd)
+                p = _ring_point(pb, ii, u)
+                rs.rock(mo, p, size, 'block' if rng.random() < 0.75 else 'boulder', rng, col, seed + k * 7 + int(rng.integers(1000)))
+                obs.append(dict(dist=float(pb.dist[ii]), u=float(u), r=float(size)))
+        d += every * rng.uniform(0.85, 1.15)
+        k += 1
+    log(f"obstáculos ({kind}) em {pb.id} {d0:.0f}-{d1:.0f} m: {len(obs)}")
+    return mo, obs

@@ -149,6 +149,13 @@ namespace RedDust.Presentation
             if (on) titlePrompt.text = $"Prima <color=#ffcf6a>{GameInput.BtnConfirm}</color> para começar";
         }
 
+        /// <summary>Nome da pista no ecrã de título (e dica para trocar de pista).</summary>
+        public void SetCourse(string title, bool canSwitch)
+        {
+            string t = string.IsNullOrEmpty(title) ? "RED DUST DIVIDE" : title;
+            titleSub.text = $"{t}\nRACE. SURVIVE. EXTRACT." + (canSwitch ? "\n<size=24><color=#ffcf6a>◀ ▶</color> mudar de pista</size>" : "");
+        }
+
         public void ShowRaceHud(bool on)
         {
             speed.gameObject.SetActive(on); speedUnit.gameObject.SetActive(on); timer.gameObject.SetActive(on);

@@ -59,7 +59,8 @@ class OpenField:
     raso na planície de slickrock, com vista aberta) e afasta-se de volta ao relevo natural em ~420 m.
     """
 
-    def __init__(self, P, Wr, open_st, seed):
+    def __init__(self, P, Wr, open_st, seed, col):
+        self.col = col
         idx = np.flatnonzero(open_st > 0.01)
         self.ok = len(idx) > 0
         if not self.ok:
@@ -91,10 +92,17 @@ class OpenField:
         for k in range(fx.size):
             _, j[k], d[k] = self.kd.find((fx[k], fz[k], 0.0))
         r0 = self.r0[j]
-        w = self.o[j] * (1.0 - geo.smoothstep(r0, r0 + 420.0, d))
         swell = 3.0 * geo.fbm2(fx / 350.0, fz / 350.0, 3, seed=self.seed + 77) * geo.smoothstep(r0, r0 + 200.0, d)
-        tgt = self.target[j] + swell
-        out[m] = out[m] + (tgt - out[m]) * w
+        # a partir da borda da pista o terreno sobe pela escadaria das camadas (encostas nas moles, falésias nas
+        # duras) até encontrar o relevo natural: bacias e bancadas abertas ficam cercadas de falésias reais
+        edge = d - r0 + 60.0 * geo.fbm2(fx / 420.0, fz / 420.0, 3, seed=self.seed + 78)
+        x = np.maximum(edge, 0.0)
+        natural = out[m]
+        # pista acima do relevo natural: o terreno sobe até à borda e desce em encosta (as falésias de quando a pista
+        # está abaixo do relevo vêm das linhas de canyon do percurso, compostas pelo mínimo)
+        down = self.target[j] + swell + (natural - self.target[j]) * geo.smoothstep(0.0, 350.0, x)
+        tgt = np.where(natural < self.target[j], down, natural)
+        out[m] = out[m] + (tgt - out[m]) * self.o[j]
         return out
 
 
@@ -225,7 +233,7 @@ def build_path(pid, rows, step, col, seed, names, warp_seed, joint_seed, floor_v
     pb.Rh = Rh
     pb.warp_seed = warp_seed
     open_st = np.array([r.get('open', 0.0) for r in rows])
-    pb.open_field = OpenField(P, Wr, open_st, seed)
+    pb.open_field = OpenField(P, Wr, open_st, seed, col)
     if pb.open_field.ok:
         OPEN_FIELDS.append(pb.open_field)        # o planalto (borda, terreno) passa a respeitar este percurso
 
@@ -246,6 +254,7 @@ def build_path(pid, rows, step, col, seed, names, warp_seed, joint_seed, floor_v
         reach = stair >= plat
         first = np.where(reach.any(axis=1), reach.argmax(axis=1), len(xs) - 1)
         y_rim = np.maximum(plat[np.arange(S), first], y0 + 4.0 - 3.5 * open_st)
+        y_rim = np.where(open_st > 0.5, np.minimum(y_rim, y0 + 6.0), y_rim)
         ys = np.zeros((S, KS + 1))
         for i in range(S):
             brk = col.Yb[(col.Yb > y0[i] + 0.2) & (col.Yb < y_rim[i] - 0.2)]
@@ -501,7 +510,10 @@ def clip_grid(pts, nrm, col, uv, uv2, d, who, skip, paths, xi=0):
 # ------------------------------------------------------------------ construção
 
 def main():
+    global KS, KSP
     spec = json.load(open(SPEC_PATH, encoding='utf-8'))
+    KS = int(spec.get('wall_samples', KS))             # amostras das paredes próximas (percursos longos: menos)
+    KSP = KS + 2
     name = spec['name']
     seed = int(spec.get('seed', 1))
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -573,7 +585,18 @@ def main():
                 xz = np.concatenate([xz, ext]); fL = np.r_[fL, np.full(50, pb.footL[-1])]; fR = np.r_[fR, np.full(50, pb.footR[-1])]
                 wL = np.r_[wL, np.full(50, pb.hwL[-1])]; wR = np.r_[wR, np.full(50, pb.hwR[-1])]; fl = np.r_[fl, np.full(50, pb.floorY[-1] + 11.5)]
                 sL = np.r_[sL, np.zeros(50)]; sR = np.r_[sR, np.zeros(50)]; al = np.r_[al, pb.dist[-1] + np.linspace(30.0, 1500.0, 50)]
-            lines.append(CanyonLine(xz, fL, fR, wL, wR, 'course', pb.warp_seed, planes, skirtL=sL, skirtR=sR, floor=fl, along=al))
+            n_all = len(xz)
+            cn = max(20, int(float(spec.get('line_chunk', 600.0)) / max(pb.step, 1.0)))
+            ov = max(4, int(40.0 / max(pb.step, 1.0)))
+            starts = list(range(0, n_all, cn))
+            if len(starts) > 1 and n_all - starts[-1] < cn // 3:
+                starts.pop()                                       # cauda curta junta-se ao pedaço anterior
+            for ci, c0 in enumerate(starts):
+                c1 = n_all if ci == len(starts) - 1 else min(n_all, c0 + cn + ov)
+                cs = slice(max(0, c0 - ov), c1)
+                pl = [pp for pp in planes if (ci == 0 and np.dot(pp[1], pb.Th[a]) < 0) or (ci == len(starts) - 1 and np.dot(pp[1], pb.Th[b]) > 0)]
+                lines.append(CanyonLine(xz[cs], fL[cs], fR[cs], wL[cs], wR[cs], 'course', pb.warp_seed, pl,
+                                        skirtL=sL[cs], skirtR=sR[cs], floor=fl[cs], along=al[cs]))
 
     allP = np.concatenate([pb.P for pb in paths])
     kd_course = kdtree.KDTree(len(allP))
@@ -693,6 +716,20 @@ def main():
             fl = floor_y + 4.0 + (290.0 - floor_y) * tt ** 1.4
             hw = (30.0 if not deep else 18.0) * (1.0 - tt) + 6.0
             lines.append(CanyonLine(brl, fl, fl, hw, hw, 'side', seed + 1300 + km * 10 + kb))
+    for fi, ft in enumerate(spec.get('features', [])):
+        if ft['type'] != 'gorge_along':
+            continue
+        gp = next((p for p in paths if p.id == ft.get('path', 'main') or p.id.startswith(ft.get('path', 'main') + ' ')), main_pb)
+        a = int(np.searchsorted(gp.dist, float(ft['from'])))
+        b = int(np.searchsorted(gp.dist, float(ft['to'])))
+        side = float(ft.get('side', 1))
+        off = float(ft.get('offset', 320.0))
+        xz = gp.centre[a:b] + gp.Rh[a:b][:, [0, 2]] * side * off
+        xz += gp.Th[a:b] * (40.0 * geo.fbm2(gp.dist[a:b] / 900.0, np.full(b - a, 0.3), 2, seed=seed + 1601))[:, None]
+        fl = gp.floorY[a:b] - float(ft.get('depth', 180.0))
+        hw = np.full(b - a, float(ft.get('half_width', 45.0)))
+        lines.append(CanyonLine(xz[::4], fl[::4], fl[::4], hw[::4], hw[::4], 'side', seed + 1600 + fi))
+        log(f"garganta ao longo de {gp.id} {ft['from']}-{ft['to']} m, a {off:.0f} m, {ft.get('depth', 180)} m abaixo")
     log(f"linhas de canyon: {len(lines)}")
 
     def terrain(x, z):
@@ -843,6 +880,7 @@ def main():
 
     # ---------------- kit de rocha e destroços: arcos por cima da pista, pedregulhos, esqueletos de naves
     import rdd_rockkit as kit
+    obstacles = []
 
     def path_by(key):
         return next((p for p in paths if p.id == key or p.id.startswith(key + ' ')), main_pb)
@@ -853,6 +891,10 @@ def main():
             emit(kit.arch(pb, ft, col, seed + 3000 + fi), col_corr, objs_corr)
         elif ft['type'] == 'wreck':
             emit(kit.wreck(pb, ft, col, seed + 3100 + fi), col_corr, objs_corr)
+        elif ft['type'] in ('pillars', 'rockfall'):
+            mo, obs = kit.obstacles(pb, ft, col, seed + 3300 + fi)
+            emit(mo, col_corr, objs_corr)
+            obstacles.extend(dict(o, path=paths.index(pb)) for o in obs)
     rcfg = spec.get('rocks')
     if rcfg:
         import rdd_rockscatter as rs                  # rochas de todos os tamanhos (seixos a pilares de 45 m)
@@ -881,7 +923,7 @@ def main():
                 for oz in (0, half):
                     subdivide(x0 + ox, z0 + oz, half)
         else:
-            res = 8.0 if size <= 512.0 else (24.0 if size <= 1024.0 else 64.0)
+            res = float(spec.get('terrain_res', 8.0)) if size <= 512.0 else (24.0 if size <= 1024.0 else 64.0)
             tiles.append((x0, z0, size, res))
 
     gx = int(math.ceil((X1 - X0) / big)); gz = int(math.ceil((Z1 - Z0) / big))
@@ -959,8 +1001,33 @@ def main():
             colors_type='LINEAR', add_leaf_bones=False, use_custom_props=False, path_mode='STRIP', embed_textures=False)
         log(f"exportado {os.path.basename(path)} ({len(objs)} objetos)")
 
-    export(objs_corr, os.path.join(OUT_DIR, f"{name}_corridor.fbx"))
-    export(objs_terr, os.path.join(OUT_DIR, f"{name}_terrain.fbx"))
+    # setores (Doc 01 §20.3): um FBX de corredor e um de terreno por troço de sector_km do percurso principal
+    import glob
+    for old in glob.glob(os.path.join(OUT_DIR, f"{name}_corridor*.fbx")) + glob.glob(os.path.join(OUT_DIR, f"{name}_terrain*.fbx")):
+        os.remove(old)
+    sector_len = float(spec.get('sector_km', 15.0)) * 1000.0
+    kd_main = kdtree.KDTree(main_pb.S)
+    for i in range(main_pb.S):
+        kd_main.insert((main_pb.P[i, 0], main_pb.P[i, 2], 0.0), i)
+    kd_main.balance()
+
+    def sector_of(ob):
+        co = np.empty(len(ob.data.vertices) * 3, np.float32)
+        ob.data.vertices.foreach_get('co', co)
+        c = co.reshape(-1, 3).mean(axis=0)                     # Blender (x, z, y) = Unity (x, y, z) trocado
+        _, j, _ = kd_main.find((float(c[0]), float(c[1]), 0.0))
+        return int(main_pb.dist[j] // sector_len)
+
+    groups = {}
+    for kind, objs in (('corridor', objs_corr), ('terrain', objs_terr)):
+        for ob in objs:
+            groups.setdefault((kind, sector_of(ob)), []).append(ob)
+    for (kind, k), objs in sorted(groups.items()):
+        export(objs, os.path.join(OUT_DIR, f"{name}_{kind}_{k:02d}.fbx"))
+    with open(os.path.join(OUT_DIR, f"{name}_obstacles.json"), 'w', encoding='utf-8') as fo:
+        json.dump({'obstacles': [{'path': int(o['path']), 'dist': round(float(o['dist']), 2), 'u': round(float(o['u']), 4),
+                                  'r': round(float(o['r']), 2)} for o in obstacles]}, fo)
+    log(f"setores: {len(set(k for _, k in groups))} · obstáculos no traçado: {len(obstacles)}")
     ax = MeshOut("AXIS_TEST")
     ap = np.array([[[1.0, 2.0, 3.0], [11.0, 2.0, 3.0]], [[1.0, 2.0, 13.0], [11.0, 12.0, 13.0]]])
     ax.add_grid(ap, np.tile([0.0, 1.0, 0.0], (2, 2, 1)), np.ones((2, 2, 4)), np.zeros((2, 2, 2)), np.zeros((2, 2, 2)))

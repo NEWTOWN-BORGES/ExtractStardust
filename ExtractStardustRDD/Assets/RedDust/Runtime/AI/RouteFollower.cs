@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using RedDust.Track;
 using RedDust.Vehicle;
@@ -33,6 +33,7 @@ namespace RedDust.AI
             PathIndex = Math.Max(0, Math.Min(path, graph.Paths.Length - 1));
             decided.Clear();
             line.Reset(lane);
+            line.obstacles = graph.Obstacles(PathIndex);
         }
 
         public CraftInput Drive(CraftController c, float dt)
@@ -47,13 +48,14 @@ namespace RedDust.AI
                         if (b.IsMain || decided.Contains(b.Index)) continue;
                         if (line.Distance + look < b.From || line.Distance > b.From + 30f) continue;
                         decided.Add(b.Index);
-                        if (chooseBranch(b)) { PathIndex = b.Index; line.Rebase(); break; }
+                        if (chooseBranch(b)) { PathIndex = b.Index; line.Rebase(); line.obstacles = graph.Obstacles(PathIndex); break; }
                     }
                 }
                 else if (line.Distance + look >= Path.Data.Length - 1f)
                 {
                     PathIndex = Path.Parent;
                     line.Rebase();
+                    line.obstacles = graph.Obstacles(PathIndex);
                 }
             }
             return line.Drive(c, Path.Data, dt);

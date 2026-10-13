@@ -7,6 +7,7 @@ using RedDust.Track;
 using RedDust.Vehicle;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.SceneManagement;
 
 namespace RedDust.Presentation
 {
@@ -37,7 +38,7 @@ namespace RedDust.Presentation
         float raceTime, bestTime, countdown, hintTimer;
         int station, pathIdx;              // onde a nave está: percurso do grafo e estação nele
         CourseData Here => graph.Paths[pathIdx].Data;
-        string shotDir;
+        string shotDir, bestKey;
         float wallLane = 0.8f;
         static readonly int GridId = Shader.PropertyToID("_RD_Grid");
 
@@ -59,7 +60,8 @@ namespace RedDust.Presentation
             fovExtra = PlayerPrefs.GetFloat("rdd_fov", 0f);
             vibration = PlayerPrefs.GetInt("rdd_vibration", 1) == 1;
             techPanel = PlayerPrefs.GetInt("rdd_tech", 0) == 1;
-            bestTime = PlayerPrefs.GetFloat("rdd_best_lab", 0f);
+            bestKey = "rdd_best_" + SceneManager.GetActiveScene().name;
+            bestTime = PlayerPrefs.GetFloat(bestKey, 0f);
             GameInput.Init();
         }
 
@@ -76,6 +78,7 @@ namespace RedDust.Presentation
 
             Craft = CraftFactory.CreateCore("STRIX (provisória)", new CraftTuning());
             PlaceholderCraft.Build(Craft, paint);
+            SectorStreamer.Focus.Add(Craft.transform);
             Craft.Landed += vn => GameInput.Rumble(0.25f + vn / 40f, 0.2f + vn / 30f, 0.18f);
             Craft.Impacted += (s, n, c) => GameInput.Rumble(Mathf.Min(1f, s / 30f), Mathf.Min(1f, s / 22f), 0.28f);
             player = gameObject.AddComponent<PlayerCraftInput>();
@@ -98,6 +101,7 @@ namespace RedDust.Presentation
             overlay.chase = chase;
             overlay.visible = techPanel;
             hud = RaceHud.Create();
+            hud.SetCourse(CourseRuntime.Active.title, SceneManager.sceneCountInBuildSettings > 1);
 
             int wi = 0;
             for (int i = 0; i < course.StationCount; i++) if (course.SegmentName(i).StartsWith("S13")) { wi = i + 60; break; }
@@ -173,6 +177,8 @@ namespace RedDust.Presentation
                 case Phase.Title:
                     hud.ShowTitle(true);
                     if (GameInput.Confirm()) StartCountdown();
+                    int nx = GameInput.NavX(), count = SceneManager.sceneCountInBuildSettings;
+                    if (nx != 0 && count > 1) SceneManager.LoadScene((SceneManager.GetActiveScene().buildIndex + nx + count) % count);
                     break;
                 case Phase.Countdown:
                     countdown -= Time.deltaTime;
@@ -337,7 +343,7 @@ namespace RedDust.Presentation
         {
             phase = Phase.Finished;
             bool record = bestTime <= 0f || raceTime < bestTime;
-            if (record) { bestTime = raceTime; PlayerPrefs.SetFloat("rdd_best_lab", bestTime); }
+            if (record) { bestTime = raceTime; PlayerPrefs.SetFloat(bestKey, bestTime); }
             hud.Center(RaceHud.FormatTime(raceTime), (record ? "NOVO RECORDE!  " : "") + $"Prima {GameInput.BtnConfirm} para repetir", 0f);
             GameInput.Rumble(0.4f, 0.4f, 0.4f);
         }

@@ -1,4 +1,4 @@
-using UnityEditor;
+﻿using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
@@ -26,7 +26,7 @@ namespace RedDust.EditorTools
         {
             var opts = new BuildPlayerOptions
             {
-                scenes = new[] { CourseImporter.ScenePath },
+                scenes = CourseImporter.AllScenes(),
                 locationPathName = path,
                 target = target,
                 options = BuildOptions.None,

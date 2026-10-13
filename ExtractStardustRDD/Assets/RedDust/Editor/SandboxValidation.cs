@@ -29,6 +29,7 @@ namespace RedDust.EditorTools
         }
 
         static CourseGraph graph;
+        static bool lab;
         static CourseData course;
         static CraftController craft;
         static ChaseCamera chase;
@@ -40,7 +41,7 @@ namespace RedDust.EditorTools
         [MenuItem("Red Dust/3. Validar física (M1)")]
         public static void Run()
         {
-            EditorSceneManager.OpenScene(CourseImporter.ScenePath);
+            EditorSceneManager.OpenScene(CourseImporter.ScenePathFor(CourseImporter.CourseArg));
             graph = UnityEngine.Object.FindFirstObjectByType<CourseRuntime>().Graph;
             course = graph.Main.Data;
             var prevMode = Physics.simulationMode;
@@ -55,19 +56,24 @@ namespace RedDust.EditorTools
             camGo.AddComponent<Camera>();
             chase = camGo.AddComponent<ChaseCamera>();
             chase.Attach(craft);
-            pilot = new LineFollower();
+            pilot = new LineFollower { obstacles = graph.Obstacles(0) };
+            lab = CourseImporter.CourseArg == "sandbox";
             var sw = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                TestHover();
-                TestBank("S02", "S04", "T2a", "Bank 30° (entrada, curva, saída)");
-                TestBank("S06", "S08", "T2b", "Bank 50° (entrada, curva, saída)");
-                foreach (float u in new[] { 0f, 0.45f, 0.8f }) TestHalfPipe(u);
-                TestWall();
-                TestJumps();
-                TestCave();
-                TestTunnelling();
-                TestNaturalLines();
+                if (lab)
+                {
+                    // laboratório de física: secções de teste com nomes conhecidos
+                    TestHover();
+                    TestBank("S02", "S04", "T2a", "Bank 30° (entrada, curva, saída)");
+                    TestBank("S06", "S08", "T2b", "Bank 50° (entrada, curva, saída)");
+                    foreach (float u in new[] { 0f, 0.45f, 0.8f }) TestHalfPipe(u);
+                    TestWall();
+                    TestJumps();
+                    TestCave();
+                    TestTunnelling();
+                    TestNaturalLines();
+                }
                 TestBranchSurfaces();
                 TestOverhead();
                 TestBranchRoutes();
@@ -151,7 +157,7 @@ namespace RedDust.EditorTools
             return Mathf.Abs(Vector3.Dot(craft.Position - target, course.Right[station]));
         }
 
-        static bool IsKit(Collider c) => c.name.StartsWith("GEO_Arch") || c.name.StartsWith("GEO_Wreck") || c.name.StartsWith("GEO_Boulders") || c.name.StartsWith("GEO_Rocks");
+        static bool IsKit(Collider c) => c.name.StartsWith("GEO_Obstacles") || c.name.StartsWith("GEO_Arch") || c.name.StartsWith("GEO_Wreck") || c.name.StartsWith("GEO_Boulders") || c.name.StartsWith("GEO_Rocks");
 
         /// <summary>Primeiro impacto para baixo que seja chão/parede do percurso (ignora arcos, destroços e pedras).</summary>
         static bool GroundBelow(Vector3 from, float maxDist, out RaycastHit hit)
@@ -519,6 +525,7 @@ namespace RedDust.EditorTools
                         if (!GroundBelow(lp + Vector3.up * 25f, 70f, out var h)) continue;
                         samples++;
                         if (!Physics.Raycast(h.point + Vector3.up * 0.5f, Vector3.up, out var c, 60f, Layers.GroundMask)) continue;
+                        if (c.collider.name.StartsWith("GEO_Obstacles")) continue;      // pilares no traçado: de propósito
                         float clear = c.distance + 0.5f;
                         bool kit = c.collider.name.StartsWith("GEO_Arch") || c.collider.name.StartsWith("GEO_Wreck") || c.collider.name.StartsWith("GEO_Boulders") || c.collider.name.StartsWith("GEO_Rocks");
                         if (kit) arches++;
@@ -607,7 +614,7 @@ namespace RedDust.EditorTools
             float t = 0f, minSpeed = float.MaxValue, groundT = 0f; int falls = 0;
             var csv = new StringBuilder("t;dist;kmh;solo;hover;superficie;dcima\n");
             int k0 = 0;
-            Drive(course.Length - 40f, 400f, k =>
+            Drive(course.Length - 40f, Mathf.Max(400f, course.Length / 40f), k =>
             {
                 t += Dt;
                 if (craft.Grounded) groundT += Dt;
@@ -623,7 +630,7 @@ namespace RedDust.EditorTools
             float avg = pilot.Distance / Mathf.Max(1f, t);
             Directory.CreateDirectory("Logs");
             File.WriteAllText("Logs/rdd_m1_volta.csv", csv.ToString());
-            Add("T8", "Volta completa automática ao laboratório", "termina; 0 quedas; sem ficar preso (v > 20 m/s após 20 s)",
+            Add("T8", lab ? "Volta completa automática ao laboratório" : "Expedição completa (piloto automático, linha central)", lab ? "termina; 0 quedas; sem ficar preso (v > 20 m/s após 20 s)" : "termina; 0 quedas; sem ficar preso; duração alvo ~20 min (Doc 01 §19)",
                 $"{(done ? "terminou" : "NÃO terminou")} em {F(t, "0.0")} s · média {F(Units.ToKmh(avg), "0")} km/h · v mín. {F(Units.ToKmh(minSpeed), "0")} km/h · solo {F(100f * groundT / Mathf.Max(0.01f, t), "0.0")}% · quedas {falls} · impactos {impacts}",
                 done && falls == 0 && minSpeed > 20f);
         }
@@ -634,10 +641,10 @@ namespace RedDust.EditorTools
         {
             int pass = results.Count(r => r.pass);
             var sb = new StringBuilder();
-            sb.AppendLine("# M1 — Relatório de validação da física e da câmera");
+            sb.AppendLine(lab ? "# M1 — Relatório de validação da física e da câmera" : $"# {CourseImporter.CourseArg} — Relatório de validação da expedição");
             sb.AppendLine();
             sb.AppendLine($"Gerado automaticamente em {DateTime.Now:yyyy-MM-dd HH:mm} · passo fixo 1/90 s · {seconds:0} s de simulação real.");
-            sb.AppendLine($"Percurso: laboratório (`Art/Courses/sandbox.json`), {course.Length / 1000f:0.00} km + {graph.BranchCount} ramos ({string.Join(", ", graph.Paths.Where(p => !p.IsMain).Select(p => $"{p.Id} {p.Length / 1000f:0.00} km"))}). Nave: STRIX provisória (CraftTuning por omissão, {Units.ToKmh(new CraftTuning().topSpeed):0} km/h).");
+            sb.AppendLine($"Percurso: `Art/Courses/{CourseImporter.CourseArg}.json`, {course.Length / 1000f:0.00} km + {graph.BranchCount} ramos ({string.Join(", ", graph.Paths.Where(p => !p.IsMain).Select(p => $"{p.Id} {p.Length / 1000f:0.00} km"))}). Nave: STRIX provisória (CraftTuning por omissão, {Units.ToKmh(new CraftTuning().topSpeed):0} km/h).");
             sb.AppendLine();
             sb.AppendLine($"**Resultado: {pass}/{results.Count} testes passam.**");
             sb.AppendLine();
@@ -646,7 +653,7 @@ namespace RedDust.EditorTools
             foreach (var r in results)
                 sb.AppendLine($"| {r.id} | {r.name} | {r.criterion} | {r.measured} | {(r.pass ? "✅ PASSA" : "❌ FALHA")} |");
             Directory.CreateDirectory("Docs");
-            File.WriteAllText("Docs/M1_Relatorio_Fisica.md", sb.ToString());
+            File.WriteAllText(lab ? "Docs/M1_Relatorio_Fisica.md" : $"Docs/RDD_Relatorio_{CourseImporter.CourseArg}.md", sb.ToString());
             Directory.CreateDirectory("Logs");
             File.WriteAllText("Logs/rdd_m1_validation.txt", sb.ToString());
             Debug.Log($"[RDD M1] {pass}/{results.Count} testes passam");

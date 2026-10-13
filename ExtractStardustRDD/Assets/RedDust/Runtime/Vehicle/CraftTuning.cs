@@ -64,6 +64,8 @@ namespace RedDust.Vehicle
         [Tooltip("Atrito lateral residual (1/s)")] public float gripFriction = 1.2f;
         [Tooltip("Fração da aderência lateral parado (repulsores); o resto cresce com v² (superfícies aerodinâmicas)")] public float gripBase = 0.10f;
         [Tooltip("Velocidade (m/s) a que a aderência lateral fica completa")] public float gripSpeedRef = 125f;
+        [Tooltip("Teto do fator de aderência: 0,55 → ~4,8 g. Curvas abaixo de ~300 m a fundo pedem travagem/derrapagem; o bank soma")]
+        public float gripCap = 0.55f;
         public float driftRedirect = 0.75f;
         public float driftLateralMax = 20f;
         public float driftTurnMul = 2.5f;
@@ -95,7 +97,23 @@ namespace RedDust.Vehicle
         public float SpringC => 2f * dampingRatio * 2f * Mathf.PI * springHz;
         public float Adhesion(float speed) => adhesion * MathX.Smoothstep(adhesionMinSpeed, adhesionFullSpeed, speed);
         /// <summary>0..1: aderência lateral disponível (parado só a dos repulsores; a alta velocidade a aerodinâmica).</summary>
-        public float GripFactor(float speed) => Mathf.Clamp01(gripBase + (speed / gripSpeedRef) * (speed / gripSpeedRef));
+        public float GripFactor(float speed) => Mathf.Min(gripCap, gripBase + (speed / gripSpeedRef) * (speed / gripSpeedRef));
+
+        /// <summary>
+        /// Velocidade máxima numa curva de curvatura kappa (1/m) com bank (graus), com margem de segurança (IA, planeador):
+        /// aderência lateral × fator (com teto) + componente da gravidade dada pelo bank.
+        /// </summary>
+        public float CornerSpeed(float kappa, float bankDeg, float margin = 0.82f)
+        {
+            if (kappa < 1e-5f) return float.PositiveInfinity;
+            float tb = gravity * Mathf.Tan(Mathf.Min(Mathf.Abs(bankDeg), 60f) * Mathf.Deg2Rad);
+            float a = gripLateralMax * margin;
+            float vCap = Mathf.Sqrt((a * gripCap + tb) / kappa);                     // regime com teto (alta velocidade)
+            float vKnee = gripSpeedRef * Mathf.Sqrt(Mathf.Max(0f, gripCap - gripBase));
+            if (vCap >= vKnee) return vCap;
+            float k2 = a / (gripSpeedRef * gripSpeedRef);                            // regime v² (baixa velocidade)
+            return kappa > k2 ? Mathf.Sqrt((a * gripBase + tb) / (kappa - k2)) : vCap;
+        }
 
         public CraftTuning Clone() => (CraftTuning)MemberwiseClone();
     }

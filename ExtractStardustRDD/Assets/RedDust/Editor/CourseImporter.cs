@@ -48,11 +48,35 @@ namespace RedDust.EditorTools
     {
         public const string GeneratedRoot = "Assets/RedDust/Generated";
         public const string ScenePath = "Assets/RedDust/Scenes/RDD_Sandbox.unity";
+        /// <summary>Pistas conhecidas, pela ordem do jogo (a expedição primeiro).</summary>
+        public static readonly string[] Courses = { "red_dust_divide", "sandbox" };
+
+        public static string ScenePathFor(string name) => name == "sandbox" ? ScenePath : $"Assets/RedDust/Scenes/RDD_{name}.unity";
+
+        /// <summary>Pista pedida na linha de comandos (-course nome); por omissão o laboratório.</summary>
+        public static string CourseArg => CommandLine.Value("-course", "sandbox");
+
+        /// <summary>Cenas das pistas que já existem, pela ordem do jogo.</summary>
+        public static string[] AllScenes() => Courses.Select(ScenePathFor).Where(File.Exists).ToArray();
 
         [MenuItem("Red Dust/2. Importar laboratório (sandbox)")]
         public static void ImportSandbox()
         {
             ImportAndBuild("sandbox");
+            if (Application.isBatchMode) EditorApplication.Exit(0);
+        }
+
+        [MenuItem("Red Dust/2b. Importar expedição RED DUST DIVIDE")]
+        public static void ImportExpedition()
+        {
+            ImportAndBuild("red_dust_divide");
+            if (Application.isBatchMode) EditorApplication.Exit(0);
+        }
+
+        /// <summary>Modo batch: importa a pista indicada por -course.</summary>
+        public static void ImportCourse()
+        {
+            ImportAndBuild(CourseArg);
             if (Application.isBatchMode) EditorApplication.Exit(0);
         }
 
@@ -63,6 +87,8 @@ namespace RedDust.EditorTools
             string dst = $"{GeneratedRoot}/{name}";
             if (!Directory.Exists(src)) throw new DirectoryNotFoundException(src);
             Directory.CreateDirectory(dst);
+            // a geometria pode vir dividida em setores com nomes diferentes: apagar a anterior para não duplicar
+            foreach (var f in Directory.GetFiles(dst, "*.fbx")) AssetDatabase.DeleteAsset(f.Replace('\\', '/'));
             foreach (var f in Directory.GetFiles(src))
             {
                 string ext = Path.GetExtension(f).ToLowerInvariant();
@@ -116,10 +142,15 @@ namespace RedDust.EditorTools
             var sky = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/SkyRDD.mat");
             var root = new GameObject("Course_" + name);
             int colliders = 0, tris = 0;
-            foreach (var part in new[] { "corridor", "terrain" })
+            // corredor e terreno, num ficheiro ou em vários setores (<nome>_corridor_00.fbx, ...)
+            var parts = Directory.GetFiles(dst, "*.fbx").Select(f => f.Replace('\\', '/'))
+                .Where(f => Path.GetFileName(f).StartsWith(name + "_corridor") || Path.GetFileName(f).StartsWith(name + "_terrain"))
+                .OrderBy(f => f).ToList();
+            if (parts.Count == 0) throw new FileNotFoundException($"{dst}/{name}_corridor*.fbx");
+            foreach (var path in parts)
             {
-                var model = AssetDatabase.LoadAssetAtPath<GameObject>($"{dst}/{name}_{part}.fbx");
-                if (model == null) throw new FileNotFoundException($"{dst}/{name}_{part}.fbx");
+                var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (model == null) throw new FileNotFoundException(path);
                 var inst = (GameObject)PrefabUtility.InstantiatePrefab(model, scene);
                 inst.transform.SetParent(root.transform, false);
                 foreach (var mf in inst.GetComponentsInChildren<MeshFilter>())
@@ -138,6 +169,9 @@ namespace RedDust.EditorTools
             var course = root.AddComponent<CourseRuntime>();
             course.courseBytes = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dst}/{name}_course.bytes");
             course.graphBytes = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dst}/{name}_graph.bytes");
+            course.obstaclesJson = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dst}/{name}_obstacles.json");
+            course.title = ReadTitle(name);
+            root.AddComponent<SectorStreamer>();
 
             var sunGo = new GameObject("Sun");
             var sun = sunGo.AddComponent<Light>();
@@ -149,11 +183,24 @@ namespace RedDust.EditorTools
             var dir = new GameObject("SandboxDirector").AddComponent<SandboxDirector>();
             dir.sun = sun;
 
-            Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
-            EditorSceneManager.SaveScene(scene, ScenePath);
-            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+            string scenePath = ScenePathFor(name);
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+            EditorSceneManager.SaveScene(scene, scenePath);
+            EditorBuildSettings.scenes = AllScenes().Select(s => new EditorBuildSettingsScene(s, true)).ToArray();
             AssetDatabase.SaveAssets();
-            Debug.Log($"[RDD] cena {ScenePath}: {colliders} colliders, {tris / 1000}k triângulos, percurso {course.Data.Length / 1000f:0.00} km, {course.Graph.BranchCount} ramos");
+            Debug.Log($"[RDD] cena {scenePath}: {parts.Count} ficheiros, {colliders} colliders, {tris / 1000}k triângulos, percurso {course.Data.Length / 1000f:0.00} km, {course.Graph.BranchCount} ramos");
         }
+
+        /// <summary>Título da pista (campo "title" do JSON em Art/Courses).</summary>
+        static string ReadTitle(string name)
+        {
+            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+            string spec = Path.Combine(projectRoot, "Art", "Courses", name + ".json");
+            if (!File.Exists(spec)) return name;
+            var t = JsonUtility.FromJson<SpecTitle>(File.ReadAllText(spec));
+            return string.IsNullOrEmpty(t?.title) ? name : t.title;
+        }
+
+        [Serializable] class SpecTitle { public string title; }
     }
 }

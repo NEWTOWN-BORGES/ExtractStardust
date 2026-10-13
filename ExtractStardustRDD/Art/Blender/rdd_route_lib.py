@@ -90,6 +90,12 @@ def integrate(spec):
         gap, cave = int(seg.get('gap', 0)), int(seg.get('cave', 0))
         ease = float(seg.get('ease', 120.0))
         length = float(seg['len'])
+        if 'to_y' in seg:
+            # inclinação para chegar à altitude pedida no fim do troço (conta com a suavização da entrada)
+            e = min(ease, length) if ease > 0 else 0.0
+            s0 = math.radians(cur['slope'])
+            sin1 = (float(seg['to_y']) - pos[1] - math.sin(s0) * e * 0.5) / max(1.0, length - e * 0.5)
+            target['slope'] = math.degrees(math.asin(max(-0.5, min(0.5, sin1))))
         start = dict(cur)
         n = max(1, int(round(length / step)))
         ds = length / n

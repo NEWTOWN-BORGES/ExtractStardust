@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using RedDust.Track;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -11,7 +11,7 @@ namespace RedDust.EditorTools
     {
         public static void Run()
         {
-            EditorSceneManager.OpenScene(CourseImporter.ScenePath);
+            EditorSceneManager.OpenScene(CourseImporter.ScenePathFor(CourseImporter.CourseArg));
             var g = Object.FindFirstObjectByType<CourseRuntime>().Graph;
             var p = g.Paths[CommandLine.Int("-probePath", 2)];
             float a = CommandLine.Float("-probeFrom", 16200f), b = CommandLine.Float("-probeTo", 16290f), u = CommandLine.Float("-probeU", -0.6f);

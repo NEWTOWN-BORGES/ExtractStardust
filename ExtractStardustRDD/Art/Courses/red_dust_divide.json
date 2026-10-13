@@ -1,0 +1,2116 @@
+{
+ "name": "red_dust_divide",
+ "title": "RED DUST DIVIDE · Expedição (≈20 min)",
+ "seed": 11,
+ "step": 5.0,
+ "wall_samples": 40,
+ "chunk": 48,
+ "sector_km": 13,
+ "terrain_res": 10,
+ "line_chunk": 600,
+ "start": {
+  "pos": [
+   0.0,
+   262.0,
+   0.0
+  ],
+  "yaw": 0.0
+ },
+ "defaults": {
+  "width": 30,
+  "bank": 0,
+  "slope": 0,
+  "radius": 0,
+  "wallL": 8,
+  "wallR": 8,
+  "filletL": 12,
+  "filletR": 12,
+  "angleL": 40,
+  "angleR": 40,
+  "lipL": 6,
+  "lipR": 6,
+  "rideL": 0.3,
+  "rideR": 0.3,
+  "surface": "sand",
+  "cave": 0,
+  "ceil": 28,
+  "gap": 0,
+  "open": 0
+ },
+ "sectors": [
+  {
+   "id": "THE BASIN",
+   "from": 0.0,
+   "to": 11099.0
+  },
+  {
+   "id": "BROKEN MESA",
+   "from": 11099.0,
+   "to": 20512.0
+  },
+  {
+   "id": "SHAFER FALL",
+   "from": 20512.0,
+   "to": 29902.0
+  },
+  {
+   "id": "THE RED WALL",
+   "from": 29902.0,
+   "to": 46276.0
+  },
+  {
+   "id": "HORSESHOE DROP",
+   "from": 46276.0,
+   "to": 57196.0
+  },
+  {
+   "id": "THE WASH",
+   "from": 57196.0,
+   "to": 72609.0
+  },
+  {
+   "id": "ARCHES RUN",
+   "from": 72609.0,
+   "to": 83064.0
+  },
+  {
+   "id": "THE HOLLOW",
+   "from": 83064.0,
+   "to": 93701.0
+  },
+  {
+   "id": "WHITE RIM FINALE",
+   "from": 93701.0,
+   "to": 105662.0
+  }
+ ],
+ "segments": [
+  {
+   "id": "1 Bacia · grelha 5x4",
+   "len": 600,
+   "ease": 0,
+   "width": 56,
+   "surface": "sand",
+   "open": 1,
+   "wallL": 3,
+   "wallR": 3,
+   "filletL": 14,
+   "filletR": 14,
+   "angleL": 22,
+   "angleR": 22,
+   "rideL": 0.4,
+   "rideR": 0.4
+  },
+  {
+   "id": "1 Bacia · saída larga",
+   "len": 1047,
+   "radius": 2400,
+   "ease": 500,
+   "width": 48
+  },
+  {
+   "id": "1 Bacia · planície",
+   "len": 900,
+   "ease": 400,
+   "radius": 0
+  },
+  {
+   "id": "1 Bacia · ondulações de slickrock",
+   "len": 1335,
+   "radius": -1700,
+   "ease": 500,
+   "width": 44,
+   "surface": "slickrock"
+  },
+  {
+   "id": "1 Laje 1 crista",
+   "len": 140,
+   "ease": 60,
+   "slope": 4.0
+  },
+  {
+   "id": "1 Laje 1 borda",
+   "len": 220,
+   "ease": 12,
+   "slope": -3.0
+  },
+  {
+   "id": "1 Laje 1 receção",
+   "len": 380,
+   "ease": 200,
+   "slope": 0.0
+  },
+  {
+   "id": "1 Esses da bacia esquerda",
+   "len": 125,
+   "radius": -110.0,
+   "ease": 120,
+   "bank": -10.0,
+   "width": 36
+  },
+  {
+   "id": "1 Esses da bacia direita",
+   "len": 125,
+   "radius": 110.0,
+   "ease": 120,
+   "bank": 10.0
+  },
+  {
+   "id": "1 Esses da bacia saída",
+   "len": 300,
+   "ease": 150,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "1 Campo de lajes caídas",
+   "len": 628,
+   "radius": 900,
+   "ease": 300,
+   "width": 40
+  },
+  {
+   "id": "1 Curva cega",
+   "len": 269,
+   "radius": -220,
+   "ease": 200,
+   "bank": -10,
+   "width": 36
+  },
+  {
+   "id": "1 Mega arco",
+   "len": 1955,
+   "radius": 1600,
+   "ease": 500,
+   "width": 40,
+   "surface": "sand",
+   "bank": 0
+  },
+  {
+   "id": "1 Laje 2 crista",
+   "len": 140,
+   "ease": 60,
+   "slope": 4.0
+  },
+  {
+   "id": "1 Laje 2 borda",
+   "len": 220,
+   "ease": 12,
+   "slope": -3.0
+  },
+  {
+   "id": "1 Laje 2 receção",
+   "len": 380,
+   "ease": 200,
+   "slope": 0.0
+  },
+  {
+   "id": "1 Curva rápida",
+   "len": 785,
+   "radius": -900,
+   "ease": 400,
+   "width": 38
+  },
+  {
+   "id": "1 Esses de saída esquerda",
+   "len": 125,
+   "radius": -130,
+   "ease": 120,
+   "bank": -10
+  },
+  {
+   "id": "1 Esses de saída direita",
+   "len": 125,
+   "radius": 130,
+   "ease": 120,
+   "bank": 10
+  },
+  {
+   "id": "1 Esses de saída saída",
+   "len": 300,
+   "ease": 150,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "1 Corredor de saída",
+   "len": 1000,
+   "ease": 300,
+   "radius": 0,
+   "width": 36
+  },
+  {
+   "id": "2 Lajes partidas · subida",
+   "len": 1300,
+   "ease": 300,
+   "to_y": 285,
+   "width": 34,
+   "surface": "slickrock"
+  },
+  {
+   "id": "2 Laje crista",
+   "len": 140,
+   "ease": 60,
+   "slope": 6.0
+  },
+  {
+   "id": "2 Laje borda",
+   "len": 220,
+   "ease": 12,
+   "slope": -1.5
+  },
+  {
+   "id": "2 Laje receção",
+   "len": 380,
+   "ease": 200,
+   "slope": 1.0
+  },
+  {
+   "id": "2 Gancho técnico direita",
+   "len": 157,
+   "radius": 120,
+   "ease": 120,
+   "bank": 14,
+   "width": 30,
+   "to_y": 292
+  },
+  {
+   "id": "2 Lajes · degraus",
+   "len": 960,
+   "radius": -1000,
+   "ease": 300,
+   "width": 32,
+   "bank": 0,
+   "to_y": 312
+  },
+  {
+   "id": "2 Laje alta crista",
+   "len": 140,
+   "ease": 60,
+   "slope": 6.0
+  },
+  {
+   "id": "2 Laje alta borda",
+   "len": 220,
+   "ease": 12,
+   "slope": -1.5
+  },
+  {
+   "id": "2 Laje alta receção",
+   "len": 380,
+   "ease": 200,
+   "slope": 1.0
+  },
+  {
+   "id": "2 Gancho técnico esquerda",
+   "len": 161,
+   "radius": -115,
+   "ease": 120,
+   "bank": -14,
+   "width": 30,
+   "to_y": 322
+  },
+  {
+   "id": "2 Topo da mesa",
+   "len": 1300,
+   "ease": 400,
+   "to_y": 335,
+   "bank": 0,
+   "width": 36
+  },
+  {
+   "id": "2 Esses do topo esquerda",
+   "len": 120,
+   "radius": -115,
+   "ease": 120,
+   "bank": -10.0,
+   "slope": 0.0
+  },
+  {
+   "id": "2 Esses do topo direita",
+   "len": 120,
+   "radius": 115,
+   "ease": 120,
+   "bank": 10.0
+  },
+  {
+   "id": "2 Esses do topo saída",
+   "len": 300,
+   "ease": 150,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "2 Laje do topo crista",
+   "len": 140,
+   "ease": 60,
+   "slope": 5.0
+  },
+  {
+   "id": "2 Laje do topo borda",
+   "len": 220,
+   "ease": 12,
+   "slope": -3.0
+  },
+  {
+   "id": "2 Laje do topo receção",
+   "len": 380,
+   "ease": 200,
+   "slope": 0.0
+  },
+  {
+   "id": "2 Gancho do topo",
+   "len": 262,
+   "radius": 125,
+   "ease": 150,
+   "bank": 16,
+   "width": 32
+  },
+  {
+   "id": "2 Borda do Shafer · vista",
+   "len": 2513,
+   "radius": -1200,
+   "ease": 400,
+   "width": 34,
+   "to_y": 335,
+   "bank": 0
+  },
+  {
+   "id": "3 Borda · início da descida",
+   "len": 500,
+   "ease": 200,
+   "to_y": 328.0,
+   "width": 34,
+   "open": 1,
+   "wallL": 3,
+   "wallR": 3,
+   "filletL": 14,
+   "filletR": 14,
+   "angleL": 22,
+   "angleR": 22,
+   "rideL": 0.4,
+   "rideR": 0.4
+  },
+  {
+   "id": "3 Perna 1",
+   "len": 450,
+   "ease": 150,
+   "to_y": 306.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Gancho 1",
+   "len": 314,
+   "radius": 100,
+   "ease": 80,
+   "to_y": 303.0,
+   "bank": 16,
+   "width": 34
+  },
+  {
+   "id": "3 Perna 2",
+   "len": 450,
+   "ease": 150,
+   "to_y": 281.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Gancho 2",
+   "len": 314,
+   "radius": -100,
+   "ease": 80,
+   "to_y": 278.0,
+   "bank": -16,
+   "width": 34
+  },
+  {
+   "id": "3 Perna 3",
+   "len": 450,
+   "ease": 150,
+   "to_y": 256.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Gancho 3",
+   "len": 314,
+   "radius": 100,
+   "ease": 80,
+   "to_y": 253.0,
+   "bank": 16,
+   "width": 34
+  },
+  {
+   "id": "3 Perna 4",
+   "len": 450,
+   "ease": 150,
+   "to_y": 231.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Gancho 4",
+   "len": 314,
+   "radius": -100,
+   "ease": 80,
+   "to_y": 228.0,
+   "bank": -16,
+   "width": 34
+  },
+  {
+   "id": "3 Perna 5",
+   "len": 450,
+   "ease": 150,
+   "to_y": 206.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Gancho 5",
+   "len": 314,
+   "radius": 100,
+   "ease": 80,
+   "to_y": 203.0,
+   "bank": 16,
+   "width": 34
+  },
+  {
+   "id": "3 Perna 6",
+   "len": 450,
+   "ease": 150,
+   "to_y": 181.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Gancho 6",
+   "len": 314,
+   "radius": -100,
+   "ease": 80,
+   "to_y": 178.0,
+   "bank": -16,
+   "width": 34
+  },
+  {
+   "id": "3 Perna 7",
+   "len": 450,
+   "ease": 150,
+   "to_y": 156.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Gancho 7",
+   "len": 314,
+   "radius": 100,
+   "ease": 80,
+   "to_y": 153.0,
+   "bank": 16,
+   "width": 34
+  },
+  {
+   "id": "3 Perna 8",
+   "len": 450,
+   "ease": 150,
+   "to_y": 131.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Gancho 8",
+   "len": 314,
+   "radius": -100,
+   "ease": 80,
+   "to_y": 128.0,
+   "bank": -16,
+   "width": 34
+  },
+  {
+   "id": "3 Perna 9",
+   "len": 450,
+   "ease": 150,
+   "to_y": 106.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Gancho 9",
+   "len": 314,
+   "radius": 100,
+   "ease": 80,
+   "to_y": 103.0,
+   "bank": 16,
+   "width": 34
+  },
+  {
+   "id": "3 Perna 10",
+   "len": 450,
+   "ease": 150,
+   "to_y": 81.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Gancho 10",
+   "len": 314,
+   "radius": -100,
+   "ease": 80,
+   "to_y": 78.0,
+   "bank": -16,
+   "width": 34
+  },
+  {
+   "id": "3 Perna 11",
+   "len": 450,
+   "ease": 150,
+   "to_y": 56.0,
+   "radius": 0,
+   "bank": 0,
+   "width": 30
+  },
+  {
+   "id": "3 Base do Shafer · White Rim",
+   "len": 800,
+   "ease": 300,
+   "to_y": 50,
+   "radius": 0,
+   "bank": 0,
+   "width": 32,
+   "open": 0,
+   "wallL": 8,
+   "wallR": 8,
+   "filletL": 12,
+   "filletR": 12,
+   "angleL": 40,
+   "angleR": 40,
+   "lipL": 6,
+   "lipR": 6,
+   "rideL": 0.3,
+   "rideR": 0.3
+  },
+  {
+   "id": "4 Canyon de aproximação",
+   "len": 1200,
+   "ease": 400,
+   "to_y": 48,
+   "width": 30
+  },
+  {
+   "id": "4 S técnico esquerda",
+   "len": 134,
+   "radius": -110,
+   "ease": 120,
+   "bank": -12,
+   "width": 26,
+   "slope": 0.0
+  },
+  {
+   "id": "4 S técnico direita",
+   "len": 134,
+   "radius": 110,
+   "ease": 120,
+   "bank": 12
+  },
+  {
+   "id": "4 S técnico saída",
+   "len": 300,
+   "ease": 150,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "4 Reta do canyon",
+   "len": 600,
+   "ease": 200,
+   "width": 30
+  },
+  {
+   "id": "4 Rocha caída",
+   "len": 733,
+   "radius": -1200,
+   "ease": 300,
+   "width": 32
+  },
+  {
+   "id": "4 Gargalo",
+   "len": 700,
+   "ease": 200,
+   "radius": 0,
+   "width": 16,
+   "wallL": 14,
+   "wallR": 14,
+   "angleL": 70,
+   "angleR": 70,
+   "rideL": 0.4,
+   "rideR": 0.4
+  },
+  {
+   "id": "4 Abre",
+   "len": 400,
+   "ease": 300,
+   "width": 32,
+   "wallL": 8,
+   "wallR": 8,
+   "angleL": 40,
+   "angleR": 40,
+   "rideL": 0.3,
+   "rideR": 0.3
+  },
+  {
+   "id": "4 Canyon das agulhas",
+   "len": 1400,
+   "ease": 300,
+   "width": 36,
+   "radius": 0
+  },
+  {
+   "id": "4 S antes da parede esquerda",
+   "len": 147,
+   "radius": -140,
+   "ease": 120,
+   "bank": -14,
+   "width": 32
+  },
+  {
+   "id": "4 S antes da parede direita",
+   "len": 147,
+   "radius": 140,
+   "ease": 120,
+   "bank": 14
+  },
+  {
+   "id": "4 S antes da parede saída",
+   "len": 300,
+   "ease": 150,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "4 Abre para a parede",
+   "len": 400,
+   "ease": 300,
+   "width": 32
+  },
+  {
+   "id": "4 Red Wall · entrada 8°",
+   "len": 611,
+   "radius": 1400,
+   "ease": 600,
+   "bank": 8,
+   "width": 34,
+   "wallL": 25,
+   "filletL": 20,
+   "angleL": 55,
+   "rideL": 0.6
+  },
+  {
+   "id": "4 Red Wall · 15°",
+   "len": 768,
+   "radius": 1100,
+   "ease": 500,
+   "bank": 15,
+   "wallL": 40,
+   "angleL": 62,
+   "rideL": 0.75
+  },
+  {
+   "id": "4 Red Wall · 25°",
+   "len": 668,
+   "radius": 850,
+   "ease": 500,
+   "bank": 25,
+   "wallL": 50,
+   "angleL": 68,
+   "rideL": 0.85
+  },
+  {
+   "id": "4 Red Wall · 35°",
+   "len": 550,
+   "radius": 700,
+   "ease": 400,
+   "bank": 35,
+   "wallL": 58,
+   "angleL": 72,
+   "rideL": 0.9
+  },
+  {
+   "id": "4 Red Wall · 50°",
+   "len": 471,
+   "radius": 600,
+   "ease": 400,
+   "bank": 50,
+   "wallL": 60,
+   "angleL": 74,
+   "rideL": 0.92
+  },
+  {
+   "id": "4 Saída da parede",
+   "len": 700,
+   "ease": 600,
+   "radius": 0,
+   "bank": 0,
+   "wallL": 8,
+   "filletL": 12,
+   "angleL": 40,
+   "rideL": 0.3,
+   "width": 30
+  },
+  {
+   "id": "4 Gancho de saída",
+   "len": 209,
+   "radius": -120,
+   "ease": 150,
+   "bank": -16,
+   "width": 30
+  },
+  {
+   "id": "4 Antes da ravina",
+   "len": 600,
+   "ease": 200,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "4 Canyon jump borda",
+   "len": 90,
+   "ease": 40,
+   "slope": 4.0
+  },
+  {
+   "id": "4 Canyon jump ravina",
+   "len": 48,
+   "ease": 0,
+   "slope": -3.6,
+   "gap": 1
+  },
+  {
+   "id": "4 Canyon jump receção",
+   "len": 220,
+   "ease": 40,
+   "slope": -8.0,
+   "gap": 0
+  },
+  {
+   "id": "4 Canyon jump nivelar",
+   "len": 320,
+   "ease": 220,
+   "slope": 0.0
+  },
+  {
+   "id": "4 Canyon médio",
+   "len": 733,
+   "radius": -700,
+   "ease": 400,
+   "to_y": 40,
+   "width": 30
+  },
+  {
+   "id": "4 Segundo gargalo",
+   "len": 600,
+   "ease": 200,
+   "radius": 0,
+   "width": 18,
+   "wallL": 16,
+   "wallR": 16,
+   "angleL": 72,
+   "angleR": 72,
+   "rideL": 0.4,
+   "rideR": 0.4,
+   "slope": 0.0
+  },
+  {
+   "id": "4 Esses do gargalo esquerda",
+   "len": 140,
+   "radius": -115,
+   "ease": 120,
+   "bank": -14,
+   "width": 24
+  },
+  {
+   "id": "4 Esses do gargalo direita",
+   "len": 140,
+   "radius": 115,
+   "ease": 120,
+   "bank": 14
+  },
+  {
+   "id": "4 Esses do gargalo saída",
+   "len": 300,
+   "ease": 150,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "4 Canyon largo",
+   "len": 800,
+   "ease": 300,
+   "width": 34,
+   "wallL": 8,
+   "wallR": 8,
+   "angleL": 40,
+   "angleR": 40,
+   "rideL": 0.3,
+   "rideR": 0.3
+  },
+  {
+   "id": "4 Curva rápida do canyon",
+   "len": 611,
+   "radius": 500,
+   "ease": 400,
+   "bank": 10
+  },
+  {
+   "id": "4 Reta para o desfiladeiro",
+   "len": 1200,
+   "ease": 300,
+   "radius": 0,
+   "bank": 0,
+   "to_y": 35
+  },
+  {
+   "id": "5 Descida ao desfiladeiro",
+   "len": 2600,
+   "ease": 400,
+   "to_y": 15,
+   "width": 32
+  },
+  {
+   "id": "5 Esses da descida esquerda",
+   "len": 136,
+   "radius": -130,
+   "ease": 120,
+   "bank": -12,
+   "slope": 0.0
+  },
+  {
+   "id": "5 Esses da descida direita",
+   "len": 136,
+   "radius": 130,
+   "ease": 120,
+   "bank": 12
+  },
+  {
+   "id": "5 Esses da descida saída",
+   "len": 300,
+   "ease": 150,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "5 Viragem de entrada",
+   "len": 471,
+   "radius": 300,
+   "ease": 200,
+   "bank": 10,
+   "to_y": 5
+  },
+  {
+   "id": "5 Ferradura 270°",
+   "len": 4006,
+   "radius": -850,
+   "ease": 400,
+   "bank": -10,
+   "to_y": -25,
+   "width": 34,
+   "wallR": 20,
+   "angleR": 55,
+   "rideR": 0.6
+  },
+  {
+   "id": "5 Viragem de saída",
+   "len": 471,
+   "radius": 300,
+   "ease": 300,
+   "bank": 10,
+   "to_y": -30,
+   "wallR": 8,
+   "angleR": 40,
+   "rideR": 0.3
+  },
+  {
+   "id": "5 Fundo do desfiladeiro",
+   "len": 900,
+   "ease": 300,
+   "radius": 0,
+   "bank": 0,
+   "slope": 0.0
+  },
+  {
+   "id": "5 Meia ferradura",
+   "len": 681,
+   "radius": -260,
+   "ease": 250,
+   "bank": -18,
+   "width": 32
+  },
+  {
+   "id": "5 Contra-curva",
+   "len": 419,
+   "radius": 400,
+   "ease": 300,
+   "bank": 10
+  },
+  {
+   "id": "5 Saída do desfiladeiro",
+   "len": 800,
+   "ease": 300,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "6 Entrada do wash",
+   "len": 600,
+   "ease": 400,
+   "to_y": -32,
+   "width": 44,
+   "surface": "sand",
+   "open": 0,
+   "wallL": 30,
+   "wallR": 30,
+   "filletL": 26,
+   "filletR": 26,
+   "angleL": 66,
+   "angleR": 66,
+   "rideL": 0.8,
+   "rideR": 0.8
+  },
+  {
+   "id": "6 Meandro 1",
+   "len": 440,
+   "radius": 420,
+   "ease": 300,
+   "bank": 8,
+   "slope": 0.0
+  },
+  {
+   "id": "6 Meandro 2 (parede esq. alta)",
+   "len": 730,
+   "radius": -380,
+   "ease": 300,
+   "bank": -8,
+   "wallL": 40
+  },
+  {
+   "id": "6 Centro congestionado",
+   "len": 1200,
+   "ease": 300,
+   "radius": 0,
+   "bank": 0,
+   "width": 50,
+   "wallL": 30
+  },
+  {
+   "id": "6 Meandro 3 (parede dir. alta)",
+   "len": 785,
+   "radius": 450,
+   "ease": 300,
+   "bank": 8,
+   "wallR": 45,
+   "angleR": 72
+  },
+  {
+   "id": "6 Gargalo do wash",
+   "len": 600,
+   "ease": 200,
+   "radius": 0,
+   "bank": 0,
+   "width": 22,
+   "wallL": 20,
+   "wallR": 20,
+   "angleL": 75,
+   "angleR": 75
+  },
+  {
+   "id": "6 Cotovelo apertado",
+   "len": 237,
+   "radius": -160,
+   "ease": 150,
+   "bank": -20,
+   "width": 40,
+   "wallL": 30,
+   "wallR": 30,
+   "angleL": 66,
+   "angleR": 66
+  },
+  {
+   "id": "6 Meandro 4",
+   "len": 733,
+   "radius": 420,
+   "ease": 300,
+   "bank": 8,
+   "width": 46
+  },
+  {
+   "id": "6 Laje do leito crista",
+   "len": 140,
+   "ease": 60,
+   "slope": 3.8
+  },
+  {
+   "id": "6 Laje do leito borda",
+   "len": 220,
+   "ease": 12,
+   "slope": -3.2
+  },
+  {
+   "id": "6 Laje do leito receção",
+   "len": 380,
+   "ease": 200,
+   "slope": -0.2
+  },
+  {
+   "id": "6 Meandro 5",
+   "len": 698,
+   "radius": -400,
+   "ease": 300,
+   "bank": -8
+  },
+  {
+   "id": "6 Cotovelo 2",
+   "len": 223,
+   "radius": 160,
+   "ease": 150,
+   "bank": 20
+  },
+  {
+   "id": "6 Bacia natural",
+   "len": 700,
+   "ease": 300,
+   "width": 90,
+   "wallL": 12,
+   "wallR": 12,
+   "filletL": 30,
+   "filletR": 30,
+   "angleL": 40,
+   "angleR": 40,
+   "rideL": 0.5,
+   "rideR": 0.5,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "6 Wash inferior · entrada",
+   "len": 500,
+   "ease": 400,
+   "width": 40,
+   "open": 0,
+   "wallL": 30,
+   "wallR": 30,
+   "filletL": 26,
+   "filletR": 26,
+   "angleL": 66,
+   "angleR": 66,
+   "rideL": 0.8,
+   "rideR": 0.8
+  },
+  {
+   "id": "6 Meandro 6",
+   "len": 628,
+   "radius": -300,
+   "ease": 250,
+   "bank": -12
+  },
+  {
+   "id": "6 Meandro 7",
+   "len": 628,
+   "radius": 300,
+   "ease": 250,
+   "bank": 12
+  },
+  {
+   "id": "6 Leito de cascalho",
+   "len": 900,
+   "ease": 300,
+   "radius": 0,
+   "bank": 0,
+   "surface": "gravel"
+  },
+  {
+   "id": "6 Cotovelo 3",
+   "len": 236,
+   "radius": -150,
+   "ease": 150,
+   "bank": -20,
+   "surface": "sand"
+  },
+  {
+   "id": "6 Meandro 8",
+   "len": 672,
+   "radius": 350,
+   "ease": 250,
+   "bank": 10
+  },
+  {
+   "id": "6 Meandro 9",
+   "len": 733,
+   "radius": -420,
+   "ease": 300,
+   "bank": -8
+  },
+  {
+   "id": "6 Gargalo inferior",
+   "len": 500,
+   "ease": 200,
+   "radius": 0,
+   "bank": 0,
+   "width": 20,
+   "wallL": 22,
+   "wallR": 22,
+   "angleL": 76,
+   "angleR": 76
+  },
+  {
+   "id": "6 Cotovelo 4",
+   "len": 232,
+   "radius": 140,
+   "ease": 150,
+   "bank": 22,
+   "width": 36,
+   "wallL": 30,
+   "wallR": 30,
+   "angleL": 66,
+   "angleR": 66
+  },
+  {
+   "id": "6 Meandro 10",
+   "len": 730,
+   "radius": -380,
+   "ease": 300,
+   "bank": -10,
+   "width": 44
+  },
+  {
+   "id": "6 Laje do leito 2 crista",
+   "len": 140,
+   "ease": 60,
+   "slope": 3.8
+  },
+  {
+   "id": "6 Laje do leito 2 borda",
+   "len": 220,
+   "ease": 12,
+   "slope": -3.2
+  },
+  {
+   "id": "6 Laje do leito 2 receção",
+   "len": 380,
+   "ease": 200,
+   "slope": -0.2
+  },
+  {
+   "id": "6 Meandro 11",
+   "len": 628,
+   "radius": 450,
+   "ease": 300,
+   "bank": 8
+  },
+  {
+   "id": "6 Saída do wash",
+   "len": 600,
+   "ease": 300,
+   "radius": 0,
+   "bank": 0,
+   "to_y": -45
+  },
+  {
+   "id": "7 Subida do desfiladeiro 1",
+   "len": 1500,
+   "ease": 400,
+   "to_y": 40,
+   "width": 30,
+   "open": 0,
+   "wallL": 8,
+   "wallR": 8,
+   "filletL": 12,
+   "filletR": 12,
+   "angleL": 40,
+   "angleR": 40,
+   "lipL": 6,
+   "lipR": 6,
+   "rideL": 0.3,
+   "rideR": 0.3
+  },
+  {
+   "id": "7 Gancho da subida",
+   "len": 168,
+   "radius": -120,
+   "ease": 120,
+   "bank": -14,
+   "to_y": 46
+  },
+  {
+   "id": "7 Subida do desfiladeiro 2",
+   "len": 1500,
+   "ease": 400,
+   "to_y": 130,
+   "bank": 0,
+   "radius": 0
+  },
+  {
+   "id": "7 Gancho da subida 2",
+   "len": 168,
+   "radius": 120,
+   "ease": 120,
+   "bank": 14,
+   "to_y": 136
+  },
+  {
+   "id": "7 Saída para os fins",
+   "len": 700,
+   "ease": 300,
+   "to_y": 168,
+   "bank": 0,
+   "radius": 0
+  },
+  {
+   "id": "7 Corredor de fins 1",
+   "len": 1000,
+   "ease": 300,
+   "to_y": 170,
+   "width": 24,
+   "wallL": 22,
+   "wallR": 22,
+   "filletL": 8,
+   "filletR": 8,
+   "angleL": 82,
+   "angleR": 82,
+   "rideL": 0.4,
+   "rideR": 0.4
+  },
+  {
+   "id": "7 Slalom de agulhas",
+   "len": 1300,
+   "ease": 300,
+   "width": 34,
+   "wallL": 6,
+   "wallR": 6,
+   "angleL": 40,
+   "angleR": 40,
+   "rideL": 0.3,
+   "rideR": 0.3,
+   "slope": 0.0
+  },
+  {
+   "id": "7 Corredor de fins 2",
+   "len": 471,
+   "radius": 300,
+   "ease": 300,
+   "width": 22,
+   "wallL": 22,
+   "wallR": 22,
+   "filletL": 8,
+   "filletR": 8,
+   "angleL": 82,
+   "angleR": 82,
+   "rideL": 0.4,
+   "rideR": 0.4
+  },
+  {
+   "id": "7 Salto pequeno borda",
+   "len": 90,
+   "ease": 40,
+   "slope": 3.0
+  },
+  {
+   "id": "7 Salto pequeno ravina",
+   "len": 30,
+   "ease": 0,
+   "slope": -3.6,
+   "gap": 1
+  },
+  {
+   "id": "7 Salto pequeno receção",
+   "len": 220,
+   "ease": 40,
+   "slope": -5.0,
+   "gap": 0
+  },
+  {
+   "id": "7 Salto pequeno nivelar",
+   "len": 320,
+   "ease": 220,
+   "slope": 0.0
+  },
+  {
+   "id": "7 Gancho entre fins",
+   "len": 250,
+   "radius": -130,
+   "ease": 150,
+   "bank": -14,
+   "width": 26,
+   "wallL": 22,
+   "wallR": 22,
+   "filletL": 8,
+   "filletR": 8,
+   "angleL": 82,
+   "angleR": 82,
+   "rideL": 0.4,
+   "rideR": 0.4
+  },
+  {
+   "id": "7 Slalom 2",
+   "len": 1100,
+   "ease": 300,
+   "width": 34,
+   "radius": 0,
+   "bank": 0,
+   "wallL": 6,
+   "wallR": 6,
+   "angleL": 40,
+   "angleR": 40,
+   "rideL": 0.3,
+   "rideR": 0.3
+  },
+  {
+   "id": "7 Planície da rocha equilibrada",
+   "len": 838,
+   "radius": -800,
+   "ease": 400,
+   "width": 40,
+   "to_y": 170,
+   "open": 1,
+   "wallL": 3,
+   "wallR": 3,
+   "filletL": 14,
+   "filletR": 14,
+   "angleL": 22,
+   "angleR": 22,
+   "rideL": 0.4,
+   "rideR": 0.4
+  },
+  {
+   "id": "7 Saída da planície",
+   "len": 800,
+   "ease": 300,
+   "radius": 0,
+   "slope": 0.0
+  },
+  {
+   "id": "8 Aproximação à mesa",
+   "len": 900,
+   "ease": 400,
+   "to_y": 160,
+   "width": 34,
+   "radius": 0,
+   "open": 0,
+   "wallL": 8,
+   "wallR": 8,
+   "filletL": 12,
+   "filletR": 12,
+   "angleL": 40,
+   "angleR": 40,
+   "lipL": 6,
+   "lipR": 6,
+   "rideL": 0.3,
+   "rideR": 0.3
+  },
+  {
+   "id": "8 Canyon da mesa",
+   "len": 628,
+   "radius": 600,
+   "ease": 400,
+   "bank": 8,
+   "slope": 0.0
+  },
+  {
+   "id": "8 Gancho da mesa",
+   "len": 240,
+   "radius": -125,
+   "ease": 150,
+   "bank": -16,
+   "width": 30
+  },
+  {
+   "id": "8 Reta da mesa",
+   "len": 900,
+   "ease": 300,
+   "radius": 0,
+   "bank": 0,
+   "width": 34
+  },
+  {
+   "id": "8 Esses da aproximação esquerda",
+   "len": 136,
+   "radius": -120,
+   "ease": 120,
+   "bank": -12
+  },
+  {
+   "id": "8 Esses da aproximação direita",
+   "len": 136,
+   "radius": 120,
+   "ease": 120,
+   "bank": 12
+  },
+  {
+   "id": "8 Esses da aproximação saída",
+   "len": 300,
+   "ease": 150,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "8 Boca da caverna",
+   "len": 400,
+   "ease": 200,
+   "to_y": 150
+  },
+  {
+   "id": "8 Caverna · entrada ampla",
+   "len": 300,
+   "ease": 150,
+   "cave": 1,
+   "ceil": 34,
+   "to_y": 148,
+   "width": 44,
+   "wallL": 16,
+   "wallR": 16,
+   "filletL": 10,
+   "filletR": 10,
+   "angleL": 70,
+   "angleR": 70,
+   "rideL": 0.5,
+   "rideR": 0.5
+  },
+  {
+   "id": "8 Caverna · curva larga",
+   "len": 391,
+   "radius": 320,
+   "ease": 200,
+   "slope": 0.0
+  },
+  {
+   "id": "8 Caverna · descida",
+   "len": 500,
+   "ease": 200,
+   "to_y": 118,
+   "radius": 0
+  },
+  {
+   "id": "8 Caverna · bank natural",
+   "len": 363,
+   "radius": -260,
+   "ease": 250,
+   "bank": -22,
+   "to_y": 112
+  },
+  {
+   "id": "8 Caverna · half-pipe",
+   "len": 500,
+   "ease": 200,
+   "radius": 0,
+   "bank": 0,
+   "slope": 0,
+   "width": 30,
+   "wallL": 22,
+   "wallR": 22,
+   "angleL": 74,
+   "angleR": 74,
+   "rideL": 0.8,
+   "rideR": 0.8
+  },
+  {
+   "id": "8 Caverna · câmara",
+   "len": 400,
+   "ease": 200,
+   "width": 70,
+   "ceil": 48,
+   "wallL": 16,
+   "wallR": 16,
+   "angleL": 70,
+   "angleR": 70,
+   "rideL": 0.5,
+   "rideR": 0.5
+  },
+  {
+   "id": "8 Caverna · curva apertada",
+   "len": 195,
+   "radius": 140,
+   "ease": 150,
+   "bank": 14,
+   "width": 32,
+   "ceil": 30
+  },
+  {
+   "id": "8 Caverna · segunda câmara",
+   "len": 400,
+   "ease": 200,
+   "radius": 0,
+   "bank": 0,
+   "width": 56,
+   "ceil": 42
+  },
+  {
+   "id": "8 Caverna · curva final",
+   "len": 314,
+   "radius": -300,
+   "ease": 200,
+   "width": 32,
+   "ceil": 30
+  },
+  {
+   "id": "8 Caverna · estreita",
+   "len": 400,
+   "ease": 150,
+   "width": 30,
+   "ceil": 28,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "8 Caverna · rampa de saída",
+   "len": 120,
+   "ease": 60,
+   "slope": 4
+  },
+  {
+   "id": "8 Salto de saída",
+   "len": 70,
+   "ease": 0,
+   "slope": -6,
+   "gap": 1,
+   "cave": 0
+  },
+  {
+   "id": "8 Receção",
+   "len": 260,
+   "ease": 40,
+   "slope": -12,
+   "gap": 0
+  },
+  {
+   "id": "8 Nivelar",
+   "len": 400,
+   "ease": 250,
+   "slope": -3,
+   "width": 34,
+   "wallL": 8,
+   "wallR": 8,
+   "angleL": 40,
+   "angleR": 40,
+   "rideL": 0.3,
+   "rideR": 0.3
+  },
+  {
+   "id": "8 Descida à White Rim",
+   "len": 1222,
+   "radius": 1000,
+   "ease": 400,
+   "to_y": 60
+  },
+  {
+   "id": "8 Esses da descida esquerda",
+   "len": 131,
+   "radius": -125,
+   "ease": 120,
+   "bank": -12,
+   "slope": 0.0
+  },
+  {
+   "id": "8 Esses da descida direita",
+   "len": 131,
+   "radius": 125,
+   "ease": 120,
+   "bank": 12
+  },
+  {
+   "id": "8 Esses da descida saída",
+   "len": 300,
+   "ease": 150,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "8 Chegada à White Rim",
+   "len": 600,
+   "ease": 300,
+   "to_y": 48
+  },
+  {
+   "id": "9 White Rim",
+   "len": 1396,
+   "radius": 2000,
+   "ease": 500,
+   "to_y": 46,
+   "width": 44,
+   "surface": "slickrock",
+   "open": 1,
+   "wallL": 3,
+   "wallR": 3,
+   "filletL": 14,
+   "filletR": 14,
+   "angleL": 22,
+   "angleR": 22,
+   "rideL": 0.4,
+   "rideR": 0.4
+  },
+  {
+   "id": "9 Curva larga",
+   "len": 1710,
+   "radius": -1400,
+   "ease": 500,
+   "width": 48,
+   "slope": 0.0
+  },
+  {
+   "id": "9 Ondulação 1 crista",
+   "len": 140,
+   "ease": 60,
+   "slope": 4.0
+  },
+  {
+   "id": "9 Ondulação 1 borda",
+   "len": 220,
+   "ease": 12,
+   "slope": -3.0
+  },
+  {
+   "id": "9 Ondulação 1 receção",
+   "len": 380,
+   "ease": 200,
+   "slope": 0.0
+  },
+  {
+   "id": "9 Reta longa",
+   "len": 1800,
+   "ease": 400,
+   "radius": 0
+  },
+  {
+   "id": "9 Curva larga 2",
+   "len": 1257,
+   "radius": 1200,
+   "ease": 500
+  },
+  {
+   "id": "9 Ondulação 2 crista",
+   "len": 140,
+   "ease": 60,
+   "slope": 4.0
+  },
+  {
+   "id": "9 Ondulação 2 borda",
+   "len": 220,
+   "ease": 12,
+   "slope": -3.0
+  },
+  {
+   "id": "9 Ondulação 2 receção",
+   "len": 380,
+   "ease": 200,
+   "slope": 0.0
+  },
+  {
+   "id": "9 Curva da borda",
+   "len": 428,
+   "radius": -350,
+   "ease": 300,
+   "bank": -12
+  },
+  {
+   "id": "9 Reta da borda",
+   "len": 1200,
+   "ease": 300,
+   "radius": 0,
+   "bank": 0
+  },
+  {
+   "id": "9 Aproximação ao hero jump",
+   "len": 800,
+   "ease": 300,
+   "radius": 0,
+   "width": 40
+  },
+  {
+   "id": "9 Hero jump borda",
+   "len": 90,
+   "ease": 40,
+   "slope": 4.5
+  },
+  {
+   "id": "9 Hero jump ravina",
+   "len": 60,
+   "ease": 0,
+   "slope": -3.6,
+   "gap": 1
+  },
+  {
+   "id": "9 Hero jump receção",
+   "len": 220,
+   "ease": 40,
+   "slope": -9.0,
+   "gap": 0
+  },
+  {
+   "id": "9 Hero jump nivelar",
+   "len": 320,
+   "ease": 220,
+   "slope": 0.0
+  },
+  {
+   "id": "9 Reta final · EXTRAÇÃO",
+   "len": 1200,
+   "ease": 300,
+   "width": 50
+  }
+ ],
+ "features": [
+  {
+   "type": "rockfall",
+   "path": "main",
+   "from": 5172.0,
+   "to": 5800.0,
+   "every": 220,
+   "gap_m": 18
+  },
+  {
+   "type": "rockfall",
+   "path": "main",
+   "from": 66638.0,
+   "to": 67538.0,
+   "every": 180,
+   "gap_m": 16
+  },
+  {
+   "type": "pillars",
+   "path": "main",
+   "from": 34203.0,
+   "to": 35403.0,
+   "every": 170,
+   "pattern": "random",
+   "u": 0.5,
+   "radius": [
+    2.6,
+    3.8
+   ],
+   "height": [
+    18,
+    38
+   ]
+  },
+  {
+   "type": "pillars",
+   "path": "main",
+   "from": 80426.0,
+   "to": 81326.0,
+   "every": 140,
+   "pattern": "slalom",
+   "u": 0.45,
+   "radius": [
+    2.4,
+    3.2
+   ],
+   "height": [
+    14,
+    30
+   ]
+  },
+  {
+   "type": "rockfall",
+   "path": "main",
+   "from": 13296.0,
+   "to": 14256.0,
+   "every": 240,
+   "gap_m": 16
+  },
+  {
+   "type": "rockfall",
+   "path": "main",
+   "from": 32270.0,
+   "to": 33003.0,
+   "every": 200,
+   "gap_m": 15
+  },
+  {
+   "type": "rockfall",
+   "path": "main",
+   "from": 58966.0,
+   "to": 60166.0,
+   "every": 200,
+   "gap_m": 18
+  },
+  {
+   "type": "pillars",
+   "path": "main",
+   "from": 77745.0,
+   "to": 78845.0,
+   "every": 150,
+   "pattern": "slalom",
+   "u": 0.42,
+   "radius": [
+    2.4,
+    3.4
+   ],
+   "height": [
+    16,
+    34
+   ]
+  },
+  {
+   "type": "pillars",
+   "path": "main",
+   "from": 88908.0,
+   "to": 89018.0,
+   "every": 400,
+   "pattern": "slalom",
+   "u": 0.0,
+   "radius": [
+    6.0,
+    7.0
+   ],
+   "height": [
+    30,
+    34
+   ]
+  },
+  {
+   "type": "arch",
+   "path": "main",
+   "at": 77045.0,
+   "clearance": 16,
+   "thick": 12,
+   "depth": 18,
+   "sag": 8
+  },
+  {
+   "type": "arch",
+   "path": "main",
+   "at": 79145.0,
+   "clearance": 14,
+   "thick": 10,
+   "depth": 14,
+   "sag": 6
+  },
+  {
+   "type": "arch",
+   "path": "main",
+   "at": 81926.0,
+   "clearance": 22,
+   "thick": 16,
+   "depth": 26,
+   "sag": 14
+  },
+  {
+   "type": "arch",
+   "path": "main",
+   "at": 5600,
+   "clearance": 18,
+   "thick": 14,
+   "depth": 22,
+   "sag": 12
+  },
+  {
+   "type": "arch",
+   "path": "main",
+   "at": 104962.0,
+   "clearance": 24,
+   "thick": 18,
+   "depth": 30,
+   "sag": 18
+  },
+  {
+   "type": "wreck",
+   "path": "main",
+   "from": 63411.0,
+   "to": 63711.0,
+   "clearance": 14,
+   "tilt": 18
+  },
+  {
+   "type": "gorge_along",
+   "path": "main",
+   "from": 93701.0,
+   "to": 102972.0,
+   "side": 1,
+   "offset": 340,
+   "depth": 170,
+   "half_width": 50
+  }
+ ],
+ "rocks": {
+  "density": 0.5
+ },
+ "branches": [
+  {
+   "id": "SAFE Rota baixa da mesa",
+   "from": 11249.0,
+   "to": 15257.0,
+   "blend": 220,
+   "via": [
+    {
+     "t": 0.2,
+     "side": -1,
+     "offset": 120,
+     "dy": 0
+    },
+    {
+     "t": 0.5,
+     "side": -1,
+     "offset": 190,
+     "dy": -14
+    },
+    {
+     "t": 0.8,
+     "side": -1,
+     "offset": 120,
+     "dy": 0
+    }
+   ],
+   "params": {
+    "width": 36,
+    "surface": "sand",
+    "open": 1,
+    "wallL": 3,
+    "wallR": 3,
+    "filletL": 14,
+    "filletR": 14,
+    "angleL": 22,
+    "angleR": 22,
+    "rideL": 0.4,
+    "rideR": 0.4
+   }
+  },
+  {
+   "id": "SKILL Salto da Red Wall",
+   "from": 38694.0,
+   "to": 40185.0,
+   "blend": 160,
+   "via": [
+    {
+     "t": 0.22,
+     "side": 1,
+     "offset": 70,
+     "dy": 0
+    },
+    {
+     "t": 0.45,
+     "side": 1,
+     "offset": 115,
+     "dy": 16
+    },
+    {
+     "t": 0.75,
+     "side": 1,
+     "offset": 90,
+     "dy": 6
+    }
+   ],
+   "params": {
+    "width": 14,
+    "wallL": 12,
+    "wallR": 12,
+    "filletL": 8,
+    "filletR": 8,
+    "angleL": 70,
+    "angleR": 70,
+    "rideL": 0.4,
+    "rideR": 0.4,
+    "surface": "slickrock"
+   },
+   "sections": [
+    {
+     "frac": 0.5,
+     "id": "SKILL Salto da Red Wall · fenda",
+     "gap": 1,
+     "ease": 0
+    },
+    {
+     "frac": 0.53,
+     "id": "SKILL Salto da Red Wall · receção",
+     "gap": 0,
+     "ease": 60
+    }
+   ]
+  },
+  {
+   "id": "SAFE Borda exterior da ferradura",
+   "from": 50019.0,
+   "to": 53825.0,
+   "blend": 250,
+   "via": [
+    {
+     "t": 0.25,
+     "side": 1,
+     "offset": 140,
+     "dy": 10
+    },
+    {
+     "t": 0.5,
+     "side": 1,
+     "offset": 170,
+     "dy": 18
+    },
+    {
+     "t": 0.75,
+     "side": 1,
+     "offset": 140,
+     "dy": 10
+    }
+   ],
+   "params": {
+    "width": 34,
+    "surface": "sand"
+   }
+  },
+  {
+   "id": "SKILL Terraço interior da ferradura",
+   "from": 50219.0,
+   "to": 53525.0,
+   "blend": 200,
+   "via": [
+    {
+     "t": 0.3,
+     "side": -1,
+     "offset": 150,
+     "dy": 14
+    },
+    {
+     "t": 0.6,
+     "side": -1,
+     "offset": 170,
+     "dy": 16
+    },
+    {
+     "t": 0.85,
+     "side": -1,
+     "offset": 90,
+     "dy": 14
+    }
+   ],
+   "params": {
+    "width": 18,
+    "wallL": 10,
+    "wallR": 10,
+    "angleL": 66,
+    "angleR": 66,
+    "surface": "slickrock"
+   },
+   "sections": [
+    {
+     "frac": 0.88,
+     "id": "SKILL Terraço interior · drop",
+     "gap": 1,
+     "ease": 0
+    },
+    {
+     "frac": 0.92,
+     "id": "SKILL Terraço interior · receção",
+     "gap": 0,
+     "ease": 60
+    }
+   ]
+  }
+ ]
+}

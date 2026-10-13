@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 namespace RedDust.Track
@@ -11,6 +11,8 @@ namespace RedDust.Track
     {
         public TextAsset courseBytes;
         [Tooltip("Grafo de percursos (principal + ramos); opcional")] public TextAsset graphBytes;
+        [Tooltip("Obstáculos dentro das linhas de corrida (pilares, rocha caída) para a IA; opcional")] public TextAsset obstaclesJson;
+        public string title = "";
         [Tooltip("Desenhar a cada N estações")] public int gizmoStride = 6;
         public bool drawLanes = true;
 
@@ -26,6 +28,7 @@ namespace RedDust.Track
                 {
                     if (graphBytes != null) graph = CourseGraph.Load(graphBytes.bytes);
                     else if (courseBytes != null) graph = CourseGraph.Single(CourseData.Load(courseBytes.bytes));
+                    if (graph != null && obstaclesJson != null) graph.LoadObstacles(obstaclesJson.text);
                 }
                 return graph;
             }
