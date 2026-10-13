@@ -64,6 +64,39 @@ namespace RedDust.EditorTools
             Debug.Log(lines[0]);
         }
 
+        /// <summary>Fotografias da pista em distâncias (km) dadas por -at "15.0,39.3": câmara atrás e acima do centro.</summary>
+        public static void Shots()
+        {
+            string name = CourseImporter.CourseArg;
+            ProjectSetup.ConfigureUrp();
+            EditorSceneManager.OpenScene(CourseImporter.ScenePathFor(name));
+            var cr = Object.FindFirstObjectByType<CourseRuntime>();
+            foreach (var s in Object.FindObjectsByType<SectorStreamer>(FindObjectsInactive.Include, FindObjectsSortMode.None)) s.enabled = false;
+            foreach (var t in cr.GetComponentsInChildren<Transform>(true)) t.gameObject.SetActive(true);
+            var sun = Object.FindFirstObjectByType<Light>();
+            RedDust.Presentation.EnvironmentRig.Apply(sun, false);
+            var d = cr.Graph.Main.Data;
+            var cam = new GameObject("ProbeCam").AddComponent<Camera>();
+            cam.fieldOfView = 60f; cam.nearClipPlane = 0.2f; cam.farClipPlane = 4000f;
+            cam.gameObject.AddComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+            foreach (var tok in CommandLine.Value("-at", "15.0").Split(','))
+            {
+                float km = float.Parse(tok, System.Globalization.CultureInfo.InvariantCulture);
+                int i = 0;
+                while (i < d.StationCount - 1 && d.Dist[i] < km * 1000f) i++;
+                cam.transform.position = d.Center[i] - d.Tangent[i] * 16f + d.Up[i] * 6f;
+                cam.transform.rotation = Quaternion.LookRotation(d.Center[Mathf.Min(d.StationCount - 1, i + 8)] - cam.transform.position, d.Up[i]);
+                var rt = new RenderTexture(1280, 720, 24);
+                cam.targetTexture = rt; cam.Render(); cam.targetTexture = null;
+                RenderTexture.active = rt;
+                var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false);
+                tex.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0); tex.Apply();
+                RenderTexture.active = null;
+                File.WriteAllBytes(Path.Combine("Logs", $"probe_{tok}.png"), tex.EncodeToPNG());
+            }
+            Debug.Log("[RDD probe] fotos OK");
+        }
+
         static IEnumerable<List<(float dist, string kind, string mesh, float dy)>> Cluster(List<(float dist, string kind, string mesh, float dy)> ev, float gap)
         {
             var cur = new List<(float, string, string, float)>();

@@ -162,7 +162,8 @@ namespace RedDust.Vehicle
                 // travão de mão: com direção = derrapagem; a direito = travagem
                 if (input.brake || input.drift)
                 {
-                    if (Mathf.Abs(steer) > 0.25f && speed > 25f) drift = true;
+                    // uma derrapagem iniciada mantém-se com o botão premido (dá para contra-brecar sem travar)
+                    if ((wasDrifting && speed > 18f) || (Mathf.Abs(steer) > 0.25f && speed > 25f)) drift = true;
                     else braking = true;
                 }
 
@@ -202,18 +203,27 @@ namespace RedDust.Vehicle
                 Vector3 vt = Vector3.ProjectOnPlane(v, n);
                 float sp = vt.magnitude;
                 Vector3 f = Vector3.ProjectOnPlane(fwd, n).normalized;
+                slipAngle = 0f;
                 if (sp > 1f && Vector3.Dot(vt, f) > 0f)
                 {
                     float ang = Vector3.SignedAngle(vt, f, n) * Mathf.Deg2Rad;
-                    float rateCap = (drift ? t.driftLateralMax : t.gripLateralMax) * t.GripFactor(sp) * Sensor.traits.grip / sp;
-                    float rate = Mathf.Min(drift ? t.driftRedirect : t.gripRedirect, rateCap);
+                    slipAngle = ang;
+                    // a aderência volta aos poucos depois de largar a derrapagem (sem estalo)
+                    gripBlend = drift ? 0f : Mathf.MoveTowards(gripBlend, 1f, dt / Mathf.Max(0.05f, t.driftRecoverTime));
+                    float latMax = Mathf.Lerp(t.driftLateralMax, t.gripLateralMax, gripBlend);
+                    float redirect = Mathf.Lerp(t.driftRedirect, t.gripRedirect, gripBlend);
+                    // ângulo de deriva acima do máximo: a velocidade alcança a proa mais depressa (desliza, não roda)
+                    float over = Mathf.Abs(ang) * Mathf.Rad2Deg - t.driftMaxSlip;
+                    if (over > 0f) { redirect *= 1f + over / 8f; latMax *= 1f + over / 15f; }
+                    float rateCap = latMax * t.GripFactor(sp) * Sensor.traits.grip / sp;
+                    float rate = Mathf.Min(redirect, rateCap);
                     float d = Mathf.Clamp(ang, -rate * dt, rate * dt);
                     Vector3 vtNew = Quaternion.AngleAxis(d * Mathf.Rad2Deg, n) * vt;
                     v += vtNew - vt;
                     // atrito lateral residual (perde alguma velocidade quando desliza)
                     Vector3 r = Vector3.Cross(n, f);
                     float vr = Vector3.Dot(v, r);
-                    v -= r * vr * Mathf.Clamp01((drift ? 0.18f : 1f) * t.gripFriction * t.GripFactor(sp) * dt);
+                    v -= r * vr * Mathf.Clamp01(Mathf.Lerp(0.18f, 1f, gripBlend) * t.gripFriction * t.GripFactor(sp) * dt);
                 }
                 LateralSpeed = Vector3.Dot(v, Vector3.Cross(n, f));
             }
@@ -232,7 +242,10 @@ namespace RedDust.Vehicle
             }
             float turn = t.TurnRate(speed) * (drift ? t.driftTurnMul : 1f) * (grounded ? 1f : t.airTurnMul);
             yawRate = Mathf.Lerp(yawRate, steer * turn, MathX.Damp(t.steerResponse, dt));
-            if (drift && !wasDrifting) yawRate += Mathf.Sign(steer) * t.driftKick;     // a traseira solta-se de repente
+            if (drift && !wasDrifting) yawRate += Mathf.Sign(steer) * t.driftKick;     // a traseira solta-se
+            // sem piões: se a deriva já passou do máximo e a rotação a aumenta, a rotação é travada
+            if (grounded && Mathf.Abs(slipAngle) * Mathf.Rad2Deg > t.driftMaxSlip && yawRate * slipAngle > 0f)
+                yawRate = Mathf.Lerp(yawRate, 0f, MathX.Damp(8f, dt));
             Vector3 spin = spinAlign + up * yawRate;
             if (!grounded) spin += (rot * Vector3.right) * (input.airPitch * t.airPitchRate);
 
@@ -283,6 +296,7 @@ namespace RedDust.Vehicle
             return Vector3.up;
         }
 
+        float gripBlend = 1f, slipAngle;   // 0 = aderência de derrapagem, 1 = normal; ângulo velocidade→proa (rad)
         Vector3 preVel;   // velocidade antes da simulação física (para não perder velocidade em degraus/emendas do chão)
 
         void OnCollisionEnter(Collision c) { if (!GroundGraze(c)) ReportImpact(c); }

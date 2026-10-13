@@ -73,6 +73,15 @@ namespace RedDust.Meta
         public string slot = "p1";
         public string name = "Piloto";
         public long stardust = Economy.StartingStardust;
+        public int cacheStd, cacheAdv, cacheElite;                              // caixas guardadas no Cofre (por abrir)
+        public int Caches(CacheKind k) => k == CacheKind.Standard ? cacheStd : k == CacheKind.Advanced ? cacheAdv : k == CacheKind.Elite ? cacheElite : 0;
+        public int CachesTotal => cacheStd + cacheAdv + cacheElite;
+        public void AddCaches(CacheKind k, int n)
+        {
+            if (k == CacheKind.Standard) cacheStd = Math.Max(0, cacheStd + n);
+            else if (k == CacheKind.Advanced) cacheAdv = Math.Max(0, cacheAdv + n);
+            else if (k == CacheKind.Elite) cacheElite = Math.Max(0, cacheElite + n);
+        }
         public bool firstExtractionPaid;
         public string chassis = "strix";
         public List<BuildEntry> builds = new List<BuildEntry>();

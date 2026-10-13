@@ -226,6 +226,8 @@ namespace RedDust.Meta
                 Add(id, r);
             foreach (var (id, n) in new[] { ("foam", 6), ("fuel", 5), ("coolant", 5), ("stab", 3), ("surge", 3), ("nanogel", 2) })
                 AddStock(p, id, n);
+            p.AddCaches(CacheKind.Standard, 2);
+            p.AddCaches(CacheKind.Advanced, 1);
             return true;
         }
 
@@ -235,6 +237,7 @@ namespace RedDust.Meta
             p.items ??= new List<EquipmentInstance>(); p.builds ??= new List<BuildEntry>(); p.stock ??= new List<ConsumableStack>();
             p.loadout ??= new List<ConsumableStack>(); p.applied ??= new List<string>(); p.ledger ??= new List<LedgerEntry>();
             p.contracts ??= new List<ContractState>();
+            p.cacheStd = Math.Max(0, p.cacheStd); p.cacheAdv = Math.Max(0, p.cacheAdv); p.cacheElite = Math.Max(0, p.cacheElite);
             p.items.RemoveAll(i => i == null || Catalog.Def(i.def) == null);
             foreach (var b in p.builds) foreach (var s in b.slots) if (p.Item(s.item) == null) s.item = "";
             if (p.Item(p.insured) == null) p.insured = "";
@@ -407,6 +410,33 @@ namespace RedDust.Meta
             if (AlreadyApplied(p, txId)) { res.error = "Esta caixa já foi aberta."; return res; }
             p.stardust -= price;
             Log(p, "cache", -price, CacheName(kind));
+            Roll(kind, rng, res, prefix => $"{prefix}-{p.nextSerial++:0000}", p.slot);
+            foreach (var it in res.components) p.items.Add(it);
+            foreach (var c in res.consumables) AddStock(p, c, 1);
+            return res;
+        }
+
+        /// <summary>Compra uma caixa e guarda-a no Cofre (abre-se lá, quando o jogador quiser). Idempotente por txId.</summary>
+        public static string BuyCache(PlayerProfile p, CacheKind kind, string txId)
+        {
+            int price = CachePrice(kind);
+            if (price <= 0) return "Caixa indisponível.";
+            if (!string.IsNullOrEmpty(txId) && p.applied.Contains(txId)) return null;   // idempotente: já comprada
+            if (p.stardust < price) return "Stardust insuficiente.";
+            AlreadyApplied(p, txId);
+            p.stardust -= price;
+            Log(p, "cache", -price, CacheName(kind) + " → Cofre");
+            p.AddCaches(kind, 1);
+            return null;
+        }
+
+        /// <summary>Abre uma caixa guardada no Cofre: os 10 itens vão para o inventário.</summary>
+        public static CacheResult OpenStoredCache(PlayerProfile p, CacheKind kind, string txId, Rng rng)
+        {
+            var res = new CacheResult { kind = kind };
+            if (p.Caches(kind) <= 0) { res.error = "Não tens caixas deste tipo no Cofre."; return res; }
+            if (AlreadyApplied(p, txId)) { res.error = "Esta caixa já foi aberta."; return res; }
+            p.AddCaches(kind, -1);
             Roll(kind, rng, res, prefix => $"{prefix}-{p.nextSerial++:0000}", p.slot);
             foreach (var it in res.components) p.items.Add(it);
             foreach (var c in res.consumables) AddStock(p, c, 1);

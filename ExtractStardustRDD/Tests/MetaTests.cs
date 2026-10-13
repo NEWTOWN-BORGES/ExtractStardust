@@ -138,6 +138,14 @@ static class MetaTests
             Check(k.Build("strix").slots.TrueForAll(sl => !string.IsNullOrEmpty(sl.item)), "kit: STRIX com todos os sockets");
             Check(BuildValidator.Validate(k, "strix").Count == 0, "kit: build da STRIX válida");
             Check(!Economy.GrantWelcomeKit(k, 6) && k.stardust == kb + Economy.WelcomeBonus, "kit: idempotente");
+            Check(k.Caches(CacheKind.Standard) == 2 && k.Caches(CacheKind.Advanced) == 1, "kit: 3 caixas no Cofre");
+            long sb0 = k.stardust;
+            Check(Economy.BuyCache(k, CacheKind.Elite, "tx-c1") == null && k.Caches(CacheKind.Elite) == 1 && k.stardust == sb0 - Economy.CachePrice(CacheKind.Elite), "cofre: comprar guarda a caixa");
+            Check(Economy.BuyCache(k, CacheKind.Elite, "tx-c1") == null && k.Caches(CacheKind.Elite) == 1, "cofre: compra idempotente");
+            int itemsBefore = k.items.Count;
+            var op = Economy.OpenStoredCache(k, CacheKind.Elite, "tx-o1", new Rng(9));
+            Check(op.error == null && op.components.Count + op.consumables.Count == 10 && k.Caches(CacheKind.Elite) == 0 && k.items.Count == itemsBefore + op.components.Count, "cofre: abrir dá 10 itens");
+            Check(Economy.OpenStoredCache(k, CacheKind.Elite, "tx-o2", new Rng(9)).error != null, "cofre: sem caixas não abre");
         }
         Check(Economy.BuyConsumable(p, "foam") == null && p.stardust == 900 && p.StockCount("foam") == 3, "comprar Repair Foam");
         var bastionArmor = p.items.First(i => i.Def.family == Family.Armor);

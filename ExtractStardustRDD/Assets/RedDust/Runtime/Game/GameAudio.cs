@@ -45,9 +45,9 @@ namespace RedDust.Game
             fx.playOnAwake = false;
             fx.spatialBlend = 0f;
             music = gameObject.AddComponent<AudioSource>();
-            music.clip = Clip("ambient_loop");
+            music.clip = Clip("music_menu");
             music.loop = true;
-            music.volume = 0.22f;
+            music.volume = 0.26f;
             if (music.clip != null) music.Play();
         }
 
@@ -81,8 +81,15 @@ namespace RedDust.Game
             if (c != null) AudioSource.PlayClipAtPoint(c, p, vol);
         }
 
-        /// <summary>Volume da música: mais alto nos menus, baixo em corrida.</summary>
-        public static void MusicLevel(float v) { var a = I; if (a != null) a.music.volume = Mathf.MoveTowards(a.music.volume, v, 0.02f); }
+        /// <summary>Música: faixa calma nos menus, faixa de corrida (120 BPM) em corrida; troca de faixa e volume suave.</summary>
+        public static void Music(bool race)
+        {
+            var a = I;
+            if (a == null) return;
+            var want = Clip(race ? "music_race" : "music_menu");
+            if (want != null && a.music.clip != want) { a.music.clip = want; a.music.Play(); }
+            a.music.volume = Mathf.MoveTowards(a.music.volume, race ? 0.17f : 0.26f, 0.02f);
+        }
 
         /// <summary>Som a partir das notificações da corrida (feed): extração, destruição, checkpoints, avisos.</summary>
         public static void OnNote(string text, bool mine)
@@ -100,7 +107,7 @@ namespace RedDust.Game
     public sealed class EngineAudio : MonoBehaviour
     {
         public CraftController craft;
-        AudioSource eng, boost, wind;
+        AudioSource eng, boost, wind, slide;
 
         void Start()
         {
@@ -109,6 +116,7 @@ namespace RedDust.Game
             eng = Loop("engine_loop", 0.4f);
             boost = Loop("boost_loop", 0f);
             wind = Loop("wind_loop", 0f);
+            slide = Loop("drift_loop", 0f);
             craft.Impacted += (v, n, c) => { if (v > 4f) GameAudio.PlayAt("impact", craft.Position, Mathf.Clamp(v / 30f, 0.2f, 1f)); };
             craft.Landed += v => { if (v > 6f) GameAudio.PlayAt("land", craft.Position, Mathf.Clamp(v / 20f, 0.2f, 0.8f)); };
         }
@@ -134,8 +142,9 @@ namespace RedDust.Game
         void Update()
         {
             float sp = Mathf.Clamp01(craft.Speed / 125f);
-            if (eng != null) { eng.pitch = 0.6f + sp * 1.15f + (craft.Boosting ? 0.15f : 0f); eng.volume = 0.3f + sp * 0.35f; }
-            if (boost != null) boost.volume = Mathf.MoveTowards(boost.volume, craft.Boosting ? 0.55f : craft.Drifting ? 0.15f : 0f, Time.deltaTime * 3f);
+            if (eng != null) { eng.pitch = 0.62f + sp * 1.05f + (craft.Boosting ? 0.12f : 0f); eng.volume = 0.28f + sp * 0.32f; }
+            if (boost != null) boost.volume = Mathf.MoveTowards(boost.volume, craft.Boosting ? 0.5f : 0f, Time.deltaTime * 3f);
+            if (slide != null) { slide.volume = Mathf.MoveTowards(slide.volume, craft.Drifting ? 0.25f + sp * 0.3f : 0f, Time.deltaTime * 5f); slide.pitch = 0.85f + sp * 0.35f; }
             if (wind != null) { wind.volume = sp * sp * 0.4f; wind.pitch = 0.8f + sp * 0.5f; }
         }
     }

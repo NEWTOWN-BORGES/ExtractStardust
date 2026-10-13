@@ -9,7 +9,7 @@ using UnityEngine.InputSystem;
 namespace RedDust.Game
 {
     /// <summary>
-    /// Menus (IMGUI, comando/teclado/rato/toque): principal, Hangar, escolha de peça, Mochila, Mercado e Supply Caches,
+    /// Menus (IMGUI, comando/teclado/rato/toque): principal, Hangar, escolha de peça, Cofre (caixas, peças, consumíveis), Mercado,
     /// relatório da última expedição, opções, briefing e pausa. Cada ecrã é uma lista de itens com cartão de informação.
     /// </summary>
     public partial class GameDirector
@@ -40,6 +40,7 @@ namespace RedDust.Game
         float toastUntil, armedUntil, cacheOpened;
         string armedKey, pickSocket;
         GameMode briefingMode = GameMode.Extraction;
+        int cacheChoice, cacheSoundShown;   // janela da caixa: 0 = voltar ao Cofre, 1 = abrir outra; cartas já com som
         Page optionsReturn = Page.Main;
         CacheResult lastCache;
         Vector2 reportScroll;
@@ -129,7 +130,7 @@ namespace RedDust.Game
                 case Page.Briefing: BuildBriefing(); break;
                 case Page.Pause: BuildPause(); break;
                 case Page.Results: BuildResults(); break;
-                case Page.Cache: title = lastCache != null ? Economy.CacheName(lastCache.kind) : ""; subtitle = "10 itens"; Add("CONTINUAR", ok: () => Go(Page.Market)); break;
+                case Page.Cache: title = lastCache != null ? Economy.CacheName(lastCache.kind) : ""; subtitle = "10 itens"; Add("VOLTAR AO COFRE", ok: () => Go(Page.Backpack)); break;
             }
             if (items.Count > 0)
             {
@@ -144,26 +145,30 @@ namespace RedDust.Game
         {
             var p1 = profiles[0];
             title = "EXTRACT: STARDUST";
-            subtitle = $"RACE. SURVIVE. EXTRACT.   ·   {courseTitle}   ·   {p1.name} {Fmt.Dust(p1.stardust)}";
-            Add("EXPLORAÇÃO", "sozinho", () => StartRace(GameMode.Exploration), card: new Card { title = "EXPLORAÇÃO", subtitle = "SEM RISCO",
+            subtitle = $"{p1.name}   ·   {Fmt.Dust(p1.stardust)}   ·   RACE. SURVIVE. EXTRACT.";
+            Header("JOGAR");
+            Add("Pista", $"‹ {courseTitle} ›", () => ChangeCourse(1), ChangeCourse, card: new Card { title = "PISTA", body = "Escolhe a pista com ←/→ antes de escolher o modo." });
+            Add("EXPEDIÇÃO", "extração vs bots", () => { briefingMode = GameMode.Extraction; editing = 0; Go(Page.Briefing); }, color: new Color(1f, 0.75f, 0.35f),
+                card: new Card { title = "EXPEDIÇÃO (EXTRAÇÃO)", subtitle = "EQUIPAMENTO EM RISCO", color = new Color(1f, 0.6f, 0.3f),
+                    body = "Leva a tua build contra bots. Dano, combustível e calor ativos.\n\nCHEGAR AO FIM (EXTRACTED): ✦ pela posição + extração + proezas e peças do Expedition Pool.\nDESTRUÍDO/SEM COMBUSTÍVEL: perdes até 3 peças não seguradas e os consumíveis levados. A peça segurada volta sempre.\n\nO Stardust da carteira nunca se perde." });
+            Add("EXPLORAÇÃO", "sozinho · sem risco", () => StartRace(GameMode.Exploration), card: new Card { title = "EXPLORAÇÃO", subtitle = "SEM RISCO",
                 body = "Corre sozinho a pista inteira: treino, linhas, atalhos e paisagens. Sem dano, combustível ou perdas; não dá Stardust." });
-            Add("EXTRAÇÃO vs BOTS", $"{botCount} bots · {Difficulty(difficulty)}", () => { briefingMode = GameMode.Extraction; editing = 0; Go(Page.Briefing); },
-                card: new Card { title = "EXTRAÇÃO", subtitle = "EQUIPAMENTO EM RISCO", color = new Color(1f, 0.6f, 0.3f),
-                    body = "Leva a tua build. Dano, combustível e calor ativos.\n\nEXTRACTED: ✦ pela posição + extração + proezas e peças do Expedition Pool.\nDESTROYED/STRANDED: perdes até 3 peças não seguradas (vão para o Pool) e os consumíveis levados. A peça segurada volta sempre.\n\nO Stardust da carteira nunca se perde." });
-            Add("PVP LOCAL + BOTS", "ecrã dividido", () =>
+            Add("PVP LOCAL", "2 jogadores + bots", () =>
             {
                 briefingMode = GameMode.LocalVersus;
                 if (profiles[1] == null) profiles[1] = ProfileStore.Load("p2", "Piloto 2");
                 Go(Page.Briefing);
-            }, card: new Card { title = "PVP LOCAL", subtitle = "2 JOGADORES + BOTS", body = "Ecrã dividido no mesmo PC/telemóvel. Cada jogador tem o seu perfil (carteira, garagem, mochila) e o Pool pode passar peças de um para o outro.\n\nComandos: 2 comandos → um cada · 1 comando → J1 teclado, J2 comando · sem comandos → teclado dividido (WASD / setas)." });
-            Add("HANGAR", Catalog.ChassisOf(P.chassis).name, () => Go(Page.Hangar), card: new Card { title = "HANGAR", body = "Escolhe o chassis, monta módulos (a nave muda à vista), escolhe a peça segurada e os consumíveis que levas." });
-            Add("MOCHILA", $"{P.items.Count} peças", () => Go(Page.Backpack), card: new Card { title = "MOCHILA", body = "Tudo o que tens: peças (com raridade, rolls e valor) e consumíveis. Vende duplicados a 25% do valor." });
-            Add("MERCADO", "consumíveis · peças · caixas", () => Go(Page.Market), card: new Card { title = "MERCADO", body = "Consumíveis, componentes em rotação e Supply Caches de 10 itens aleatórios (Standard, Advanced, Elite)." });
-            Add("ÚLTIMA EXPEDIÇÃO", P.last != null ? $"{P.last.state} {P.last.position}/{P.last.racers}" : "—", () => Go(Page.Report),
+            }, card: new Card { title = "PVP LOCAL", subtitle = "2 JOGADORES + BOTS", body = "Ecrã dividido no mesmo PC. Cada jogador tem o seu perfil (carteira, garagem, cofre) e o Pool pode passar peças de um para o outro.\n\nComandos: 2 comandos → um cada · 1 comando → J1 teclado, J2 comando · sem comandos → teclado dividido (WASD / setas)." });
+            Header("A MINHA NAVE");
+            Add("HANGAR", $"{Catalog.ChassisOf(P.chassis).name} · montar módulos", () => Go(Page.Hangar), card: new Card { title = "HANGAR", body = "Escolhe o chassis, monta módulos (a nave muda à vista), escolhe a peça segurada e os consumíveis que levas." });
+            int cx = P.CachesTotal;
+            Add("COFRE", cx > 0 ? $"{cx} caixa{(cx == 1 ? "" : "s")} por abrir!" : $"{P.items.Count} peças · consumíveis", () => Go(Page.Backpack),
+                color: cx > 0 ? new Color(1f, 0.85f, 0.3f) : (Color?)null, card: new Card { title = "COFRE", subtitle = cx > 0 ? $"{cx} CAIXAS POR ABRIR" : "",
+                    body = "Tudo o que é teu num só sítio:\n\n• CAIXAS por abrir — abre-as aqui e vês os 10 itens que ganhaste.\n• PEÇAS — raridade, rolls e valor; vende duplicados.\n• CONSUMÍVEIS — o teu stock." });
+            Add("MERCADO", "caixas · peças · consumíveis", () => Go(Page.Market), card: new Card { title = "MERCADO", body = "Compra Supply Caches (vão para o Cofre), componentes em rotação e consumíveis." });
+            Header("MAIS");
+            Add("Última expedição", P.last != null ? $"{P.last.state} {P.last.position}/{P.last.racers}" : "—", () => Go(Page.Report),
                 card: new Card { title = "RELATÓRIO", body = "O que levaste, o que perdeste e o que ganhaste na última expedição." });
-            Add("Pista", $"‹ {courseTitle} ›", () => ChangeCourse(1), ChangeCourse);
-            Add("Bots", $"‹ {botCount} ›", null, d => botCount = Mathf.Clamp(botCount + d, 1, 19));
-            Add("Dificuldade", $"‹ {Difficulty(difficulty)} ›", null, d => difficulty = (difficulty + d + 3) % 3);
             Add("Opções", "", () => { optionsReturn = Page.Main; Go(Page.Options); });
             Add("Sair", "", () => Application.Quit());
         }
@@ -270,9 +275,21 @@ namespace RedDust.Game
 
         void BuildBackpack(PlayerProfile p)
         {
-            title = "MOCHILA";
-            subtitle = $"{p.name}  ·  {Fmt.Dust(p.stardust)}  ·  {p.items.Count} peças  ·  avaliação {Fmt.Dust(p.items.Sum(i => (long)i.value))}";
+            title = "COFRE";
+            subtitle = $"{p.name}  ·  {Fmt.Dust(p.stardust)}  ·  {p.CachesTotal} caixas  ·  {p.items.Count} peças  ·  avaliação {Fmt.Dust(p.items.Sum(i => (long)i.value))}";
             Add("Piloto", $"‹ {p.name} ›", () => SwitchPilot(1), SwitchPilot);
+            Header("CAIXAS POR ABRIR");
+            bool any = false;
+            foreach (var k in new[] { CacheKind.Standard, CacheKind.Advanced, CacheKind.Elite })
+            {
+                int n = p.Caches(k);
+                if (n <= 0) continue;
+                any = true;
+                var kind = k;
+                Add($"ABRIR {Economy.CacheName(k)}", $"tens {n}", () => OpenStored(p, kind), icon: Icons.Cache(k), color: new Color(1f, 0.85f, 0.3f),
+                    card: new Card { icon = Icons.Cache(k), title = Economy.CacheName(k), subtitle = $"TENS {n}", body = "Abrir agora: 10 itens aleatórios (4 a 6 peças + consumíveis). Vês tudo o que ganhaste e fica logo aqui no Cofre." });
+            }
+            if (!any) Add("Não tens caixas por abrir", "comprar no Mercado", () => Go(Page.Market), color: new Color(0.7f, 0.72f, 0.75f));
             Header("PEÇAS");
             foreach (var it in p.items.OrderByDescending(i => i.rarity).ThenBy(i => i.Def.family).ThenByDescending(i => i.value))
             {
@@ -293,11 +310,32 @@ namespace RedDust.Game
             Add("VOLTAR", "", () => Go(Page.Main));
         }
 
+        /// <summary>Abre uma caixa do Cofre e mostra a janela com os 10 itens.</summary>
+        void OpenStored(PlayerProfile p, CacheKind kind)
+        {
+            var res = Economy.OpenStoredCache(p, kind, Guid.NewGuid().ToString("N"), rng);
+            if (res.error != null) { Toast(res.error); return; }
+            Save(p);
+            lastCache = res;
+            cacheOpened = Time.unscaledTime;
+            cacheSoundShown = 0;
+            cacheChoice = 0;
+            GameAudio.Play("cache_open", 0.9f);
+            Go(Page.Cache);
+        }
+
+        void CacheAction()
+        {
+            if (cacheChoice == 1 && lastCache != null && P.Caches(lastCache.kind) > 0) OpenStored(P, lastCache.kind);
+            else Go(Page.Backpack);
+        }
+
         void BuildMarket(PlayerProfile p)
         {
             title = "MERCADO";
             subtitle = $"{p.name}  ·  {Fmt.Dust(p.stardust)}";
             Add("Piloto", $"‹ {p.name} ›", () => SwitchPilot(1), SwitchPilot);
+            if (p.CachesTotal > 0) Add("IR PARA O COFRE", $"{p.CachesTotal} caixas por abrir", () => Go(Page.Backpack), color: new Color(1f, 0.85f, 0.3f));
             Header("CONSUMÍVEIS");
             foreach (var c in Catalog.Consumables)
             {
@@ -317,11 +355,11 @@ namespace RedDust.Game
                 {
                     if (!Armed("buy" + offer.id, $"Carrega outra vez para comprar {offer.Name} por {Fmt.Dust(Economy.ShopPrice(offer))}")) return;
                     string err = Economy.BuyComponent(p, offer);
-                    Toast(err ?? $"Comprado: {offer.Name} (está na Mochila)");
+                    Toast(err ?? $"Comprado: {offer.Name} (está no Cofre)");
                     Save(p);
                 }, icon: Icons.Equipment(o), color: Icons.RarityColor(o.rarity), card: ItemCard(o));
             }
-            Header("SUPPLY CACHES · 10 itens aleatórios por caixa");
+            Header("SUPPLY CACHES · compra aqui, abre no COFRE");
             foreach (var k in new[] { CacheKind.Standard, CacheKind.Advanced, CacheKind.Elite })
             {
                 var kind = k;
@@ -331,18 +369,17 @@ namespace RedDust.Game
                     CacheKind.Advanced => "20% Comum · 50% Incomum · 27% Raro · 3% Épico. Mínimo 1 Raro.",
                     _ => "25% Incomum · 55% Raro · 20% Épico. Garante 1 Épico e 4+ Raros. 4% por caixa de um Lendário (HELIOS V-9, REDLINE-X, AEGIS FRAME).",
                 };
-                Add(Economy.CacheName(k), Fmt.Dust(Economy.CachePrice(k)), () =>
+                Add(Economy.CacheName(k), $"{Fmt.Dust(Economy.CachePrice(k))}   ·   no cofre {p.Caches(k)}", () =>
                 {
                     if (p.stardust < Economy.CachePrice(kind)) { Toast("Stardust insuficiente. Corre expedições ou vende duplicados."); return; }
-                    if (!Armed("cache" + kind, $"Carrega outra vez para abrir por {Fmt.Dust(Economy.CachePrice(kind))}")) return;
-                    var res = Economy.OpenCache(p, kind, Guid.NewGuid().ToString("N"), rng);
-                    if (res.error != null) { Toast(res.error); return; }
+                    if (!Armed("cache" + kind, $"Carrega outra vez para COMPRAR por {Fmt.Dust(Economy.CachePrice(kind))} (vai para o Cofre)")) return;
+                    string err = Economy.BuyCache(p, kind, Guid.NewGuid().ToString("N"));
+                    if (err != null) { Toast(err); return; }
                     Save(p);
-                    lastCache = res;
-                    cacheOpened = Time.unscaledTime;
-                    Go(Page.Cache);
+                    GameAudio.Play("loot", 0.6f);
+                    Toast($"{Economy.CacheName(kind)} guardada no COFRE (tens {p.Caches(kind)}) — abre-a no Cofre");
                 }, icon: Icons.Cache(k), card: new Card { icon = Icons.Cache(k), title = Economy.CacheName(k), subtitle = Fmt.Dust(Economy.CachePrice(k)),
-                    body = $"Abre exatamente 10 itens: 4 a 6 componentes permanentes de famílias diferentes + consumíveis.\n\n{odds}\n\nChassis nunca saem de caixas." });
+                    body = $"Compra e guarda no COFRE; abre-a lá quando quiseres.\nCada caixa dá exatamente 10 itens: 4 a 6 componentes permanentes de famílias diferentes + consumíveis.\n\n{odds}\n\nChassis nunca saem de caixas." });
             }
             Add("VOLTAR", "", () => Go(Page.Main));
         }
@@ -459,8 +496,12 @@ namespace RedDust.Game
             {
                 int total = lastCache.components.Count + lastCache.consumables.Count;
                 bool all = (Time.unscaledTime - cacheOpened) / 0.32f >= total;
-                if (GameInput.Confirm()) { if (!all) cacheOpened = -100f; else Go(Page.Market); }
-                else if (GameInput.Back()) Go(Page.Market);
+                bool more = P.Caches(lastCache.kind) > 0;
+                int cnx = GameInput.NavX();
+                if (all && more && cnx != 0) { cacheChoice = cnx > 0 ? 1 : 0; GameAudio.Play("ui_move", 0.6f); }
+                if (!more) cacheChoice = 0;
+                if (GameInput.Confirm()) { if (!all) cacheOpened = -100f; else CacheAction(); }
+                else if (GameInput.Back()) Go(Page.Backpack);
                 return;
             }
             if (items.Count == 0) return;

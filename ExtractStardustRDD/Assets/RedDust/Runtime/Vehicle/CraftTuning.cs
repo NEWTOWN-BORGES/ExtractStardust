@@ -66,11 +66,13 @@ namespace RedDust.Vehicle
         [Tooltip("Velocidade (m/s) a que a aderência lateral fica completa")] public float gripSpeedRef = 125f;
         [Tooltip("Teto do fator de aderência: 0,55 → ~4,8 g. Curvas abaixo de ~300 m a fundo pedem travagem/derrapagem; o bank soma")]
         public float gripCap = 0.55f;
-        public float driftRedirect = 0.75f;
-        public float driftLateralMax = 20f;
-        public float driftTurnMul = 2.5f;
-        public float driftDecel = 7f;
-        [Tooltip("Impulso de rotação (rad/s) ao iniciar a derrapagem")] public float driftKick = 0.9f;
+        public float driftRedirect = 2.2f;
+        public float driftLateralMax = 62f;
+        public float driftTurnMul = 1.6f;
+        public float driftDecel = 3.5f;
+        [Tooltip("Impulso de rotação (rad/s) ao iniciar a derrapagem")] public float driftKick = 0.45f;
+        [Tooltip("Ângulo de deriva máximo (graus): acima disto a velocidade alcança a proa e a rotação é travada (sem piões)")] public float driftMaxSlip = 32f;
+        [Tooltip("Segundos para a aderência voltar ao normal depois de largar a derrapagem")] public float driftRecoverTime = 0.35f;
         [Tooltip("Travagem do motor sem acelerar (m/s²)")] public float coastDecel = 6f;
         [Header("Nitro")]
         [Tooltip("Duração do depósito cheio (s)")] public float nitroSeconds = 3.4f;

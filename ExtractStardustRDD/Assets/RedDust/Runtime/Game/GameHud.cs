@@ -164,9 +164,9 @@ namespace RedDust.Game
                     }
                     if (GUI.Button(new Rect(x, cy, it.lr != null ? w * 0.5f - 6 : w, h - 4), "", GUIStyle.none))
                     {
-                        if (sel == i && it.enabled) { GameAudio.Play("ui_ok", 0.7f); it.ok?.Invoke(); }
+                        sel = i;   // um clique escolhe e confirma
+                        if (it.enabled && it.ok != null) { GameAudio.Play("ui_ok", 0.7f); it.ok(); }
                         else GameAudio.Play("ui_move", 0.6f);
-                        sel = i;
                     }
                 }
                 cy += h;
@@ -236,12 +236,36 @@ namespace RedDust.Game
                 Text(new Rect(r.x + 12, r.y + 190, cw - 24, 70), c.name, St(24, FontStyle.Bold, TextAnchor.UpperCenter, true), Color.white);
                 Text(new Rect(r.x + 12, r.y + 262, cw - 24, 60), c.sub, St(19, FontStyle.Normal, TextAnchor.UpperCenter, true), c.col);
             }
+            if (Event.current.type == EventType.Repaint && shown > cacheSoundShown)
+            {
+                bool rare = false;
+                for (int i = cacheSoundShown; i < Mathf.Min(shown, cards.Count); i++) rare |= cards[i].big;
+                if (cacheSoundShown < cards.Count) GameAudio.Play(rare ? "card_rare" : "card", rare ? 0.8f : 0.5f);
+                cacheSoundShown = shown;
+            }
             bool legendary = lastCache.components.Any(i => i.rarity == Rarity.Legendary);
             if (shown >= cards.Count && legendary)
                 Shadowed(new Rect(0, y0 + 2 * (ch + gap) + 4, W, 60), "LENDÁRIO!", St(46, FontStyle.Bold, TextAnchor.MiddleCenter), Icons.RarityColor(Rarity.Legendary));
-            Text(new Rect(0, H - 70, W, 40), shown >= cards.Count ? $"{GameInput.BtnConfirm} continuar · as peças estão na Mochila" : $"{GameInput.BtnConfirm} revelar tudo",
-                St(24, FontStyle.Normal, TextAnchor.MiddleCenter), new Color(1f, 1f, 1f, 0.7f));
-            if (GUI.Button(new Rect(0, 0, W, H), "", GUIStyle.none)) { if (shown < cards.Count) cacheOpened = -100f; else Go(Page.Market); }
+            if (shown < cards.Count)
+            {
+                Text(new Rect(0, H - 70, W, 40), $"{GameInput.BtnConfirm} / clique: revelar tudo", St(24, FontStyle.Normal, TextAnchor.MiddleCenter), new Color(1f, 1f, 1f, 0.7f));
+                if (GUI.Button(new Rect(0, 0, W, H), "", GUIStyle.none)) cacheOpened = -100f;
+                return;
+            }
+            long val = lastCache.components.Sum(i => (long)i.value);
+            Shadowed(new Rect(0, H - 205, W, 50), $"GANHASTE {lastCache.components.Count} PEÇAS (valor {Fmt.Dust(val)}) + {lastCache.consumables.Count} CONSUMÍVEIS · já estão no Cofre",
+                St(30, FontStyle.Bold, TextAnchor.MiddleCenter), new Color(1f, 0.88f, 0.45f));
+            int left = P.Caches(lastCache.kind);
+            var bBack = new Rect(W * 0.5f - (left > 0 ? 520 : 250), H - 135, 500, 76);
+            if (CacheButton(bBack, "VOLTAR AO COFRE", cacheChoice == 0)) { cacheChoice = 0; CacheAction(); }
+            if (left > 0 && CacheButton(new Rect(W * 0.5f + 20, H - 135, 500, 76), $"ABRIR OUTRA ({left})", cacheChoice == 1)) { cacheChoice = 1; CacheAction(); }
+        }
+
+        bool CacheButton(Rect r, string label, bool selected)
+        {
+            Fill(r, selected ? new Color(1f, 0.55f, 0.2f, 0.85f) : new Color(1f, 1f, 1f, 0.1f));
+            Text(r, label, St(28, FontStyle.Bold, TextAnchor.MiddleCenter), Color.white);
+            return GUI.Button(r, "", GUIStyle.none);
         }
 
         // ------------------------------------------------------------------ relatório (levei / perdi / ganhei)
@@ -355,7 +379,18 @@ namespace RedDust.Game
             if (mode != GameMode.Exploration)
             {
                 Shadowed(new Rect(vr.x + pad, vr.y + pad * 0.6f, 400, 90 * k), $"P{r.position}<size={F(40)}>/{session.racers.Count}</size>", St(F(78), FontStyle.Bold), Color.white);
-                Shadowed(new Rect(vr.x + pad + 4, vr.y + pad * 0.6f + 86 * k, 500, 34 * k), $"{session.ActiveCount} em pista", St(F(24)), new Color(1f, 1f, 1f, 0.8f));
+                // naves que restam na pista: número grande + uma marca por nave (verde em pista, azul extraída, vermelha fora)
+                int total = session.racers.Count;
+                Shadowed(new Rect(vr.x + pad + 4, vr.y + pad * 0.6f + 84 * k, 600, 44 * k), $"NAVES EM PISTA  {session.ActiveCount}/{total}", St(F(32), FontStyle.Bold), new Color(1f, 0.85f, 0.4f));
+                float ps = 15 * k, py = vr.y + pad * 0.6f + 132 * k;
+                for (int q = 0; q < total; q++)
+                {
+                    var rq = session.racers[q];
+                    var pc = rq.Active ? new Color(0.45f, 1f, 0.55f) : rq.state == RaceState.Extracted ? new Color(0.55f, 0.8f, 1f) : new Color(1f, 0.35f, 0.3f);
+                    var pr = new Rect(vr.x + pad + 6 + q * (ps + 5 * k), py, ps, ps);
+                    if (rq == r) Fill(new Rect(pr.x - 2, pr.y - 2, pr.width + 4, pr.height + 4), Color.white);
+                    Fill(pr, pc);
+                }
             }
             // tempo, checkpoint, distância (topo ao centro)
             float t = r.state == RaceState.Extracted && r.finishTime >= 0f ? r.finishTime : session.time;

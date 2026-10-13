@@ -141,7 +141,7 @@ namespace RedDust.EditorTools
             var wreck = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/WreckMetal.mat");
             var sky = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/SkyRDD.mat");
             var root = new GameObject("Course_" + name);
-            int colliders = 0, tris = 0, rocksOff = 0, rocksKept = 0, rocksGone = 0;
+            int colliders = 0, tris = 0, rocksOff = 0, rocksKept = 0, rocksGone = 0, terrainCut = 0;
             var graphAsset = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dst}/{name}_graph.bytes");
             var courseAsset = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dst}/{name}_course.bytes");
             var ride = new RideIndex(graphAsset != null ? CourseGraph.Load(graphAsset.bytes) : CourseGraph.Single(CourseData.Load(courseAsset.bytes)));
@@ -168,6 +168,18 @@ namespace RedDust.EditorTools
                     mr.sharedMaterial = mf.name.StartsWith("GEO_Wreck") && wreck != null ? wreck : geo;
                     mr.shadowCastingMode = ShadowCastingMode.On;
                     mr.receiveShadows = true;
+                    if (mf.name.StartsWith("GEO_Terrain"))
+                    {
+                        // terreno que entra na zona de corrida (acima do chão da pista) sai: a pista nunca fica enterrada
+                        var carved = CarveTerrain(mf.sharedMesh, mf.transform.localToWorldMatrix, ride, out int cut);
+                        terrainCut += cut;
+                        if (carved != mf.sharedMesh)
+                        {
+                            if (carved != null) AssetDatabase.CreateAsset(carved, $"{genDir}/{mf.name}_{colliders}_t.asset");
+                            mf.sharedMesh = carved;
+                            if (carved == null) { mr.enabled = false; continue; }
+                        }
+                    }
                     var colMesh = mf.sharedMesh;
                     bool scatter = mf.name.StartsWith("GEO_Rocks"), onTrack = mf.name.StartsWith("GEO_Obstacles");
                     if (scatter || onTrack)
@@ -216,6 +228,7 @@ namespace RedDust.EditorTools
             EditorSceneManager.SaveScene(scene, scenePath);
             EditorBuildSettings.scenes = AllScenes().Select(s => new EditorBuildSettingsScene(s, true)).ToArray();
             AssetDatabase.SaveAssets();
+            Debug.Log($"[RDD] terreno: {terrainCut} triângulos retirados de cima da pista");
             Debug.Log($"[RDD] pedras: {rocksGone} retiradas da zona de corrida · {rocksOff} pequenas sem colisão (< {BigRock} m) · {rocksKept} grandes com colisão");
             Debug.Log($"[RDD] cena {scenePath}: {parts.Count} ficheiros, {colliders} colliders, {tris / 1000}k triângulos, percurso {course.Data.Length / 1000f:0.00} km, {course.Graph.BranchCount} ramos");
         }
@@ -292,6 +305,43 @@ namespace RedDust.EditorTools
         }
 
         /// <summary>
+        /// Tira do terreno os triângulos com algum vértice dentro da zona de corrida e acima do chão da pista
+        /// (0,3 a 60 m): onde o relevo cobria o corredor, a pista volta a ficar livre. Mesma malha se nada muda.
+        /// </summary>
+        static Mesh CarveTerrain(Mesh src, Matrix4x4 toWorld, RideIndex ride, out int cut)
+        {
+            cut = 0;
+            var wb = GeometryUtility.CalculateBounds(new[] { src.bounds.min, src.bounds.max }, toWorld);
+            if (!ride.Near(wb, 40f)) return src;
+            var v = src.vertices;
+            var t = src.triangles;
+            var bad = new bool[v.Length];
+            bool any = false;
+            for (int i = 0; i < v.Length; i++)
+            {
+                bad[i] = ride.Covers(toWorld.MultiplyPoint3x4(v[i]));
+                any |= bad[i];
+            }
+            if (!any) return src;
+            var keep = new List<int>(t.Length);
+            for (int i = 0; i + 2 < t.Length; i += 3)
+            {
+                if (bad[t[i]] || bad[t[i + 1]] || bad[t[i + 2]]) { cut++; continue; }
+                keep.Add(t[i]); keep.Add(t[i + 1]); keep.Add(t[i + 2]);
+            }
+            if (keep.Count == 0) return null;
+            var m = new Mesh { name = src.name + "_carved", indexFormat = v.Length > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
+            m.vertices = v;
+            m.normals = src.normals;
+            if (src.colors32 != null && src.colors32.Length == v.Length) m.colors32 = src.colors32;
+            if (src.uv != null && src.uv.Length == v.Length) m.uv = src.uv;
+            if (src.uv2 != null && src.uv2.Length == v.Length) m.uv2 = src.uv2;
+            m.SetTriangles(keep, 0);
+            m.RecalculateBounds();
+            return m;
+        }
+
+        /// <summary>
         /// Índice espacial das estações de todos os percursos: diz se uma caixa (rocha) entra na zona de corrida
         /// (lateralmente dentro das linhas de corrida e à altura do chão).
         /// </summary>
@@ -313,6 +363,39 @@ namespace RedDust.EditorTools
             }
 
             static long Key(int x, int z) => ((long)x << 32) ^ (uint)z;
+
+            /// <summary>Há alguma estação a menos de margin da caixa (no plano)?</summary>
+            public bool Near(Bounds b, float margin)
+            {
+                int x0 = Mathf.FloorToInt((b.min.x - margin) / Cell), x1 = Mathf.FloorToInt((b.max.x + margin) / Cell);
+                int z0 = Mathf.FloorToInt((b.min.z - margin) / Cell), z1 = Mathf.FloorToInt((b.max.z + margin) / Cell);
+                for (int x = x0; x <= x1; x++)
+                    for (int z = z0; z <= z1; z++)
+                        if (cells.ContainsKey(Key(x, z))) return true;
+                return false;
+            }
+
+            /// <summary>O ponto está por cima da zona de corrida (dentro das linhas + 2 m) entre 0,3 m e 60 m acima do chão?</summary>
+            public bool Covers(Vector3 p)
+            {
+                int cx = Mathf.FloorToInt(p.x / Cell), cz = Mathf.FloorToInt(p.z / Cell);
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int dz = -1; dz <= 1; dz++)
+                    {
+                        if (!cells.TryGetValue(Key(cx + dx, cz + dz), out var list)) continue;
+                        foreach (var (d, i) in list)
+                        {
+                            var o = p - d.Center[i];
+                            if (Mathf.Abs(Vector3.Dot(o, d.Tangent[i])) > 3.5f) continue;
+                            float lat = Vector3.Dot(o, d.Right[i]);
+                            if (lat < -d.RideLeft[i] - 2f || lat > d.RideRight[i] + 2f) continue;
+                            float u = lat < 0f ? lat / Mathf.Max(1f, d.RideLeft[i]) : lat / Mathf.Max(1f, d.RideRight[i]);
+                            float h = Vector3.Dot(p - d.LanePoint(i, Mathf.Clamp(u, -1f, 1f)), d.Up[i]);
+                            if (h > 0.3f && h < 60f) return true;
+                        }
+                    }
+                return false;
+            }
 
             public bool Intrudes(Bounds b)
             {

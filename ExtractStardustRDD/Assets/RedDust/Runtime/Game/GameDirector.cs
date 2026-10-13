@@ -259,7 +259,7 @@ namespace RedDust.Game
         {
             if (profiles[0] == null) return;   // cena a ser trocada por -pista: ainda sem perfil (evita NullReference no 1.º frame)
             GameInput.Tick();
-            GameAudio.MusicLevel(screen == Page.Race || screen == Page.Countdown ? 0.08f : 0.22f);
+            GameAudio.Music(screen == Page.Race || screen == Page.Countdown || screen == Page.Pause);
             switch (screen)
             {
                 case Page.Countdown:
