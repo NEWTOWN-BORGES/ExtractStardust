@@ -16,6 +16,21 @@ Objetivo: **fechar o que ficou pendente no PC do trabalho.**
 > aspeto visual) e diz-me exatamente o que fazer e o que esperar.
 > Não presumas que algo funciona: verifica e mostra a evidência.
 
+**Antes disso:** confirma a versão do Unity com o passo 0 abaixo — se for mais
+antiga que 6000.6.5f1, o projeto não abre.
+
+## Clonar
+
+```powershell
+git clone https://github.com/NEWTOWN-BORGES/ExtractStardust.git
+cd ExtractStardust
+git checkout red-dust-divide-v2
+```
+
+> **O `main` NÃO tem este trabalho.** O `main` está 22 commits atrás (parado em
+> 13/10). Sem o `checkout` acima ficas com código de dois dias antes, sem erosão,
+> sem shaders novos e sem as alterações de motion blur / nitro / hangar.
+
 ---
 
 ## O que já está feito (não repetir)
@@ -43,6 +58,45 @@ Feito e verificado no PC do trabalho:
 | 5 | Avaliar o aspeto visual das paredes | passo 3 |
 | 6 | Medir o fps | passo 3 |
 | 7 | Só depois: expedição completa (105 km) | passos 3–4 OK |
+
+---
+
+## Passo 0 — A versão do Unity tem de ser igual ou mais recente
+
+O projeto foi atualizado para **Unity 6000.6.5f1** e os pacotes que pede são
+específicos dessa versão:
+
+| Pacote | Versão |
+|---|---|
+| `com.unity.render-pipelines.universal` | **17.6.0** |
+| `com.unity.ugui` | 2.6.0 |
+| `com.unity.test-framework` | 1.8.0 |
+| `com.unity.inputsystem` | 1.20.0 |
+| `com.unity.splines` | 2.9.1 |
+
+**Confirma a versão antes de abrir:**
+
+```powershell
+Get-Content ExtractStardustRDD\ProjectSettings\ProjectVersion.txt
+Get-ChildItem "C:\Program Files\Unity\Hub\Editor" -Directory | Select-Object -ExpandProperty Name
+```
+
+**Compara as duas.**
+
+- **Igual (`6000.6.5f1`)** → perfeito, abre à vontade.
+- **Mais recente** (ex.: `6000.7.x`) → abre, mas o Unity vai pedir para atualizar o
+  projeto. Aceita; é reversível (o `main` está intacto e o ramo tem 22 commits).
+- **Mais ANTIGA** (ex.: `6000.3.x`) → **não abras assim.** O URP 17.6.0 não existe
+  nessa versão e o projeto não resolve os pacotes. Instala a 6000.6.5f1 pelo Unity
+  Hub → *Installs* → *Install Editor*.
+
+**Porque não deixo o projeto na versão antiga:** o editor do PC do trabalho é o
+6000.6.5f1 e foi ele que fez o upgrade. Reverter agora obrigaria a mexer no
+`manifest.json` e no `packages-lock.json` à mão, e os shaders foram validados nesta
+versão.
+
+**Se algo correr mal ao abrir:** o estado conhecido bom está no `main`, e o ramo tem
+22 commits. Tudo reversível com `git checkout main` ou `git checkout 4834964`.
 
 ---
 
