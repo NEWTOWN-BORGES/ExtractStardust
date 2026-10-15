@@ -13,7 +13,7 @@ namespace RedDust.Presentation
     /// duração e barra de luz (DualShock 4 / DualSense). Chamar Tick() uma vez por frame.
     ///
     /// Mapa (PS4/PS5): analógico esq. = direção · R2 ou X (cruz) = boost · L2 ou Quadrado = travão/derrapagem ·
-    /// Triângulo = reposicionar · analógico dir. = olhar à volta · R3 = olhar para trás · OPTIONS = pausa ·
+    /// Triângulo = reposicionar · analógico dir. horizontal = olhar à volta; vertical = inclinação/altitude experimental · R3 = olhar para trás · OPTIONS = pausa ·
     /// CREATE/SHARE = painel técnico · X = confirmar, Bola = voltar nos menus.
     /// Teclado: A/D ou ←/→ · W/↑/Shift = boost · S/↓/Espaço = travão · R = reposicionar · C = olhar para trás ·
     /// Esc/P = pausa · Enter = confirmar · F1 = painel técnico.
@@ -197,6 +197,6 @@ namespace RedDust.Presentation
         public static string BtnConfirm => LastUsedPad && Pad != null ? (IsPlayStation ? "X" : "A") : "Enter";
         public static string BtnBack => LastUsedPad && Pad != null ? (IsPlayStation ? "Bola" : "B") : "Esc";
         public static string BtnSteer => LastUsedPad && Pad != null ? "analógico esquerdo" : "A / D";
-        public static string BtnLook => LastUsedPad && Pad != null ? "analógico direito · R3 olhar para trás" : "C olhar para trás";
+        public static string BtnLook => LastUsedPad && Pad != null ? "analógico direito · vertical: voo; R3: olhar para trás" : "C olhar para trás";
     }
 }

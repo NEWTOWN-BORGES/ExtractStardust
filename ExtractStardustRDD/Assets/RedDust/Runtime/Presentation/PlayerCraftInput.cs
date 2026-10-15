@@ -16,11 +16,13 @@ namespace RedDust.Presentation
         public float keyboardSteerRamp = 4.5f;
         [Range(0.05f, 0.4f)] public float stickDeadzone = 0.12f;
         [Range(1f, 2.5f)] public float stickCurve = 1.35f;     // resposta não-linear: precisão perto do centro
+        [Tooltip("Ativa o modo experimental: analógico direito vertical controla inclinação e altitude.")]
+        public bool flightControlMode = true;
         float kbSteer;
 
         public CraftInput Read(float dt)
         {
-            var input = new CraftInput();
+            var input = new CraftInput { flightControlMode = flightControlMode };
             var kb = Keyboard.current;
             var pad = GameInput.Pad;
             float steer = 0f;
@@ -51,7 +53,7 @@ namespace RedDust.Presentation
                 if (pad.buttonWest.isPressed) input.drift = true;
                 if (pad.buttonSouth.isPressed || pad.rightShoulder.isPressed) input.boost = true;
                 float ry = pad.rightStick.ReadValue().y;
-                if (Mathf.Abs(ry) > 0.2f) input.airPitch = -ry;
+                input.airPitch = Mathf.Abs(ry) > stickDeadzone ? -Mathf.Sign(ry) * Mathf.Pow(Mathf.InverseLerp(stickDeadzone, 1f, Mathf.Abs(ry)), stickCurve) : 0f;
             }
             input.steer = Mathf.Clamp(steer, -1f, 1f);
             return input;

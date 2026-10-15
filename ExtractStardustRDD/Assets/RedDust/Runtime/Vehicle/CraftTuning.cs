@@ -11,7 +11,8 @@ namespace RedDust.Vehicle
         public bool brake;       // travão (L2 / S): com direção = derrapagem, a direito = travagem
         public bool boost;       // nitro (X / Shift): gasta o depósito, que regenera
         public bool drift;       // travão de mão (Quadrado / Espaço): derrapagem imediata com direção
-        public float airPitch;   // -1..1 (controlo aéreo limitado)
+        public float airPitch;   // -1..1; positivo = nariz para cima
+        public bool flightControlMode; // modo experimental: inclinação e altitude pelo analógico direito
 
         public static CraftInput Auto => new CraftInput { throttle = 1f };
     }
@@ -89,7 +90,19 @@ namespace RedDust.Vehicle
         [Tooltip("Constante de tempo do alinhamento (s)")] public float alignTime = 0.09f;
         public float airAlignRate = 45f;
         public float airTurnMul = 0.35f;
-        public float airPitchRate = 0.9f;
+        public float airPitchRate = 0.9f; // rotação do controlo legado, só no ar
+
+        [Header("Controlo de voo experimental")]
+        [Tooltip("Inclinação máxima do nariz no solo (graus).")]
+        public float flightPitchGroundMax = 16f;
+        [Tooltip("Inclinação máxima do nariz no ar (graus).")]
+        public float flightPitchAirMax = 28f;
+        [Tooltip("Velocidade de resposta da inclinação (graus/s).")]
+        public float flightPitchResponse = 55f;
+        [Tooltip("Sustentação extra à inclinação máxima (m/s²).")]
+        public float flightLiftExtra = 22f;
+        [Tooltip("Velocidade mínima para a sustentação começar a atuar (m/s).")]
+        public float flightLiftMinSpeed = 18f;
         [Tooltip("Recuperação de rotação provocada por colisões (1/s)")] public float stabilityRecover = 9f;
 
         [Header("Eventos de dano")]

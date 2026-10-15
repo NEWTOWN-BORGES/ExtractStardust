@@ -9,7 +9,7 @@ namespace RedDust.Game
 
     /// <summary>
     /// Comandos de UM piloto (ecrã dividido: cada jogador tem o seu comando, ou metade do teclado).
-    /// Comando PS4/PS5: analógico = direção · R2 acelerar · L2 travar · Quadrado derrapagem · X/R1 nitro ·
+    /// Comando PS4/PS5: analógico esq. = direção · analógico dir. vertical = inclinação/altitude experimental · R2 acelerar · L2 travar · Quadrado derrapagem · X/R1 nitro ·
     /// L1 usar consumível · D-pad ↑/↓ escolher consumível · Triângulo reposicionar.
     /// Teclado inteiro: A/D ou setas · W acelerar · S travar · Espaço derrapagem · Shift nitro · 1/2/3 consumíveis · R reposicionar.
     /// Metade esquerda (2 jogadores sem comandos): WASD · Espaço · Shift esq. · 1/2/3 · R.
@@ -32,7 +32,7 @@ namespace RedDust.Game
 
         public CraftInput Read(float dt)
         {
-            var input = new CraftInput();
+            var input = new CraftInput { flightControlMode = true };
             float steer = 0f;
             if (keys != KeyScheme.None && Keyboard.current != null)
             {
@@ -71,7 +71,7 @@ namespace RedDust.Game
                 if (pad.buttonWest.isPressed) input.drift = true;
                 if (pad.buttonSouth.isPressed || pad.rightShoulder.isPressed) input.boost = true;
                 float ry = pad.rightStick.ReadValue().y;
-                if (Mathf.Abs(ry) > 0.2f) input.airPitch = -ry;
+                input.airPitch = Mathf.Abs(ry) > 0.12f ? -Mathf.Sign(ry) * Mathf.Pow(Mathf.InverseLerp(0.12f, 1f, Mathf.Abs(ry)), 1.35f) : 0f;
             }
             input.steer = Mathf.Clamp(steer, -1f, 1f);
             return input;
@@ -106,6 +106,7 @@ namespace RedDust.Game
             (pad != null && pad.startButton.wasPressedThisFrame) || (keys != KeyScheme.None && KDown(Key.Escape));
 
         public float Look() => pad != null && Mathf.Abs(pad.rightStick.ReadValue().x) > 0.15f ? pad.rightStick.ReadValue().x : 0f;
+        public float FlightPitch() => pad != null ? -pad.rightStick.ReadValue().y : 0f;
         public bool LookBack() => (pad != null && pad.rightStickButton.isPressed) || (keys == KeyScheme.Full && K(Key.C));
 
         public void Rumble(float low, float high, float seconds)

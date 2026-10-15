@@ -46,6 +46,7 @@ namespace RedDust.Vehicle
         public float HoverMeasured => Sensor.hits > 0 ? Sensor.height : float.PositiveInfinity;
         public float UpRateDeg { get; private set; }   // velocidade de mudança do "cima" (graus/s) num passo
         public float UpRateSmoothed { get; private set; }   // a mesma, média móvel de ~0,1 s (métrica de "snap")
+        public float FlightPitchDeg { get; private set; } // nariz para cima positivo; controlo experimental
         public Surface Surface => Sensor.dominant;
         public float SurfaceShake => Grounded ? Sensor.traits.shake : 0f;
         public Vector3 Position => Body.position;
@@ -97,6 +98,7 @@ namespace RedDust.Vehicle
             LastLandingSpeed = 0f;
             LastImpactSpeed = 0f;
             UpRateSmoothed = 0f;
+            FlightPitchDeg = 0f;
             Nitro = 1f; nitroLocked = false;
             Sensor.Reset(rotation * Vector3.up);
             lastUp = rotation * Vector3.up;
@@ -129,8 +131,29 @@ namespace RedDust.Vehicle
             bool grounded = Sensor.hits >= 2 && Sensor.height < t.hoverHeight + t.captureRange;
             Vector3 n = grounded ? Sensor.normal : Vector3.up;
 
+            // Controlo experimental: o analógico vertical define uma atitude-alvo, com resposta gradual.
+            // Positivo = puxar para trás / nariz para cima; ao largar, a nave regressa suavemente ao neutro.
+            float pitchLimit = grounded ? t.flightPitchGroundMax : t.flightPitchAirMax;
+            if (input.flightControlMode)
+            {
+                float pitchTarget = Mathf.Clamp(input.airPitch, -1f, 1f) * pitchLimit;
+                FlightPitchDeg = Mathf.MoveTowards(FlightPitchDeg, pitchTarget, Mathf.Max(1f, t.flightPitchResponse) * dt);
+            }
+            else
+            {
+                FlightPitchDeg = Mathf.MoveTowards(FlightPitchDeg, 0f, Mathf.Max(1f, t.flightPitchResponse) * dt);
+            }
+
             // ---------------- forças lineares (como variação de velocidade)
             Vector3 acc = Vector3.down * t.gravity;
+            if (input.flightControlMode && FlightPitchDeg > 0.01f)
+            {
+                float liftSpeed = Mathf.InverseLerp(t.flightLiftMinSpeed, t.topSpeed * 0.55f, speed);
+                float pitchBlend = Mathf.Clamp01(FlightPitchDeg / Mathf.Max(1f, pitchLimit));
+                // A sustentação aumenta progressivamente com o ângulo e a velocidade; o impulso é vertical no mundo,
+                // para permitir saltar por cima de rochas em vez de apenas seguir a normal do terreno.
+                acc += Vector3.up * ((t.gravity + t.flightLiftExtra) * pitchBlend * liftSpeed);
+            }
             bool drift = false, braking = false, wasDrifting = Drifting;
             float steer = Mathf.Clamp(input.steer, -1f, 1f);
             // nitro: gasta o depósito; vazio = bloqueado até recuperar nitroRestart
@@ -189,7 +212,8 @@ namespace RedDust.Vehicle
             else
             {
                 ForwardSpeed = Vector3.Dot(v, fwd);
-                Vector3 fh = fwd; fh.y = Mathf.Min(fh.y, 0.2f);
+                Vector3 fh = fwd;
+                if (!input.flightControlMode) fh.y = Mathf.Min(fh.y, 0.2f); // modo legado limita o impulso vertical
                 float k = Mathf.Clamp01(ForwardSpeed / t.topSpeed);
                 acc += fh.normalized * (t.accel * t.airThrust * (1f - k * k) * Mathf.Clamp01(input.throttle));
             }
@@ -242,6 +266,16 @@ namespace RedDust.Vehicle
 
             // ---------------- atitude: alinhar o "cima" e rodar (yaw) pela direção
             Vector3 desiredUp = grounded ? n : AirTargetUp(pos, v, up);
+            if (input.flightControlMode && Mathf.Abs(FlightPitchDeg) > 0.01f)
+            {
+                Vector3 tangentForward = Vector3.ProjectOnPlane(fwd, desiredUp);
+                if (tangentForward.sqrMagnitude > 1e-4f)
+                {
+                    Vector3 pitchRight = Vector3.Cross(desiredUp, tangentForward.normalized).normalized;
+                    // Rodar o vetor "cima" para trás inclina o nariz para cima sem perder o alinhamento lateral.
+                    desiredUp = (Quaternion.AngleAxis(-FlightPitchDeg, pitchRight) * desiredUp).normalized;
+                }
+            }
             float rateLimit = (grounded ? t.alignRate : t.airAlignRate) * Mathf.Deg2Rad;
             Vector3 axis = Vector3.Cross(up, desiredUp);
             float sin = axis.magnitude;
@@ -258,7 +292,7 @@ namespace RedDust.Vehicle
             if (grounded && Mathf.Abs(slipAngle) * Mathf.Rad2Deg > t.driftMaxSlip && yawRate * slipAngle > 0f)
                 yawRate = Mathf.Lerp(yawRate, 0f, MathX.Damp(8f, dt));
             Vector3 spin = spinAlign + up * yawRate;
-            if (!grounded) spin += (rot * Vector3.right) * (input.airPitch * t.airPitchRate);
+            if (!grounded && !input.flightControlMode) spin += (rot * Vector3.right) * (input.airPitch * t.airPitchRate); // modo legado
 
             // perturbação por colisões desde o último passo: decai com a estabilidade
             Vector3 external = Body.angularVelocity - lastCommandedSpin;
