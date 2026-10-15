@@ -81,24 +81,34 @@ namespace RedDust.Lab
 
         // ------------------------------------------------------------------ utilitários
 
-        /// <summary>
-        /// Constrói a malha com o empacotamento de cor e UV2 que o shader de geologia espera.
-        /// <paramref name="uv"/> é opcional: as superfícies planas do laboratório não precisam,
-        /// mas as paredes levam UVs em metros para poderem receber texturas de detalhe.
-        /// </summary>
-        static Mesh Finish(Mesh mesh, Vector3[] verts, int[] tris, MeshStyle style, Vector2[] uv = null)
+        /// <summary>Constrói a malha com o empacotamento de cor e UV2 que o shader de geologia espera.</summary>
+        /// <param name="colors">
+        /// Cores por vértice. Quando não é dado, todos os vértices recebem a cor uniforme do estilo —
+        /// que é o correto para as superfícies de medição, mas não para uma parede com detrito, onde
+        /// o cone tem de ler como material solto e não como a camada do topo.
+        /// </param>
+        static Mesh Finish(Mesh mesh, Vector3[] verts, int[] tris, MeshStyle style, Vector2[] uv = null,
+                           Color[] colors = null)
         {
             mesh.indexFormat = verts.Length > 65000
                 ? UnityEngine.Rendering.IndexFormat.UInt32
                 : UnityEngine.Rendering.IndexFormat.UInt16;
             mesh.vertices = verts;
             mesh.triangles = tris;
-            var cols = new Color[verts.Length];
-            var uv2 = new Vector2[verts.Length];
-            var c = ClassColor(style);
             var u2 = new Vector2(Mathf.Clamp01(style.Hardness), Mathf.Clamp01(style.Blend));
-            for (int i = 0; i < verts.Length; i++) { cols[i] = c; uv2[i] = u2; }
-            mesh.colors = cols;
+            var uv2 = new Vector2[verts.Length];
+            for (int i = 0; i < verts.Length; i++) uv2[i] = u2;
+            if (colors != null && colors.Length == verts.Length)
+            {
+                mesh.colors = colors;
+            }
+            else
+            {
+                var cols = new Color[verts.Length];
+                var c = ClassColor(style);
+                for (int i = 0; i < verts.Length; i++) cols[i] = c;
+                mesh.colors = cols;
+            }
             mesh.uv2 = uv2;
             bool hasUv = uv != null && uv.Length == verts.Length;
             if (hasUv) mesh.uv = uv;
@@ -113,12 +123,20 @@ namespace RedDust.Lab
             return mesh;
         }
 
-        /// <summary>Cor empacotada para o shader RedDust/Geology (ver <see cref="MeshStyle"/>).</summary>
-        public static Color ClassColor(MeshStyle s) => new Color(
-            Mathf.Clamp01(s.SurfaceClass),
-            Mathf.Clamp01(s.LayerA / 15f),
-            Mathf.Clamp01(s.LayerB / 15f),
-            Mathf.Clamp01(s.RideMask));
+        /// <summary>
+        /// Cor empacotada para o shader RedDust/Geology a partir de uma classe e de duas camadas
+        /// da paleta. A classe (canal R) é lida pela física (SurfaceTypes): areia 0, cascalho 0,375,
+        /// parede polida 0,5, rocha rugosa 0,625, falésia 0,75.
+        /// </summary>
+        public static Color ClassColor(float surfaceClass, int layerA, int layerB, float rideMask)
+            => new Color(Mathf.Clamp01(surfaceClass),
+                         Mathf.Clamp01(layerA / 15f),
+                         Mathf.Clamp01(layerB / 15f),
+                         Mathf.Clamp01(rideMask));
+
+        /// <summary>Cor empacotada a partir de um <see cref="MeshStyle"/>.</summary>
+        public static Color ClassColor(MeshStyle s)
+            => ClassColor(s.SurfaceClass, s.LayerA, s.LayerB, s.RideMask);
 
         /// <summary>Objeto de cena com MeshCollider na camada de chão, pronto a ser sondado.</summary>
         public static GameObject Surface(string name, Mesh mesh, Material material = null, bool addCollider = true)
@@ -479,8 +497,9 @@ namespace RedDust.Lab
         static List<Vector3> WallProfilePoints(float baseHeight, (float y, float hardness)[] layers,
                                                int heightSamples, ErosionStyle erosion,
                                                float along, float talusHeight, float talusExtent,
-                                               float clearHalfWidth)
+                                               float clearHalfWidth, List<Color> colors)
         {
+            colors.Clear();
             // ---- escadaria estratigráfica
             float lift = Mathf.Max(1f, layers.Length > 0 ? layers[layers.Length - 1].y - baseHeight : 1f);
             int budget = Mathf.Max(layers.Length * 3, heightSamples);
@@ -536,12 +555,17 @@ namespace RedDust.Lab
                     float bumpy = (Noise3(new Vector3(along * 0.05f, hh * 0.20f, 0f), 909) - 0.5f) * 2f;
                     hx = Mathf.Max(clearHalfWidth, hx + bumpy * 1.2f * t);
                     outp.Add(new Vector3(baseHeight + hh, hx, 0f));     // z preenchido depois
+                    // Detrito: material SOLTO, logo classe de cascalho (0,375 → grip 0,72) e as
+                    // camadas de pedra desfeita. Antes herdava a camada do topo da parede, o que o
+                    // fazia ler como rocha firme e não como entulho.
+                    colors.Add(ClassColor(0.375f, LayerMoenkopiClaro, LayerChinleCinza, 0f));
                 }
                 talusBase = ext;
             }
             else
             {
                 outp.Add(new Vector3(baseHeight, 0f, 0f));
+                colors.Add(ClassColor(0.375f, LayerMoenkopiClaro, LayerChinleCinza, 0f));
             }
 
             for (int i = 0; i < stair.Count; i++)
@@ -551,6 +575,10 @@ namespace RedDust.Lab
                 float blend = LayerBlend(stair[i].y, layers);
                 float rec = Erode3D(stair[i].y - baseHeight, along, wallU, hard, erosion, blend);
                 outp.Add(new Vector3(stair[i].y, stair[i].x + rec + talusBase, 0f));
+                // Parede: cor pela dureza da camada atravessada, como no gerador do Blender — uma
+                // camada mole lê como tom de Chinle, uma dura como arenito claro. Dá leitura às
+                // faixas sem trabalho extra.
+                colors.Add(WallLayerColor(hard));
             }
 
             // Monotonicidade: o perfil só pode recuar. Nas fronteiras de camada a erosão é
@@ -577,6 +605,23 @@ namespace RedDust.Lab
         }
 
         /// <summary>
+        /// Cor de uma camada da parede a partir da sua dureza, usando as camadas reais da paleta:
+        /// mole (Chinle, Organ Rock) → tons escuros; dura (Wingate, White Rim, Entrada) → arenito
+        /// claro. Classe 0,75 = falésia, que é o que a parede é.
+        /// </summary>
+        static Color WallLayerColor(float hardness)
+        {
+            float h = Mathf.Clamp01(hardness);
+            int a, b;
+            if (h < 0.30f) { a = LayerOrganRock; b = LayerChinleVermelho; }        // muito mole
+            else if (h < 0.50f) { a = LayerMoenkopi; b = LayerChinleCinza; }       // mole
+            else if (h < 0.70f) { a = LayerKayenta; b = LayerMossBack; }           // média
+            else if (h < 0.90f) { a = LayerNavajo; b = LayerNavajoRosado; }        // dura
+            else { a = LayerWingate; b = LayerWhiteRim; }                          // muito dura
+            return ClassColor(0.75f, a, b, 0f);
+        }
+
+        /// <summary>
         /// Parede de canyon com perfil estratificado, erosão 3D e cone de detrito no pé,
         /// para os testes de wall-ride.
         ///
@@ -598,15 +643,20 @@ namespace RedDust.Lab
             var st = style ?? MeshStyle.Reference;
             var verts = new List<Vector3>();
             var tris = new List<int>();
+            var cols = new List<Color>();
 
             for (int s = 0; s <= alongSamples; s++)
             {
                 float along = alongOffset + length * s / alongSamples;
                 float z = length * (float)s / alongSamples;
+                var stationCols = new List<Color>();
                 var prof = WallProfilePoints(baseHeight, layers, heightSamples, erosion,
-                                             along, talusHeight, talusExtent, clearHalfWidth);
+                                             along, talusHeight, talusExtent, clearHalfWidth, stationCols);
                 for (int p = 0; p < prof.Count; p++)
+                {
                     verts.Add(new Vector3(prof[p].x, prof[p].y, z));
+                    cols.Add(stationCols[p]);
+                }
             }
 
             if (alongSamples < 1) return Finish(new Mesh { name = name }, verts.ToArray(), tris.ToArray(), st);
@@ -628,7 +678,7 @@ namespace RedDust.Lab
             for (int i = 0; i < total; i++)
                 uv[i] = new Vector2(verts[i].z / 12f, (verts[i].y - minY) / ySpan * (ySpan / 12f));
 
-            return Finish(new Mesh { name = name }, verts.ToArray(), tris.ToArray(), st, uv);
+            return Finish(new Mesh { name = name }, verts.ToArray(), tris.ToArray(), st, uv, cols.ToArray());
         }
 
         /// <summary>Onde a elevação está dentro da sua camada: 0 no centro, 0,5 na fronteira.</summary>
