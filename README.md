@@ -54,11 +54,12 @@ Os percursos são desenhados em `ExtractStardustRDD/Art/Courses/`. `make_red_dus
 | Ação | Comando PS4/PS5 | Teclado |
 |---|---|---|
 | Direção | analógico esquerdo | A / D |
+| Inclinação/altitude experimental | analógico direito vertical (puxar para trás sobe; empurrar para a frente desce) | Q / E no ar |
 | Acelerar | R2 | W |
 | Travar | L2 | S |
 | Derrapagem | Quadrado | Espaço |
 | Nitro (regenera) | X ou R1 | Shift |
 | Usar consumível | L1 (D-pad ↑/↓ escolhe) | 1 / 2 / 3 |
 | Reposicionar | Triângulo | R |
-| Olhar à volta / para trás | analógico direito / R3 | C |
+| Olhar à volta / para trás | analógico direito horizontal / R3 | C |
 | Pausa | OPTIONS | Esc |
