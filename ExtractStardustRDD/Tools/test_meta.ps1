@@ -2,10 +2,33 @@
 # Uso:  powershell -ExecutionPolicy Bypass -File Tools\test_meta.ps1
 $ErrorActionPreference = "Stop"
 $P = Split-Path -Parent $PSScriptRoot
-$editor = "C:\Program Files\Unity\Hub\Editor\6000.3.26f1\Editor\Data"
+
+# Descobrir a versao do editor a partir do projeto (portavel entre maquinas).
+$editor = $env:UNITY_EDITOR_DATA
+if (-not $editor) {
+    $ver = (Select-String -Path (Join-Path $P "ProjectSettings\ProjectVersion.txt") -Pattern 'm_EditorVersion:\s*(\S+)' |
+            Select-Object -First 1).Matches.Groups[1].Value
+    $root = $env:UNITY_HUB_EDITORS
+    if (-not $root) { $root = "C:\Program Files\Unity\Hub\Editor" }
+    if ($ver -and (Test-Path (Join-Path $root "$ver\Editor\Data"))) {
+        $editor = Join-Path $root "$ver\Editor\Data"
+    } else {
+        $cand = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Sort-Object Name | Select-Object -Last 1
+        if ($cand) { $editor = Join-Path $cand.FullName "Editor\Data" }
+    }
+}
+if (-not (Test-Path $editor)) { Write-Host "Editor Unity nao encontrado (definir UNITY_EDITOR_DATA)"; exit 2 }
+
 $dotnetUnity = Join-Path $editor "NetCoreRuntime\dotnet.exe"
 $csc = Join-Path $editor "DotNetSdkRoslyn\csc.dll"
-$fw = Get-ChildItem "C:\Program Files\dotnet\shared\Microsoft.NETCore.App" | Sort-Object Name | Select-Object -Last 1
+if (-not (Test-Path $csc)) {
+    $c = Get-ChildItem (Join-Path $editor "DotNetSdk") -Recurse -Filter csc.dll -ErrorAction SilentlyContinue |
+         Sort-Object FullName | Select-Object -Last 1
+    if ($c) { $csc = $c.FullName }
+}
+$fw = Get-ChildItem "C:\Program Files\dotnet\shared\Microsoft.NETCore.App" -ErrorAction SilentlyContinue |
+      Sort-Object Name | Select-Object -Last 1
+if (-not $fw) { $fw = Get-ChildItem (Join-Path $editor "NetCoreRuntime\shared\Microsoft.NETCore.App") | Sort-Object Name | Select-Object -Last 1 }
 $out = Join-Path $P "Temp\MetaTests"
 New-Item -ItemType Directory -Force $out | Out-Null
 

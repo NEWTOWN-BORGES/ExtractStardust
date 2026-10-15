@@ -1,12 +1,56 @@
-﻿# EXTRACT: STARDUST - RED DUST DIVIDE - pipeline das pistas (Blender -> Unity -> validacao -> build)
+# EXTRACT: STARDUST - RED DUST DIVIDE - pipeline das pistas (Blender -> Unity -> validacao -> build)
 # Uso:  powershell -ExecutionPolicy Bypass -File Tools\m1_pipeline.ps1 [-Course sandbox|red_dust_divide] [-SkipBlender] [-SkipImport] [-SkipValidate] [-Build] [-Android] [-Test]
 #   -Build  exe Windows (todas as pistas)   -Android  APK (laboratorio)   -Test  extracao automatica com bots no exe
 # Jogo completo:  powershell -ExecutionPolicy Bypass -File Tools\m1_pipeline.ps1 -Course red_dust_divide -SkipBlender -SkipValidate -Build -Test -Android
-param([string]$Course = "sandbox", [string]$BuildDir = "Builds\Windows", [switch]$SkipBlender, [switch]$SkipImport, [switch]$SkipValidate, [switch]$Build, [switch]$Android, [switch]$Test)
+param([string]$Course = "sandbox", [string]$BuildDir = "Builds\Windows", [switch]$SkipBlender, [switch]$SkipImport, [switch]$SkipValidate, [switch]$Build, [switch]$Android, [switch]$Test,
+      [string]$UnityExe, [string]$BlenderExe)
 $ErrorActionPreference = "Continue"
 $P = Split-Path -Parent $PSScriptRoot
-$unity = "C:\Program Files\Unity\Hub\Editor\6000.3.26f1\Editor\Unity.exe"
-$blender = "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+
+# --- descoberta do Unity (portavel entre maquinas) ---
+function Find-Unity {
+    if ($UnityExe) { if (Test-Path $UnityExe) { return $UnityExe } else { Write-Host "UnityExe indicado nao existe: $UnityExe" } }
+    if ($env:UNITY_EXE -and (Test-Path $env:UNITY_EXE)) { return $env:UNITY_EXE }
+    $ver = (Select-String -Path (Join-Path $P "ProjectSettings\ProjectVersion.txt") -Pattern 'm_EditorVersion:\s*(\S+)' |
+            Select-Object -First 1).Matches.Groups[1].Value
+    $root = if ($env:UNITY_HUB_EDITORS) { $env:UNITY_HUB_EDITORS } else { "C:\Program Files\Unity\Hub\Editor" }
+    if ($ver) { $p = Join-Path $root "$ver\Editor\Unity.exe"; if (Test-Path $p) { return $p } }
+    $cand = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending |
+            ForEach-Object { Join-Path $_.FullName "Editor\Unity.exe" } | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($cand) { Write-Host "AVISO: o projeto pede Unity $ver; a usar $cand"; return $cand }
+    return $null
+}
+
+# --- descoberta do Blender (portavel entre maquinas) ---
+function Find-Blender {
+    if ($BlenderExe) { if (Test-Path $BlenderExe) { return $BlenderExe } else { Write-Host "BlenderExe indicado nao existe: $BlenderExe" } }
+    if ($env:BLENDER_EXE -and (Test-Path $env:BLENDER_EXE)) { return $env:BLENDER_EXE }
+    $cmd = Get-Command blender -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $bases = @("C:\Program Files\Blender Foundation", "$env:LOCALAPPDATA\Programs\Blender Foundation",
+               "C:\Program Files\Blender Foundation\Blender", "D:\Program Files\Blender Foundation")
+    foreach ($b in $bases) {
+        if (Test-Path $b) {
+            $p = Get-ChildItem $b -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending |
+                 ForEach-Object { Join-Path $_.FullName "blender.exe" } | Where-Object { Test-Path $_ } | Select-Object -First 1
+            if ($p) { return $p }
+            $direct = Join-Path $b "blender.exe"
+            if (Test-Path $direct) { return $direct }
+        }
+    }
+    return $null
+}
+
+$unity = Find-Unity
+$blender = Find-Blender
+if (-not $SkipImport -or -not $SkipValidate -or $Build -or $Android) {
+    if (-not $unity) { Write-Host "Unity nao encontrado. Instalar o editor ou usar -UnityExe / UNITY_EXE."; exit 2 }
+    Write-Host "Unity:   $unity"
+}
+if (-not $SkipBlender) {
+    if (-not $blender) { Write-Host "Blender nao encontrado. Instalar o Blender ou usar -BlenderExe / BLENDER_EXE."; exit 2 }
+    Write-Host "Blender: $blender"
+}
 $logs = Join-Path $P "Logs"
 New-Item -ItemType Directory -Force $logs | Out-Null
 
