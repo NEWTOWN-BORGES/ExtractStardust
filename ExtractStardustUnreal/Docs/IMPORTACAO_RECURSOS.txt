@@ -1,0 +1,45 @@
+Importacao e conversao de recursos para Unreal Engine 5.8
+JA EXISTIA | /Game/Stardust/Props/mega_kit
+JA EXISTIA | /Game/Stardust/Props/props_kit
+JA EXISTIA | /Game/Stardust/Textures/rock_albedo
+JA EXISTIA | /Game/Stardust/Textures/rock_normal
+JA EXISTIA | /Game/Stardust/UI/card_red_dust_divide
+JA EXISTIA | /Game/Stardust/UI/card_sandbox
+JA EXISTIA | /Game/Stardust/Audio/beep
+JA EXISTIA | /Game/Stardust/Audio/boost_loop
+JA EXISTIA | /Game/Stardust/Audio/cache_open
+JA EXISTIA | /Game/Stardust/Audio/card
+JA EXISTIA | /Game/Stardust/Audio/card_rare
+JA EXISTIA | /Game/Stardust/Audio/checkpoint
+JA EXISTIA | /Game/Stardust/Audio/drift_loop
+JA EXISTIA | /Game/Stardust/Audio/engine_loop
+JA EXISTIA | /Game/Stardust/Audio/explosion
+JA EXISTIA | /Game/Stardust/Audio/extract
+JA EXISTIA | /Game/Stardust/Audio/go
+JA EXISTIA | /Game/Stardust/Audio/impact
+JA EXISTIA | /Game/Stardust/Audio/land
+JA EXISTIA | /Game/Stardust/Audio/loot
+JA EXISTIA | /Game/Stardust/Audio/music_menu
+JA EXISTIA | /Game/Stardust/Audio/music_race
+JA EXISTIA | /Game/Stardust/Audio/ui_back
+JA EXISTIA | /Game/Stardust/Audio/ui_move
+JA EXISTIA | /Game/Stardust/Audio/ui_ok
+JA EXISTIA | /Game/Stardust/Audio/warning
+JA EXISTIA | /Game/Stardust/Audio/wind_loop
+JA EXISTIA | /Game/Stardust/UI/red_dust_divide_preview
+JA EXISTIA | /Game/Stardust/UI/sandbox_preview
+JA EXISTIA | /Game/Stardust/Materials/M_RedDust
+JA EXISTIA | /Game/Stardust/Materials/M_Incompatible
+JA EXISTIA | fonte | /Game/Stardust/Fonts/Exo2-SemiBold
+JA EXISTIA | fonte | /Game/Stardust/Fonts/Orbitron-Black
+JA EXISTIA | fonte | /Game/Stardust/Fonts/Orbitron-Bold
+JA EXISTIA | fonte | /Game/Stardust/Fonts/Rajdhani-Bold
+JA EXISTIA | fonte | /Game/Stardust/Fonts/Rajdhani-SemiBold
+JA EXISTIA | material convertido | /Game/Stardust/Materials/M_Mega_Cloth
+JA EXISTIA | material convertido | /Game/Stardust/Materials/M_Mega_Dark
+OK | material Unity convertido | /Game/Stardust/Materials/M_Mega_Glow
+OK | material Unity convertido | /Game/Stardust/Materials/M_Mega_Metal
+OK | material Unity convertido | /Game/Stardust/Materials/M_Mega_Rust
+OK | material Unity convertido | /Game/Stardust/Materials/M_PropLit
+OK | material Unity convertido | /Game/Stardust/Materials/M_Water
+VALIDACAO FINAL | fontes TTF: 5/5 | materiais Unity convertidos: 7/7 | falhas totais: 0

@@ -1,0 +1,8 @@
+MAPA | red_dust_divide | /Game/Stardust/Maps/Preview_RedDust
+Meshes de curso colocados na origem, com coordenadas de mundo do FBX preservadas: 18
+Ponto inicial Unity convertido para Unreal: (0.0, 0.0, 26200.0) cm | yaw 0.0
+Aviso: mapa de inspeção visual; ainda sem colisão otimizada, streaming, IA ou GameMode C++ compilado.
+MAPA | sandbox | /Game/Stardust/Maps/Preview_Sandbox
+Meshes de curso colocados na origem, com coordenadas de mundo do FBX preservadas: 4
+Ponto inicial Unity convertido para Unreal: (0.0, 0.0, 7500.0) cm | yaw 0.0
+Aviso: mapa de inspeção visual; ainda sem colisão otimizada, streaming, IA ou GameMode C++ compilado.

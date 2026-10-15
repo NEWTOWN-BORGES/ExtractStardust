@@ -1,0 +1,41 @@
+{
+  "name": "sandbox",
+  "stations": 8708,
+  "length_km": 26.118,
+  "ring": 119,
+  "grid": 251,
+  "paths": [
+    {
+      "id": "main",
+      "km": 26.118,
+      "stations": 8708,
+      "inside_other": 74661
+    },
+    {
+      "id": "R1 Fenda (direita, mais funda)",
+      "km": 1.697,
+      "stations": 567,
+      "inside_other": 50999
+    },
+    {
+      "id": "R2 Bancada (esquerda, mais alta)",
+      "km": 1.689,
+      "stations": 564,
+      "inside_other": 50416
+    }
+  ],
+  "tris": 9273457,
+  "verts": 5170237,
+  "objects": 782,
+  "clipped_tris": 26473,
+  "terrain_tiles": 566,
+  "terrain_heights": [
+    -60.2,
+    520.0
+  ],
+  "elevation": [
+    24.1,
+    273.5
+  ],
+  "seconds": 213.5
+}

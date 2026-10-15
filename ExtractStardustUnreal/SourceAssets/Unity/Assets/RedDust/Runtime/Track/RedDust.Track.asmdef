@@ -1,0 +1,14 @@
+{
+    "name": "RedDust.Track",
+    "rootNamespace": "RedDust.Track",
+    "references": ["RedDust.Core"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

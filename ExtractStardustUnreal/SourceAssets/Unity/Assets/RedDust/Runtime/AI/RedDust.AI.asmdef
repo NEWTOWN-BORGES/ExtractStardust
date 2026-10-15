@@ -1,0 +1,14 @@
+{
+    "name": "RedDust.AI",
+    "rootNamespace": "RedDust.AI",
+    "references": ["RedDust.Core", "RedDust.Track", "RedDust.Vehicle"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

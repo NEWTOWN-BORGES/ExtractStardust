@@ -1,0 +1,9 @@
+Pre-visualizacao 3D do hangar no Unreal Engine 5.8
+Chassis fonte: C:\Users\nilto\Desktop\extract uststars\ExtractStardustUnreal\SourceAssets\Unity\Assets\ExtractStardust\Vehicles\V2\Chassis\Resources\V2Chassis
+
+OK | strix | /Game/Stardust/Vehicles/strix.strix
+OK | vortex | /Game/Stardust/Vehicles/vortex.vortex
+OK | wraith | /Game/Stardust/Vehicles/wraith.wraith
+OK | nomad | /Game/Stardust/Vehicles/nomad.nomad
+OK | bastion | /Game/Stardust/Vehicles/bastion.bastion
+MAPA | Preview_Hangar | chassis 3D colocados: 5

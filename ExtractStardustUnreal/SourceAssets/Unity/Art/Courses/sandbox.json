@@ -1,0 +1,430 @@
+{
+  "name": "sandbox",
+  "title": "Laboratório de física M1",
+  "seed": 7,
+  "step": 3.0,
+  "chunk": 64,
+  "erosion_m": 35.0,
+  "talus_h": 6.0,
+  "start": {
+    "pos": [
+      0.0,
+      75.0,
+      0.0
+    ],
+    "yaw": 0.0
+  },
+  "defaults": {
+    "width": 60,
+    "bank": 0,
+    "slope": 0,
+    "radius": 0,
+    "wallL": 6,
+    "wallR": 6,
+    "filletL": 14,
+    "filletR": 14,
+    "angleL": 32,
+    "angleR": 32,
+    "lipL": 6,
+    "lipR": 6,
+    "rideL": 0.2,
+    "rideR": 0.2,
+    "surface": "sand",
+    "cave": 0,
+    "ceil": 28,
+    "gap": 0
+  },
+  "segments": [
+    {
+      "id": "S00 Bacia de largada",
+      "len": 700,
+      "ease": 0
+    },
+    {
+      "id": "S01 Reta de velocidade",
+      "len": 1300,
+      "ease": 250,
+      "width": 40,
+      "wallL": 5,
+      "wallR": 5,
+      "filletL": 10,
+      "filletR": 10,
+      "angleL": 30,
+      "angleR": 30,
+      "surface": "slickrock",
+      "floor": "flat"
+    },
+    {
+      "id": "S02 Bank 30 entrada",
+      "len": 350,
+      "ease": 350,
+      "radius": 700,
+      "bank": 30,
+      "width": 44,
+      "wallL": 6,
+      "wallR": 10,
+      "filletR": 16,
+      "floor": "natural"
+    },
+    {
+      "id": "S03 Bank 30",
+      "len": 800,
+      "ease": 0
+    },
+    {
+      "id": "S04 Bank 30 saida",
+      "len": 350,
+      "ease": 350,
+      "radius": 0,
+      "bank": 0,
+      "width": 40,
+      "wallR": 5,
+      "filletR": 10
+    },
+    {
+      "id": "S05 Reta",
+      "len": 300,
+      "ease": 0
+    },
+    {
+      "id": "S06 Bank 50 entrada",
+      "len": 450,
+      "ease": 450,
+      "radius": -450,
+      "bank": -50,
+      "width": 40,
+      "wallL": 6,
+      "wallR": 14,
+      "filletR": 18,
+      "angleR": 40
+    },
+    {
+      "id": "S07 Bank 50",
+      "len": 650,
+      "ease": 0
+    },
+    {
+      "id": "S08 Bank 50 saida",
+      "len": 450,
+      "ease": 450,
+      "radius": 0,
+      "bank": 0,
+      "wallR": 5,
+      "filletR": 10,
+      "angleR": 30
+    },
+    {
+      "id": "S09 Half-pipe entrada",
+      "len": 300,
+      "ease": 300,
+      "width": 26,
+      "wallL": 42,
+      "wallR": 42,
+      "filletL": 38,
+      "filletR": 38,
+      "angleL": 74,
+      "angleR": 74,
+      "lipL": 6,
+      "lipR": 6,
+      "rideL": 0.9,
+      "rideR": 0.9
+    },
+    {
+      "id": "S10 Half-pipe",
+      "len": 1000,
+      "ease": 200,
+      "radius": 1600
+    },
+    {
+      "id": "S11 Half-pipe saida",
+      "len": 300,
+      "ease": 300,
+      "radius": 0,
+      "width": 40,
+      "wallL": 6,
+      "wallR": 6,
+      "filletL": 12,
+      "filletR": 12,
+      "angleL": 32,
+      "angleR": 32,
+      "lipL": 6,
+      "lipR": 6,
+      "rideL": 0.2,
+      "rideR": 0.2
+    },
+    {
+      "id": "S12 Parede entrada",
+      "len": 400,
+      "ease": 400,
+      "radius": 650,
+      "bank": 8,
+      "width": 34,
+      "wallR": 58,
+      "filletR": 46,
+      "angleR": 72,
+      "lipR": 6,
+      "rideR": 0.92
+    },
+    {
+      "id": "S13 Parede 65",
+      "len": 900,
+      "ease": 0
+    },
+    {
+      "id": "S14 Parede saida",
+      "len": 400,
+      "ease": 400,
+      "radius": 0,
+      "bank": 0,
+      "width": 40,
+      "wallR": 6,
+      "filletR": 12,
+      "angleR": 32,
+      "lipR": 6,
+      "rideR": 0.2
+    },
+    {
+      "id": "S15 Antes dos saltos",
+      "len": 400,
+      "ease": 0
+    },
+    {
+      "id": "S16 Crista subida",
+      "len": 140,
+      "ease": 60,
+      "slope": 4
+    },
+    {
+      "id": "S17 Crista descida",
+      "len": 220,
+      "ease": 12,
+      "slope": -3
+    },
+    {
+      "id": "S18 Patamar",
+      "len": 380,
+      "ease": 200,
+      "slope": 0
+    },
+    {
+      "id": "S19 Borda do canyon",
+      "len": 90,
+      "ease": 40,
+      "slope": 4
+    },
+    {
+      "id": "S20 Ravina",
+      "len": 48,
+      "ease": 0,
+      "slope": -3.6,
+      "gap": 1
+    },
+    {
+      "id": "S21 Rececao",
+      "len": 220,
+      "ease": 40,
+      "slope": -8,
+      "gap": 0
+    },
+    {
+      "id": "S22 Nivelar",
+      "len": 320,
+      "ease": 220,
+      "slope": 0
+    },
+    {
+      "id": "S22b Wash natural entrada",
+      "len": 250,
+      "ease": 250,
+      "width": 90,
+      "wallL": 10,
+      "wallR": 10,
+      "filletL": 20,
+      "filletR": 20,
+      "angleL": 38,
+      "angleR": 38,
+      "lipL": 6,
+      "lipR": 6,
+      "rideL": 0.3,
+      "rideR": 0.3,
+      "radius": 1400,
+      "floor": "natural"
+    },
+    {
+      "id": "S22c Wash natural",
+      "len": 1300,
+      "ease": 300,
+      "radius": -1100,
+      "floor": "natural"
+    },
+    {
+      "id": "S22d Wash natural saida",
+      "len": 250,
+      "ease": 250,
+      "radius": 0,
+      "width": 40,
+      "wallL": 6,
+      "wallR": 6,
+      "filletL": 12,
+      "filletR": 12,
+      "angleL": 32,
+      "angleR": 32,
+      "rideL": 0.2,
+      "rideR": 0.2,
+      "floor": "natural"
+    },
+    {
+      "id": "S23 Caverna entrada",
+      "len": 200,
+      "ease": 200,
+      "width": 34,
+      "wallL": 16,
+      "wallR": 16,
+      "filletL": 10,
+      "filletR": 10,
+      "angleL": 70,
+      "angleR": 70,
+      "lipL": 6,
+      "lipR": 6,
+      "radius": 380,
+      "bank": 15,
+      "rideL": 0.5,
+      "rideR": 0.5
+    },
+    {
+      "id": "S24 Caverna curva",
+      "len": 650,
+      "ease": 0,
+      "cave": 1,
+      "ceil": 26
+    },
+    {
+      "id": "S25 Saida da caverna",
+      "len": 900,
+      "ease": 200,
+      "radius": 0,
+      "bank": 0,
+      "cave": 0,
+      "width": 60,
+      "wallL": 6,
+      "wallR": 6,
+      "filletL": 14,
+      "filletR": 14,
+      "angleL": 32,
+      "angleR": 32,
+      "lipL": 6,
+      "lipR": 6,
+      "rideL": 0.2,
+      "rideR": 0.2,
+      "surface": "sand"
+    },
+    {
+      "id": "S26 Vale largo",
+      "len": 500,
+      "ease": 300,
+      "radius": 2600,
+      "width": 70,
+      "wallL": 8,
+      "wallR": 8,
+      "filletL": 16,
+      "filletR": 16,
+      "angleL": 34,
+      "angleR": 34,
+      "rideL": 0.25,
+      "rideR": 0.25
+    },
+    {
+      "id": "S27 Bifurcacao",
+      "len": 2000,
+      "ease": 400,
+      "radius": 0
+    },
+    {
+      "id": "S28 Saida da bifurcacao",
+      "len": 600,
+      "ease": 300,
+      "width": 60
+    },
+    {
+      "id": "S29 Subida ao planalto",
+      "len": 3200,
+      "ease": 400,
+      "slope": 4.4,
+      "radius": 2400,
+      "width": 56
+    },
+    {
+      "id": "S30 Planalto",
+      "len": 3000,
+      "ease": 500,
+      "slope": 0,
+      "radius": -2000,
+      "open": 1,
+      "width": 70,
+      "wallL": 2,
+      "wallR": 2,
+      "filletL": 10,
+      "filletR": 10,
+      "angleL": 18,
+      "angleR": 18,
+      "rideL": 0.4,
+      "rideR": 0.4,
+      "surface": "slickrock"
+    },
+    {
+      "id": "S31 Planalto curvas",
+      "len": 2000,
+      "ease": 300,
+      "radius": 1500
+    },
+    {
+      "id": "S32 Chegada no planalto",
+      "len": 800,
+      "ease": 300,
+      "radius": 0
+    }
+  ],
+  "features": [
+    {"type": "arch", "path": "main", "at": 1250, "clearance": 13, "thick": 13, "depth": 22, "sag": 13},
+    {"type": "arch", "path": "main", "at": 3650, "clearance": 18, "thick": 15, "depth": 24, "sag": 15},
+    {"type": "arch", "path": "main", "at": 11400, "clearance": 22, "thick": 18, "depth": 28, "sag": 26},
+    {"type": "wreck", "path": "main", "from": 13300, "to": 13650, "clearance": 12, "tilt": 16},
+    {"type": "arch", "path": "main", "at": 14250, "clearance": 15, "thick": 14, "depth": 22, "sag": 14},
+    {"type": "arch", "path": "R1", "at": 15500, "clearance": 12, "thick": 8, "depth": 16, "sag": 5}
+  ],
+  "rocks": {"density": 1.0},
+  "branches": [
+    {
+      "id": "R1 Fenda (direita, mais funda)",
+      "from": 14700,
+      "to": 16350,
+      "blend": 200,
+      "via": [
+        {"t": 0.22, "side": 1, "offset": 120, "dy": -4},
+        {"t": 0.5, "side": 1, "offset": 150, "dy": -8},
+        {"t": 0.78, "side": 1, "offset": 120, "dy": -4}
+      ],
+      "params": {"width": 34, "wallL": 12, "wallR": 12, "filletL": 10, "filletR": 10, "angleL": 62, "angleR": 62,
+                 "rideL": 0.5, "rideR": 0.5, "surface": "slickrock"},
+      "sections": [
+        {"frac": 0.38, "id": "R1 Fenda estreita", "ease": 150, "width": 24, "wallL": 30, "wallR": 30,
+         "angleL": 78, "angleR": 78, "rideL": 0.6, "rideR": 0.6},
+        {"frac": 0.62, "id": "R1 Saida da fenda", "ease": 150, "width": 34, "wallL": 12, "wallR": 12,
+         "angleL": 62, "angleR": 62, "rideL": 0.5, "rideR": 0.5}
+      ]
+    },
+    {
+      "id": "R2 Bancada (esquerda, mais alta)",
+      "from": 14700,
+      "to": 16350,
+      "blend": 200,
+      "via": [
+        {"t": 0.18, "side": -1, "offset": 95, "dy": 0},
+        {"t": 0.38, "side": -1, "offset": 130, "dy": 12},
+        {"t": 0.6, "side": -1, "offset": 135, "dy": 18},
+        {"t": 0.82, "side": -1, "offset": 95, "dy": 0}
+      ],
+      "params": {"width": 46, "surface": "slickrock"}
+    }
+  ]
+}

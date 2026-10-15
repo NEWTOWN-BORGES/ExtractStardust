@@ -1,0 +1,29 @@
+{
+  "name": "red_dust_divide",
+  "stations": 21137,
+  "length_km": 105.662,
+  "ring": 119,
+  "grid": 203,
+  "paths": [
+    {
+      "id": "main",
+      "km": 105.662,
+      "stations": 21137,
+      "inside_other": 0
+    }
+  ],
+  "tris": 19236586,
+  "verts": 10896807,
+  "objects": 2431,
+  "clipped_tris": 0,
+  "terrain_tiles": 1863,
+  "terrain_heights": [
+    -139.5,
+    520.0
+  ],
+  "elevation": [
+    -81.8,
+    345.7
+  ],
+  "seconds": 609.4
+}

@@ -1,0 +1,68 @@
+
+LOTE | inicio=4 | quantidade=3
+OK | red_dust_divide_corridor_03.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_03.red_dust_divide_corridor_03
+OK | red_dust_divide_corridor_04.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_04.red_dust_divide_corridor_04
+OK | red_dust_divide_corridor_05.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_05.red_dust_divide_corridor_05
+
+LOTE | inicio=7 | quantidade=3
+OK | red_dust_divide_corridor_06.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_06.red_dust_divide_corridor_06
+OK | red_dust_divide_corridor_07.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_07.red_dust_divide_corridor_07
+OK | red_dust_divide_corridor_08.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_08.red_dust_divide_corridor_08
+
+LOTE | inicio=10 | quantidade=3
+OK | red_dust_divide_terrain_00.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_00.red_dust_divide_terrain_00
+OK | red_dust_divide_terrain_01.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_01.red_dust_divide_terrain_01
+OK | red_dust_divide_terrain_02.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_02.red_dust_divide_terrain_02
+
+LOTE | inicio=13 | quantidade=3
+OK | red_dust_divide_terrain_03.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_03.red_dust_divide_terrain_03
+OK | red_dust_divide_terrain_04.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_04.red_dust_divide_terrain_04
+OK | red_dust_divide_terrain_05.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_05.red_dust_divide_terrain_05
+
+LOTE | inicio=16 | quantidade=3
+OK | red_dust_divide_terrain_06.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_06.red_dust_divide_terrain_06
+OK | red_dust_divide_terrain_07.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_07.red_dust_divide_terrain_07
+OK | red_dust_divide_terrain_08.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_08.red_dust_divide_terrain_08
+
+LOTE | inicio=19 | quantidade=3
+OK | axis_test.fbx | /Game/Stardust/Courses/Sandbox/axis_test.axis_test
+OK | sandbox_corridor_00.fbx | /Game/Stardust/Courses/Sandbox/sandbox_corridor_00.sandbox_corridor_00
+OK | sandbox_corridor_01.fbx | /Game/Stardust/Courses/Sandbox/sandbox_corridor_01.sandbox_corridor_01
+
+LOTE | inicio=22 | quantidade=2
+OK | sandbox_terrain_00.fbx | /Game/Stardust/Courses/Sandbox/sandbox_terrain_00.sandbox_terrain_00
+OK | sandbox_terrain_01.fbx | /Game/Stardust/Courses/Sandbox/sandbox_terrain_01.sandbox_terrain_01
+
+LOTE | inicio=3 | quantidade=1
+OK | red_dust_divide_corridor_02.fbx | /Game/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_02.red_dust_divide_corridor_02
+
+VALIDACAO FINAL | FBX de origem: 24 | assets existentes: 24 | falhas: 0
+OK | red_dust_divide/axis_test.fbx | Content/Stardust/Courses/RedDustDivide/axis_test
+OK | red_dust_divide/red_dust_divide_corridor_00.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_00
+OK | red_dust_divide/red_dust_divide_corridor_01.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_01
+OK | red_dust_divide/red_dust_divide_corridor_02.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_02
+OK | red_dust_divide/red_dust_divide_corridor_03.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_03
+OK | red_dust_divide/red_dust_divide_corridor_04.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_04
+OK | red_dust_divide/red_dust_divide_corridor_05.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_05
+OK | red_dust_divide/red_dust_divide_corridor_06.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_06
+OK | red_dust_divide/red_dust_divide_corridor_07.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_07
+OK | red_dust_divide/red_dust_divide_corridor_08.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_corridor_08
+OK | red_dust_divide/red_dust_divide_terrain_00.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_00
+OK | red_dust_divide/red_dust_divide_terrain_01.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_01
+OK | red_dust_divide/red_dust_divide_terrain_02.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_02
+OK | red_dust_divide/red_dust_divide_terrain_03.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_03
+OK | red_dust_divide/red_dust_divide_terrain_04.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_04
+OK | red_dust_divide/red_dust_divide_terrain_05.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_05
+OK | red_dust_divide/red_dust_divide_terrain_06.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_06
+OK | red_dust_divide/red_dust_divide_terrain_07.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_07
+OK | red_dust_divide/red_dust_divide_terrain_08.fbx | Content/Stardust/Courses/RedDustDivide/red_dust_divide_terrain_08
+OK | sandbox/axis_test.fbx | Content/Stardust/Courses/Sandbox/axis_test
+OK | sandbox/sandbox_corridor_00.fbx | Content/Stardust/Courses/Sandbox/sandbox_corridor_00
+OK | sandbox/sandbox_corridor_01.fbx | Content/Stardust/Courses/Sandbox/sandbox_corridor_01
+OK | sandbox/sandbox_terrain_00.fbx | Content/Stardust/Courses/Sandbox/sandbox_terrain_00
+OK | sandbox/sandbox_terrain_01.fbx | Content/Stardust/Courses/Sandbox/sandbox_terrain_01
+
+
+DADOS BRUTOS RDDC (copiados sem alteração)
+OK | red_dust_divide_course.bytes | Content/Stardust/Data/red_dust_divide_course.bytes | 31,963,720 bytes
+OK | sandbox_course.bytes | Content/Stardust/Data/sandbox_course.bytes | 13,167,273 bytes
