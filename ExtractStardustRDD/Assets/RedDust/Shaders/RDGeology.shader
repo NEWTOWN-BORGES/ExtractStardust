@@ -9,6 +9,8 @@ Shader "RedDust/Geology"
         _DetailScale ("Escala do detalhe", Float) = 1
         _BumpStrength ("Relevo de detalhe", Range(0, 2)) = 1
         _Specular ("Especular", Range(0, 1)) = 0.16
+        [Tooltip("Variacao de cor em escala grande (100 m a 4 km). 0 desliga e volta ao aspeto anterior.")]
+        _MacroAmount ("Variacao macro da cor", Range(0, 1)) = 1
     }
     SubShader
     {
@@ -20,6 +22,7 @@ Shader "RedDust/Geology"
             float _DetailScale;
             float _BumpStrength;
             float _Specular;
+            float _MacroAmount;
         CBUFFER_END
         ENDHLSL
 
@@ -37,8 +40,13 @@ Shader "RedDust/Geology"
             #pragma multi_compile _ RD_LOW
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "RDGeology.hlsl"
+            #include "RDColour.hlsl"
 
             float _RD_Grid;
+            // Limites verticais da geologia: x = cota mínima, y = amplitude (m).
+            // Usados para normalizar a altura da parede (pé = 0, topo = 1) na variação macro
+            // da cor. Se ninguém os definir, os valores por omissão cobrem uma parede de 300 m.
+            float4 _RD_GeoBounds = float4(-200.0, 300.0, 0.0, 0.0);
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 color : COLOR; float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD1; };
             struct Varyings
@@ -147,6 +155,14 @@ Shader "RedDust/Geology"
                 float2 gl = grid(pw, n0);
                 float gm = _RD_Grid * saturate(ride * 1.5 - 0.3);
                 albedo = lerp(albedo, float3(0.85, 0.95, 1.0), gm * (gl.x * 0.55 + gl.y * 0.18));
+
+                // variação MACRO da cor (RDColour.hlsl): 100 m a 4 km.
+                // É isto que impede as paredes de serem faixas da mesma cor durante quilómetros.
+                // wallU: 0 no pé da parede, 1 no topo, a partir dos limites da geologia.
+                float span = max(_RD_GeoBounds.y, 1.0);
+                float wallU = saturate((pw.y - _RD_GeoBounds.x) / span);
+                float3 macro = rd_macro_colour(albedo, pw, wallU, ride);
+                albedo = lerp(albedo, macro, _MacroAmount);
 
                 // iluminação
                 Light sun = GetMainLight(TransformWorldToShadowCoord(pw));
