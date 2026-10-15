@@ -42,6 +42,21 @@ a versão vem do editor e não do registo.
 > **[`INSTRUCOES_CASA.md`](INSTRUCOES_CASA.md)** — tem o prompt a colar, os 7 passos
 > por ordem, e o que reportar de volta.
 
+## Alterações de jogo à espera de teste visual
+
+Feitas a pedido do dono do projeto. **Compilam e o editor aceita-as, mas o efeito
+não foi visto** — não há GPU aqui. Testar e dizer se ficou bem.
+
+| O quê | Ficheiro | O que mudou |
+|---|---|---|
+| **Motion blur** | `SpeedFx.cs` | volta a estar ligado. `0.30·V² + 0.45·boost` (o original era `0.6·V + 0.2·boost`). Cruzeiro mais discreto que antes, nitro mais agressivo |
+| **Nitro** | `CraftTuning.cs` | regeneração base `0.09 → 0.20`/s (11,1 s → **5 s** para encher). `nitroRestart` `0.15 → 0.18` |
+| **Preview do hangar** | `GameScreens.cs`, `GameHud.cs` | peças **verdes** se dão para montar, **vermelhas** se não encaixam, com legenda no rodapé |
+
+**A afiná-lo:** a intensidade do blur é um palpite por cálculo, não por olho. Os dois
+números estão numa linha só e comentada em `SpeedFx.cs:163`. Se ficar forte, baixar o
+`0.30`; se o nitro não rasgar o suficiente, subir o `0.45`.
+
 ## Estado à vista
 
 | Área | Estado |
