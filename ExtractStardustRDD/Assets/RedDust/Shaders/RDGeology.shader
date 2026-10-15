@@ -55,7 +55,7 @@ Shader "RedDust/Geology"
             // da cor. Se ninguém os definir, os valores por omissão cobrem uma parede de 300 m.
             float4 _RD_GeoBounds = float4(-200.0, 300.0, 0.0, 0.0);
 
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 color : COLOR; float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD1; };
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 tangentOS : TANGENT; float4 color : COLOR; float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD1; };
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
@@ -64,13 +64,20 @@ Shader "RedDust/Geology"
                 float4 color : TEXCOORD2;
                 float4 uv : TEXCOORD3;
                 float2 uvMain : TEXCOORD4;
+                float3 tangentWS : TEXCOORD5;
+                float3 bitangentWS : TEXCOORD6;
             };
 
             Varyings vert(Attributes v)
             {
                 Varyings o;
                 o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
-                o.normalWS = TransformObjectToWorldNormal(v.normalOS);
+                // GetVertexNormalInputs devolve a base tangente já alinhada com UV0 e com a
+                // convenção de handedness do Unity — é o que permite usar normal map tangente.
+                VertexNormalInputs tbn = GetVertexNormalInputs(v.normalOS, v.tangentOS);
+                o.normalWS = tbn.normalWS;
+                o.tangentWS = tbn.tangentWS;
+                o.bitangentWS = tbn.bitangentWS;
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.color = v.color;
                 o.uv = float4(v.uv, v.uv2);
@@ -139,16 +146,23 @@ Shader "RedDust/Geology"
             #endif
 
                 // Normal map de rocha: fissuras e granulado finos, que a geometria não resolve
-                // (abaixo de ~4 m exigiria ~1 M de triângulos por parede). Só a componente
-                // perpendicular à superfície é usada: o bump geométrico acima já deu as
-                // tangentes, e inventá-las em UV que podem não existir seria pior.
+                // (abaixo de ~4 m exigiria ~1 M de triângulos por parede). Detalhe fino em textura
+                // mantém o jogo leve.
+                //
+                // Base tangente completa: o normal map está em espaço tangente, logo é preciso o
+                // TBN para a luz reagir ao relevo na direção certa. Exige UV0 e tangentes na malha
+                // (RecalculateTangents no laboratório; no Blender, UVs + tangentes no FBX).
                 float nmFade = saturate(1.0 - camDist / 320.0);
                 if (_NormalScale > 0.001 && nmFade > 0.01)
                 {
-                    float3 nm = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap,
-                                                                    i.uvMain * _NormalMap_ST.xy + _NormalMap_ST.zw),
-                                                  _NormalScale);
-                    n = normalize(n - n0 * nm.z * 0.6 * nmFade);
+                    float3 nmTS = UnpackNormalScale(
+                        SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, i.uvMain * _NormalMap_ST.xy + _NormalMap_ST.zw),
+                        _NormalScale);
+                    float3 bitangent = i.bitangentWS;
+                    float3 nmWS = nmTS.x * i.tangentWS + nmTS.y * bitangent + nmTS.z * n;
+                    // nas zonas sem tangente válida (malhas antigas) o termo dominante é o z, logo
+                    // degrada para o comportamento anterior em vez de rebentar
+                    n = normalize(lerp(n, nmWS, nmFade));
                 }
 
                 // materiais

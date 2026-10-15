@@ -105,10 +105,49 @@ namespace RedDust.EditorTools
             Debug.Log("[RDD lab] normal map de rocha ligado ao Geology.mat");
         }
 
+        /// <summary>
+        /// Liga o cálculo de tangentes nos FBX das pistas.
+        ///
+        /// O exportador do Blender está configurado com <c>use_tspace=False</c>, logo o FBX não traz
+        /// tangentes. O normal map em espaço tangente precisa delas, mas o Unity calcula-as sozinho a
+        /// partir do UV0 — que o Blender já exporta como camada "UVMap". Basta ligar a opção.
+        ///
+        /// Nota: a API pública <c>ModelImporter.calculateTangents</c> não existe nesta versão do
+        /// editor (a definição é <c>importTangents</c>, na parte serializada), logo usa-se
+        /// SerializedObject.
+        /// </summary>
+        public static void ConfigureCourseTangents()
+        {
+            const string generated = "Assets/RedDust/Generated";
+            if (!AssetDatabase.IsValidFolder(generated))
+            {
+                Debug.Log("[RDD lab] pasta Generated ainda não existe; correr o pipeline do Blender primeiro");
+                return;
+            }
+            int n = 0;
+            foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { generated }))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var importer = AssetImporter.GetAtPath(path);
+                if (importer == null) continue;
+                var so = new SerializedObject(importer);
+                var prop = so.FindProperty("importTangents");
+                if (prop != null && !prop.boolValue)
+                {
+                    prop.boolValue = true;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                    importer.SaveAndReimport();
+                    n++;
+                }
+            }
+            Debug.Log($"[RDD lab] tangentes ligadas em {n} FBX de {generated}");
+        }
+
         [MenuItem("Red Dust/9. Gerar Metrics Lab (V2)")]
         public static void Build()
         {
             ConfigureRockTextures();
+            ConfigureCourseTangents();
             var zones = Layout();
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 

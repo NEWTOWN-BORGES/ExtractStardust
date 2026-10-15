@@ -100,8 +100,12 @@ namespace RedDust.Lab
             for (int i = 0; i < verts.Length; i++) { cols[i] = c; uv2[i] = u2; }
             mesh.colors = cols;
             mesh.uv2 = uv2;
-            if (uv != null && uv.Length == verts.Length) mesh.uv = uv;
+            bool hasUv = uv != null && uv.Length == verts.Length;
+            if (hasUv) mesh.uv = uv;
             mesh.RecalculateNormals();
+            // Tangentes a partir das UVs: sem elas o normal map em espaço tangente não funciona
+            // (a luz não reage à direção do relevo). Só faz sentido quando há UVs.
+            if (hasUv) mesh.RecalculateTangents();
             mesh.RecalculateBounds();
             // 'false' = a malha continua legível por software, para o SurfaceTypes ler
             // cores e triângulos em batchmode (onde não há upload para GPU).
