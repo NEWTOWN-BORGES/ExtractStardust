@@ -23,8 +23,8 @@ namespace RedDust.Presentation
         ChromaticAberration chroma;
         LensDistortion lens;
         Vignette vignette;
-        ParticleSystem streaks, dust, flame, sparks;
-        float streakAcc, dustAcc, flameAcc, boostSmooth, driftSmooth;
+        ParticleSystem streaks, dust, flame, sparks, vectorJets;
+        float streakAcc, dustAcc, flameAcc, vectorAcc, boostSmooth, driftSmooth;
         Transform[] exhausts = new Transform[0];
 
         public static SpeedFx Attach(Camera cam, CraftController craft, ChaseCamera chase, bool mobile)
@@ -44,7 +44,7 @@ namespace RedDust.Presentation
         public void Isolate(int layer)
         {
             foreach (var t in GetComponentsInChildren<Transform>(true)) if (t != transform) t.gameObject.layer = layer;
-            foreach (var ps in new[] { dust, flame, sparks })
+            foreach (var ps in new[] { dust, flame, sparks, vectorJets })
                 if (ps != null) foreach (var t in ps.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer;
         }
 
@@ -52,7 +52,7 @@ namespace RedDust.Presentation
         {
             if (craft != null) craft.Impacted -= OnImpact;
             // as partículas em espaço do mundo não são filhas da câmera: saem com ela (corridas seguidas)
-            foreach (var ps in new[] { dust, flame, sparks }) if (ps != null) Destroy(ps.gameObject);
+            foreach (var ps in new[] { dust, flame, sparks, vectorJets }) if (ps != null) Destroy(ps.gameObject);
         }
 
         void Build()
@@ -96,6 +96,8 @@ namespace RedDust.Presentation
             Fade(dust, 0.15f);
             flame = MakeSystem("NitroFlame", null, add, ParticleSystemSimulationSpace.World, ParticleSystemRenderMode.Stretch, 400, 0.012f);
             sparks = MakeSystem("Sparks", null, add, ParticleSystemSimulationSpace.World, ParticleSystemRenderMode.Stretch, 300, 0.03f);
+            vectorJets = MakeSystem("VectorThrusterJets", null, add, ParticleSystemSimulationSpace.World, ParticleSystemRenderMode.Stretch, mobile ? 120 : 260, 0.02f);
+            var vm = vectorJets.main; vm.startLifetime = new ParticleSystem.MinMaxCurve(0.08f, 0.18f); vm.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.22f);
             var sm = sparks.main;
             sm.gravityModifier = 1.6f;
         }
@@ -195,6 +197,28 @@ namespace RedDust.Presentation
                     ep.startSize = Random.Range(1.3f, 3.2f);
                     ep.startColor = new Color(c.r, c.g, c.b, Mathf.Clamp01(c.a * (0.7f + 0.6f * driftSmooth)));
                     dust.Emit(ep, 1);
+                }
+            }
+
+            // Jatos direcionais experimentais: a inclinação e a curva ativam os propulsores de manobra.
+            if (craft.input.flightControlMode)
+            {
+                float pitch = Mathf.Clamp(craft.input.airPitch, -1f, 1f);
+                float steer = Mathf.Clamp(craft.input.steer, -1f, 1f);
+                float vectorStrength = Mathf.Max(Mathf.Abs(pitch), Mathf.Abs(steer) * 0.65f);
+                vectorAcc += vectorStrength * (mobile ? 42f : 90f) * dt;
+                while (vectorAcc >= 1f)
+                {
+                    vectorAcc -= 1f;
+                    float side = Random.value < 0.5f ? -1f : 1f;
+                    ep.position = craft.Position + craft.Right * (side * 1.15f) - craft.Up * 0.15f
+                                  + craft.Forward * Random.Range(-0.6f, 0.8f);
+                    ep.velocity = craft.Velocity - craft.Up * (pitch * 22f) - craft.Right * (steer * 16f)
+                                  - craft.Forward * 3f + Random.insideUnitSphere * 2f;
+                    ep.startLifetime = Random.Range(0.08f, 0.18f);
+                    ep.startSize = Random.Range(0.08f, 0.2f) * (0.5f + vectorStrength);
+                    ep.startColor = new Color(0.15f, 0.78f, 1f, 0.8f * vectorStrength);
+                    vectorJets.Emit(ep, 1);
                 }
             }
 
