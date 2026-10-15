@@ -70,8 +70,9 @@ $asms = @(
     @{ n = "RedDust.AI"; d = "Assets\RedDust\Runtime\AI"; r = @("RedDust.Core", "RedDust.Track", "RedDust.Vehicle") },
     @{ n = "RedDust.Presentation"; d = "Assets\RedDust\Runtime\Presentation"; r = @("RedDust.Core", "RedDust.Track", "RedDust.Vehicle", "RedDust.AI") },
     @{ n = "RedDust.Meta"; d = "Assets\RedDust\Runtime\Meta"; r = @(); pure = $true },
+    @{ n = "RedDust.Lab"; d = "Assets\RedDust\Runtime\Lab"; r = @("RedDust.Core") },
     @{ n = "RedDust.Game"; d = "Assets\RedDust\Runtime\Game"; r = @("RedDust.Core", "RedDust.Track", "RedDust.Vehicle", "RedDust.AI", "RedDust.Presentation", "RedDust.Meta") },
-    @{ n = "RedDust.Editor"; d = "Assets\RedDust\Editor"; r = @("RedDust.Core", "RedDust.Track", "RedDust.Vehicle", "RedDust.AI", "RedDust.Presentation", "RedDust.Meta", "RedDust.Game"); editor = $true }
+    @{ n = "RedDust.Editor"; d = "Assets\RedDust\Editor"; r = @("RedDust.Core", "RedDust.Track", "RedDust.Vehicle", "RedDust.AI", "RedDust.Presentation", "RedDust.Meta", "RedDust.Game", "RedDust.Lab"); editor = $true }
 )
 $failed = 0
 foreach ($a in $asms) {
