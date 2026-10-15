@@ -114,6 +114,83 @@ controlo remoto. Este documento é o canal. Numa sessão nova, em qualquer máqu
 Lê ExtractStardustRDD/Docs/ESTADO_Handoff.md e continua o trabalho
 ```
 
+## Ordem recomendada no PC de casa
+
+**Importante:** a sessão de casa **não gera a geometria nem o build sozinha**. O
+Blender e o Unity exigem que os comandos sejam corridos, e o Unity exige presença
+humana para abrir o editor. O papel da sessão é **saber o que fazer, em que ordem,
+e corrigir o que falhar** — não é automatizar tudo.
+
+E também: **abrir o projeto no Unity não gera a geometria.** O Unity importa o que
+existe; quem gera é o pipeline (`m1_pipeline.ps1`).
+
+### Passo 0 — verificar o estado
+
+```powershell
+cd ExtractStardustRDD
+powershell -ExecutionPolicy Bypass -File Tools\preflight.ps1
+```
+
+Diz o que existe, o que falta e o comando exato. Se o Blender não estiver
+instalado, ele queixa-se — e é um bloqueio real.
+
+### Passo 1 — validar sem gastar tempo
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Tools\check_compile.ps1   # 9/9
+python Tools\verifica_sculpt_real.py                               # geometria
+```
+
+Se isto falhar, não vale a pena gerar 1,4 GB.
+
+### Passo 2 — abrir o Unity uma vez
+
+O primeiro import de 1119 ficheiros compila os shaders novos. É aqui que aparecem
+erros de shader, se houverem. **Vale a pena fazer só isto primeiro**, porque é o
+risco menos testado do trabalho.
+
+### Passo 3 — laboratório (rápido, ~2 min)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Tools\m1_pipeline.ps1 -Course sandbox -Build
+```
+
+Depois, no Unity: `Red Dust / 3. Validar fisica (M1)`.
+
+**O teste T4 é o que importa.** A erosão desloca a parede até ~22 m na banda da
+ride line; se o wall-ride deixou de funcionar, é aqui que se vê.
+
+### Passo 4 — só depois, a expedição completa
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Tools\m1_pipeline.ps1 -Course red_dust_divide -Build
+```
+
+### Expectativa de tempo realista
+
+| Passo | Tempo | Notas |
+|---|---|---|
+| 1. verificações | minutos | sem Unity nem Blender |
+| 2. primeiro import do Unity | **20–40 min** | 1119 ficheiros + compilação de shaders |
+| 3. laboratório | ~2 min + build | |
+| 4. expedição | ~10 min + import | + build |
+| Tutura de problemas | imprevisível | ver riscos abaixo |
+
+**Não é "esperar e jogar".** É correr, ver o que rebenta, corrigir, repetir. O
+trabalho foi feito para que os erros apareçam cedo e sejam diagnosticáveis, não
+para que não existam.
+
+### Riscos concretos, por ordem de probabilidade
+
+| # | Risco | Sintoma | O que fazer |
+|---|---|---|---|
+| 1 | **Shader não compila** | erros no Console do Unity | mandar o log; nunca foram compilados (sem GPU) |
+| 2 | **Física do wall-ride** | T4 falha no validador | reduzir `erosion_m`, ou restringir o wall-ride |
+| 3 | **fps** | abaixo de 60 | `RD_MACRO_FBM3=1` (48 em vez de 80 ruídos/pixel), ou `RD_MACRO=0` |
+| 4 | **Blender não instalado** | preflight queixa-se | instalar Blender 5.2 |
+| 5 | **Versão do Unity diferente** | aviso do pipeline | já tratado: as ferramentas detectam; se o projeto pedir 6000.3 e só houver 6000.6, o pipeline avisa e usa a instalada |
+| 6 | **Primeiro import lento ou trava** | parece pendurado | é normal num i5-4460; esperar |
+
 ## Convenções que não se devem quebrar
 
 - **O ruído do projeto está centrado em ZERO.** `rdd_geology.fbm3` vai de −0,67 a
