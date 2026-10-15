@@ -119,8 +119,23 @@ powershell -ExecutionPolicy Bypass -File Tools\check_compile.ps1   # 9/9 assembl
 | 5 | **Referências de IP.** Uma das imagens em `Docs/referencias/` é um frame de um jogo comercial. O plano (conflito C13) diz que a regra de IP original ganha. | `Docs/referencias/ref_gameplay_*.jpg` |
 | 6 | **Falta acrescentar as novidades ao `spec.json`** se quiseres valores diferentes por pista: `erosion_m`, `erosion_seed`, `talus_h`. Os defaults já estão no código. | `Art/Courses/*.json` |
 
-## Sobre acessos remotos (verificado)
+## O que o PC do trabalho NÃO consegue fazer (verificado)
 
+Não vale a pena tentar de novo; já foi testado exaustivamente:
+
+| Limitação | Evidência |
+|---|---|
+| **Instalar o Blender** | `curl` falha em *todos* os domínios com `schannel: AcquireCredentialsHandle failed: SEC_E_NO_CREDENTIALS`. Testado com um ficheiro de 1 KB e com o zip de 405 MB — o mesmo erro. O `winget` existe mas falha com erro interno. A rede da VM não permite transferências. |
+| **Correr o validador M1** | precisa das malhas geradas pelo Blender, que não existem no clone (782 MeshColliders órfãos). |
+| **`git lfs pull`** | bloqueado pelo mesmo problema do `sh.exe` (named pipes). |
+| **`git filter-branch`** | idem — usa `sh.exe`. Alternativa que funciona: `git commit-tree` (plumbing). |
+| **Ruído de fundo (WMI)** | `Get-CimInstance Win32_LogicalDisk` dá *Access denied*. Para espaço em disco usar `[System.IO.DriveInfo]::new('C')`. |
+
+**O que o PC do trabalho CONSEGUE fazer** (e foi feito hoje): correr o Unity em
+batchmode com acesso total, compilar shaders, gerar a cena do laboratório, correr os
+9 assemblies, validar economia, e gerar/validar a geometria offline em Python.
+
+## Sobre acessos remotos (verificado)
 Não há controlo remoto no DSH, e é **deliberado**. O próprio código recusa:
 
 ```
@@ -191,6 +206,13 @@ powershell -ExecutionPolicy Bypass -File Tools\m1_pipeline.ps1 -Course sandbox -
 
 Depois, no Unity: `Red Dust / 3. Validar fisica (M1)`.
 
+> **ATENÇÃO — o validador M1 não corre sem geometria.** Verificado: a cena
+> `RDD_Sandbox.unity` que ele abre tem 782 MeshColliders a apontar para malhas
+> geradas pelo Blender, e essas malhas **não existem** no clone (estão em
+> `Art/Export/` e `Assets/RedDust/Generated/`, ambas no `.gitignore`).
+> Sem elas, a nave cai ao vazio e o relatório falha tudo — não por a física estar
+> má, mas por o cenário não existir. **É obrigatório correr o pipeline primeiro.**
+
 **O teste T4 é o que importa.** A erosão desloca a parede até ~22 m na banda da
 ride line; se o wall-ride deixou de funcionar, é aqui que se vê.
 
@@ -221,7 +243,7 @@ para que não existam.
 | ~~1~~ | ~~Shader não compila~~ | — | ✅ **resolvido**: compila no editor 6000.6.5f1 |
 | 1 | **Física do wall-ride** | T4 falha no validador | reduzir `erosion_m`, ou restringir o wall-ride |
 | 2 | **fps** | abaixo de 60 | `RD_MACRO_FBM3=1` (48 em vez de 80 ruídos/pixel), ou `RD_MACRO=0` |
-| 3 | **Blender não instalado** | preflight queixa-se | instalar Blender 5.2 (obrigatório para a pista real) |
+| 3 | **Blender não instalado** | preflight queixa-se | instalar Blender 5.2. **VERIFICADO: não é instalável no PC do trabalho** — a rede bloqueia qualquer transferência (ver abaixo) |
 | 4 | **Cena de 115 MB a abrir devagar** | o editor demora | reduzir `DensityAlong`/`DensityHeight` e regerar |
 | 5 | **Primeiro import lento** | parece pendurado | é normal; o import no PC do trabalho levou 241 s com máquina semelhante |
 | 6 | **Versão do Unity diferente** | aviso do pipeline | já tratado: as ferramentas detectam e usam a instalada |
