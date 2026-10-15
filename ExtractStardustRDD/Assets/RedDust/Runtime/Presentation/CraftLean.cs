@@ -41,7 +41,8 @@ namespace RedDust.Presentation
             }
             if (!craft.Grounded) rollT *= 0.5f;
             float pitchT = (craft.Boosting ? -5f : 0f) + (inp.throttle > 0.5f ? -2f : 0f) + (inp.brake ? 5f : 0f);
-            if (!craft.Grounded) pitchT += inp.airPitch * 10f;
+            if (inp.flightControlMode) pitchT += -craft.FlightPitchDeg;
+            else if (!craft.Grounded) pitchT += inp.airPitch * 10f;
             float k = MathX.Damp(response, dt);
             roll = Mathf.Lerp(roll, rollT, k);
             yaw = Mathf.Lerp(yaw, yawT, MathX.Damp(craft.Drifting ? 6f : 4f, dt));
