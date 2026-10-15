@@ -13,7 +13,7 @@ Atualizado em 15/10/2026. Este documento acompanha a migração para `ExtractSta
 
 ## O que está nesta entrega
 
-1. Um projecto principal C++ (`ExtractStardust.uproject`) e um descritor Blueprint (`ExtractStardustPreview.uproject`) para pré-visualizar os assets antes da primeira compilação.
+1. Um projecto principal C++ (`ExtractStardust.uproject`) e um descritor Blueprint (`StardustPreview.uproject`) para pré-visualizar os assets antes da primeira compilação.
 2. Uma cópia de referência dos dados artísticos, binários e 42 scripts C# em `SourceAssets/Unity`; nenhuma alteração foi feita na origem por esta migração.
 3. Os 24 FBX de pistas, cinco chassis e dois kits de props foram importados; também foram importados duas texturas, quatro imagens, 21 WAV, cinco fontes TTF e sete materiais Unity convertidos, além dos dois materiais de apoio. Existem mapas de inspeção do hangar, Red Dust Divide (18 meshes) e Sandbox (4 meshes); ainda não são mapas jogáveis.
 4. Primeira conversão nativa para C++ dos blocos de pilotagem hover, consumíveis, perfil local, compatibilidade de sockets, preview de hangar, checkpoints/voltas e leitores RDDC v1/RDDG v2 com obstáculos; o GameMode já tenta carregar os dados do curso.
@@ -74,7 +74,7 @@ O Unreal Engine 5.8 está instalado em `C:\Program Files\Epic Games\UE_5.8` e in
 
 ## Como executar a pré-visualização
 
-1. Abrir `ExtractStardustPreview.uproject` no Unreal 5.8.
+1. Abrir `StardustPreview.uproject` no Unreal 5.8.
 2. Abrir o mapa `/Game/Stardust/Maps/Preview_Hangar` para ver os cinco chassis.
 3. Abrir `/Game/Stardust/Maps/Preview_RedDust` e `/Game/Stardust/Maps/Preview_Sandbox` para inspecionar os meshes e os pontos iniciais. Os dados de limites estão em `Docs/AUDITORIA_LIMITES_MALHAS.txt` e o registo de montagem em `Docs/PREVIEW_CURSOS.txt`.
 4. Consultar `Docs/IMPORTACAO_HANGAR.txt` e `Docs/IMPORTACAO_CURSOS.txt`; os 24 FBX estão nas pastas `Content/Stardust/Courses`.

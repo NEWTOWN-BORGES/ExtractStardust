@@ -13,7 +13,7 @@ Concluir a migração Unity → Unreal Engine 5.8, preservando intacto o Unity. 
 - Os temporários do Unreal estão excluídos por `.gitignore`. Binários de assets estão configurados para Git LFS em `.gitattributes`.
 
 ## Estado funcional verificado
-- Unreal Engine 5.8.3. `ExtractStardustPreview.uproject` permite abrir assets/previews sem compilar C++; `ExtractStardust.uproject` contém o módulo C++.
+- Unreal Engine 5.8.3. `StardustPreview.uproject` permite abrir assets/previews sem compilar C++; `ExtractStardust.uproject` contém o módulo C++.
 - Importados: 5 chassis, 24 meshes de curso, kits de props, dados, áudio, materiais, texturas, imagens e fontes. Consultar `Docs/IMPORTACAO_RECURSOS.txt`, `Docs/AUDITORIA_LIMITES_MALHAS.txt`, `Docs/PREVIEW_CURSOS.txt`.
 - Mapas de inspeção existentes: `/Game/Stardust/Maps/Preview_Hangar`, `Preview_RedDust`, `Preview_Sandbox`. As pistas são previews: faltam colisão final, streaming, IA, integração ao GameMode/HUD e validação visual/funcional.
 - Existem protótipos C++ de pawn, perfil/save, HUD, corrida e leitores RDDC/RDDG. A paridade com o Unity ainda não foi confirmada em jogo.
@@ -21,7 +21,7 @@ Concluir a migração Unity → Unreal Engine 5.8, preservando intacto o Unity. 
 - O MSVC x64 já está instalado em `C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231`.
 - A compilação do editor foi tentada. Primeiro foi corrigido `BuildSettingsVersion.V6` para `V7` nos dois targets. A segunda tentativa chegou ao UnrealBuildTool, mas parou porque falta o .NET Framework SDK exigido pelo módulo `SwarmInterface`; ainda não é um erro do C++ do projeto.
 - O target de jogo foi compilado com sucesso depois da correcção do HUD para a API `Canvas::DrawText` do UE 5.8. Binário: `Binaries/Win64/ExtractStardust.exe`.
-- O teste de arranque do target não cozinhado terminou com erro de leitura de asset (`BufferReader`); isto não é um build jogável standalone. O teste correcto pelo `UnrealEditor.exe` iniciou `ExtractStardustPreview` e confirmou `Running engine for game` sem erro fatal. Para distribuir/jogar fora do Editor ainda é necessário `BuildCookRun`.
+- O teste de arranque do target não cozinhado terminou com erro de leitura de asset (`BufferReader`); isto não é um build jogável standalone. O teste correcto pelo `UnrealEditor.exe` iniciou `StardustPreview` e confirmou `Running engine for game` sem erro fatal. Para distribuir/jogar fora do Editor ainda é necessário `BuildCookRun`.
 - Os processos `setup.exe` PID 14836 e 16380 continuam ativos. Não encerrar o instalador à força; confirmar no Visual Studio Installer que foram adicionados Windows SDK e `.NET Framework SDK`.
 
 ## Ponto exato em que parei

@@ -18,7 +18,7 @@ A Microsoft documenta a carga **Desktop development with C++** e os componentes 
 
 ## Escolher entre pré-visualização e compilação
 
-- ExtractStardustPreview.uproject abre o hangar sem instalar o compilador.
+- StardustPreview.uproject abre o hangar sem instalar o compilador.
 - Para compilar ExtractStardust.uproject, instalar MSVC e Windows SDK é necessário.
 - Se os dados móveis forem limitados, fazer a instalação por Wi-Fi. O tamanho transferido varia conforme os componentes seleccionados.
 ## Estado desta máquina
@@ -27,4 +27,4 @@ A Microsoft documenta a carga **Desktop development with C++** e os componentes 
 
 ## Abrir sem compilador
 
-Enquanto o compilador não estiver instalado, abre ExtractStardustPreview.uproject. O mapa do hangar já está preparado. A pré-visualização usa os modelos importados e não representa ainda uma versão final jogável do projecto C++.
+Enquanto o compilador não estiver instalado, abre StardustPreview.uproject. O mapa do hangar já está preparado. A pré-visualização usa os modelos importados e não representa ainda uma versão final jogável do projecto C++.

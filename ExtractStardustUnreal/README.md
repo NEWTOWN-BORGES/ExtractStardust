@@ -4,12 +4,12 @@ Port em desenvolvimento do projeto Unity para Unreal Engine 5.8. O projeto Unity
 
 ## Projetos
 
-- `ExtractStardustPreview.uproject`: projeto Blueprint para abrir e inspecionar os recursos sem compilar C++.
+- `StardustPreview.uproject`: projeto Blueprint para abrir e inspecionar os recursos sem compilar C++.
 - `ExtractStardust.uproject`: projeto principal com a base C++; a compilação ainda depende de MSVC e Windows SDK e não está validada.
 
 ## Abrir a pré-visualização
 
-1. Abra `ExtractStardustPreview.uproject` no Unreal Engine 5.8.
+1. Abra `StardustPreview.uproject` no Unreal Engine 5.8.
 2. No Content Browser, abra `/Game/Stardust/Maps/Preview_Hangar` para ver os cinco chassis em 3D.
 3. Para inspecionar as pistas, abra `/Game/Stardust/Maps/Preview_RedDust` ou `/Game/Stardust/Maps/Preview_Sandbox`. Os 22 meshes de percurso estão colocados nas coordenadas de mundo preservadas pelos FBX; os pontos iniciais foram convertidos dos JSON Unity.
 4. Os 24 FBX estão importados em `/Game/Stardust/Courses/RedDustDivide` e `/Game/Stardust/Courses/Sandbox`; props, texturas, imagens e áudio estão em `/Game/Stardust/Props`, `Textures`, `UI` e `Audio`.
