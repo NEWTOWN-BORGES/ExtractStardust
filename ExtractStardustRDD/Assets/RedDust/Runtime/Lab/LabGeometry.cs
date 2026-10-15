@@ -81,8 +81,12 @@ namespace RedDust.Lab
 
         // ------------------------------------------------------------------ utilitários
 
-        /// <summary>Constrói a malha com o empacotamento de cor e UV2 que o shader de geologia espera.</summary>
-        static Mesh Finish(Mesh mesh, Vector3[] verts, int[] tris, MeshStyle style)
+        /// <summary>
+        /// Constrói a malha com o empacotamento de cor e UV2 que o shader de geologia espera.
+        /// <paramref name="uv"/> é opcional: as superfícies planas do laboratório não precisam,
+        /// mas as paredes levam UVs em metros para poderem receber texturas de detalhe.
+        /// </summary>
+        static Mesh Finish(Mesh mesh, Vector3[] verts, int[] tris, MeshStyle style, Vector2[] uv = null)
         {
             mesh.indexFormat = verts.Length > 65000
                 ? UnityEngine.Rendering.IndexFormat.UInt32
@@ -92,10 +96,11 @@ namespace RedDust.Lab
             var cols = new Color[verts.Length];
             var uv2 = new Vector2[verts.Length];
             var c = ClassColor(style);
-            var uv = new Vector2(Mathf.Clamp01(style.Hardness), Mathf.Clamp01(style.Blend));
-            for (int i = 0; i < verts.Length; i++) { cols[i] = c; uv2[i] = uv; }
+            var u2 = new Vector2(Mathf.Clamp01(style.Hardness), Mathf.Clamp01(style.Blend));
+            for (int i = 0; i < verts.Length; i++) { cols[i] = c; uv2[i] = u2; }
             mesh.colors = cols;
             mesh.uv2 = uv2;
+            if (uv != null && uv.Length == verts.Length) mesh.uv = uv;
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             // 'false' = a malha continua legível por software, para o SurfaceTypes ler
@@ -457,79 +462,151 @@ namespace RedDust.Lab
         }
 
         /// <summary>
-        /// Parede de canyon com perfil estratificado e erosão, para os testes de wall-ride.
+        /// Perfil 2D da parede: escadaria estratigráfica + <b>cone de detrito no pé</b>.
         ///
-        /// <paramref name="layers"/> é (topo em y, dureza 0..1) de baixo para cima, na mesma ordem e
-        /// com os mesmos valores que <c>LAYERS_RDD</c> do Blender, para o laboratório e a pista
-        /// partilharem a mesma linguagem geológica.
+        /// O entulho é o que falta numa parede de canyon: nos canyons reais acumulam-se cones de
+        /// talus e blocos caídos no sopé, e é isso que faz a parede "assentar" no chão em vez de
+        /// nascer a pique. Devolve o perfil e a coordenada U (0 no topo, 1 na ponta do detrito),
+        /// já com a erosão aplicada.
         ///
-        /// Sobe de baixo para cima; a face de corrida tem a inclinação de cada camada, com uma
-        /// bancada no topo das camadas duras — e o recuo de erosão somado à distância lateral.
+        /// A ponta do detrito NUNCA entra na zona de corrida: é limitada a
+        /// <paramref name="clearHalfWidth"/>, para a largura útil do corredor não diminuir.
         /// </summary>
-        public static Mesh WallProfile(string name, float length, float baseHeight,
-                                       (float y, float hardness)[] layers, float angleDeg,
-                                       ErosionStyle erosion, float alongOffset = 0f,
-                                       int alongSamples = 26, int heightSamples = 56,
-                                       MeshStyle? style = null)
+        static List<Vector3> WallProfilePoints(float baseHeight, (float y, float hardness)[] layers,
+                                               int heightSamples, ErosionStyle erosion,
+                                               float along, float talusHeight, float talusExtent,
+                                               float clearHalfWidth)
         {
-            var st = style ?? MeshStyle.Reference;
-            var verts = new List<Vector3>();
-            var tris = new List<int>();
-
-            // Perfil 2D (x = recuo acumulado, y = altura).
-            //
-            // A densidade em altura é distribuída por `heightSamples` amostras em TODAS as camadas,
-            // proporcionalmente à espessura de cada uma. A versão anterior derivava o número de
-            // amostras da espessura dividida por um passo e depois limitava a 2..40, pelo que
-            // aumentar `heightSamples` não aumentava a densidade — as rachaduras caíam entre vértices.
+            // ---- escadaria estratigráfica
             float lift = Mathf.Max(1f, layers.Length > 0 ? layers[layers.Length - 1].y - baseHeight : 1f);
             int budget = Mathf.Max(layers.Length * 3, heightSamples);
-            var prof = new List<Vector2>();
+            var stair = new List<Vector2>();
             float x = 0f, y = baseHeight;
-            prof.Add(new Vector2(0f, y));
+            stair.Add(new Vector2(0f, y));
             for (int i = 0; i < layers.Length; i++)
             {
                 float top = layers[i].y;
                 float hard = Mathf.Clamp01(layers[i].hardness);
-                // camada mole recua mais depressa (ângulo efetivo menor): 34..86 graus
-                float effAngle = Mathf.Lerp(34f, 86f, hard);
-                float effTan = Mathf.Tan(effAngle * Mathf.Deg2Rad);
+                float effTan = Mathf.Tan(Mathf.Lerp(34f, 86f, hard) * Mathf.Deg2Rad);
                 float thick = Mathf.Max(0.5f, top - y);
                 int n = Mathf.Max(3, Mathf.RoundToInt(budget * (thick / lift)));
                 for (int k = 1; k <= n; k++)
                 {
                     float f = (float)k / n;
-                    float yy = y + thick * f;
-                    prof.Add(new Vector2(x + (thick * f) / effTan, yy));
+                    stair.Add(new Vector2(x + (thick * f) / effTan, y + thick * f));
                 }
                 x += thick / effTan;
                 y = top;
-                // bancada no topo das camadas duras
                 if (hard > 0.6f)
                 {
-                    float bench = Mathf.Lerp(2f, 16f, (hard - 0.6f) / 0.4f);
-                    x += bench;
-                    prof.Add(new Vector2(x, y + 0.02f));
+                    x += Mathf.Lerp(2f, 16f, (hard - 0.6f) / 0.4f);
+                    stair.Add(new Vector2(x, y + 0.02f));
                 }
             }
 
-            // varrer o perfil ao longo do comprimento (eixo Z), com o campo de erosão 3D por ponto
-            int stride = prof.Count;
-            float totalH = Mathf.Max(1f, prof[prof.Count - 1].y - prof[0].y);
+            float totalH = Mathf.Max(1f, stair[stair.Count - 1].y - stair[0].y);
+            var outp = new List<Vector3>(stair.Count + 16);
+
+            // ---- cone de detrito, do chão até à base da parede
+            //
+            // O detrito tem de começar ONDE A PAREDE ACABA. A camada mais mole (Chinle, dureza 0,15)
+            // recua uns 39 m com a erosão por omissão; se o detrito ficasse a menos do que isso, a
+            // parede passaria para trás do cone e a malha auto-intersectava.
+            float maxErode = erosion.Amount * Mathf.Pow(1f - MinHardness(layers), 1.6f) * 1.8f;
+            float talusBase = 0f;
+            if (talusHeight > 0.5f)
+            {
+                float ext = Mathf.Max(talusExtent, maxErode + 2f);
+                int segs = Mathf.Clamp((int)(talusHeight / 1.5f), 4, 28);
+                float run = Mathf.Max(1f, ext - clearHalfWidth);
+                for (int k = 0; k <= segs; k++)
+                {
+                    float t = (float)k / segs;                          // 0 = ponta do detrito, 1 = base da parede
+                    // O cone sobe EM DIREÇÃO à parede: 0 no corredor, talusHeight no pé da parede.
+                    // Expoente 0,85: um cone de talus é quase reto, com uma leve convexidade.
+                    // (A primeira versão tinha o expoente ao contrário e desenhava uma ponta de
+                    // seta virada ao contrário, com um pico a meio e um precipício antes da parede.)
+                    float hh = talusHeight * Mathf.Pow(1f - t, 0.85f);
+                    float hx = clearHalfWidth + run * t;
+                    // irregularidade do cone, mais forte junto à parede e sempre fora da zona livre
+                    float bumpy = (Noise3(new Vector3(along * 0.05f, hh * 0.20f, 0f), 909) - 0.5f) * 2f;
+                    hx = Mathf.Max(clearHalfWidth, hx + bumpy * 1.2f * t);
+                    outp.Add(new Vector3(baseHeight + hh, hx, 0f));     // z preenchido depois
+                }
+                talusBase = ext;
+            }
+            else
+            {
+                outp.Add(new Vector3(baseHeight, 0f, 0f));
+            }
+
+            for (int i = 0; i < stair.Count; i++)
+            {
+                float hard = HardnessAt(stair[i].y, layers, baseHeight);
+                float wallU = (stair[i].y - stair[0].y) / totalH;
+                float blend = LayerBlend(stair[i].y, layers);
+                float rec = Erode3D(stair[i].y - baseHeight, along, wallU, hard, erosion, blend);
+                outp.Add(new Vector3(stair[i].y, stair[i].x + rec + talusBase, 0f));
+            }
+
+            // Monotonicidade: o perfil só pode recuar. Nas fronteiras de camada a erosão é
+            // descontínua (a mole recua mais que a dura), o que fazia a distância lateral CAIR —
+            // por exemplo 13 m em Organ Rock -> White Rim — e a malha auto-intersectava. Forçar o
+            // máximo acumulado transforma esse degrau numa parede vertical, que é como a geologia
+            // se comporta: uma cornija sobre uma camada mole.
+            //
+            // Nota de eixos: nesta lista o Vector3 guarda (x = ALTURA, y = distância lateral).
+            for (int i = 1; i < outp.Count; i++)
+            {
+                float prevLat = outp[i - 1].y;
+                if (outp[i].y < prevLat)
+                    outp[i] = new Vector3(outp[i].x, prevLat, 0f);
+            }
+            return outp;
+        }
+
+        static float MinHardness((float y, float hardness)[] layers)
+        {
+            float m = 1f;
+            for (int i = 0; i < layers.Length; i++) m = Mathf.Min(m, layers[i].hardness);
+            return m;
+        }
+
+        /// <summary>
+        /// Parede de canyon com perfil estratificado, erosão 3D e cone de detrito no pé,
+        /// para os testes de wall-ride.
+        ///
+        /// <paramref name="layers"/> é (topo em y, dureza 0..1) de baixo para cima, na mesma ordem e
+        /// com os mesmos valores que <c>LAYERS_RDD</c> do Blender, para o laboratório e a pista
+        /// partilharem a mesma linguagem geológica.
+        ///
+        /// <paramref name="clearHalfWidth"/> é a meia-largura do corredor que fica garantidamente
+        /// livre: o detrito começa fora dela.
+        /// </summary>
+        public static Mesh WallProfile(string name, float length, float baseHeight,
+                                       (float y, float hardness)[] layers, float angleDeg,
+                                       ErosionStyle erosion, float alongOffset = 0f,
+                                       int alongSamples = 26, int heightSamples = 56,
+                                       MeshStyle? style = null,
+                                       float talusHeight = 0f, float talusExtent = 0f,
+                                       float clearHalfWidth = 15f)
+        {
+            var st = style ?? MeshStyle.Reference;
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+
             for (int s = 0; s <= alongSamples; s++)
             {
                 float along = alongOffset + length * s / alongSamples;
                 float z = length * (float)s / alongSamples;
-                for (int p = 0; p < stride; p++)
-                {
-                    float hard = HardnessAt(prof[p].y, layers, baseHeight);
-                    float wallU = (prof[p].y - prof[0].y) / totalH;
-                    // mistura na camada: 0 no centro da camada, 0.5 na fronteira com a seguinte
-                    float blend = LayerBlend(prof[p].y, layers);
-                    float rec = Erode3D(prof[p].y - baseHeight, along, wallU, hard, erosion, blend);
-                    verts.Add(new Vector3(prof[p].x + rec, prof[p].y, z));
-                }
+                var prof = WallProfilePoints(baseHeight, layers, heightSamples, erosion,
+                                             along, talusHeight, talusExtent, clearHalfWidth);
+                for (int p = 0; p < prof.Count; p++)
+                    verts.Add(new Vector3(prof[p].x, prof[p].y, z));
             }
+
+            if (alongSamples < 1) return Finish(new Mesh { name = name }, verts.ToArray(), tris.ToArray(), st);
+            int stride = verts.Count / (alongSamples + 1);
             for (int s = 0; s < alongSamples; s++)
                 for (int p = 0; p < stride - 1; p++)
                 {
@@ -537,7 +614,17 @@ namespace RedDust.Lab
                     tris.AddRange(new[] { a, b, c, a, c, d });
                 }
 
-            return Finish(new Mesh { name = name }, verts.ToArray(), tris.ToArray(), st);
+            // UVs: U ao longo da parede (metros / 12), V vertical — necessárias para texturas de
+            // detalhe (normal map). O laboratório não tinha UVs nenhumas.
+            var uv = new Vector2[verts.Count];
+            int total = verts.Count;
+            var minY = float.MaxValue; var maxY = float.MinValue;
+            for (int i = 0; i < total; i++) { minY = Mathf.Min(minY, verts[i].y); maxY = Mathf.Max(maxY, verts[i].y); }
+            float ySpan = Mathf.Max(1f, maxY - minY);
+            for (int i = 0; i < total; i++)
+                uv[i] = new Vector2(verts[i].z / 12f, (verts[i].y - minY) / ySpan * (ySpan / 12f));
+
+            return Finish(new Mesh { name = name }, verts.ToArray(), tris.ToArray(), st, uv);
         }
 
         /// <summary>Onde a elevação está dentro da sua camada: 0 no centro, 0,5 na fronteira.</summary>

@@ -61,9 +61,54 @@ namespace RedDust.EditorTools
 
         static Material geo;
 
+        /// <summary>
+        /// Prepara a textura de rocha: marca-a como Normal map no importador e liga-a ao material
+        /// de geologia. Feito por código para não ser preciso configurar nada à mão no Unity.
+        ///
+        /// O normal map cobre o que a geometria não deve resolver: abaixo de ~4 m as fissuras
+        /// exigiriam ~1 M de triângulos por parede. Detalhe fino em textura mantém o jogo leve.
+        /// </summary>
+        public static void ConfigureRockTextures()
+        {
+            const string texDir = "Assets/RedDust/Materials/Textures";
+            const string nmPath = texDir + "/rock_normal.png";
+
+            var importer = AssetImporter.GetAtPath(nmPath) as TextureImporter;
+            if (importer != null)
+            {
+                importer.textureType = TextureImporterType.NormalMap;
+                importer.wrapMode = TextureWrapMode.Repeat;
+                importer.filterMode = FilterMode.Bilinear;
+                importer.mipmapEnabled = true;
+                importer.SaveAndReimport();
+                Debug.Log($"[RDD lab] {nmPath} marcado como Normal map");
+            }
+            else
+            {
+                Debug.LogWarning($"[RDD lab] normal map nao encontrado em {nmPath}");
+                return;
+            }
+
+            var mat = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/Geology.mat");
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(nmPath);
+            if (mat == null || tex == null)
+            {
+                Debug.LogWarning("[RDD lab] Geology.mat ou a textura nao existem; correr 'Red Dust/1. Setup do projeto'");
+                return;
+            }
+            mat.SetTexture("_NormalMap", tex);
+            // UVs do laboratorio estao em metros; 12 m por repeticao da textura
+            mat.SetTextureScale("_NormalMap", new Vector2(1f / 12f, 1f / 12f));
+            if (!mat.HasProperty("_NormalScale")) mat.SetFloat("_NormalScale", 1f);
+            EditorUtility.SetDirty(mat);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[RDD lab] normal map de rocha ligado ao Geology.mat");
+        }
+
         [MenuItem("Red Dust/9. Gerar Metrics Lab (V2)")]
         public static void Build()
         {
+            ConfigureRockTextures();
             var zones = Layout();
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -318,8 +363,11 @@ namespace RedDust.EditorTools
                     const int height = 220;
 
                     // parede do lado +X, com a face virada para -X (onde a nave corre)
+                    // O detrito (cone de talus) assenta no pé a partir de 16 m do eixo, para a largura
+                    // útil do corredor não diminuir — é meia-largura livre de 15 m.
                     var mR = LabGeometry.WallProfile($"{z.Name}_paredeR", z.Length, 0f, layers,
-                        z.WallDeg, erosion, 0f, along, height, st);
+                        z.WallDeg, erosion, 0f, along, height, st,
+                        talusHeight: 14f, talusExtent: 22f, clearHalfWidth: 15f);
                     var wR = Geo($"{z.Name}_paredeR", mR);
                     wR.transform.SetParent(go.transform, false);
                     wR.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
@@ -328,7 +376,8 @@ namespace RedDust.EditorTools
                     // parede oposta, fechando o corredor (deslocamento de erosão diferente, para
                     // as duas paredes não saírem iguais)
                     var mL = LabGeometry.WallProfile($"{z.Name}_paredeL", z.Length, 0f, layers,
-                        z.WallDeg, erosion, 137f, along, height, st);
+                        z.WallDeg, erosion, 137f, along, height, st,
+                        talusHeight: 11f, talusExtent: 19f, clearHalfWidth: 15f);
                     var wL = Geo($"{z.Name}_paredeL", mL);
                     wL.transform.SetParent(go.transform, false);
                     wL.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);

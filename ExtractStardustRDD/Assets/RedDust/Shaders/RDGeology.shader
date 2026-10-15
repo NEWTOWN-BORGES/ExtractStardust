@@ -11,6 +11,9 @@ Shader "RedDust/Geology"
         _Specular ("Especular", Range(0, 1)) = 0.16
         [Tooltip("Variacao de cor em escala grande (100 m a 4 km). 0 desliga e volta ao aspeto anterior.")]
         _MacroAmount ("Variacao macro da cor", Range(0, 1)) = 1
+        [Tooltip("Normal map de rocha: fissuras e granulado abaixo do que a geometria resolve.")]
+        [Normal] _NormalMap ("Normal map da rocha", 2D) = "bump" {}
+        _NormalScale ("Forca do normal map", Range(0, 3)) = 1
     }
     SubShader
     {
@@ -18,11 +21,15 @@ Shader "RedDust/Geology"
 
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        TEXTURE2D(_NormalMap);
+        SAMPLER(sampler_NormalMap);
         CBUFFER_START(UnityPerMaterial)
+            float4 _NormalMap_ST;
             float _DetailScale;
             float _BumpStrength;
             float _Specular;
             float _MacroAmount;
+            float _NormalScale;
         CBUFFER_END
         ENDHLSL
 
@@ -56,6 +63,7 @@ Shader "RedDust/Geology"
                 float3 normalWS : TEXCOORD1;
                 float4 color : TEXCOORD2;
                 float4 uv : TEXCOORD3;
+                float2 uvMain : TEXCOORD4;
             };
 
             Varyings vert(Attributes v)
@@ -66,6 +74,7 @@ Shader "RedDust/Geology"
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.color = v.color;
                 o.uv = float4(v.uv, v.uv2);
+                o.uvMain = v.uv;
                 return o;
             }
 
@@ -128,6 +137,19 @@ Shader "RedDust/Geology"
                 g += float3(0.83, 0, 0.55) * cos(rp) * 0.05 * (wSand + wTop) * _BumpStrength * near * saturate(n0.y);
                 n = normalize(n - (g - n * dot(g, n)));
             #endif
+
+                // Normal map de rocha: fissuras e granulado finos, que a geometria não resolve
+                // (abaixo de ~4 m exigiria ~1 M de triângulos por parede). Só a componente
+                // perpendicular à superfície é usada: o bump geométrico acima já deu as
+                // tangentes, e inventá-las em UV que podem não existir seria pior.
+                float nmFade = saturate(1.0 - camDist / 320.0);
+                if (_NormalScale > 0.001 && nmFade > 0.01)
+                {
+                    float3 nm = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap,
+                                                                    i.uvMain * _NormalMap_ST.xy + _NormalMap_ST.zw),
+                                                  _NormalScale);
+                    n = normalize(n - n0 * nm.z * 0.6 * nmFade);
+                }
 
                 // materiais
                 float3 sandCol = lerp(RD_PAL[12] * 0.88, RD_PAL[12] * 1.05, rd_noise(pw * 0.03));
