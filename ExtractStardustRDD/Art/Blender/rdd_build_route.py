@@ -54,7 +54,10 @@ TUCK = 0.08
 # onde foram validados. Sobrepõem-se por spec.json com "erosion_m" (0 desliga) e "erosion_seed".
 # Variáveis globais pelo mesmo motivo que KS/KSP: sculpt() é chamado sem o spec à mão.
 # A seed tem de ser INTEIRA (o _hash do rdd_geology rebenta com float).
-EROSION_M = 26.0
+#
+# 70 m medido sobre o sandbox (Tools/verifica_sculpt_real.py): deslocamento máximo ~23 m,
+# que se lê a 100 m/s. Com 26 m ficava em ~9 m, discreto demais.
+EROSION_M = 70.0
 EROSION_SEED = 7
 
 
@@ -545,7 +548,7 @@ def main():
     spec['features'] = [f for f in spec.get('features', []) if f.get('enabled', True)]
     KS = int(spec.get('wall_samples', KS))             # amostras das paredes próximas (percursos longos: menos)
     KSP = KS + 2
-    EROSION_M = float(spec.get('erosion_m', 26.0))     # 0 desliga a erosão 3D das paredes
+    EROSION_M = float(spec.get('erosion_m', 70.0))     # 0 desliga a erosão 3D das paredes
     EROSION_SEED = int(spec.get('erosion_seed', 7))   # inteiro: o _hash do geology exige-o
     log(f"erosao das paredes: {EROSION_M:.1f} m (seed {EROSION_SEED})")
     name = spec['name']

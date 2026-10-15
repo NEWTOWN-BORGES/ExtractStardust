@@ -248,7 +248,7 @@ def arc_from_center(loc):
 # 70 m). O relief de Column.sample alimentava apenas o micro-relevo do shader (≤ 0,75 m).
 # Resultado: paredes lisas ao longo de 105 km.
 
-def erode3d(height, along, wall_u, hardness, amount=26.0, seed=7):
+def erode3d(height, along, wall_u, hardness, amount=70.0, seed=7):
     """
     Recuo de erosão (m) por ponto da parede, na direção da normal da superfície.
 
@@ -304,7 +304,7 @@ def talus_profile(talus_h, talus_extent, clear_half_width, along, seed=909, segs
 
 
 def sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls=None, floor_mask=None,
-           erosion_m=26.0, erosion_seed=7):
+           erosion_m=70.0, erosion_seed=7):
     """Secção de corrida: leito (areia/slickrock) e paredes polidas na zona de corrida; rocha estratificada acima.
 
     erosion_m: amplitude da erosão 3D nas paredes de rocha (0 desliga e volta ao aspeto anterior).

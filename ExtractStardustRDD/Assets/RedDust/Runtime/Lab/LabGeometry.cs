@@ -386,7 +386,10 @@ namespace RedDust.Lab
 
             public static ErosionStyle Default => new ErosionStyle
             {
-                Amount = 26f, ScaleAlong = 520f, ScaleHeight = 26f, Seed = 7,
+                // 40 m no laboratório (corredor de 440 m e poucas estações). Na pista real o
+                // valor por omissão é 70 m — medido com Tools/verifica_sculpt_real.py, dá
+                // deslocamento máximo de ~23 m, que se lê a 100 m/s.
+                Amount = 40f, ScaleAlong = 520f, ScaleHeight = 26f, Seed = 7,
             };
 
             public static ErosionStyle None => new ErosionStyle { Amount = 0f, ScaleAlong = 520f, ScaleHeight = 26f, Seed = 7 };

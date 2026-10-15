@@ -243,11 +243,14 @@ def arc_from_center(loc):
 
 
 def sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls=None, floor_mask=None,
-           erosion_m=26.0, erosion_seed=7):
+           erosion_m=70.0, erosion_seed=7):
     """Secção de corrida: leito (areia/slickrock) e paredes polidas na zona de corrida; rocha estratificada acima.
 
     erosion_m: amplitude da erosão 3D nas paredes de rocha (0 desliga e volta ao aspeto anterior).
-    Ver erode3d() para as escalas e porque é que a dureza da camada controla a amplitude.
+    Medido com o ruído real do projeto sobre o sandbox (Tools/verifica_sculpt_real.py):
+    a amplitude escala aproximadamente em proporção — 26 m dá deslocamento máximo de ~9 m
+    (fraco demais para se ler a 100 m/s), 70 m dá ~23 m, 100 m dá ~34 m.
+    Em nenhum valor a largura do corredor diminui.
     """
     S, N, _ = loc.shape
     W = P[:, None, :] + R[:, None, :] * loc[..., 0:1] + U[:, None, :] * loc[..., 1:2]
@@ -312,7 +315,7 @@ def wall_warp(along, dperp, seed):
 # fator empurrava a coordenada de ruído para valores altos e saturava o ruído — o erro que dava
 # riscas verticais uniformes em vez de manchas e fissuras.
 
-def erode3d(height, along, wall_u, hardness, amount=26.0, seed=7):
+def erode3d(height, along, wall_u, hardness, amount=70.0, seed=7):
     """
     Recuo de erosão (m) por ponto da parede, na direção da normal da superfície.
 
