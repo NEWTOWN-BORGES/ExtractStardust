@@ -9,8 +9,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace RedDust.EditorTools
-{
-    /// <summary>
+{    /// <summary>
     /// Gera a cena <b>Metrics Lab</b> da Fase 1 da V2 (tarefa 3 de RDD_V2_Plano_Fase0.md, secção I).
     ///
     /// A cena é uma grelha de zonas independentes, cada uma com um piso de referência, para medir
@@ -60,11 +59,21 @@ namespace RedDust.EditorTools
 
         // ------------------------------------------------------------------ comando
 
+        static Material geo;
+
         [MenuItem("Red Dust/9. Gerar Metrics Lab (V2)")]
         public static void Build()
         {
             var zones = Layout();
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            // Mesmo material de geologia que o CourseImporter usa nas pistas reais
+            // (paleta de 14 camadas + verniz do deserto + perspetiva aérea).
+            // Sem isto, as malhas ficam com o material por omissão e aparecem magenta.
+            geo = AssetDatabase.LoadAssetAtPath<Material>($"{ProjectSetup.MaterialsDir}/Geology.mat");
+            if (geo == null)
+                Debug.LogWarning($"[RDD lab] Geology.mat nao encontrado em {ProjectSetup.MaterialsDir}; " +
+                                 "correr 'Red Dust/1. Setup do projeto'. As malhas ficam sem material.");
 
             var root = new GameObject("MetricsLab");
             foreach (var z in zones) BuildZone(root.transform, z);
@@ -75,8 +84,56 @@ namespace RedDust.EditorTools
 
             WriteManifest(zones);
 
-            Debug.Log($"[RDD lab] cena gerada: {ScenePath} ({zones.Count} zonas)");
+            Debug.Log($"[RDD lab] cena gerada: {ScenePath} ({zones.Count} zonas, {(geo != null ? "material de geologia" : "SEM material")})");
             if (Application.isBatchMode) EditorApplication.Exit(0);
+        }
+
+        /// <summary>Cria o objeto de superfície com o material de geologia aplicado.</summary>
+        static GameObject Geo(string name, Mesh mesh) => LabGeometry.Surface(name, mesh, geo);
+
+        /// <summary>
+        /// Estilo de cada zona, ligado às camadas reais da paleta do projeto.
+        ///
+        /// O canal R (classe) não é decoração: é a mesma banda que <c>SurfaceTypes.FromClass</c> lê
+        /// para decidir grip, topSpeed e drag. Por isso o pavimento de medição é sempre classe 0,25
+        /// (slickrock, grip 1,08, drag 0) — o resultado tem de depender da nave, não do chão.
+        /// A variedade visual vive nas restantes zonas, onde nada é medido.
+        /// </summary>
+        static LabGeometry.MeshStyle StyleFor(string name)
+        {
+            // pavimento de medição: slickrock claro, duro e uniforme
+            if (name.StartsWith("B0")) return new LabGeometry.MeshStyle
+            {
+                SurfaceClass = 0.5f, LayerA = LabGeometry.LayerWhiteRim, LayerB = LabGeometry.LayerNavajo,
+                RideMask = 0f, Hardness = 1f, Blend = 0.35f,
+            };
+            if (name.StartsWith("C0")) return new LabGeometry.MeshStyle
+            {
+                SurfaceClass = 0.5f, LayerA = LabGeometry.LayerNavajo, LayerB = LabGeometry.LayerNavajoRosado,
+                RideMask = 0f, Hardness = 0.9f, Blend = 0.4f,
+            };
+            if (name.StartsWith("D0")) return new LabGeometry.MeshStyle
+            {
+                SurfaceClass = 0.75f, LayerA = LabGeometry.LayerWingate, LayerB = LabGeometry.LayerKayenta,
+                RideMask = 0f, Hardness = 1f, Blend = 0.5f,       // falésia: a parede vermelha de verdade
+            };
+            if (name.StartsWith("E0")) return new LabGeometry.MeshStyle
+            {
+                SurfaceClass = 0.5f, LayerA = LabGeometry.LayerKayenta, LayerB = LabGeometry.LayerWingate,
+                RideMask = 0f, Hardness = 0.85f, Blend = 0.45f,
+            };
+            if (name.StartsWith("F0")) return new LabGeometry.MeshStyle
+            {
+                SurfaceClass = 0.5f, LayerA = LabGeometry.LayerMossBack, LayerB = LabGeometry.LayerKayenta,
+                RideMask = 0f, Hardness = 0.9f, Blend = 0.5f,
+            };
+            if (name.StartsWith("G0")) return new LabGeometry.MeshStyle
+            {
+                SurfaceClass = 0.25f, LayerA = LabGeometry.LayerChinleVermelho, LayerB = LabGeometry.LayerChinlePurpura,
+                RideMask = 1f, Hardness = 0.6f, Blend = 0.55f,     // as camadas mais escuras do plateau
+            };
+            // A: retas de arranque, aceleração e travagem — o pavimento de referência
+            return LabGeometry.MeshStyle.Reference;
         }
 
         // ------------------------------------------------------------------ layout
@@ -207,12 +264,14 @@ namespace RedDust.EditorTools
             go.transform.SetParent(parent, false);
             go.transform.position = z.Centre;
 
+            var st = StyleFor(z.Name);
+
             switch (z.Kind)
             {
                 case ZoneKind.Flat:
                 {
-                    var m = LabGeometry.Flat($"{z.Name}_piso", new Vector2(z.Width, z.Length));
-                    LabGeometry.Surface($"{z.Name}_piso", m).transform.SetParent(go.transform, false);
+                    var m = LabGeometry.Flat($"{z.Name}_piso", new Vector2(z.Width, z.Length), st);
+                    Geo($"{z.Name}_piso", m).transform.SetParent(go.transform, false);
                     break;
                 }
 
@@ -220,14 +279,14 @@ namespace RedDust.EditorTools
                 {
                     // a malha do arco plano já usa o raio como eixo do percurso
                     var m = z.BankDeg <= 0.01f
-                        ? LabGeometry.CircleFlat($"{z.Name}_piso", Vector3.zero, z.Radius, z.Width)
-                        : LabGeometry.CircleBanked($"{z.Name}_piso", Vector3.zero, z.Radius, z.Width, z.BankDeg);
-                    LabGeometry.Surface($"{z.Name}_piso", m).transform.SetParent(go.transform, false);
+                        ? LabGeometry.CircleFlat($"{z.Name}_piso", Vector3.zero, z.Radius, z.Width, 96, st)
+                        : LabGeometry.CircleBanked($"{z.Name}_piso", Vector3.zero, z.Radius, z.Width, z.BankDeg, 128, st);
+                    Geo($"{z.Name}_piso", m).transform.SetParent(go.transform, false);
                     if (z.BankDeg > 0.01f)
                     {
                         // referência plana no interior, para comparação direta no mesmo raio
-                        var flat = LabGeometry.CircleFlat($"{z.Name}_referenciaPlana", Vector3.zero, z.Radius, z.Width);
-                        var fgo = LabGeometry.Surface($"{z.Name}_referenciaPlana", flat);
+                        var flat = LabGeometry.CircleFlat($"{z.Name}_referenciaPlana", Vector3.zero, z.Radius, z.Width, 96, st);
+                        var fgo = Geo($"{z.Name}_referenciaPlana", flat);
                         fgo.transform.SetParent(go.transform, false);
                         fgo.transform.localPosition = new Vector3(0f, -12f, 0f);
                     }
@@ -236,30 +295,60 @@ namespace RedDust.EditorTools
 
                 case ZoneKind.HalfPipe:
                 {
-                    var m = LabGeometry.HalfPipe($"{z.Name}_piso", Vector3.zero, z.Radius, z.Width, z.WallDeg);
-                    LabGeometry.Surface($"{z.Name}_piso", m).transform.SetParent(go.transform, false);
+                    var m = LabGeometry.HalfPipe($"{z.Name}_piso", Vector3.zero, z.Radius, z.Width, z.WallDeg, 128, 14, st);
+                    Geo($"{z.Name}_piso", m).transform.SetParent(go.transform, false);
                     break;
                 }
 
                 case ZoneKind.Wall:
                 {
-                    var m = LabGeometry.Wall($"{z.Name}_parede", z.Length, 50f, z.WallDeg, out var entry, out var exit);
-                    LabGeometry.Surface($"{z.Name}_parede", m).transform.SetParent(go.transform, false);
-                    // piso de aproximação e de saída, para a nave chegar à parede já com velocidade
-                    var ap = LabGeometry.Flat($"{z.Name}_aproximacao", new Vector2(z.Width, 260f));
-                    var ago = LabGeometry.Surface($"{z.Name}_aproximacao", ap);
+                    // Paredes de canyon com perfil estratificado e EROSÃO (LabGeometry.WallProfile):
+                    // as onze camadas de LAYERS_RDD, com o recuo dependente da dureza de cada uma.
+                    // É o mesmo algoritmo proposto para o gerador do Blender, aqui já executável em C#.
+                    var layers = LabGeometry.RedDustLayers(0f);
+                    var erosion = LabGeometry.ErosionStyle.Default;
+                    const float wallHeight = 330f;
+
+                    // Densidade: o campo de erosão 3D tem detalhe até ~1 m. A estação tem de ser mais
+                    // fina do que o detalhe mais fino, senão as rachaduras caem entre vértices:
+                    //   ao longo : 0,5 m  (440 amostras em 220 m)
+                    //   em altura: 1,5 m  (220 amostras em 330 m)
+                    // A malha fica com ~97 mil vértices por parede, que é o custo de ter erosão real.
+                    const int along = 440;
+                    const int height = 220;
+
+                    // parede do lado +X, com a face virada para -X (onde a nave corre)
+                    var mR = LabGeometry.WallProfile($"{z.Name}_paredeR", z.Length, 0f, layers,
+                        z.WallDeg, erosion, 0f, along, height, st);
+                    var wR = Geo($"{z.Name}_paredeR", mR);
+                    wR.transform.SetParent(go.transform, false);
+                    wR.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
+                    wR.transform.localPosition = new Vector3(wallHeight * 0.5f, 0f, -z.Length * 0.5f);
+
+                    // parede oposta, fechando o corredor (deslocamento de erosão diferente, para
+                    // as duas paredes não saírem iguais)
+                    var mL = LabGeometry.WallProfile($"{z.Name}_paredeL", z.Length, 0f, layers,
+                        z.WallDeg, erosion, 137f, along, height, st);
+                    var wL = Geo($"{z.Name}_paredeL", mL);
+                    wL.transform.SetParent(go.transform, false);
+                    wL.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
+                    wL.transform.localPosition = new Vector3(-wallHeight * 0.5f, 0f, z.Length * 0.5f);
+
+                    // piso do corredor, para a nave chegar à parede já com velocidade
+                    var ap = LabGeometry.Flat($"{z.Name}_aproximacao", new Vector2(40f, z.Length), st);
+                    var ago = Geo($"{z.Name}_aproximacao", ap);
                     ago.transform.SetParent(go.transform, false);
-                    ago.transform.localPosition = new Vector3(-130f, 0f, z.Length * 0.5f);
+                    ago.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
                     break;
                 }
 
                 case ZoneKind.Lip:
                 {
-                    var m = LabGeometry.Lip($"{z.Name}_labio", z.Length, z.Width, z.AngleDeg, out var top);
-                    LabGeometry.Surface($"{z.Name}_labio", m).transform.SetParent(go.transform, false);
+                    var m = LabGeometry.Lip($"{z.Name}_labio", z.Length, z.Width, z.AngleDeg, out var top, st);
+                    Geo($"{z.Name}_labio", m).transform.SetParent(go.transform, false);
                     // rampa de aterragem a jusante, para receção legível
-                    var land = LabGeometry.BankStraight($"{z.Name}_aterragem", 90f, z.Width, 0f);
-                    var lgo = LabGeometry.Surface($"{z.Name}_aterragem", land);
+                    var land = LabGeometry.BankStraight($"{z.Name}_aterragem", 90f, z.Width, 0f, st);
+                    var lgo = Geo($"{z.Name}_aterragem", land);
                     lgo.transform.SetParent(go.transform, false);
                     lgo.transform.localPosition = new Vector3(0f, 0f, 60f);
                     break;
@@ -267,20 +356,20 @@ namespace RedDust.EditorTools
 
                 case ZoneKind.BankTransition:
                 {
-                    var m = LabGeometry.BankTransition($"{z.Name}_piso", z.Length, z.Width, z.FromBankDeg, z.ToBankDeg);
-                    LabGeometry.Surface($"{z.Name}_piso", m).transform.SetParent(go.transform, false);
+                    var m = LabGeometry.BankTransition($"{z.Name}_piso", z.Length, z.Width, z.FromBankDeg, z.ToBankDeg, 64, st);
+                    Geo($"{z.Name}_piso", m).transform.SetParent(go.transform, false);
                     break;
                 }
 
                 case ZoneKind.Drop:
                 {
                     // plataforma elevada + zona de aterragem plana e baixa
-                    var pad = LabGeometry.Flat($"{z.Name}_plataforma", new Vector2(z.Width, z.Length));
-                    var pgo = LabGeometry.Surface($"{z.Name}_plataforma", pad);
+                    var pad = LabGeometry.Flat($"{z.Name}_plataforma", new Vector2(z.Width, z.Length), st);
+                    var pgo = Geo($"{z.Name}_plataforma", pad);
                     pgo.transform.SetParent(go.transform, false);
                     pgo.transform.localPosition = new Vector3(0f, -z.Centre.y, 0f);   // topo na cota da zona
-                    var land = LabGeometry.Flat($"{z.Name}_aterragem", new Vector2(z.Width * 2f, z.Length * 2f));
-                    LabGeometry.Surface($"{z.Name}_aterragem", land).transform.SetParent(go.transform, false);
+                    var land = LabGeometry.Flat($"{z.Name}_aterragem", new Vector2(z.Width * 2f, z.Length * 2f), st);
+                    Geo($"{z.Name}_aterragem", land).transform.SetParent(go.transform, false);
                     break;
                 }
             }

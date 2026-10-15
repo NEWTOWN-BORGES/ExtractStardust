@@ -29,31 +29,95 @@ namespace RedDust.Lab
         /// <summary>Canal R da superfície de referência do laboratório (Slickrock).</summary>
         public const float RefSurfaceR = 0.25f;
 
-        /// <summary>Cor de vértice que corresponde à superfície de referência.</summary>
-        public static Color RefColor => new Color(RefSurfaceR, RefSurfaceR, RefSurfaceR, 1f);
+        /// <summary>
+        /// Aparência de uma malha do laboratório, no formato que o shader <c>RedDust/Geology</c> espera.
+        /// O shader empacota quatro canais na cor do vértice e dois valores em UV2:
+        ///   R = classe de superfície (0 areia · 0,125 areia funda · 0,25 slickrock · 0,375 cascalho ·
+        ///       0,5 parede polida · 0,625 rocha rugosa · 0,75 falésia · ≥0,875 planalto)
+        ///   G = índice da paleta A (÷15)   B = índice da paleta B (÷15)
+        ///   A = máscara da zona de corrida (1 = percorrível)
+        ///   UV2.x = dureza da camada   UV2.y = mistura A/B
+        ///
+        /// A mesma banda de R serve à física: <c>SurfaceTypes.FromClass</c> usa as mesmas classes
+        /// (passo 1/16) para decidir grip, topSpeed e drag. Por isso <see cref="SurfaceClass"/> não é
+        /// decoração — trocá-lo muda o comportamento da nave.
+        /// </summary>
+        public struct MeshStyle
+        {
+            public float SurfaceClass;
+            public int LayerA;
+            public int LayerB;
+            public float RideMask;
+            public float Hardness;
+            public float Blend;
+
+            /// <summary>Pavimento de referência do laboratório: slickrock claro e uniforme.</summary>
+            public static MeshStyle Reference => new MeshStyle
+            {
+                SurfaceClass = RefSurfaceR,
+                LayerA = LayerWhiteRim,        // 1 arenito claro
+                LayerB = LayerNavajo,          // 10 areia quente
+                RideMask = 1f,
+                Hardness = 0.55f,
+                Blend = 0.5f,
+            };
+        }
+
+        // Índices da paleta de RDGeology.hlsl (RD_PAL, 14 camadas do Colorado Plateau).
+        public const int LayerOrganRock = 0;
+        public const int LayerWhiteRim = 1;
+        public const int LayerMoenkopi = 2;
+        public const int LayerMoenkopiClaro = 3;
+        public const int LayerMossBack = 4;
+        public const int LayerChinleVermelho = 5;
+        public const int LayerChinlePurpura = 6;
+        public const int LayerChinleCinza = 7;
+        public const int LayerWingate = 8;
+        public const int LayerKayenta = 9;
+        public const int LayerNavajo = 10;
+        public const int LayerNavajoRosado = 11;
+        public const int LayerAreia = 12;
+        public const int LayerVerniz = 13;
 
         // ------------------------------------------------------------------ utilitários
 
-        static Mesh Finish(Mesh mesh, Vector3[] verts, int[] tris, Color[] cols)
+        /// <summary>Constrói a malha com o empacotamento de cor e UV2 que o shader de geologia espera.</summary>
+        static Mesh Finish(Mesh mesh, Vector3[] verts, int[] tris, MeshStyle style)
         {
             mesh.indexFormat = verts.Length > 65000
                 ? UnityEngine.Rendering.IndexFormat.UInt32
                 : UnityEngine.Rendering.IndexFormat.UInt16;
             mesh.vertices = verts;
             mesh.triangles = tris;
+            var cols = new Color[verts.Length];
+            var uv2 = new Vector2[verts.Length];
+            var c = ClassColor(style);
+            var uv = new Vector2(Mathf.Clamp01(style.Hardness), Mathf.Clamp01(style.Blend));
+            for (int i = 0; i < verts.Length; i++) { cols[i] = c; uv2[i] = uv; }
             mesh.colors = cols;
+            mesh.uv2 = uv2;
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
-            // marcação para leitura por software em batchmode
+            // 'false' = a malha continua legível por software, para o SurfaceTypes ler
+            // cores e triângulos em batchmode (onde não há upload para GPU).
             mesh.UploadMeshData(false);
             return mesh;
         }
 
+        /// <summary>Cor empacotada para o shader RedDust/Geology (ver <see cref="MeshStyle"/>).</summary>
+        public static Color ClassColor(MeshStyle s) => new Color(
+            Mathf.Clamp01(s.SurfaceClass),
+            Mathf.Clamp01(s.LayerA / 15f),
+            Mathf.Clamp01(s.LayerB / 15f),
+            Mathf.Clamp01(s.RideMask));
+
         /// <summary>Objeto de cena com MeshCollider na camada de chão, pronto a ser sondado.</summary>
-        public static GameObject Surface(string name, Mesh mesh, bool addCollider = true)
+        public static GameObject Surface(string name, Mesh mesh, Material material = null, bool addCollider = true)
         {
             var go = new GameObject(name) { layer = Layer };
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = go.AddComponent<MeshRenderer>();
+            if (material != null) mr.sharedMaterial = material;
             if (addCollider)
             {
                 var mc = go.AddComponent<MeshCollider>();
@@ -77,7 +141,7 @@ namespace RedDust.Lab
         // ------------------------------------------------------------------ pista e bancos
 
         /// <summary>Placa de chão horizontal. É a base do arranque e do corredor de travagem.</summary>
-        public static Mesh Flat(string name, Vector2 size)
+        public static Mesh Flat(string name, Vector2 size, MeshStyle? style = null)
         {
             float hx = size.x * 0.5f, hz = size.y * 0.5f;
             var v = new[]
@@ -86,21 +150,14 @@ namespace RedDust.Lab
                 new Vector3(hx, 0f, hz), new Vector3(-hx, 0f, hz),
             };
             var t = new[] { 0, 2, 1, 0, 3, 2 };
-            return Finish(new Mesh { name = name }, v, t, Fill(v.Length, RefColor));
-        }
-
-        static Color[] Fill(int n, Color c)
-        {
-            var a = new Color[n];
-            for (int i = 0; i < n; i++) a[i] = c;
-            return a;
+            return Finish(new Mesh { name = name }, v, t, style ?? MeshStyle.Reference);
         }
 
         /// <summary>
         /// Banco plano e inclinado: uma faixa de largura <paramref name="width"/> com o bordo interior
         /// elevado, formando um plano a <paramref name="bankDeg"/> graus. Comprimento em Z.
         /// </summary>
-        public static Mesh BankStraight(string name, float length, float width, float bankDeg)
+        public static Mesh BankStraight(string name, float length, float width, float bankDeg, MeshStyle? style = null)
         {
             float rad = bankDeg * Mathf.Deg2Rad;
             float c = Mathf.Cos(rad), s = Mathf.Sin(rad);
@@ -110,18 +167,18 @@ namespace RedDust.Lab
             Vector3 Out(float z) => new Vector3(hx * c, -hx * s, z);
             var v = new[] { In(0f), Out(0f), Out(length), In(length) };
             var t = new[] { 0, 1, 2, 0, 2, 3 };
-            return Finish(new Mesh { name = name }, v, t, Fill(4, RefColor));
+            return Finish(new Mesh { name = name }, v, t, style ?? MeshStyle.Reference);
         }
 
         /// <summary>
         /// Piso plano fechado, formado por dois arcos concêntricos. Serve de base à referência
         /// plana (R sem bank) e ao miolo de um half-pipe.
         /// </summary>
-        public static Mesh CircleFlat(string name, Vector3 centre, float radius, float width, int segs = 96)
+        public static Mesh CircleFlat(string name, Vector3 centre, float radius, float width, int segs = 96,
+                                      MeshStyle? style = null)
         {
             float hw = width * 0.5f;
             var v = new List<Vector3>();
-            var c = new List<Color>();
             var t = new List<int>();
             for (int i = 0; i < segs; i++)
             {
@@ -132,10 +189,9 @@ namespace RedDust.Lab
                 v.Add(centre + new Vector3(Mathf.Sin(a0) * (radius + hw), 0f, Mathf.Cos(a0) * (radius + hw)));
                 v.Add(centre + new Vector3(Mathf.Sin(a1) * (radius + hw), 0f, Mathf.Cos(a1) * (radius + hw)));
                 v.Add(centre + new Vector3(Mathf.Sin(a1) * (radius - hw), 0f, Mathf.Cos(a1) * (radius - hw)));
-                for (int k = 0; k < 4; k++) c.Add(RefColor);
                 t.AddRange(new[] { b, b + 1, b + 2, b, b + 2, b + 3 });
             }
-            return Finish(new Mesh { name = name }, v.ToArray(), t.ToArray(), c.ToArray());
+            return Finish(new Mesh { name = name }, v.ToArray(), t.ToArray(), style ?? MeshStyle.Reference);
         }
 
         /// <summary>
@@ -143,13 +199,12 @@ namespace RedDust.Lab
         /// dentro da curva, que é o que permite fazer o raio a velocidade.
         /// </summary>
         public static Mesh CircleBanked(string name, Vector3 centre, float radius, float width,
-                                        float bankDeg, int segs = 128)
+                                        float bankDeg, int segs = 128, MeshStyle? style = null)
         {
             float hw = width * 0.5f;
             float rad = bankDeg * Mathf.Deg2Rad;
             float c = Mathf.Cos(rad), s = Mathf.Sin(rad);
             var v = new List<Vector3>();
-            var col = new List<Color>();
             var t = new List<int>();
             for (int i = 0; i < segs; i++)
             {
@@ -164,11 +219,10 @@ namespace RedDust.Lab
                 Vector3 pIn1 = centre + rIn1 * (radius - hw * c) + Vector3.up * (hw * s);
                 int b = v.Count;
                 v.Add(pIn0); v.Add(pOut0); v.Add(pOut1); v.Add(pIn1);
-                for (int k = 0; k < 4; k++) col.Add(RefColor);
                 // ordem escolhida para a normal apontar para cima/dentro
                 t.AddRange(new[] { b, b + 1, b + 2, b, b + 2, b + 3 });
             }
-            return Finish(new Mesh { name = name }, v.ToArray(), t.ToArray(), col.ToArray());
+            return Finish(new Mesh { name = name }, v.ToArray(), t.ToArray(), style ?? MeshStyle.Reference);
         }
 
         /// <summary>
@@ -176,13 +230,13 @@ namespace RedDust.Lab
         /// secção ao longo de um arco, como manda a secção E do plano.
         /// </summary>
         public static Mesh HalfPipe(string name, Vector3 centre, float radius, float width,
-                                    float wallDeg, int segs = 128, int across = 14)
+                                    float wallDeg, int segs = 128, int across = 14, MeshStyle? style = null)
         {
             float hw = width * 0.5f;
             float wall = wallDeg * Mathf.Deg2Rad;
             var v = new List<Vector3>();
-            var col = new List<Color>();
             var t = new List<int>();
+            int stride = across + 1;
             for (int i = 0; i < segs; i++)
             {
                 float a0 = Mathf.PI * 2f * i / segs;
@@ -194,7 +248,7 @@ namespace RedDust.Lab
                 {
                     // -1 (bordo esquerdo) .. +1 (bordo direito)
                     float u = Mathf.Lerp(-1f, 1f, (float)k / across);
-                    // perfil: parábola que sobe até wallDeg nos bordos
+                    // perfil: sobe até wallDeg nos bordos
                     float lift = Mathf.Abs(u) * hw * Mathf.Tan(wall);
                     float off = u * hw;
                     v.Add(centre + r0 * (radius + off) + Vector3.up * lift);
@@ -206,50 +260,18 @@ namespace RedDust.Lab
                     float off = u * hw;
                     v.Add(centre + r1 * (radius + off) + Vector3.up * lift);
                 }
-                int stride = across + 1;
                 for (int k = 0; k < across; k++)
                 {
                     int a = b + k, bb = b + k + 1, cc = b + stride + k + 1, dd = b + stride + k;
                     t.AddRange(new[] { a, dd, cc, a, cc, bb });
                 }
-                for (int k = 0; k < v.Count - b; k++) col.Add(RefColor);
             }
-            return Finish(new Mesh { name = name }, v.ToArray(), t.ToArray(), col.ToArray());
-        }
-
-        /// <summary>
-        /// Parede inclinada para testes de wall-ride. Devolve a malha e, por referência, os pontos
-        /// de entrada e de saída no plano médio da parede.
-        /// </summary>
-        public static Mesh Wall(string name, float length, float height, float angleDeg, out Vector3 entry, out Vector3 exit)
-        {
-            float rad = angleDeg * Mathf.Deg2Rad;
-            float run = height / Mathf.Tan(rad);       // avanço horizontal
-            var v = new[]
-            {
-                new Vector3(0f, 0f, 0f),
-                new Vector3(run, 0f, 0f),
-                new Vector3(run, height, 0f),
-                new Vector3(0f, height, 0f),
-                new Vector3(0f, 0f, length),
-                new Vector3(run, 0f, length),
-                new Vector3(run, height, length),
-                new Vector3(0f, height, length),
-            };
-            var t = new[]
-            {
-                0, 1, 2, 0, 2, 3,       // triângulo lateral
-                4, 6, 5, 4, 7, 6,       // lateral oposto
-                3, 2, 6, 3, 6, 7,       // face inclinada (a superfície de corrida)
-                0, 4, 5, 0, 5, 1,       // base
-            };
-            entry = new Vector3(0f, height * 0.5f, 0f);
-            exit = new Vector3(0f, height * 0.5f, length);
-            return Finish(new Mesh { name = name }, v, t, Fill(8, RefColor));
+            return Finish(new Mesh { name = name }, v.ToArray(), t.ToArray(), style ?? MeshStyle.Reference);
         }
 
         /// <summary>Rampa/lábio de salto: plano inclinado que termina numa aresta viva.</summary>
-        public static Mesh Lip(string name, float length, float width, float angleDeg, out Vector3 topEdge)
+        public static Mesh Lip(string name, float length, float width, float angleDeg,
+                               out Vector3 topEdge, MeshStyle? style = null)
         {
             float rad = angleDeg * Mathf.Deg2Rad;
             float rise = length * Mathf.Tan(rad);
@@ -261,7 +283,7 @@ namespace RedDust.Lab
             };
             var t = new[] { 0, 1, 2, 0, 2, 3 };
             topEdge = new Vector3(0f, rise, length);
-            return Finish(new Mesh { name = name }, v, t, Fill(4, RefColor));
+            return Finish(new Mesh { name = name }, v, t, style ?? MeshStyle.Reference);
         }
 
         /// <summary>
@@ -269,14 +291,15 @@ namespace RedDust.Lab
         /// paredes em malhas separadas para o relatório poder nomeá-las.
         /// </summary>
         public static void Corridor(string name, float length, float width, float wallHeight,
-                                    out Mesh floor, out Mesh wallLeft, out Mesh wallRight)
+                                    out Mesh floor, out Mesh wallLeft, out Mesh wallRight, MeshStyle? style = null)
         {
-            floor = Flat(name + "_floor", new Vector2(width, length));
-            wallLeft = WallFace(name + "_wallL", length, width * 0.5f, wallHeight);
-            wallRight = WallFace(name + "_wallR", length, -width * 0.5f, wallHeight);
+            var st = style ?? MeshStyle.Reference;
+            floor = Flat(name + "_floor", new Vector2(width, length), st);
+            wallLeft = WallFace(name + "_wallL", length, width * 0.5f, wallHeight, st);
+            wallRight = WallFace(name + "_wallR", length, -width * 0.5f, wallHeight, st);
         }
 
-        static Mesh WallFace(string name, float length, float x, float height)
+        static Mesh WallFace(string name, float length, float x, float height, MeshStyle style)
         {
             float y0 = 0f, y1 = height;
             var v = new[]
@@ -285,16 +308,15 @@ namespace RedDust.Lab
                 new Vector3(x, y1, length), new Vector3(x, y1, 0f),
             };
             var t = x < 0f ? new[] { 0, 1, 2, 0, 2, 3 } : new[] { 0, 2, 1, 0, 3, 2 };
-            return Finish(new Mesh { name = name }, v, t, Fill(4, RefColor));
+            return Finish(new Mesh { name = name }, v, t, style);
         }
 
         /// <summary>Transição de bank: interpola a inclinação de <paramref name="fromDeg"/> a
         ///  <paramref name="toDeg"/> ao longo de Z, para medir a taxa de mudança admissível.</summary>
         public static Mesh BankTransition(string name, float length, float width,
-                                          float fromDeg, float toDeg, int steps = 64)
+                                          float fromDeg, float toDeg, int steps = 64, MeshStyle? style = null)
         {
             var v = new List<Vector3>();
-            var col = new List<Color>();
             var t = new List<int>();
             float hx = width * 0.5f;
             for (int i = 0; i <= steps; i++)
@@ -305,14 +327,273 @@ namespace RedDust.Lab
                 float z = length * f;
                 v.Add(new Vector3(-hx * c, hx * s, z));
                 v.Add(new Vector3(hx * c, -hx * s, z));
-                col.Add(RefColor); col.Add(RefColor);
             }
             for (int i = 0; i < steps; i++)
             {
                 int a = i * 2;
                 t.AddRange(new[] { a, a + 1, a + 3, a, a + 3, a + 2 });
             }
-            return Finish(new Mesh { name = name }, v.ToArray(), t.ToArray(), col.ToArray());
+            return Finish(new Mesh { name = name }, v.ToArray(), t.ToArray(), style ?? MeshStyle.Reference);
+        }
+
+        // ================================================================== erosão das paredes
+        //
+        // O gerador do Blender constrói o perfil da parede em segmentos RETOS
+        // (recuo = espessura / tan(ângulo da camada)) mais uma bancada no topo. O `wall_warp`
+        // existente está limitado a smoothstep(0, 70, x): só mexe no pé. O campo `relief` de
+        // Column.sample (≤0,75 m) alimenta apenas o micro-relevo do shader, não a forma.
+        // Resultado: paredes lisas, que foi exatamente a crítica do jogador.
+        //
+        // A erosão abaixo devolve recuo (m, ≥0) em função da dureza da camada e do ruído, e é a
+        // versão C# do patch proposto para Art/Blender/rdd_route_lib.py (função `erode`).
+        // Regra de segurança: o recuo é SOMADO à distância lateral, nunca subtraído, logo a
+        // largura do corredor no eixo nunca diminui e as linhas de corrida ficam livres.
+
+        /// <summary>Parâmetros da erosão da parede (valores por omissão = a coluna RED DUST DIVIDE).</summary>
+        public struct ErosionStyle
+        {
+            public float Amount;        // recuo máximo das camadas mais moles (m)
+            public float ScaleAlong;    // comprimento de onda ao longo da rota (m) — alcovas
+            public float ScaleHeight;   // comprimento de onda em altura (m) — cornijas e laminações
+            public int Seed;
+
+            public static ErosionStyle Default => new ErosionStyle
+            {
+                Amount = 26f, ScaleAlong = 520f, ScaleHeight = 26f, Seed = 7,
+            };
+
+            public static ErosionStyle None => new ErosionStyle { Amount = 0f, ScaleAlong = 520f, ScaleHeight = 26f, Seed = 7 };
+        }
+
+        static float Hash1(float n, int seed)
+        {
+            float h = Mathf.Sin(n * 127.1f + seed * 311.7f) * 43758.5453f;
+            return h - Mathf.Floor(h);
+        }
+
+        static float Noise1(float t, int seed)
+        {
+            float i = Mathf.Floor(t), f = t - i;
+            f = f * f * (3f - 2f * f);
+            return Mathf.Lerp(Hash1(i, seed), Hash1(i + 1f, seed), f);
+        }
+
+        /// <summary>
+        /// Ruído 3D barato (valor + interpolação trilinear), para o campo de erosão variar em todas
+        /// as direções e não só em duas.
+        /// </summary>
+        static float Noise3(Vector3 p, int seed)
+        {
+            float x0 = Mathf.Floor(p.x), y0 = Mathf.Floor(p.y), z0 = Mathf.Floor(p.z);
+            float fx = p.x - x0, fy = p.y - y0, fz = p.z - z0;
+            fx = fx * fx * (3f - 2f * fx);
+            fy = fy * fy * (3f - 2f * fy);
+            fz = fz * fz * (3f - 2f * fz);
+            float H(float dx, float dy, float dz) =>
+                Hash1(x0 + dx + (y0 + dy) * 57.1f + (z0 + dz) * 131.7f, seed);
+            float c00 = Mathf.Lerp(H(0, 0, 0), H(1, 0, 0), fx);
+            float c10 = Mathf.Lerp(H(0, 1, 0), H(1, 1, 0), fx);
+            float c01 = Mathf.Lerp(H(0, 0, 1), H(1, 0, 1), fx);
+            float c11 = Mathf.Lerp(H(0, 1, 1), H(1, 1, 1), fx);
+            return Mathf.Lerp(Mathf.Lerp(c00, c10, fy), Mathf.Lerp(c01, c11, fy), fz);
+        }
+
+        static float Fbm3(Vector3 p, int octaves, int seed)
+        {
+            float s = 0f, a = 0.5f, n = 0f;
+            var q = p;
+            for (int o = 0; o < octaves; o++)
+            {
+                s += a * Noise3(q, seed + o * 17);
+                n += a;
+                q = q * 2.03f + new Vector3(11.3f, 5.7f, 7.9f);
+                a *= 0.5f;
+            }
+            return s / n;
+        }
+
+        /// <summary>
+        /// Recuo de erosão 3D (m, ≥0): é isto que dá alcovas, fluting e rachaduras de vários tamanhos.
+        ///
+        /// Combina quatro escalas, todas a puxar para dentro:
+        ///   - alcova   : ~120 m ao longo, ~90 m em altura — recessos grandes e sombrios
+        ///   - fluting  : ~18 m ao longo, ~14 m em altura — canais verticais de parede de arenito
+        ///   - rachadura: ~5 m ao longo, ~4 m em altura — fissuras isoladas
+        ///   - lasca    : ~1,2 m — irregularidade fina da superfície
+        ///
+        /// As escalas são divididas DIRETAMENTE pelas distâncias em metros. A primeira versão
+        /// multiplicava a altura por 3 e isso empurrava a coordenada de ruído para valores muito
+        /// altos (y/3,8 chegava a 260), o que saturava o ruído: o resultado eram riscas verticais
+        /// uniformes em vez de manchas e fissuras.
+        ///
+        /// A dureza da camada controla a amplitude: uma camada mole (Chinle, 0,15) fica com o
+        /// recesso cheio, uma dura (Wingate, 0,97) mantém-se quase intacta e sobressai como cornija.
+        /// <paramref name="wallU"/> é a posição pela face da parede (0 = pé, 1 = topo) — é o que faz
+        /// o recuo variar pela face e não apenas ao longo.
+        /// </summary>
+        public static float Erode3D(float height, float along, float wallU, float hardness,
+                                    ErosionStyle e, float layerBlend = 0.5f)
+        {
+            if (e.Amount <= 0f) return 0f;
+
+            float soft = Mathf.Clamp01(1f - hardness);
+            float byHardness = e.Amount * Mathf.Pow(soft, 1.6f);
+
+            float alcove = Fbm3(new Vector3(along / 120f, height / 90f, wallU * 1.1f), 3, e.Seed);
+            float flute = Fbm3(new Vector3(along / 18f, height / 14f, wallU * 1.7f), 3, e.Seed + 101);
+            float crack = Fbm3(new Vector3(along / 5f, height / 4f, wallU * 2.3f), 3, e.Seed + 211);
+            float chip = Fbm3(new Vector3(along / 1.2f, height / 1.2f, wallU * 3.1f), 2, e.Seed + 307);
+
+            float depth = 0.62f * alcove + 0.34f * flute + 0.24f * crack + 0.12f * chip;
+
+            // o recuo acumula pela face: reentrâncias mais fundas a meio da parede, menos junto ao
+            // pé (onde há detrito acumulado) e menos no topo (onde a rocha é mais sã)
+            float byFace = 0.55f + 0.65f * Mathf.Sin(wallU * Mathf.PI);
+
+            // nas transições entre camadas há reentrância extra: a mole escava-se mais depressa
+            float atBoundary = 1f + 0.5f * (1f - Mathf.Abs(2f * layerBlend - 1f));
+
+            return byHardness * byFace * atBoundary * depth;
+        }
+
+        /// <summary>
+        /// Parede de canyon com perfil estratificado e erosão, para os testes de wall-ride.
+        ///
+        /// <paramref name="layers"/> é (topo em y, dureza 0..1) de baixo para cima, na mesma ordem e
+        /// com os mesmos valores que <c>LAYERS_RDD</c> do Blender, para o laboratório e a pista
+        /// partilharem a mesma linguagem geológica.
+        ///
+        /// Sobe de baixo para cima; a face de corrida tem a inclinação de cada camada, com uma
+        /// bancada no topo das camadas duras — e o recuo de erosão somado à distância lateral.
+        /// </summary>
+        public static Mesh WallProfile(string name, float length, float baseHeight,
+                                       (float y, float hardness)[] layers, float angleDeg,
+                                       ErosionStyle erosion, float alongOffset = 0f,
+                                       int alongSamples = 26, int heightSamples = 56,
+                                       MeshStyle? style = null)
+        {
+            var st = style ?? MeshStyle.Reference;
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+
+            // Perfil 2D (x = recuo acumulado, y = altura).
+            //
+            // A densidade em altura é distribuída por `heightSamples` amostras em TODAS as camadas,
+            // proporcionalmente à espessura de cada uma. A versão anterior derivava o número de
+            // amostras da espessura dividida por um passo e depois limitava a 2..40, pelo que
+            // aumentar `heightSamples` não aumentava a densidade — as rachaduras caíam entre vértices.
+            float lift = Mathf.Max(1f, layers.Length > 0 ? layers[layers.Length - 1].y - baseHeight : 1f);
+            int budget = Mathf.Max(layers.Length * 3, heightSamples);
+            var prof = new List<Vector2>();
+            float x = 0f, y = baseHeight;
+            prof.Add(new Vector2(0f, y));
+            for (int i = 0; i < layers.Length; i++)
+            {
+                float top = layers[i].y;
+                float hard = Mathf.Clamp01(layers[i].hardness);
+                // camada mole recua mais depressa (ângulo efetivo menor): 34..86 graus
+                float effAngle = Mathf.Lerp(34f, 86f, hard);
+                float effTan = Mathf.Tan(effAngle * Mathf.Deg2Rad);
+                float thick = Mathf.Max(0.5f, top - y);
+                int n = Mathf.Max(3, Mathf.RoundToInt(budget * (thick / lift)));
+                for (int k = 1; k <= n; k++)
+                {
+                    float f = (float)k / n;
+                    float yy = y + thick * f;
+                    prof.Add(new Vector2(x + (thick * f) / effTan, yy));
+                }
+                x += thick / effTan;
+                y = top;
+                // bancada no topo das camadas duras
+                if (hard > 0.6f)
+                {
+                    float bench = Mathf.Lerp(2f, 16f, (hard - 0.6f) / 0.4f);
+                    x += bench;
+                    prof.Add(new Vector2(x, y + 0.02f));
+                }
+            }
+
+            // varrer o perfil ao longo do comprimento (eixo Z), com o campo de erosão 3D por ponto
+            int stride = prof.Count;
+            float totalH = Mathf.Max(1f, prof[prof.Count - 1].y - prof[0].y);
+            for (int s = 0; s <= alongSamples; s++)
+            {
+                float along = alongOffset + length * s / alongSamples;
+                float z = length * (float)s / alongSamples;
+                for (int p = 0; p < stride; p++)
+                {
+                    float hard = HardnessAt(prof[p].y, layers, baseHeight);
+                    float wallU = (prof[p].y - prof[0].y) / totalH;
+                    // mistura na camada: 0 no centro da camada, 0.5 na fronteira com a seguinte
+                    float blend = LayerBlend(prof[p].y, layers);
+                    float rec = Erode3D(prof[p].y - baseHeight, along, wallU, hard, erosion, blend);
+                    verts.Add(new Vector3(prof[p].x + rec, prof[p].y, z));
+                }
+            }
+            for (int s = 0; s < alongSamples; s++)
+                for (int p = 0; p < stride - 1; p++)
+                {
+                    int a = s * stride + p, b = a + 1, c = a + stride + 1, d = a + stride;
+                    tris.AddRange(new[] { a, b, c, a, c, d });
+                }
+
+            return Finish(new Mesh { name = name }, verts.ToArray(), tris.ToArray(), st);
+        }
+
+        /// <summary>Onde a elevação está dentro da sua camada: 0 no centro, 0,5 na fronteira.</summary>
+        static float LayerBlend(float y, (float y, float hardness)[] layers)
+        {
+            float bot = 0f;
+            for (int i = 0; i < layers.Length; i++)
+            {
+                if (y <= layers[i].y)
+                {
+                    float top = layers[i].y;
+                    if (top - bot < 1e-3f) return 0f;
+                    float f = Mathf.Clamp01((y - bot) / (top - bot));
+                    return Mathf.Min(f, 1f - f);            // 0 no centro, 0.5 nas bordas
+                }
+                bot = layers[i].y;
+            }
+            return 0f;
+        }
+
+        static float HardnessAt(float y, (float y, float hardness)[] layers, float baseHeight)
+        {
+            for (int i = 0; i < layers.Length; i++)
+                if (y <= layers[i].y) return layers[i].hardness;
+            return layers.Length > 0 ? layers[layers.Length - 1].hardness : 0.6f;
+        }
+
+        /// <summary>
+        /// As onze camadas de RED DUST DIVIDE, com a mesma ordem e durezas de <c>LAYERS_RDD</c>
+        /// (rdd_geology.py). Só a elevação do topo e a dureza interessam ao perfil de parede.
+        /// </summary>
+        public static (float y, float hardness)[] RedDustLayers(float baseHeight = 0f)
+        {
+            // nome, espessura, dureza  (LAYERS_RDD)
+            var src = new (string name, float thick, float hard)[]
+            {
+                ("Organ Rock", 200f, 0.30f),
+                ("White Rim",   40f, 0.95f),
+                ("Moenkopi",    65f, 0.45f),
+                ("Moss Back",   15f, 0.90f),
+                ("Chinle",      45f, 0.15f),
+                ("Wingate",    100f, 0.97f),
+                ("Kayenta",     35f, 0.65f),
+                ("Navajo",      60f, 0.85f),
+                ("Carmel",      20f, 0.25f),
+                ("Entrada",     80f, 0.92f),
+                ("Summerville", 60f, 0.30f),
+            };
+            var outp = new (float y, float hardness)[src.Length];
+            float y = baseHeight;
+            for (int i = 0; i < src.Length; i++)
+            {
+                y += src[i].thick;
+                outp[i] = (y, src[i].hard);
+            }
+            return outp;
         }
     }
 }
