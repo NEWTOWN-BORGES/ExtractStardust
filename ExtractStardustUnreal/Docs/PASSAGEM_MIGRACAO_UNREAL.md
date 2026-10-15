@@ -16,24 +16,31 @@ Concluir a migração Unity → Unreal Engine 5.8, preservando intacto o Unity. 
 - Unreal Engine 5.8.3. `ExtractStardustPreview.uproject` permite abrir assets/previews sem compilar C++; `ExtractStardust.uproject` contém o módulo C++.
 - Importados: 5 chassis, 24 meshes de curso, kits de props, dados, áudio, materiais, texturas, imagens e fontes. Consultar `Docs/IMPORTACAO_RECURSOS.txt`, `Docs/AUDITORIA_LIMITES_MALHAS.txt`, `Docs/PREVIEW_CURSOS.txt`.
 - Mapas de inspeção existentes: `/Game/Stardust/Maps/Preview_Hangar`, `Preview_RedDust`, `Preview_Sandbox`. As pistas são previews: faltam colisão final, streaming, IA, integração ao GameMode/HUD e validação visual/funcional.
-- Existem protótipos C++ de pawn, perfil/save, HUD, corrida e leitores RDDC/RDDG. A compilação do módulo e a paridade com o Unity não foram confirmadas.
-- As quatro cargas de consumíveis e bindings `1`–`4` aparecem no código, mas ainda precisam de build e validação no jogo.
-- No check atual, os processos `setup.exe` PID 14836 e 16380 ainda respondiam. A última auditoria antes deste checkpoint não encontrou MSVC x64/x86 nem Windows SDK válidos. Reconsultar o Visual Studio Installer e `vswhere` quando estes processos terminarem; não encerrar o instalador à força.
+- Existem protótipos C++ de pawn, perfil/save, HUD, corrida e leitores RDDC/RDDG. A paridade com o Unity ainda não foi confirmada em jogo.
+- As quatro cargas de consumíveis e bindings `1`–`4` aparecem no código, mas ainda precisam de validação no jogo.
+- O MSVC x64 já está instalado em `C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231`.
+- A compilação do editor foi tentada. Primeiro foi corrigido `BuildSettingsVersion.V6` para `V7` nos dois targets. A segunda tentativa chegou ao UnrealBuildTool, mas parou porque falta o .NET Framework SDK exigido pelo módulo `SwarmInterface`; ainda não é um erro do C++ do projeto.
+- O target de jogo foi compilado com sucesso depois da correcção do HUD para a API `Canvas::DrawText` do UE 5.8. Binário: `Binaries/Win64/ExtractStardust.exe`.
+- O teste de arranque do target não cozinhado terminou com erro de leitura de asset (`BufferReader`); isto não é um build jogável standalone. O teste correcto pelo `UnrealEditor.exe` iniciou `ExtractStardustPreview` e confirmou `Running engine for game` sem erro fatal. Para distribuir/jogar fora do Editor ainda é necessário `BuildCookRun`.
+- Os processos `setup.exe` PID 14836 e 16380 continuam ativos. Não encerrar o instalador à força; confirmar no Visual Studio Installer que foram adicionados Windows SDK e `.NET Framework SDK`.
 
 ## Ponto exato em que parei
-Estava a inspecionar o hangar antes de modificar código. Não foram feitas alterações funcionais no hangar neste checkpoint.
-- `Source/ExtractStardust/Private/StardustHangarPreview.cpp` fixa o chassis `strix` e define apenas dois sockets genéricos (`engine` e `utility`).
-- `GetCompatibleParts` já aplica compatibilidade por família/tamanho e `PreviewPart` já sabe usar material vermelho, mas não há catálogo real ligado ao fluxo de UI/instalação.
-- Pedido do utilizador: listar apenas peças compatíveis com a aeronave atual; mostrar preview 3D do módulo selecionado/instalado; indicar a vermelho uma peça incompatível quando a comparação/preview ocorrer.
-- Referências Unity preservadas em `SourceAssets/Unity/Assets/RedDust/Runtime/Game/ShipBuilder.cs`, `V2ShipVisual.cs` e `SourceAssets/Unity/Assets/RedDust/Runtime/Meta/Catalog.cs` / `Items.cs`. A origem tem mais famílias e sockets; parte da aparência é geometria procedural. Portar dados/regras reais em vez de manter os dois sockets de exemplo.
+O hangar já recebeu a primeira passagem funcional.
+- `Source/ExtractStardust/Private/StardustHangarPreview.cpp` deixou de fixar apenas `strix`: os cinco chassis têm sockets de motor, propulsão, asas, blindagem, reator, refrigeração, cauda e utilidade; `nomad`, `bastion` e `vortex` têm os sockets adicionais do catálogo.
+- `FStardustSocketDefinition` suporta tamanhos múltiplos. `GetCompatibleParts` filtra por família e tamanho; o preview directo de uma peça incompatível aplica o material vermelho e recusa a instalação.
+- Foram adicionadas `SetChassis`, `InstallPart`, `RemoveInstalledPart`, `GetSockets` e persistência dos módulos/chassis em `UStardustProfileSubsystem`.
+- O preview 3D usa o mesh do chassis e do módulo carregado, com posições de socket em centímetros Unreal. As posições são uma primeira aproximação e precisam de ajuste visual por asset.
+- Ainda falta ligar a lista de candidatos e os botões à UI/UMG e reconstruir os módulos instalados a partir do catálogo ao abrir o hangar.
+- Referências Unity preservadas em `SourceAssets/Unity/Assets/RedDust/Runtime/Game/ShipBuilder.cs`, `V2ShipVisual.cs` e `SourceAssets/Unity/Assets/RedDust/Runtime/Meta/Catalog.cs` / `Items.cs`.
 
 ## Próximas ações
-1. Confirmar que a branch `unreal-migration` contém apenas o snapshot Unreal, esta nota e os ficheiros de controlo; confirmar que as alterações Unity ficaram unstaged.
-2. Fazer push de `unreal-migration` para `origin` quando houver rede rápida. O conteúdo Unreal bruto ronda 1,9 GB antes de ignorar temporários; o envio/clone pode demorar.
-3. Terminar o hangar de modo data-driven: chassis selecionável, sockets e limites reais por aeronave, catálogo filtrado por compatibilidade, preview 3D, instalação/persistência e ligação à UI.
-4. Depois de MSVC e Windows SDK estarem disponíveis, compilar `ExtractStardust.uproject`, corrigir erros e testar os fluxos no Editor.
-5. Portar o restante jogo: física/hover, navegação de percurso, streaming, obstáculos, IA, corrida, HUD/UMG, áudio, economia e telas. Atualizar `Docs/MAPA_PORTES.md` e `Docs/PLANO_MIGRACAO_UNITY_UNREAL.md` apenas com evidência verificada.
-6. Fazer o salto gráfico depois de a migração fiel funcionar.
+1. Confirmar o commit desta passagem em `origin/unreal-migration`; a branch já recebeu o snapshot inicial de 1,8 GB LFS.
+2. Quando o Visual Studio Installer terminar, acrescentar o `.NET Framework SDK 4.6+` e repetir o target de Editor; o Windows 10 SDK já é detectado pelo UnrealBuildTool.
+3. Ligar a lista de candidatos e botões UMG ao `GetCompatibleParts`, `PreviewPart` e `InstallPart`; carregar meshes dos IDs reais de `Catalog.cs`.
+4. Reconstruir os módulos persistidos ao abrir o hangar e fazer ajuste visual dos transforms por socket.
+5. Criar um perfil de `BuildCookRun` para produzir uma build distribuível e testar o fluxo fora do Editor.
+6. Portar o restante jogo: física/hover, navegação de percurso, streaming, obstáculos, IA, corrida, HUD/UMG, áudio, economia e telas. Actualizar `Docs/MAPA_PORTES.md` e `Docs/PLANO_MIGRACAO_UNITY_UNREAL.md` apenas com evidência verificada.
+7. Fazer o salto gráfico depois de a migração fiel funcionar.
 
 ## Referências GitHub
 - [Limites de ficheiros/repositório e Git LFS](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)

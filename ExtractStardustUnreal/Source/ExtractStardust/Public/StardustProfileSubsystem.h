@@ -34,6 +34,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Extract Stardust|Profile")
 	void SetLoadoutSlot(int32 Slot, FName Id, int32 Count);
 
+	UFUNCTION(BlueprintCallable, Category="Extract Stardust|Hangar")
+	void SelectChassis(FName ChassisId);
+
+	UFUNCTION(BlueprintCallable, Category="Extract Stardust|Hangar")
+	void SetInstalledPart(FName SocketId, FName PartId);
+
+	UFUNCTION(BlueprintCallable, Category="Extract Stardust|Hangar")
+	void ClearInstalledPart(FName SocketId);
+
+	UFUNCTION(BlueprintPure, Category="Extract Stardust|Hangar")
+	FName GetInstalledPart(FName SocketId) const;
+
 	UFUNCTION(BlueprintCallable, Category="Extract Stardust|Profile")
 	void AddStardust(int64 Amount);
 

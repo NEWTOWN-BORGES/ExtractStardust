@@ -25,6 +25,21 @@ public:
 	bool PreviewPart(FName SocketId, const FStardustPartDefinition& Part);
 
 	UFUNCTION(BlueprintCallable, Category="Extract Stardust|Hangar")
+	bool InstallPart(FName SocketId, const FStardustPartDefinition& Part);
+
+	UFUNCTION(BlueprintCallable, Category="Extract Stardust|Hangar")
+	void RemoveInstalledPart(FName SocketId);
+
+	UFUNCTION(BlueprintCallable, Category="Extract Stardust|Hangar")
+	bool SetChassis(FName ChassisId);
+
+	UFUNCTION(BlueprintPure, Category="Extract Stardust|Hangar")
+	FName GetChassis() const { return CurrentChassisId; }
+
+	UFUNCTION(BlueprintPure, Category="Extract Stardust|Hangar")
+	TArray<FStardustSocketDefinition> GetSockets() const { return Sockets; }
+
+	UFUNCTION(BlueprintCallable, Category="Extract Stardust|Hangar")
 	void ClearPartPreview();
 
 protected:
@@ -43,6 +58,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Hangar")
 	bool bAutoRotate = true;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Hangar")
+	FName CurrentChassisId = TEXT("strix");
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Hangar")
+	TMap<FName, FStardustPartDefinition> InstalledParts;
+
 private:
 	const FStardustSocketDefinition* FindSocket(FName SocketId) const;
+	void ConfigureSockets(FName ChassisId);
+	void SetPartMaterial(bool bCompatible);
 };

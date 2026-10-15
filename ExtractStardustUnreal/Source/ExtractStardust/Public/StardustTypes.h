@@ -60,6 +60,9 @@ struct FStardustSocketDefinition
 	FName Size = TEXT("M");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FName> AcceptedSizes;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FTransform RelativeTransform;
 };
 
@@ -79,4 +82,7 @@ struct FStardustProfile
 
 	UPROPERTY(SaveGame, BlueprintReadOnly)
 	TArray<FStardustConsumableStack> Loadout;
+
+	UPROPERTY(SaveGame, BlueprintReadOnly)
+	TMap<FName, FName> InstalledParts;
 };
