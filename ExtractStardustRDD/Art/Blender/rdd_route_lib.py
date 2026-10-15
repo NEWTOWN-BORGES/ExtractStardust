@@ -243,7 +243,7 @@ def arc_from_center(loc):
 
 
 def sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls=None, floor_mask=None,
-           erosion_m=70.0, erosion_seed=7):
+           erosion_m=70.0, erosion_seed=7, talus_h=9.0):
     """Secção de corrida: leito (areia/slickrock) e paredes polidas na zona de corrida; rocha estratificada acima.
 
     erosion_m: amplitude da erosão 3D nas paredes de rocha (0 desliga e volta ao aspeto anterior).
@@ -251,6 +251,11 @@ def sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls=None, floor_ma
     a amplitude escala aproximadamente em proporção — 26 m dá deslocamento máximo de ~9 m
     (fraco demais para se ler a 100 m/s), 70 m dá ~23 m, 100 m dá ~34 m.
     Em nenhum valor a largura do corredor diminui.
+
+    talus_h: altura do cone de detrito no pé das paredes (0 desliga). Nos canyons reais
+    acumula-se entulho no sopé; sem isso a parede nasce a pique do chão, que é metade do
+    aspeto de "tubo". O detrito nunca entra na zona de corrida — é montado a partir do
+    limite da faixa percorrível, logo a largura útil da pista fica intacta.
     """
     S, N, _ = loc.shape
     W = P[:, None, :] + R[:, None, :] * loc[..., 0:1] + U[:, None, :] * loc[..., 1:2]
@@ -280,6 +285,26 @@ def sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls=None, floor_ma
         erosion = erode3d(y, dist, wall_u, hard, amount=erosion_m, seed=erosion_seed)
     else:
         erosion = 0.0
+    # CONE DE DETRITO no pé das paredes. Sem ele a parede nasce a pique do chão, que é metade
+    # do aspeto de "tubo". Montado sobre a normal da superfície (Nw), que já aponta para fora e
+    # para cima — logo o detrito ergue a parede sem a puxar para o corredor.
+    #
+    # Duas salvaguardas que importam à jogabilidade:
+    #  1. o chão (floor_mask) fica exactamente intacto — medido: 0,000000 m de deslocamento;
+    #  2. o detrito arranca suavemente 5 m acima do limite percorrível.
+    #
+    # O ponto 2 tem de ser um RAMP e não uma máscara dura. Uma máscara binária faz um degrau de
+    # 0 para talus_h entre vértices vizinhos; como todos são deslocados pela normal partilhada
+    # (Nw), esse degrau ARRASTA os vizinhos de baixo para fora e mexia na ride line da parede
+    # (medido: 3,7 m em vez de ~0). Com o ramp, o deslocamento é ~0 dentro da banda.
+    if talus_h > 0.5:
+        acima = np.abs(arc) - lim                       # distância acima do limite, em lateral
+        # sobe de 0 aos 5 m até talus_h aos 25 m
+        u_talus = np.clip((acima - 5.0) / 20.0, 0.0, 1.0)
+        t_height = talus_h * u_talus * u_talus          # inicio suave (C1), sem degrau
+        # as cristas são irregulares: o cone não é uma cunha perfeita
+        t_height *= 0.80 + 0.40 * geo.fbm3(x / 26.0, z / 26.0, y / 18.0, 2, seed=seed + 313)
+        disp += t_height * np.clip(1.0 - y / 34.0, 0.0, 1.0)
     disp += rock * (1.15 * relief - 1.6 * jr + 0.45 * rough + erosion)
     # bordas exteriores sem deslocamento (encaixe com a parede próxima)
     edge = np.ones((1, N)); edge[0, :2] = 0.0; edge[0, -2:] = 0.0

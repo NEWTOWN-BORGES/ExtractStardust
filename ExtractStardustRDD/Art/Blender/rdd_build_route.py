@@ -60,6 +60,10 @@ TUCK = 0.08
 EROSION_M = 70.0
 EROSION_SEED = 7
 
+# Cone de detrito no pé das paredes (ver rdd_route_lib.sculpt). 0 desliga.
+# Nunca entra na faixa percorrível, logo a largura útil da pista não muda.
+TALUS_H = 9.0
+
 
 # ------------------------------------------------------------------ percursos
 
@@ -237,7 +241,7 @@ def build_path(pid, rows, step, col, seed, names, warp_seed, joint_seed, floor_v
     cave = pb.cave = np.array([r['cave'] for r in rows], bool)
     dist_st = pb.dist = np.array([r['dist'] for r in rows])
     Wr, arc, rockmask, cls_r, pa_r, pb_r, mix_r, hard_r = sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls, floor_mask,
-                                                                erosion_m=EROSION_M, erosion_seed=EROSION_SEED)
+                                                                erosion_m=EROSION_M, erosion_seed=EROSION_SEED, talus_h=TALUS_H)
     pb.Wr = Wr
     Rh = R.copy(); Rh[:, 1] = 0.0
     Rh /= np.maximum(np.linalg.norm(Rh, axis=1, keepdims=True), 1e-9)
@@ -540,7 +544,7 @@ def clip_grid(pts, nrm, col, uv, uv2, d, who, skip, paths, xi=0):
 # ------------------------------------------------------------------ construção
 
 def main():
-    global KS, KSP, EROSION_M, EROSION_SEED
+    global KS, KSP, EROSION_M, EROSION_SEED, TALUS_H
     spec = json.load(open(SPEC_PATH, encoding='utf-8'))
     # interruptores de jogabilidade: ramos (junções em camadas ainda por resolver) e features desligadas uma a uma
     if not spec.get('branches_enabled', True):
@@ -550,7 +554,8 @@ def main():
     KSP = KS + 2
     EROSION_M = float(spec.get('erosion_m', 70.0))     # 0 desliga a erosão 3D das paredes
     EROSION_SEED = int(spec.get('erosion_seed', 7))   # inteiro: o _hash do geology exige-o
-    log(f"erosao das paredes: {EROSION_M:.1f} m (seed {EROSION_SEED})")
+    TALUS_H = float(spec.get('talus_h', 9.0))          # 0 desliga o cone de detrito
+    log(f"erosao das paredes: {EROSION_M:.1f} m (seed {EROSION_SEED}) | detrito: {TALUS_H:.1f} m")
     name = spec['name']
     seed = int(spec.get('seed', 1))
     bpy.ops.wm.read_factory_settings(use_empty=True)

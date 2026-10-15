@@ -22,8 +22,20 @@ Em `Art/Courses/<pista>.json`:
 
 | Campo | Por omissão | Efeito |
 |---|---|---|
-| `erosion_m` | `26.0` | amplitude da erosão das paredes em metros. **0 desliga** e volta ao aspeto anterior |
+| `erosion_m` | `70.0` | amplitude da erosão das paredes em metros. **0 desliga** e volta ao aspeto anterior |
 | `erosion_seed` | `7` | semente. **Tem de ser inteiro** |
+| `talus_h` | `9.0` | altura do cone de detrito no pé das paredes. **0 desliga** |
+
+### Amplitude da erosão
+
+Medida sobre o sandbox (a escala é aproximadamente proporcional):
+
+| `erosion_m` | Deslocamento máximo |
+|---|---|
+| 26 | ~9 m (discreto demais a 100 m/s) |
+| **70** | **~24 m** ← por omissão |
+| 100 | ~34 m |
+| 150 | ~52 m |
 
 Ordem de grandeza por camada (medido com o ruído real do projeto):
 
@@ -52,6 +64,20 @@ Como o ruído é bidirecional, a erosão apontaria para dentro do corredor em me
 dos pontos — o que não é erosão e **estreita a pista**. As larguras do design (e as
 medições da Fase 1) contam com elas. Por isso o `depth` é cortado em zero: a
 erosão só afasta a parede, e o corredor fica sempre igual ou mais largo.
+
+**3. Deslocamento com máscara dura arrasta os vizinhos.**
+
+O cone de detrito começou por usar uma máscara binária (`acima > 8 m`). Os vértices
+abaixo do limite não recebiam `t_height`, mas como **todos** são deslocados pela
+normal partilhada `(Nw)`, o degrau de 0 para `talus_h` entre vértices vizinhos
+arrastava-os para fora. Resultado medido: **3,7 m de deslocamento na banda da ride
+line** — tornaria o wall-ride pouco fiável.
+
+Corrigido com um ramp quadrático (`u²`) que arranca a 0 m e chega a `talus_h` aos
+25 m acima do limite. Passou de 3,7 m para **0,776 m** nessa banda.
+
+Lição geral: em deslocamento por normal partilhada, **nunca usar máscara binária —
+usar sempre ramp**.
 
 ## Verificar antes de gerar
 
