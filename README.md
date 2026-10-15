@@ -2,11 +2,29 @@
 
 **RACE. SURVIVE. EXTRACT.** Corrida de extração com naves antigravidade (Unity 6 URP + Blender), PC e Android.
 
+> **Trabalho em curso no ramo `red-dust-divide-v2`.** Para retomar o
+> desenvolvimento, começar por **[`ExtractStardustRDD/Docs/ESTADO_Handoff.md`](ExtractStardustRDD/Docs/ESTADO_Handoff.md)** —
+> traz o que está feito, o que falta, como verificar sem Unity nem Blender, e as
+> convenções que não se devem quebrar.
+
 | Pasta | O que é | Estado |
 |---|---|---|
-| `ExtractStardustRDD/` | **Projeto principal.** Expedição RED DUST DIVIDE: canyons naturais (Utah/Arizona reinterpretados), naves a 400–450 km/h, geologia modelada no Blender. Modos Exploração, Extração vs bots e PvP local; 5 naves modulares, mochila, mercado, Supply Caches, seguro e Expedition Pool. | Laboratório validado (21/22 testes). Expedição (105,7 km, 9 setores, ~20 min) gerada no Blender. Modos e economia programados e testados fora do Unity; falta compilar no editor (licença). |
+| `ExtractStardustRDD/` | **Projeto principal.** Expedição RED DUST DIVIDE: canyons naturais (Utah/Arizona reinterpretados), naves a 400–450 km/h, geologia modelada no Blender. Modos Exploração, Extração vs bots e PvP local; 5 naves modulares, mochila, mercado, Supply Caches, seguro e Expedition Pool. | Laboratório validado (21/22 testes). Expedição (105,7 km, 9 setores, ~20 min) gerada no Blender. Modos e economia programados e testados fora do Unity. Os 9 assemblies compilam (verificado com `Tools/check_compile.ps1`, sem abrir o editor). Falta correr o editor e medir física/fps em casa. |
 | `ExtractStardust/` | Protótipo anterior: ilha de 24 km em mundo aberto (porte do RACESTARS), com expedição, circuitos, Wi-Fi e tela dividida. | Arquivo. |
 | `Builds_Jogaveis/` | Jogos compilados (Git LFS). | Ver abaixo. |
+
+## Verificar sem abrir o Unity
+
+O projeto compila-se e testa-se sem licença, sem GPU e sem abrir o editor:
+
+```powershell
+cd ExtractStardustRDD
+powershell -ExecutionPolicy Bypass -File Tools\check_compile.ps1   # 9/9 assemblies
+powershell -ExecutionPolicy Bypass -File Tools\test_meta.ps1       # 45 701 verificações de economia
+python Tools\verifica_sculpt_real.py                               # geometria da pista, sem Blender
+```
+
+As ferramentas detectam sozinhas a versão do editor instalada.
 
 ## Jogar sem o Unity
 

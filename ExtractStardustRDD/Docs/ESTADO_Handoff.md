@@ -7,6 +7,24 @@ máquina, ou outra pessoa) deve ler isto primeiro.
 
 ---
 
+## Estado à vista
+
+| Área | Estado |
+|---|---|
+| Compilação dos 9 assemblies | ✅ verificada sem abrir o editor |
+| Economia / meta-jogo | ✅ 45 701 verificações a passar |
+| Geometria da pista (com erosão e detrito) | ✅ verificada sobre o sandbox |
+| Erosão 3D das paredes | ✅ na pista real (Blender) e no laboratório (C#) |
+| Detrito no pé das paredes | ✅ ligado à pista real |
+| Variação macro da cor | ✅ no shader partilhado |
+| Normal map tangente | ✅ shader + tangentes no import |
+| Shaders | ⚠️ **nunca compilados** (sem GPU) |
+| Física do wall-ride com erosão | ⚠️ **por reconfirmar no Unity** |
+| fps com o shader novo | ⚠️ **por medir** |
+| CI | ⏸️ escrito mas desligado e não publicado |
+
+---
+
 ## Onde está o código
 
 Ramo de trabalho: **`red-dust-divide-v2`** (o `main` fica intacto).
@@ -67,6 +85,34 @@ powershell -ExecutionPolicy Bypass -File Tools\check_compile.ps1   # 9/9 assembl
 | 4 | **Não há detrito no laboratório com a mesma forma da pista** — são geradores diferentes (C# e Python), com a mesma paleta mas algoritmos separados. | `LabGeometry.cs` vs `rdd_route_lib.py` |
 | 5 | **Referências de IP.** Uma das imagens em `Docs/referencias/` é um frame de um jogo comercial. O plano (conflito C13) diz que a regra de IP original ganha. | `Docs/referencias/ref_gameplay_*.jpg` |
 | 6 | **Falta acrescentar as novidades ao `spec.json`** se quiseres valores diferentes por pista: `erosion_m`, `erosion_seed`, `talus_h`. Os defaults já estão no código. | `Art/Courses/*.json` |
+
+## Sobre acessos remotos (verificado)
+
+Não há controlo remoto no DSH, e é **deliberado**. O próprio código recusa:
+
+```
+error: --host 0.0.0.0 is intentionally not supported yet for safety:
+it would expose remote code execution to the network; use 127.0.0.1 instead
+```
+
+A documentação explica porquê: *"the server carries no TLS, authentication, or
+origin policy of its own"*. O servidor escuta apenas em `127.0.0.1`.
+
+Dois avisos que valem a pena guardar:
+
+- `--trusted-host` **não dá identidade**. A documentação é explícita: *"a trusted
+  but unauthenticated request returns 401; these checks never establish identity"*.
+  Não é porta dos fundos.
+- Expor por túnel (ex.: `cloudflared`, que está instalado nesta máquina) daria
+  HTTPS mas **não autenticação** — qualquer pessoa com o URL teria execução de
+  código. Não usar.
+
+**Como se resolve a continuidade entre máquinas:** pelo repositório, não por
+controlo remoto. Este documento é o canal. Numa sessão nova, em qualquer máquina:
+
+```
+Lê ExtractStardustRDD/Docs/ESTADO_Handoff.md e continua o trabalho
+```
 
 ## Convenções que não se devem quebrar
 
