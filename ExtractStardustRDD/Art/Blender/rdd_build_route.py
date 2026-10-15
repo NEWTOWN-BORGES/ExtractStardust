@@ -50,6 +50,13 @@ VOID_MARGIN = 0.8                # o percurso prioritário prolonga-se até esta
                                  # puxada para 8 cm abaixo da outra superfície: costuras sem fendas e sem lancis
 TUCK = 0.08
 
+# Erosão 3D das paredes (ver rdd_route_lib.erode3d). Valores por omissão iguais aos do laboratório,
+# onde foram validados. Sobrepõem-se por spec.json com "erosion_m" (0 desliga) e "erosion_seed".
+# Variáveis globais pelo mesmo motivo que KS/KSP: sculpt() é chamado sem o spec à mão.
+# A seed tem de ser INTEIRA (o _hash do rdd_geology rebenta com float).
+EROSION_M = 26.0
+EROSION_SEED = 7
+
 
 # ------------------------------------------------------------------ percursos
 
@@ -226,7 +233,8 @@ def build_path(pid, rows, step, col, seed, names, warp_seed, joint_seed, floor_v
     gap = pb.gap = np.array([r['gap'] for r in rows], bool)
     cave = pb.cave = np.array([r['cave'] for r in rows], bool)
     dist_st = pb.dist = np.array([r['dist'] for r in rows])
-    Wr, arc, rockmask, cls_r, pa_r, pb_r, mix_r, hard_r = sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls, floor_mask)
+    Wr, arc, rockmask, cls_r, pa_r, pb_r, mix_r, hard_r = sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls, floor_mask,
+                                                                erosion_m=EROSION_M, erosion_seed=EROSION_SEED)
     pb.Wr = Wr
     Rh = R.copy(); Rh[:, 1] = 0.0
     Rh /= np.maximum(np.linalg.norm(Rh, axis=1, keepdims=True), 1e-9)
@@ -529,7 +537,7 @@ def clip_grid(pts, nrm, col, uv, uv2, d, who, skip, paths, xi=0):
 # ------------------------------------------------------------------ construção
 
 def main():
-    global KS, KSP
+    global KS, KSP, EROSION_M, EROSION_SEED
     spec = json.load(open(SPEC_PATH, encoding='utf-8'))
     # interruptores de jogabilidade: ramos (junções em camadas ainda por resolver) e features desligadas uma a uma
     if not spec.get('branches_enabled', True):
@@ -537,6 +545,9 @@ def main():
     spec['features'] = [f for f in spec.get('features', []) if f.get('enabled', True)]
     KS = int(spec.get('wall_samples', KS))             # amostras das paredes próximas (percursos longos: menos)
     KSP = KS + 2
+    EROSION_M = float(spec.get('erosion_m', 26.0))     # 0 desliga a erosão 3D das paredes
+    EROSION_SEED = int(spec.get('erosion_seed', 7))   # inteiro: o _hash do geology exige-o
+    log(f"erosao das paredes: {EROSION_M:.1f} m (seed {EROSION_SEED})")
     name = spec['name']
     seed = int(spec.get('seed', 1))
     bpy.ops.wm.read_factory_settings(use_empty=True)

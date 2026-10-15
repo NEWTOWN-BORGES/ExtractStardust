@@ -472,6 +472,11 @@ namespace RedDust.Lab
             float chip = Fbm3(new Vector3(along / 1.2f, height / 1.2f, wallU * 3.1f), 2, e.Seed + 307);
 
             float depth = 0.62f * alcove + 0.34f * flute + 0.24f * crack + 0.12f * chip;
+            // O Noise3/Fbm3 do laboratório devolve 0..1 (centrado em 0,5), ao contrário do fbm3
+            // do rdd_geology, que está centrado em ZERO (-0,67..+0,69). Por isso aqui a linha de
+            // base é 0,66 e não 0. O que é igual nos dois: a erosão só recua (corte em zero), para
+            // o corredor nunca ficar mais estreito.
+            depth = Mathf.Max(0f, (depth - 0.66f) / 0.34f);
 
             // o recuo acumula pela face: reentrâncias mais fundas a meio da parede, menos junto ao
             // pé (onde há detrito acumulado) e menos no topo (onde a rocha é mais sã)

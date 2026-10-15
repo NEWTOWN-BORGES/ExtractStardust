@@ -242,8 +242,13 @@ def arc_from_center(loc):
     return cum - cum[:, N // 2:N // 2 + 1]
 
 
-def sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls=None, floor_mask=None):
-    """Secção de corrida: leito (areia/slickrock) e paredes polidas na zona de corrida; rocha estratificada acima."""
+def sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls=None, floor_mask=None,
+           erosion_m=26.0, erosion_seed=7):
+    """Secção de corrida: leito (areia/slickrock) e paredes polidas na zona de corrida; rocha estratificada acima.
+
+    erosion_m: amplitude da erosão 3D nas paredes de rocha (0 desliga e volta ao aspeto anterior).
+    Ver erode3d() para as escalas e porque é que a dureza da camada controla a amplitude.
+    """
     S, N, _ = loc.shape
     W = P[:, None, :] + R[:, None, :] * loc[..., 0:1] + U[:, None, :] * loc[..., 1:2]
     arc = arc_from_center(loc)
@@ -263,7 +268,16 @@ def sculpt(rows, P, R, U, loc, ride, col, joints, seed, floor_cls=None, floor_ma
     relief, hard, pa, pb, mix, _ = col.sample(x, y, z)
     jr = joints.recess(dist, y)
     rough = geo.fbm3(x / 9.0, y / 6.0, z / 9.0, 3, seed=seed + 13)
-    disp += rock * (1.15 * relief - 1.6 * jr + 0.45 * rough)
+    # EROSÃO das paredes: recuo dependente da dureza da camada, em três eixos. Substitui o
+    # micro-relevo de 0,45 m por recuos de vários metros a dezenas de metros, que é o que se lê
+    # a 100 m/s e ao longo de quilómetros. Aplicado a toda a altura da parede (não só ao pé,
+    # que era o limite do wall_warp).
+    if erosion_m > 0.0:
+        wall_u = np.clip((y - y.min()) / max(1.0, float(y.max() - y.min())), 0.0, 1.0)
+        erosion = erode3d(y, dist, wall_u, hard, amount=erosion_m, seed=erosion_seed)
+    else:
+        erosion = 0.0
+    disp += rock * (1.15 * relief - 1.6 * jr + 0.45 * rough + erosion)
     # bordas exteriores sem deslocamento (encaixe com a parede próxima)
     edge = np.ones((1, N)); edge[0, :2] = 0.0; edge[0, -2:] = 0.0
     W = W + Nw * (disp * edge)[..., None]
@@ -281,6 +295,85 @@ def wall_warp(along, dperp, seed):
     """Deslocamento horizontal das paredes (alcovas e esporões), partilhado entre terreno e paredes próximas."""
     return (45.0 * geo.fbm2(np.asarray(along) / 90.0 + 0.37 * (seed % 97), np.asarray(dperp) / 150.0, 3, seed=seed + 3)
             + 70.0 * geo.fbm2(np.asarray(along) / 420.0, np.full(np.shape(along), 0.5), 2, seed=seed + 4))
+
+
+# ------------------------------------------------------------------ erosão das paredes
+#
+# Portado de LabGeometry.Erode3D (Assets/RedDust/Runtime/Lab), onde foi validado com
+# Tools/verifica_detrito.py. O laboratório gera malhas planas em C#; aqui a mesma matemática
+# corre sobre os anéis 3D da rota, que é o que faz a pista REAL ganhar o mesmo aspeto.
+#
+# Porque é preciso: o perfil da coluna (rdd_geology.Column) constrói a parede em SEGMENTOS
+# RETOS (recuo = espessura / tan(ângulo) + bancada) e o `wall_warp` só mexe no pé (limitado a
+# 70 m). O `relief` de Column.sample alimentava apenas o micro-relevo do shader (≤ 0,75 m).
+# Resultado: paredes lisas ao longo de 105 km.
+#
+# As escalas são divididas DIRETAMENTE pelas distâncias em metros. Multiplicar a altura por um
+# fator empurrava a coordenada de ruído para valores altos e saturava o ruído — o erro que dava
+# riscas verticais uniformes em vez de manchas e fissuras.
+
+def erode3d(height, along, wall_u, hardness, amount=26.0, seed=7):
+    """
+    Recuo de erosão (m) por ponto da parede, na direção da normal da superfície.
+
+    Quatro escalas, todas a puxar para dentro (positivo = recuo):
+      alcova   ~120 m ao longo, ~90 m em altura  — recessos grandes e sombrios
+      fluting  ~18 m / ~14 m                     — canais verticais de arenito
+      rachadura ~5 m / ~4 m                      — fissuras isoladas
+      lasca    ~1,2 m                            — irregularidade fina
+
+    A dureza da camada controla a amplitude: mole (Chinle 0,15) recua muito, dura
+    (Wingate 0,97) resiste e sobressai como cornija.
+
+    ATENÇÃO: `seed` tem de ser INTEIRO. O _hash do rdd_geology faz
+    `(seed * 0x9E3779B1) & 0xFFFFFFFF` e rebenta com TypeError se for float.
+    Por isso é convertido aqui, o que também protege contra `erosion_seed` float vindo
+    do spec.json.
+    """
+    seed = int(seed)
+    height = np.asarray(height, dtype=np.float64)
+    along = np.asarray(along, dtype=np.float64)
+    wall_u = np.asarray(wall_u, dtype=np.float64)
+    hardness = np.asarray(hardness, dtype=np.float64)
+    soft = np.clip(1.0 - hardness, 0.0, 1.0)
+    by_hardness = amount * soft ** 1.6
+    alcove = geo.fbm3(along / 120.0, height / 90.0, wall_u * 1.1, 3, seed=seed)
+    flute = geo.fbm3(along / 18.0, height / 14.0, wall_u * 1.7, 3, seed=seed + 101)
+    crack = geo.fbm3(along / 5.0, height / 4.0, wall_u * 2.3, 3, seed=seed + 211)
+    chip = geo.fbm3(along / 1.2, height / 1.2, wall_u * 3.1, 2, seed=seed + 307)
+    depth = 0.62 * alcove + 0.34 * flute + 0.24 * crack + 0.12 * chip
+    # ATENÇÃO à convenção do ruído: o fbm3 do rdd_geology está centrado em ZERO e vai de
+    # -0,67 a +0,69 (usa _G3 e floor, não frac). NÃO é 0..1 como o rd_noise do shader.
+    # Logo `depth` também é bidirecional (medido: -0,553 a +0,599, mediana 0,003).
+    #
+    # Cortar em zero escolhe deliberadamente só o lado POSITIVO = só recuo. Assim a erosão
+    # nunca projeta para dentro do corredor e a largura útil da pista jamais diminui — o que
+    # importa porque as larguras do design (e as medições da Fase 1) contam com elas.
+    # O /0,60 normaliza: depth chega a ~0,599, logo o recuo máximo fica em `amount`.
+    depth = np.maximum(0.0, depth) / 0.60
+    # o recuo acumula pela face: mais fundo a meio da parede do que junto ao pé (detrito) ou ao topo
+    by_face = 0.55 + 0.65 * np.sin(wall_u * np.pi)
+    return by_hardness * by_face * depth
+
+
+def talus_profile(talus_h, talus_extent, clear_half_width, along, seed=909, segs=None):
+    """
+    Cone de detrito no pé da parede: devolve (run, height) dos pontos do cone.
+
+    Nos canyons reais acumula-se entulho no sopé. Sem ele a parede nasce a pique do chão, o que
+    é metade do aspeto de "tubo". O cone sobe EM DIREÇÃO à parede (0 no corredor, talus_h no pé)
+    e nunca entra na zona livre, para a largura útil do corredor não diminuir.
+    """
+    if talus_h <= 0.5:
+        return np.zeros(1), np.zeros(1)
+    if segs is None:
+        segs = int(np.clip(talus_h / 1.5, 4, 28))
+    t = np.linspace(0.0, 1.0, int(segs) + 1)
+    run = clear_half_width + np.maximum(1.0, talus_extent - clear_half_width) * t
+    height = talus_h * (1.0 - t) ** 0.85
+    bumpy = (geo.fbm2(along / 20.0 + np.zeros_like(t), t * 3.0, 2, seed=seed) - 0.5) * 2.0
+    run = np.maximum(clear_half_width, run + bumpy * 1.2 * t)
+    return run, height
 
 
 class CanyonLine:
