@@ -61,6 +61,12 @@ namespace RedDust.EditorTools
 
         static Material geo;
 
+        /// <summary>Amostras ao longo de cada parede (passo = comprimento / este valor).</summary>
+        public static int DensityAlong = 440;
+
+        /// <summary>Amostras em altura em todas as camadas somadas.</summary>
+        public static int DensityHeight = 220;
+
         /// <summary>
         /// Prepara a textura de rocha: marca-a como Normal map no importador e liga-a ao material
         /// de geologia. Feito por código para não ser preciso configurar nada à mão no Unity.
@@ -141,6 +147,64 @@ namespace RedDust.EditorTools
                 }
             }
             Debug.Log($"[RDD lab] tangentes ligadas em {n} FBX de {generated}");
+        }
+
+        /// <summary>
+        /// Verifica a cena do Metrics Lab que foi gerada: existe, tem as zonas todas, as malhas
+        /// têm geometria sã (sem NaN) e reporta o custo. Serve para confirmar a geração sem abrir
+        /// o editor à mão.
+        ///
+        /// Uso: Unity -batchmode -nographics -projectPath . -executeMethod
+        ///      RedDust.EditorTools.MetricsLabBuilder.ValidateScene -logFile -
+        /// </summary>
+        public static void ValidateScene()
+        {
+            var zonas = Layout();
+            int falhas = 0, totalVerts = 0, totalTris = 0;
+
+            if (!File.Exists(ScenePath))
+            {
+                Debug.LogError($"[RDD lab] cena AUSENTE: {ScenePath}");
+                if (Application.isBatchMode) EditorApplication.Exit(1);
+                return;
+            }
+
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var todas = new List<MeshFilter>(UnityEngine.Object.FindObjectsByType<MeshFilter>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None));
+
+            Debug.Log($"[RDD lab] cena aberta: {ScenePath}");
+            Debug.Log($"[RDD lab] MeshFilters encontrados: {todas.Count} (esperado ~{zonas.Count * 2})");
+
+            foreach (var z in zonas)
+            {
+                var raiz = GameObject.Find(z.Name);
+                if (raiz == null) { Debug.LogError($"[RDD lab] zona AUSENTE: {z.Name}"); falhas++; continue; }
+
+                var mfs = raiz.GetComponentsInChildren<MeshFilter>(true);
+                int v = 0, t = 0, nan = 0;
+                foreach (var mf in mfs)
+                {
+                    var m = mf.sharedMesh;
+                    if (m == null) { Debug.LogError($"[RDD lab] {z.Name}/{mf.name} sem malha"); falhas++; continue; }
+                    v += m.vertexCount;
+                    t += m.triangles.Length / 3;
+                    if (!m.isReadable) { Debug.LogWarning($"[RDD lab] {z.Name}/{mf.name} malha nao legivel"); }
+                    // amostrar vertices para NaN (varrer 100k por zona seria lento)
+                    var pos = m.vertices;
+                    for (int i = 0; i < pos.Length; i += Mathf.Max(1, pos.Length / 500))
+                        if (float.IsNaN(pos[i].x) || float.IsNaN(pos[i].y) || float.IsNaN(pos[i].z)) nan++;
+                    if (nan > 0) { Debug.LogError($"[RDD lab] {z.Name}/{mf.name}: {nan} vertices com NaN"); falhas++; }
+                }
+                totalVerts += v; totalTris += t;
+                if (mfs.Length == 0) { Debug.LogError($"[RDD lab] {z.Name} sem geometria"); falhas++; }
+            }
+
+            float mb = new FileInfo(ScenePath).Length / 1048576f;
+            Debug.Log($"[RDD lab] TOTAL: {totalVerts:N0} vertices, {totalTris:N0} triangulos, cena {mb:N1} MB");
+            Debug.Log($"[RDD lab] RESULTADO: {(falhas == 0 ? "cena valida" : falhas + " falha(s)")}");
+
+            if (Application.isBatchMode) EditorApplication.Exit(falhas == 0 ? 0 : 1);
         }
 
         [MenuItem("Red Dust/9. Gerar Metrics Lab (V2)")]
@@ -394,12 +458,15 @@ namespace RedDust.EditorTools
                     const float wallHeight = 330f;
 
                     // Densidade: o campo de erosão 3D tem detalhe até ~1 m. A estação tem de ser mais
-                    // fina do que o detalhe mais fino, senão as rachaduras caem entre vértices:
-                    //   ao longo : 0,5 m  (440 amostras em 220 m)
-                    //   em altura: 1,5 m  (220 amostras em 330 m)
-                    // A malha fica com ~97 mil vértices por parede, que é o custo de ter erosão real.
-                    const int along = 440;
-                    const int height = 220;
+                    // fina do que o detalhe mais fino, senão as rachaduras caem entre vértices.
+                    //
+                    // ATENÇÃO AO CUSTO: com 440x220 cada parede fica com ~97 mil vértices e a cena
+                    // guardada (~585 mil vértices nas 6 paredes) passa dos 100 MB, porque o Unity
+                    // serializa normais, tangentes, UVs e cores por vértice.
+                    // Reduzir a densidade reduz a qualidade da erosão — é um compromisso, não um
+                    // defeito. Para uma cena mais leve, usar Density() mais abaixo.
+                    int along = DensityAlong;
+                    int height = DensityHeight;
 
                     // parede do lado +X, com a face virada para -X (onde a nave corre)
                     // O detrito (cone de talus) assenta no pé a partir de 16 m do eixo, para a largura

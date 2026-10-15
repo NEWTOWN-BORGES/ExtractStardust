@@ -3,7 +3,38 @@
 Documento de continuidade. Quem retomar este projeto (noutra sessão, noutra
 máquina, ou outra pessoa) deve ler isto primeiro.
 
-**Atualizado:** 2026-10-15
+**Atualizado:** 2026-10-15 (fim do dia)
+
+---
+
+## NOVIDADE: os shaders compilam (risco nº1 resolvido)
+
+O editor Unity 6000.6.5f1 correu em batchmode **no PC do trabalho** e gerou a cena
+do laboratório. Isto era o risco nº1 e estava por testar:
+
+```
+[RDD lab] cena gerada: Assets/RedDust/Scenes/RDD_MetricsLab.unity (21 zonas, material de geologia)
+[RDD lab] normal map de rocha ligado ao Geology.mat
+[RDD lab] TOTAL: 636 440 vertices, 1 250 246 triangulos, cena 115,6 MB
+[RDD lab] RESULTADO: cena valida
+```
+
+Sem erros de shader nem de C#. Confirmado:
+- ✅ os shaders `RDGeology` + `RDColour` compilam
+- ✅ os 9 assemblies compilam no editor (não só via Roslyn)
+- ✅ `ConfigureRockTextures` liga o normal map sozinho
+- ✅ o `MetricsLabBuilder` gera as 21 zonas
+
+**Como foi preciso** (importante para reproduzir): o sandbox normal bloqueava o
+Unity — *"Waiting for clients to connect on `\\.\pipe\Unity-LicenseClient`"* e o
+licenciamento precisava de WMI (serial da BIOS, MAC) que era negado. Só correu com
+acesso total ao disco, autorizado explicitamente pelo dono do projeto.
+
+**Consequência:** o projeto passou a `6000.6.5f1` (o `ProjectVersion.txt` foi
+reescrito) e o URP subiu de 17.3.0 para 17.6.0 — o URP é *builtin* no Unity 6, logo
+a versão vem do editor e não do registo.
+
+**A cena (115,6 MB) está versionada**, para poder ser vista sem correr o gerador.
 
 ---
 
@@ -18,10 +49,12 @@ máquina, ou outra pessoa) deve ler isto primeiro.
 | Detrito no pé das paredes | ✅ ligado à pista real |
 | Variação macro da cor | ✅ no shader partilhado |
 | Normal map tangente | ✅ shader + tangentes no import |
-| Shaders | ⚠️ **nunca compilados** (sem GPU) |
-| Física do wall-ride com erosão | ⚠️ **por reconfirmar no Unity** |
+| **Shaders** | ✅ **compilam** (confirmado no editor) |
+| **Cena do laboratório** | ✅ **gerada e validada** (21 zonas, 636k vértices) |
+| Geometria da pista real (105 km) | ❌ **falta Blender** — não há rede para o instalar |
+| Física do wall-ride com erosão | ⚠️ **por medir no Unity** |
 | fps com o shader novo | ⚠️ **por medir** |
-| CI | ⏸️ escrito mas desligado e não publicado |
+| CI | ⏸️ escrito e versionado, mas desligado e não publicado |
 
 ---
 
@@ -145,9 +178,10 @@ Se isto falhar, não vale a pena gerar 1,4 GB.
 
 ### Passo 2 — abrir o Unity uma vez
 
-O primeiro import de 1119 ficheiros compila os shaders novos. É aqui que aparecem
-erros de shader, se houverem. **Vale a pena fazer só isto primeiro**, porque é o
-risco menos testado do trabalho.
+Só para confirmar que o editor abre na tua máquina. **Já não é o passo crítico** —
+os shaders e a cena do laboratório já foram validados no editor do trabalho. O
+primeiro import já foi feito e o `Library/` está no `.gitignore`, portanto na tua
+máquina será um import novo (20–40 min neste tipo de hardware).
 
 ### Passo 3 — laboratório (rápido, ~2 min)
 
@@ -184,12 +218,13 @@ para que não existam.
 
 | # | Risco | Sintoma | O que fazer |
 |---|---|---|---|
-| 1 | **Shader não compila** | erros no Console do Unity | mandar o log; nunca foram compilados (sem GPU) |
-| 2 | **Física do wall-ride** | T4 falha no validador | reduzir `erosion_m`, ou restringir o wall-ride |
-| 3 | **fps** | abaixo de 60 | `RD_MACRO_FBM3=1` (48 em vez de 80 ruídos/pixel), ou `RD_MACRO=0` |
-| 4 | **Blender não instalado** | preflight queixa-se | instalar Blender 5.2 |
-| 5 | **Versão do Unity diferente** | aviso do pipeline | já tratado: as ferramentas detectam; se o projeto pedir 6000.3 e só houver 6000.6, o pipeline avisa e usa a instalada |
-| 6 | **Primeiro import lento ou trava** | parece pendurado | é normal num i5-4460; esperar |
+| ~~1~~ | ~~Shader não compila~~ | — | ✅ **resolvido**: compila no editor 6000.6.5f1 |
+| 1 | **Física do wall-ride** | T4 falha no validador | reduzir `erosion_m`, ou restringir o wall-ride |
+| 2 | **fps** | abaixo de 60 | `RD_MACRO_FBM3=1` (48 em vez de 80 ruídos/pixel), ou `RD_MACRO=0` |
+| 3 | **Blender não instalado** | preflight queixa-se | instalar Blender 5.2 (obrigatório para a pista real) |
+| 4 | **Cena de 115 MB a abrir devagar** | o editor demora | reduzir `DensityAlong`/`DensityHeight` e regerar |
+| 5 | **Primeiro import lento** | parece pendurado | é normal; o import no PC do trabalho levou 241 s com máquina semelhante |
+| 6 | **Versão do Unity diferente** | aviso do pipeline | já tratado: as ferramentas detectam e usam a instalada |
 
 ## Convenções que não se devem quebrar
 

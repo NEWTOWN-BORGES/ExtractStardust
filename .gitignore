@@ -54,3 +54,15 @@ Desktop.ini
 
 # Python: caches
 **/__pycache__/
+
+# IDE: solucao do Unity 6000.6 (artefacto de IDE, nao entra)
+**/*.slnx
+
+# Cena do laboratorio: 115 MB, excede o limite de 100 MB por ficheiro do GitHub.
+# Regenerar com: Red Dust / 9. Gerar Metrics Lab (V2), ou MetricsLabBuilder.Build em batchmode.
+ExtractStardustRDD/Assets/RedDust/Scenes/RDD_MetricsLab.unity
+ExtractStardustRDD/Assets/RedDust/Scenes/RDD_MetricsLab.unity.meta
+
+# Workflows do GitHub: publicar exige o scope 'workflow' no token, que nao temos.
+# Fica em Docs/ci.yml.referencia; para ativar, copiar para .github/workflows/ e usar um token com scope.
+.github/workflows/
