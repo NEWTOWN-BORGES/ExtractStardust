@@ -38,6 +38,10 @@ a versão vem do editor e não do registo.
 
 ---
 
+> **Vais trabalhar no PC de casa?** Lê primeiro
+> **[`INSTRUCOES_CASA.md`](INSTRUCOES_CASA.md)** — tem o prompt a colar, os 7 passos
+> por ordem, e o que reportar de volta.
+
 ## Estado à vista
 
 | Área | Estado |
@@ -267,6 +271,7 @@ para que não existam.
 | Ficheiro | Conteúdo |
 |---|---|
 | `Docs/RDD_00_Plano_Vertical_Slice.md` | o plano mestre e os milestones M0–M10 |
+| **`Docs/INSTRUCOES_CASA.md`** | **o prompt e os 7 passos para a sessão do PC de casa** |
 | `Docs/RDD_V2_Plano_Fase0.md` | o plano da V2 e as 8 tarefas da Fase 1 |
 | `Docs/M1_Relatorio_Fisica.md` | M1 validado: 21/22 testes |
 | `Docs/RDD_Erosao_Parametros.md` | erosão e detrito: parâmetros e armadilhas |
