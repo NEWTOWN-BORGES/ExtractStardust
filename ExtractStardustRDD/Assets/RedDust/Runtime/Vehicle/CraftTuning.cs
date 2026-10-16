@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 
 namespace RedDust.Vehicle
@@ -79,10 +79,10 @@ namespace RedDust.Vehicle
         [Tooltip("Travagem do motor sem acelerar (m/s²)")] public float coastDecel = 6f;
         [Header("Nitro")]
         [Tooltip("Duração do depósito cheio (s)")] public float nitroSeconds = 3.4f;
-        [Tooltip("Regeneração base (depósito/s)")] public float nitroRegen = 0.09f;
-        [Tooltip("Regeneração extra a derrapar")] public float nitroDriftRegen = 0.35f;
-        [Tooltip("Regeneração extra no ar")] public float nitroAirRegen = 0.12f;
-        [Tooltip("Depois de esvaziar, só volta a acender com isto")] public float nitroRestart = 0.15f;
+        [Tooltip("Regeneração base (depósito/s). 0.20 = depósito cheio em 5 s parado")] public float nitroRegen = 0.20f;
+        [Tooltip("Regeneração extra a derrapar")] public float nitroDriftRegen = 0.30f;
+        [Tooltip("Regeneração extra no ar")] public float nitroAirRegen = 0.15f;
+        [Tooltip("Depois de esvaziar, só volta a acender com isto")] public float nitroRestart = 0.18f;
 
         [Header("Atitude")]
         [Tooltip("Correção máxima de atitude no solo (graus/s)")] public float alignRate = 160f;

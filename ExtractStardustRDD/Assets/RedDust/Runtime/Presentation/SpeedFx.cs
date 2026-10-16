@@ -1,4 +1,4 @@
-﻿using RedDust.Track;
+using RedDust.Track;
 using RedDust.Vehicle;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -149,8 +149,20 @@ namespace RedDust.Presentation
             driftSmooth = Mathf.MoveTowards(driftSmooth, craft.Drifting ? 1f : 0f, dt * 4f);
 
             // pós-processamento
-            // sem motion blur (pedido do jogador: a nave tem de se ver sempre); o resto muito discreto
-            if (blur != null) { blur.intensity.value = 0f; blur.active = false; }
+            // Motion blur: em CameraOnly a câmara desfoca-se mas o mundo não, logo a NAVE CONTINUA
+            // NÍTIDA — é o que dá a sensação de velocidade sem tapar o que se conduz.
+            //
+            // Histórico: a versão original (commit 1e13675) fazia 0.6*V + 0.2*boost, ou seja 0.60 só
+            // em cruzeiro — era esse o "fosco" que fez o efeito ser retirado. Agora:
+            //   cruzeiro : 0.30 no máximo (metade do original) e só no topo de velocidade (V²)
+            //   nitro    : +0.45 linear. Muito mais agressivo a velocidade baixa/média do que era:
+            //              a 50% de velocidade com nitro dá 0.53, quando o original dava 0.30.
+            //              A velocidade máxima com nitro dá 0.75.
+            if (blur != null)
+            {
+                blur.active = true;
+                blur.intensity.value = 0.30f * V * V + 0.45f * boostSmooth;
+            }
             chroma.intensity.value = 0.06f * boostSmooth;
             lens.intensity.value = -(0.02f * V + 0.05f * boostSmooth);
             vignette.intensity.value = 0.14f + 0.04f * V + 0.05f * boostSmooth;

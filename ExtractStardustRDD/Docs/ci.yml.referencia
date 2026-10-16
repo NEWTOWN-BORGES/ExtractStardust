@@ -1,0 +1,168 @@
+# REFERENCIA - copiar para .github/workflows/ci.yml para ativar o CI.
+# Este ficheiro esta aqui (e nao em .github/) porque publicar em .github/workflows/
+# exige que o token do GitHub tenha o scope workflow.
+#
+# Para ativar:
+#   1. copiar este ficheiro para .github/workflows/ci.yml
+#   2. gh auth refresh -h github.com -s workflow   (adiciona o scope em falta)
+#   3. git push
+# Na GitHub, criar tambem os secrets descritos na secao 3 de
+# Docs/CI_e_Fluxo_Duas_Maquinas.md.
+#name: CI — Extract Stardust (RED DUST DIVIDE V2)
+
+# ESTADO: DESLIGADO. So `workflow_dispatch` (manual), e o ficheiro ainda nem foi
+# publicado no GitHub. Nao dispara nada sozinho e nao gasta quota.
+#
+# Decisao (2026-10-15): por agora compila-se em casa. O CI compila codigo, mas
+# nao deixa jogar, e do trabalho nao se pode jogar. Fica pronto a ativar.
+#
+# Para ativar mais tarde:
+#   1. criar os secrets (ver abaixo) e publicar o ramo;
+#   2. descomentar os gatilhos `push:` e `pull_request:` no fim do bloco `on:`.
+#
+# Secrets necessarios (Settings > Secrets and variables > Actions):
+#   UNITY_LICENSE  - conteudo do Unity_lic.ulf  (licenca Personal gratuita serve)
+#   UNITY_EMAIL    - email da conta Unity
+#   UNITY_PASSWORD - password da conta Unity
+#   UNITY_SERIAL   - APENAS para licencas Plus/Pro; em Personal deixa vazio
+#
+# A licenca Personal e valida em CI e nao esta presa a plataforma: o .ulf gerado
+# no Windows ativa builds em ubuntu-latest (docs game.ci, Activation > Personal).
+
+on:
+  workflow_dispatch:
+    inputs:
+      targetPlatform:
+        description: "Plataforma do build"
+        required: true
+        default: StandaloneWindows64
+        type: choice
+        options:
+          - StandaloneWindows64
+          - Android
+      runTests:
+        description: "Correr os testes do Unity antes do build"
+        required: true
+        default: true
+        type: boolean
+  # Desligado a pedido: sem gatilhos automaticos, para nao gastar quota nem
+  # disparar builds que nao servem (do trabalho nao se joga o jogo).
+  # Descomentar para voltar a compilar automaticamente em cada push/PR.
+  #
+  # push:
+  #   branches: [red-dust-divide-v2, main]
+  #   paths:
+  #     - "ExtractStardustRDD/Assets/**"
+  #     - "ExtractStardustRDD/Packages/**"
+  #     - "ExtractStardustRDD/ProjectSettings/**"
+  #     - ".github/workflows/**"
+  # pull_request:
+  #   paths:
+  #     - "ExtractStardustRDD/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UNITY_VERSION: "6000.6.5f1"
+  PROJECT_PATH: ExtractStardustRDD
+
+jobs:
+  # ------------------------------------------------------------------- testes
+  # Opcional: o projeto tem 1 ficheiro de teste fora do Unity (Tests/MetaTests.cs,
+  # corrido por Tools/test_meta.ps1) e ainda nao tem assembly de testes do Unity.
+  # Se nao existirem testes, o job nao falha (failIfNoTests: false).
+  test:
+    name: Testes Unity
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.runTests }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Cache da Library do Unity
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT_PATH }}/Library
+          key: Library-tests-${{ env.UNITY_VERSION }}-${{ hashFiles('ExtractStardustRDD/Assets/**', 'ExtractStardustRDD/Packages/**', 'ExtractStardustRDD/ProjectSettings/**') }}
+          restore-keys: |
+            Library-tests-${{ env.UNITY_VERSION }}-
+            Library-
+
+      - name: Correr testes
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ${{ env.PROJECT_PATH }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: editmode
+          failIfNoTests: false
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          artifactsPath: test-results
+
+      - name: Enviar resultados dos testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Test-results
+          path: test-results
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # -------------------------------------------------------------------- build
+  build:
+    name: Build Unity
+    needs: test
+    # Corre mesmo que nao existam testes (o job test pode ser skipped por input).
+    if: ${{ always() && !cancelled() && needs.test.result != 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Definir plataforma
+        id: plat
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.targetPlatform }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=StandaloneWindows64" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache da Library do Unity
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT_PATH }}/Library
+          key: Library-${{ env.UNITY_VERSION }}-${{ hashFiles('ExtractStardustRDD/Assets/**', 'ExtractStardustRDD/Packages/**', 'ExtractStardustRDD/ProjectSettings/**') }}
+          restore-keys: |
+            Library-${{ env.UNITY_VERSION }}-
+            Library-
+
+      - name: Build
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ${{ env.PROJECT_PATH }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: ${{ steps.plat.outputs.value }}
+
+      - name: Enviar build como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build-${{ steps.plat.outputs.value }}
+          path: build
+          retention-days: 14

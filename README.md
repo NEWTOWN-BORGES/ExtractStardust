@@ -2,11 +2,29 @@
 
 **RACE. SURVIVE. EXTRACT.** Corrida de extração com naves antigravidade (Unity 6 URP + Blender), PC e Android.
 
+> **Trabalho em curso no ramo `red-dust-divide-v2`.** Para retomar o
+> desenvolvimento, começar por **[`ExtractStardustRDD/Docs/ESTADO_Handoff.md`](ExtractStardustRDD/Docs/ESTADO_Handoff.md)** —
+> traz o que está feito, o que falta, como verificar sem Unity nem Blender, e as
+> convenções que não se devem quebrar.
+
 | Pasta | O que é | Estado |
 |---|---|---|
-| `ExtractStardustRDD/` | **Projeto principal.** Expedição RED DUST DIVIDE: canyons naturais (Utah/Arizona reinterpretados), naves a 400–450 km/h, geologia modelada no Blender. Modos Exploração, Extração vs bots e PvP local; 5 naves modulares, mochila, mercado, Supply Caches, seguro e Expedition Pool. | Laboratório validado (21/22 testes). Expedição (105,7 km, 9 setores, ~20 min) gerada no Blender. Modos e economia programados e testados fora do Unity; falta compilar no editor (licença). |
+| `ExtractStardustRDD/` | **Projeto principal.** Expedição RED DUST DIVIDE: canyons naturais (Utah/Arizona reinterpretados), naves a 400–450 km/h, geologia modelada no Blender. Modos Exploração, Extração vs bots e PvP local; 5 naves modulares, mochila, mercado, Supply Caches, seguro e Expedition Pool. | Laboratório validado (21/22 testes). Expedição (105,7 km, 9 setores, ~20 min) gerada no Blender. Modos e economia programados e testados fora do Unity. Os 9 assemblies compilam (verificado com `Tools/check_compile.ps1`, sem abrir o editor). Falta correr o editor e medir física/fps em casa. |
 | `ExtractStardust/` | Protótipo anterior: ilha de 24 km em mundo aberto (porte do RACESTARS), com expedição, circuitos, Wi-Fi e tela dividida. | Arquivo. |
 | `Builds_Jogaveis/` | Jogos compilados (Git LFS). | Ver abaixo. |
+
+## Verificar sem abrir o Unity
+
+O projeto compila-se e testa-se sem licença, sem GPU e sem abrir o editor:
+
+```powershell
+cd ExtractStardustRDD
+powershell -ExecutionPolicy Bypass -File Tools\check_compile.ps1   # 9/9 assemblies
+powershell -ExecutionPolicy Bypass -File Tools\test_meta.ps1       # 45 701 verificações de economia
+python Tools\verifica_sculpt_real.py                               # geometria da pista, sem Blender
+```
+
+As ferramentas detectam sozinhas a versão do editor instalada.
 
 ## Jogar sem o Unity
 
@@ -18,6 +36,28 @@
 
 Os ficheiros grandes estão no Git LFS, que vem com o Git para Windows. Depois de clonar, se aparecerem ficheiros de 1 KB, correr `git lfs pull`.
 
+## Migração para Unreal Engine 5.8
+
+O projeto Unreal fica em `ExtractStardustUE/ExtractStardustUE.uproject`. A verificação local foi feita com Unreal Engine 5.8.3, Visual Studio 2026 Community/MSVC e o SDK do .NET Framework 4.8.1.
+
+Os 18 meshes gerados para RED DUST DIVIDE estão versionados com Git LFS (cerca de 499 MB no total). A compilação C++ não precisa de os descarregar. Para abrir e verificar esses assets no editor, ou fazer um cook sem erros, descarrega apenas esta pasta:
+
+```powershell
+git lfs pull --include="ExtractStardustUE/Content/Environment/Generated/RedDustDivide/**" origin red-dust-divide-v2
+```
+
+Compilação Win64 Development, a partir da raiz do repositório:
+
+```powershell
+$Project = (Resolve-Path 'ExtractStardustUE/ExtractStardustUE.uproject').Path
+$Build = 'C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat'
+& $Build ExtractStardustUEEditor Win64 Development "-Project=$Project" -WaitMutex -NoHotReloadFromIDE
+& $Build ExtractStardustUE Win64 Development "-Project=$Project" -WaitMutex -NoHotReloadFromIDE
+```
+
+Verificação local com UE 5.8.3: Editor e jogo compilam; `BuildCookRun` Win64 Development (596 pacotes) terminou com sucesso, 0 erros e 0 avisos. O pacote local (cerca de 502 MiB) arrancou com `-nullrhi`, abriu `OpenWorld` e `StardustGameMode`, carregou as 21 137 estações (105,66 km) e confirmou 18/18 meshes de ambiente ligados ao ator com escala 100. Em 2026-10-17, o Editor recompilou após a adição do HUD e o arranque com RHI carregou as fontes UMG; ainda não foi verificada uma captura visual nem a condução por input manual.
+
+Os 18 meshes de ambiente gerados estão ligados ao ator do percurso, com escala 100 para converter os valores exportados em metros para centímetros Unreal. O HUD básico agora mostra velocidade, progresso/checkpoint, tempo, vitais e controlos; a apresentação visual, condução manual, ramos/veículos do Blender, bots com obstáculos, resultados/economia, menus/interface final e áudio continuam pendentes. Nenhum asset do Fab foi integrado.
 ## Documentação
 
 - Expedição (setores, física, ferramentas): `ExtractStardustRDD/Docs/RDD_01_Expedicao.md`

@@ -153,7 +153,11 @@ namespace RedDust.Game
                     if (selected) { Fill(row, new Color(1f, 0.55f, 0.2f, 0.22f)); Fill(new Rect(x, cy, 6, h - 4), Accent); }
                     float tx = x + 18;
                     if (it.icon != null) { GUI.DrawTexture(new Rect(x + 14, cy + 3, h - 10, h - 10), it.icon); tx += h; }
-                    var col = it.enabled ? it.color : new Color(0.5f, 0.5f, 0.52f);
+                    // Pré-visualização de instalação: verde = dá para montar, vermelho = não dá.
+                    // Sem preview definido, mantém-se o cinzento de "indisponível".
+                    Color col;
+                    if (it.preview != Preview.None) col = it.enabled ? PreviewOk : PreviewNo;
+                    else col = it.enabled ? it.color : new Color(0.5f, 0.5f, 0.52f);
                     Text(new Rect(tx, cy, w * 0.56f - (tx - x), h - 4), it.label, St(labelSize, selected ? FontStyle.Bold : FontStyle.Normal), col);
                     Text(new Rect(x + w * 0.5f, cy, w * 0.5f - 16, h - 4), it.value, St(valueSize, FontStyle.Normal, TextAnchor.MiddleRight), it.enabled ? new Color(0.9f, 0.9f, 0.92f) : col);
                     // rato/toque: clicar seleciona e confirma; setas laterais nos itens com valores
@@ -172,6 +176,16 @@ namespace RedDust.Game
                 cy += h;
             }
             Text(new Rect(x, H - 50, W - 100, 30), $"{GameInput.BtnConfirm} escolher · {GameInput.BtnBack} voltar · ←/→ mudar valores · clica para escolher", St(20), new Color(1f, 1f, 1f, 0.55f));
+            // Legenda da pré-visualização: só aparece quando há peças com semântica de instalação
+            bool anyPreview = false;
+            foreach (var it in items) if (it.preview != Preview.None) { anyPreview = true; break; }
+            if (anyPreview)
+            {
+                float ly = H - 78;
+                Text(new Rect(x, ly, 210, 26), "pré-visualização:", St(19), new Color(1f, 1f, 1f, 0.6f));
+                Text(new Rect(x + 158, ly, 210, 26), "▮ montável agora", St(19, FontStyle.Bold), PreviewOk);
+                Text(new Rect(x + 330, ly, 210, 26), "▮ não encaixa", St(19, FontStyle.Bold), PreviewNo);
+            }
             if (withCard && sel < items.Count && items[sel].card != null) DrawCard(items[sel].card, new Rect(W - 608, 140, 560, H - 220));
         }
 
