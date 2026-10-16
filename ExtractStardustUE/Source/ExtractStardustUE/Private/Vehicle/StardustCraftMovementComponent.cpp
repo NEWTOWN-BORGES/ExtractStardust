@@ -61,6 +61,11 @@ void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick 
 			GEngine->AddOnScreenDebugMessage(817432, 0.0f, FColor::Green,
 				FString::Printf(TEXT("EXTRACTED  %02d:%05.2f"), Minutes, Seconds));
 		}
+		else if (RaceProgressComponent && RaceProgressComponent->State == EStardustRaceState::Abandoned)
+		{
+			const TCHAR* FailureState = Telemetry.bDestroyed ? TEXT("DESTROYED") : TEXT("STRANDED");
+			GEngine->AddOnScreenDebugMessage(817432, 0.0f, FColor::Red, FString::Printf(TEXT("RACE FAILED  |  %s"), FailureState));
+		}
 		else if (RaceProgressComponent && RaceProgressComponent->Course && RaceProgressComponent->Course->StationCount >= 2)
 		{
 			GEngine->AddOnScreenDebugMessage(817432, 0.0f, FColor::Cyan, TEXT("CORRIDA PRONTA  |  acelera para iniciar"));
@@ -69,7 +74,8 @@ void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick 
 		{
 			GEngine->AddOnScreenDebugMessage(817432, 0.0f, FColor::Orange, TEXT("SEM PISTA: coloca o ficheiro RDDC em Content/Tracks"));
 		}
-		if (RaceProgressComponent && RaceProgressComponent->State == EStardustRaceState::Racing && bEnableRaceVitals)
+		if (RaceProgressComponent && (RaceProgressComponent->State == EStardustRaceState::Racing ||
+			RaceProgressComponent->State == EStardustRaceState::Abandoned) && bEnableRaceVitals)
 		{
 			const TCHAR* VitalState = Telemetry.bDestroyed ? TEXT("DESTROYED") : Telemetry.bStranded ? TEXT("STRANDED")
 				: Telemetry.bOverheated ? TEXT("OVERHEAT") : Telemetry.bFuelEmpty ? TEXT("NO FUEL") : TEXT("SYSTEMS NOMINAL");
@@ -170,7 +176,6 @@ void UStardustCraftMovementComponent::ApplyRaceVitalLimits(float DeltaSeconds, f
 		Input.bBoost = false;
 		const float Damage = 2.0f * DeltaSeconds;
 		Telemetry.HullIntegrity = FMath::Max(0.0f, Telemetry.HullIntegrity - Damage);
-		OnDamaged.Broadcast(Damage);
 	}
 
 	Telemetry.bFuelEmpty = Telemetry.FuelFraction <= 0.0f;
@@ -197,6 +202,10 @@ void UStardustCraftMovementComponent::ApplyRaceVitalLimits(float DeltaSeconds, f
 	{
 		StrandedSeconds = 0.0f;
 		Telemetry.bStranded = false;
+	}
+	if ((Telemetry.bDestroyed || Telemetry.bStranded) && RaceProgressComponent->State == EStardustRaceState::Racing)
+	{
+		RaceProgressComponent->AbandonRace();
 	}
 }
 
