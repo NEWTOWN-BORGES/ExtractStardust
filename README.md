@@ -36,6 +36,28 @@ As ferramentas detectam sozinhas a versão do editor instalada.
 
 Os ficheiros grandes estão no Git LFS, que vem com o Git para Windows. Depois de clonar, se aparecerem ficheiros de 1 KB, correr `git lfs pull`.
 
+## Migração para Unreal Engine 5.8
+
+O projeto Unreal fica em `ExtractStardustUE/ExtractStardustUE.uproject`. A verificação local foi feita com Unreal Engine 5.8.3, Visual Studio 2026 Community/MSVC e o SDK do .NET Framework 4.8.1.
+
+Os 18 meshes gerados para RED DUST DIVIDE estão versionados com Git LFS (cerca de 499 MB no total). A compilação C++ não precisa de os descarregar. Para abrir e verificar esses assets no editor, ou fazer um cook sem erros, descarrega apenas esta pasta:
+
+```powershell
+git lfs pull --include="ExtractStardustUE/Content/Environment/Generated/RedDustDivide/**" origin red-dust-divide-v2
+```
+
+Compilação Win64 Development, a partir da raiz do repositório:
+
+```powershell
+$Project = (Resolve-Path 'ExtractStardustUE/ExtractStardustUE.uproject').Path
+$Build = 'C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat'
+& $Build ExtractStardustUEEditor Win64 Development "-Project=$Project" -WaitMutex -NoHotReloadFromIDE
+& $Build ExtractStardustUE Win64 Development "-Project=$Project" -WaitMutex -NoHotReloadFromIDE
+```
+
+Verificação realizada nesta máquina com UE 5.8.3: Editor (19/19 ações), jogo (23/23), e `BuildCookRun` Win64 Development sem `IgnoreCookErrors` (578 pacotes, 0 erros e 0 avisos). Um pacote temporário iniciou com `-nullrhi`, carregou `OpenWorld` e `StardustGameMode`, criou o percurso com 21.137 estações, 43 secções visuais e 11 de colisão (105,66 km), e terminou com código 0. Este smoke test não renderiza nem verifica condução com input.
+
+A migração visual continua incompleta: os meshes gerados ainda não estão ligados ao ator do percurso; o teste acima usa a geometria procedural e o mapa base `OpenWorld`. A colocação e aparência dos setores, condução interativa e validação visual ainda precisam de ser feitas no editor. Nenhum asset do Fab foi integrado. O pacote de teste está em `ExtractStardustUE/Saved/PackageSmokeWithLFS/` e é um artefacto local ignorado pelo Git.
 ## Documentação
 
 - Expedição (setores, física, ferramentas): `ExtractStardustRDD/Docs/RDD_01_Expedicao.md`
