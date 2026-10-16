@@ -2,6 +2,8 @@
 
 #include "Course/StardustCourseComponent.h"
 #include "GameFramework/Actor.h"
+#include "Math/RotationMatrix.h"
+#include "Vehicle/StardustCraftMovementComponent.h"
 
 UStardustRaceProgressComponent::UStardustRaceProgressComponent()
 {
@@ -15,6 +17,10 @@ void UStardustRaceProgressComponent::BeginPlay()
 	if (!Course && GetOwner())
 	{
 		Course = GetOwner()->FindComponentByClass<UStardustCourseComponent>();
+	}
+	if (GetOwner())
+	{
+		CraftMovement = GetOwner()->FindComponentByClass<UStardustCraftMovementComponent>();
 	}
 }
 
@@ -50,6 +56,7 @@ void UStardustRaceProgressComponent::ResetRace()
 	CurrentCheckpoint = 0;
 	CurrentPathIndex = 0;
 	CurrentStationIndex = INDEX_NONE;
+	OffTrackSeconds = 0.0f;
 }
 
 void UStardustRaceProgressComponent::AbandonRace()
@@ -85,8 +92,27 @@ void UStardustRaceProgressComponent::TickComponent(float DeltaTime, ELevelTick T
 	{
 		return;
 	}
+	const FVector RelativePositionCm = GetOwner()->GetActorLocation() - CurrentPoint.PositionCm;
+	const float BelowCourseM = FVector::DotProduct(RelativePositionCm, CurrentPoint.Up) / 100.0f;
+	if (BelowCourseM < -60.0f && RespawnCraft(true))
+	{
+		return;
+	}
+	const float OutsideRideM = Course->GetOutsideRideDistanceM(CurrentPathIndex, CurrentStationIndex, GetOwner()->GetActorLocation());
+	if (!Course->IsCoursePathGapAtStation(CurrentPathIndex, CurrentStationIndex) && OutsideRideM > OffTrackToleranceM)
+	{
+		OffTrackSeconds += DeltaTime;
+		if (OffTrackSeconds >= OffTrackGraceSeconds && RespawnCraft(false))
+		{
+			return;
+		}
+	}
+	else
+	{
+		OffTrackSeconds = 0.0f;
+	}
 	const float PathDistanceM = CurrentPoint.DistanceM + FVector::DotProduct(
-		GetOwner()->GetActorLocation() - CurrentPoint.PositionCm, CurrentPoint.Tangent) / 100.0f;
+		RelativePositionCm, CurrentPoint.Tangent) / 100.0f;
 	RaceDistanceM = FMath::Clamp(Course->MapPathDistanceToRaceDistance(CurrentPathIndex, PathDistanceM), 0.0f, FinishDistanceM);
 
 	const int32 ReachedCheckpoint = FMath::Clamp(FMath::FloorToInt(RaceDistanceM / FinishDistanceM * CheckpointCount), 0, CheckpointCount);
@@ -105,4 +131,40 @@ void UStardustRaceProgressComponent::TickComponent(float DeltaTime, ELevelTick T
 		State = EStardustRaceState::Extracted;
 		OnRaceFinished.Broadcast(FinishTimeSeconds, FinishDistanceM);
 	}
+}
+
+bool UStardustRaceProgressComponent::RespawnCraft(bool bPenalty)
+{
+	if (!Course || !CraftMovement || !GetOwner())
+	{
+		return false;
+	}
+	const int32 PathStationCount = Course->GetCoursePathStationCount(CurrentPathIndex);
+	if (PathStationCount < 2)
+	{
+		return false;
+	}
+	int32 SafeStationIndex = FMath::Clamp(CurrentStationIndex - FMath::Max(1, RespawnRewindStations), 0, PathStationCount - 1);
+	while (SafeStationIndex > 0 && Course->IsCoursePathGapAtStation(CurrentPathIndex, SafeStationIndex))
+	{
+		--SafeStationIndex;
+	}
+	const float SafeDistanceM = Course->GetDistanceAtPathStation(CurrentPathIndex, SafeStationIndex);
+	FStardustCoursePoint SafePoint;
+	if (SafeDistanceM < 0.0f || !Course->SamplePathAtDistance(CurrentPathIndex, SafeDistanceM, SafePoint))
+	{
+		return false;
+	}
+
+	const FVector RespawnPositionCm = SafePoint.PositionCm + SafePoint.Up * (CraftMovement->Tuning.HoverHeightM + 0.3f) * 100.0f;
+	const FRotator RespawnRotation = FRotationMatrix::MakeFromXZ(SafePoint.Tangent, SafePoint.Up).Rotator();
+	CraftMovement->PlaceCraft(RespawnPositionCm, RespawnRotation, 30.0f);
+	if (bPenalty)
+	{
+		CraftMovement->ApplyDamage(5.0f);
+	}
+	CurrentStationIndex = SafeStationIndex;
+	OffTrackSeconds = 0.0f;
+	OnRespawned.Broadcast(bPenalty, CurrentPathIndex, SafeStationIndex);
+	return true;
 }

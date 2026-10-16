@@ -294,6 +294,69 @@ float UStardustCourseComponent::GetCoursePathLengthM(int32 PathIndex) const
 	return Stations.Num() > 0 ? Stations.Last().DistanceM : -1.0f;
 }
 
+int32 UStardustCourseComponent::GetCoursePathStationCount(int32 PathIndex) const
+{
+	const FStardustCourseData* PathData = GetCourseDataForPath(PathIndex);
+	return PathData ? PathData->GetStations().Num() : 0;
+}
+
+bool UStardustCourseComponent::IsCoursePathGapAtStation(int32 PathIndex, int32 StationIndex) const
+{
+	const FStardustCourseData* PathData = GetCourseDataForPath(PathIndex);
+	const TArray<FStardustCourseStation>* Stations = PathData ? &PathData->GetStations() : nullptr;
+	return Stations && Stations->IsValidIndex(StationIndex) && ((*Stations)[StationIndex].Flags & 1) != 0;
+}
+
+float UStardustCourseComponent::GetOutsideRideDistanceM(int32 PathIndex, int32 StationIndex, const FVector& PositionCm) const
+{
+	const FStardustCourseData* PathData = GetCourseDataForPath(PathIndex);
+	if (!PathData)
+	{
+		return -1.0f;
+	}
+	const TArray<FStardustCourseStation>& Stations = PathData->GetStations();
+	if (!Stations.IsValidIndex(StationIndex))
+	{
+		return -1.0f;
+	}
+
+	const FStardustCourseStation& Station = Stations[StationIndex];
+	const int32 RingCount = Station.RingOffsetsM.Num();
+	if (RingCount < 2)
+	{
+		return -1.0f;
+	}
+	const FVector PositionM = PositionCm / 100.0;
+	int32 ClosestRingIndex = INDEX_NONE;
+	double ClosestDistanceSquared = TNumericLimits<double>::Max();
+	for (int32 RingIndex = 0; RingIndex < RingCount; ++RingIndex)
+	{
+		const double DistanceSquared = FVector::DistSquared(Station.RingOffsetsM[RingIndex], PositionM);
+		if (DistanceSquared < ClosestDistanceSquared)
+		{
+			ClosestDistanceSquared = DistanceSquared;
+			ClosestRingIndex = RingIndex;
+		}
+	}
+
+	const int32 CenterRingIndex = RingCount / 2;
+	float RingArcM = 0.0f;
+	for (int32 RingIndex = CenterRingIndex + 1; RingIndex <= ClosestRingIndex; ++RingIndex)
+	{
+		RingArcM += FVector::Distance(Station.RingOffsetsM[RingIndex], Station.RingOffsetsM[RingIndex - 1]);
+	}
+	for (int32 RingIndex = CenterRingIndex - 1; RingIndex >= ClosestRingIndex; --RingIndex)
+	{
+		RingArcM -= FVector::Distance(Station.RingOffsetsM[RingIndex], Station.RingOffsetsM[RingIndex + 1]);
+	}
+	const float BeyondRideM = RingArcM < 0.0f
+		? FMath::Max(0.0f, -RingArcM - Station.RideLeftM)
+		: FMath::Max(0.0f, RingArcM - Station.RideRightM);
+	const FVector ClosestRingPointCm = Station.RingOffsetsM[ClosestRingIndex] * 100.0;
+	const float AwayFromSectionM = FVector::VectorPlaneProject(PositionCm - ClosestRingPointCm, Station.Up).Size() / 100.0f;
+	return BeyondRideM + FMath::Max(0.0f, AwayFromSectionM - 3.0f);
+}
+
 float UStardustCourseComponent::GetDistanceAtPathStation(int32 PathIndex, int32 StationIndex) const
 {
 	const FStardustCourseData* PathData = GetCourseDataForPath(PathIndex);

@@ -141,7 +141,6 @@ void UStardustCraftMovementComponent::PlaceCraft(const FVector& PositionCm, cons
 	Telemetry.AirTimeSeconds = 0.0f;
 	Telemetry.LastLandingSpeedMPerSecond = 0.0f;
 	Telemetry.LastImpactSpeedMPerSecond = 0.0f;
-	Telemetry.HullIntegrity = 100.0f;
 	Telemetry.UpRateSmoothed = 0.0f;
 	Nitro = 1.0f;
 	bNitroLocked = false;
@@ -232,9 +231,22 @@ void UStardustCraftMovementComponent::ApplyImpactSpeed(float ImpactSpeedMPerSeco
 
 	Telemetry.LastImpactSpeedMPerSecond = ImpactSpeedMPerSecond;
 	const float Damage = (ImpactSpeedMPerSecond - Tuning.ImpactMin) * 1.1f;
-	Telemetry.HullIntegrity = FMath::Max(0.0f, Telemetry.HullIntegrity - Damage);
+	ApplyDamage(Damage);
 	ImpactCooldownSeconds = 0.25f;
-	OnDamaged.Broadcast(Damage);
+}
+
+void UStardustCraftMovementComponent::ApplyDamage(float Damage)
+{
+	if (!FMath::IsFinite(Damage) || Damage <= 0.0f)
+	{
+		return;
+	}
+	const float AppliedDamage = FMath::Min(Damage, Telemetry.HullIntegrity);
+	Telemetry.HullIntegrity = FMath::Max(0.0f, Telemetry.HullIntegrity - AppliedDamage);
+	if (AppliedDamage > 0.0f)
+	{
+		OnDamaged.Broadcast(AppliedDamage);
+	}
 }
 
 void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)

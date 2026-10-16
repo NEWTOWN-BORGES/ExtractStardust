@@ -20,6 +20,7 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - Quando existe pista RDDC, o GameMode cria dois bots de teste com o seguidor de linha, separados por faixa; o seguidor inicia o cronómetro próprio do bot e respeita a velocidade segura em curva.
 - `AStardustProceduralCourseActor` constrói a superfície da pista e colisão a partir do RDDC em `Content/Tracks`; o GameMode posiciona a largada pelo primeiro referencial da pista quando o ficheiro está presente.
 - O pawn carrega progresso de corrida ao primeiro aceleramento: cronómetro, checkpoints, estado de chegada e eventos Blueprint, com distância de corrida válida também nos ramos; a telemetria mostra relógio, CP e distância ou avisa quando falta o RDDC.
+- A recuperação de corrida reposiciona após 1,5 s mais de 20 m fora da zona de condução; quedas de mais de 60 m abaixo da pista reposicionam com dano, recuando 12 estações e evitando gaps.
 - A base C++ compila no Unreal Engine 5.8. O seguidor de linha pode ser configurado com `PreferredPathIndex` para seguir um ramo; falta validar condução no viewport e integrar as pistas/veículos do Blender, bots com obstáculos, resultados/economia, interface final e áudio.
 
 Os parâmetros de tuning mantêm as unidades SI do Unity: metros, segundos, m/s e m/s². A conversão para as unidades de mundo do Unreal deve acontecer na camada física, com `1 m = 100 cm`, sem alterar os valores de tuning.

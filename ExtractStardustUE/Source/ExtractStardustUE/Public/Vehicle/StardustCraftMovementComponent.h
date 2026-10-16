@@ -126,6 +126,9 @@ public:
 	void ApplyImpactSpeed(float ImpactSpeedMPerSecond);
 
 	UFUNCTION(BlueprintCallable, Category = "Craft")
+	void ApplyDamage(float Damage);
+
+	UFUNCTION(BlueprintCallable, Category = "Craft")
 	void StepCraft(float DeltaSeconds);
 
 	const FStardustHoverState& GetHoverState() const { return HoverSensor.GetState(); }

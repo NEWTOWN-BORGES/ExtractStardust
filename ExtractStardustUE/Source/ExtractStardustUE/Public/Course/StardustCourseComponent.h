@@ -110,6 +110,15 @@ public:
 	float GetCoursePathLengthM(int32 PathIndex) const;
 
 	UFUNCTION(BlueprintPure, Category = "Course")
+	int32 GetCoursePathStationCount(int32 PathIndex) const;
+
+	UFUNCTION(BlueprintPure, Category = "Course")
+	bool IsCoursePathGapAtStation(int32 PathIndex, int32 StationIndex) const;
+
+	UFUNCTION(BlueprintPure, Category = "Course")
+	float GetOutsideRideDistanceM(int32 PathIndex, int32 StationIndex, const FVector& PositionCm) const;
+
+	UFUNCTION(BlueprintPure, Category = "Course")
 	float GetDistanceAtPathStation(int32 PathIndex, int32 StationIndex) const;
 
 	UFUNCTION(BlueprintPure, Category = "Course")
