@@ -18,6 +18,17 @@ AStardustGameMode::AStardustGameMode()
 	DefaultPawnClass = AStardustHovercraftPawn::StaticClass();
 }
 
+void AStardustGameMode::StartTestBots()
+{
+	for (AStardustBotPawn* Bot : TestBots)
+	{
+		if (IsValid(Bot))
+		{
+			Bot->StartRacing();
+		}
+	}
+}
+
 void AStardustGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
 {
 	Super::InitGame(MapName, Options, ErrorMessage);
@@ -51,6 +62,7 @@ void AStardustGameMode::InitGame(const FString& MapName, const FString& Options,
 			{
 				Bot->LineFollowerComponent->LaneU = LaneU;
 				Bot->FinishSpawning(BotTransform);
+				TestBots.Add(Bot);
 			}
 		}
 	}

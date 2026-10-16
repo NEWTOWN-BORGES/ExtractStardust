@@ -6,6 +6,7 @@
 #include "Course/StardustCourseComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Game/StardustRaceProgressComponent.h"
+#include "StardustGameMode.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Vehicle/StardustCraftMovementComponent.h"
@@ -72,9 +73,15 @@ void AStardustHovercraftPawn::ApplyInput()
 void AStardustHovercraftPawn::SetThrottle(float Value)
 {
 	PendingInput.Throttle = FMath::Clamp(Value, 0.0f, 1.0f);
-	if (PendingInput.Throttle > 0.01f && RaceProgressComponent)
+	if (PendingInput.Throttle > 0.01f && RaceProgressComponent && RaceProgressComponent->State == EStardustRaceState::Waiting)
 	{
-		RaceProgressComponent->StartRace();
+		if (RaceProgressComponent->StartRace() && GetWorld())
+		{
+			if (AStardustGameMode* GameMode = Cast<AStardustGameMode>(GetWorld()->GetAuthGameMode()))
+			{
+				GameMode->StartTestBots();
+			}
+		}
 	}
 	ApplyInput();
 }

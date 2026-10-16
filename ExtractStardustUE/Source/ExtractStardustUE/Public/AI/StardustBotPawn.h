@@ -13,6 +13,7 @@ class EXTRACTSTARDUSTUE_API AStardustBotPawn : public AStardustHovercraftPawn
 
 public:
 	AStardustBotPawn();
+	void StartRacing();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Racing AI")
 	TObjectPtr<UStardustLineFollowerComponent> LineFollowerComponent;

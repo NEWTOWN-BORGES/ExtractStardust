@@ -4,6 +4,8 @@
 #include "GameFramework/GameModeBase.h"
 #include "StardustGameMode.generated.h"
 
+class AStardustBotPawn;
+
 UCLASS()
 class EXTRACTSTARDUSTUE_API AStardustGameMode : public AGameModeBase
 {
@@ -11,7 +13,12 @@ class EXTRACTSTARDUSTUE_API AStardustGameMode : public AGameModeBase
 
 public:
 	AStardustGameMode();
+	void StartTestBots();
 
 protected:
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
+
+private:
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AStardustBotPawn>> TestBots;
 };
