@@ -14,9 +14,10 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - Existe um pawn de teste com casco provisório, câmara chase, comandos de teclado/gamepad e telemetria sobreposta (velocidade, nitro, hover/ar).
 - O GameMode cria automaticamente uma plataforma plana e um PlayerStart provisórios para abrir uma sessão física mesmo sem mapa ou assets importados.
 - O leitor `FStardustCourseData` carrega RDDC v1, valida os dados e permite interpolar amostras ao longo da pista; a conversão Unity → Unreal troca os eixos para `UE(X=Unity Z, Y=Unity X, Z=Unity Y)`, preservando metros nos dados.
-- `UStardustCourseComponent` disponibiliza os dados RDDC às Blueprints e ao código C++; expõe amostras do eixo, pontos da linha lateral, estação mais próxima e distância de corrida.
+- `FStardustCourseGraphData` lê RDDG v2, valida a hierarquia dos percursos e converte a distância percorrida num ramo para a distância equivalente no percurso principal.
+- `UStardustCourseComponent` disponibiliza RDDC/RDDG às Blueprints e ao código C++; expõe amostras do eixo, pontos da linha lateral, localização no ramo e distância de corrida equivalente.
 - `AStardustProceduralCourseActor` constrói a superfície da pista e colisão a partir do RDDC em `Content/Tracks`; o GameMode posiciona a largada pelo primeiro referencial da pista quando o ficheiro está presente.
-- A base C++ compila no Unreal Engine 5.8. Falta validar condução no viewport e integrar as pistas/veículos do Blender; o grafo de ramos, bots com obstáculos, regras de corrida/progressão, interface final e áudio continuam por portar.
+- A base C++ compila no Unreal Engine 5.8. Falta validar condução no viewport e integrar as pistas/veículos do Blender; a escolha dinâmica de ramos pela IA, bots com obstáculos, regras completas de corrida/progressão, interface final e áudio continuam por portar.
 
 Os parâmetros de tuning mantêm as unidades SI do Unity: metros, segundos, m/s e m/s². A conversão para as unidades de mundo do Unreal deve acontecer na camada física, com `1 m = 100 cm`, sem alterar os valores de tuning.
 
@@ -25,7 +26,7 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 ## Integrar uma pista
 
 1. Gerar os ficheiros da pista com `ExtractStardustRDD/Art/Blender/rdd_build_course.py` ou `rdd_build_route.py`, a partir do JSON escolhido em `ExtractStardustRDD/Art/Courses/`.
-2. Copiar o ficheiro `<nome>_course.bytes` para `Content/Tracks/sandbox_course.bytes` (ou atualizar `CourseFileName` no GameMode e no ator procedural).
+2. Copiar o ficheiro `<nome>_course.bytes` para `Content/Tracks/sandbox_course.bytes` (ou atualizar `CourseFileName` no GameMode e no ator procedural) e, se tiver ramos, copiar também `<nome>_graph.bytes` para `Content/Tracks/sandbox_graph.bytes`.
 3. O `AStardustProceduralCourseActor` cria a superfície transitável e a colisão pelo RDDC; o terreno/canyon visual e os veículos artísticos ainda precisam dos FBX importados no Content Browser.
 4. O `UStardustCourseComponent` expõe posição, tangente, referencial, largura, bank, segmento e superfície para checkpoints, linha de corrida e IA.
 
@@ -38,4 +39,4 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 5. Controlos: W acelera, A/D vira, S trava, Shift usa nitro, Espaço derrapa, Q/E inclina no ar. Gamepad: RT acelera, stick esquerdo vira, LT trava, A boost, X drift.
 6. A plataforma é apenas um laboratório de movimento; a pista RDD real e as naves artísticas serão ligadas depois de importar os assets do Blender.
 
-O repositório GitHub ainda não recebeu estas alterações locais porque a credencial guardada no GitHub CLI está inválida.
+O ramo `red-dust-divide-v2` contém os checkpoints locais já enviados para o GitHub.
