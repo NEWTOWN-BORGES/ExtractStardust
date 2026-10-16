@@ -41,7 +41,7 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 1. Para exportar apenas dados jogáveis do percurso principal sem Blender, executar `python .\Tools\ExportCourseDataWithoutBlender.py --install`; precisa de Python 3 e NumPy.
 2. Para os ramos completos, terreno/canyon e FBX, instalar Blender e executar `powershell -ExecutionPolicy Bypass -File .\Tools\PrepareCourseForUnreal.ps1` (ou passar `-BlenderExe` e `-CourseSpec`).
 3. O script Blender valida RDDC/RDDG e copia os dados para `Content/Tracks`; os FBX e a pré-visualização ficam em `Saved/GeneratedCourse/red_dust_divide`.
-4. Para importar automaticamente os setores FBX como malhas estáticas combinadas, executar `powershell -ExecutionPolicy Bypass -File .\Tools\ImportGeneratedCourseAssets.ps1`. Se o cache DDC não for gravável, acrescentar `-ForceMemoryDdc`. Os assets importados ficam em `/Game/Environment/Generated/RedDustDivide` e são ignorados pelo Git por serem artefactos regeneráveis de grande dimensão.
+4. Para importar automaticamente os setores FBX como malhas estáticas combinadas, executar `powershell -ExecutionPolicy Bypass -File .\Tools\ImportGeneratedCourseAssets.ps1`. Se o cache DDC não for gravável, acrescentar `-ForceMemoryDdc`. Os 18 `.uasset` de pista deste checkpoint foram adicionados explicitamente ao Git LFS, apesar da regra `.gitignore` para essa pasta; novos artefactos regeneráveis continuam ignorados até serem incluídos explicitamente.
 4. Abrir o projeto, compilar e carregar em Play para testar a pista e os dois bots de linha.
 
 ## Compilar em Windows
