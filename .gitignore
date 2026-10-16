@@ -62,6 +62,7 @@ ExtractStardustUE/Intermediate/
 ExtractStardustUE/Saved/
 ExtractStardustUE/*.sln
 ExtractStardustUE/*.slnx
+ExtractStardustUE/Content/Environment/Generated/RedDustDivide/
 
 # IDE: solucao do Unity 6000.6 (artefacto de IDE, nao entra)
 **/*.slnx
