@@ -57,9 +57,10 @@ Esta tabela é um mapeamento inicial, não uma conversão já realizada.
 - Portadas as funções de cálculo de taxa de curva, mola, amortecimento, aderência e velocidade de curva.
 - Portado o sensor de cinco sondas, a mistura de propriedades de superfície e a leitura antecipada da normal.
 - Criado um primeiro controlador de movimento C++ com propulsão, travagem, nitro, aderência, drift, mini-turbo e alinhamento à superfície.
+- Criado pawn provisório com câmara chase, controlos de teclado e GameMode inicial.
 - Configurados um canal de colisão `Ground` e tipos físicos para areia funda, slickrock, cascalho e rocha.
 - Mantidas as unidades SI da origem nos dados; a camada física Unreal deverá converter metros para centímetros.
-- Colisões/dano, subida de degraus, input de jogador, pista e restantes sistemas ainda faltam. A compilação ainda não foi executada; o alvo indicado para validação é o PC de casa com UE 5.8.2.
+- Colisões/dano, subida de degraus, input de gamepad, pista e restantes sistemas ainda faltam. A compilação ainda não foi executada; o alvo indicado para validação é o UE 5.8.2 assim que terminar de instalar.
 
 ## Informação ainda necessária para implementar
 

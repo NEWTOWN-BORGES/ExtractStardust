@@ -10,7 +10,8 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - O sensor de hover tem cinco sondas, mistura as propriedades das superfícies e antecipa a normal da pista.
 - A classificação de areia, areia funda, slickrock, cascalho e rocha usa Physical Surface Types do Unreal.
 - O primeiro controlador C++ reproduz propulsão, travagem, nitro, aderência lateral, drift, mini-turbo e alinhamento à superfície.
-- Faltam colisões/dano e subida de degraus, integração de input do jogador, pista, interface, bots, progressão, áudio e assets.
+- Existe um pawn de teste com casco provisório, câmara chase e bindings de teclado para aceleração, direção, travão, boost, drift e pitch aéreo.
+- Faltam colisões/dano e subida de degraus, input de gamepad, pista, interface, bots, progressão, áudio e assets.
 - Esta base ainda não foi compilada. O UE 5.8 foi selecionado no Launcher, mas a pasta de instalação ainda só contém ficheiros pendentes. O compilador C++ já está instalado; compilar assim que `UnrealEditor.exe` e o UnrealBuildTool estiverem presentes.
 
 Os parâmetros de tuning mantêm as unidades SI do Unity: metros, segundos, m/s e m/s². A conversão para as unidades de mundo do Unreal deve acontecer na camada física, com `1 m = 100 cm`, sem alterar os valores de tuning.
