@@ -7,7 +7,9 @@
 
 class UCameraComponent;
 class UPrimitiveComponent;
+class UStardustCourseComponent;
 class UStardustCraftMovementComponent;
+class UStardustRaceProgressComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
 
@@ -24,6 +26,12 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Craft")
 	TObjectPtr<UStardustCraftMovementComponent> MovementComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Race")
+	TObjectPtr<UStardustCourseComponent> CourseComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Race")
+	TObjectPtr<UStardustRaceProgressComponent> RaceProgressComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<USpringArmComponent> CameraArm;

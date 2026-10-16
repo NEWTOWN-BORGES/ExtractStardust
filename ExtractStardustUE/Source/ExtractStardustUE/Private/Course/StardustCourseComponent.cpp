@@ -86,7 +86,8 @@ void UStardustCourseComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	FString Error;
-	if (!LoadCourse(Error) && !CourseFileName.IsEmpty())
+	const FString CoursePath = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Tracks"), CourseFileName);
+	if (!CourseFileName.IsEmpty() && FPaths::FileExists(CoursePath) && !LoadCourse(Error))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Course '%s' was not loaded: %s"), *CourseFileName, *Error);
 	}

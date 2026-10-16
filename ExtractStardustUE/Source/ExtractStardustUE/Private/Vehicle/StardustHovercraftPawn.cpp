@@ -3,7 +3,9 @@
 #include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Course/StardustCourseComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Game/StardustRaceProgressComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Vehicle/StardustCraftMovementComponent.h"
@@ -25,6 +27,8 @@ AStardustHovercraftPawn::AStardustHovercraftPawn()
 
 	MovementComponent = CreateDefaultSubobject<UStardustCraftMovementComponent>(TEXT("CraftMovement"));
 	MovementComponent->Input.Throttle = 0.0f;
+	CourseComponent = CreateDefaultSubobject<UStardustCourseComponent>(TEXT("Course"));
+	RaceProgressComponent = CreateDefaultSubobject<UStardustRaceProgressComponent>(TEXT("RaceProgress"));
 	const FVector HullSize = MovementComponent->Tuning.HullSizeM;
 	HullMesh->SetRelativeScale3D(FVector(HullSize.Z, HullSize.X, HullSize.Y));
 
@@ -68,6 +72,10 @@ void AStardustHovercraftPawn::ApplyInput()
 void AStardustHovercraftPawn::SetThrottle(float Value)
 {
 	PendingInput.Throttle = FMath::Clamp(Value, 0.0f, 1.0f);
+	if (PendingInput.Throttle > 0.01f && RaceProgressComponent)
+	{
+		RaceProgressComponent->StartRace();
+	}
 	ApplyInput();
 }
 
