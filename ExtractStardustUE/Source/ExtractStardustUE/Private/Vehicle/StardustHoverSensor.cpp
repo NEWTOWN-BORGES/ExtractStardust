@@ -65,7 +65,7 @@ void FStardustHoverSensor::Reset(const FVector& Up)
 {
 	State.Hits = 0;
 	State.HeightM = TNumericLimits<float>::Infinity();
-	State.Normal = Up.GetSafeNormal(FVector::UpVector);
+	State.Normal = Up.GetSafeNormal(SMALL_NUMBER, FVector::UpVector);
 	State.NormalRaw = State.Normal;
 	State.NormalAhead = State.Normal;
 	State.bAheadHit = false;
@@ -78,10 +78,10 @@ float FStardustHoverSensor::Damp(float Lambda, float DeltaSeconds)
 
 FVector FStardustHoverSensor::SlerpNormals(const FVector& From, const FVector& To, float Alpha)
 {
-	const FVector A = From.GetSafeNormal(FVector::UpVector);
-	const FVector B = To.GetSafeNormal(A);
+	const FVector A = From.GetSafeNormal(SMALL_NUMBER, FVector::UpVector);
+	const FVector B = To.GetSafeNormal(SMALL_NUMBER, A);
 	const FQuat Delta = FQuat::FindBetweenNormals(A, B);
-	return FQuat::Slerp(FQuat::Identity, Delta, FMath::Clamp(Alpha, 0.0f, 1.0f)).RotateVector(A).GetSafeNormal(A);
+	return FQuat::Slerp(FQuat::Identity, Delta, FMath::Clamp(Alpha, 0.0f, 1.0f)).RotateVector(A).GetSafeNormal(SMALL_NUMBER, A);
 }
 
 EStardustSurface FStardustHoverSensor::ReadSurface(const FHitResult& Hit)
@@ -159,7 +159,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 	if (State.Hits > 0 && WeightSum > 0.0f)
 	{
 		State.HeightM = HeightSum / WeightSum;
-		State.NormalRaw = NormalSum.GetSafeNormal(Up);
+		State.NormalRaw = NormalSum.GetSafeNormal(SMALL_NUMBER, Up);
 		State.GroundPointCm = PointSum / WeightSum;
 		FStardustSurfaceTraits MixedTraits;
 		MixedTraits.Grip = 0.0f;
@@ -210,7 +210,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 		{
 			State.bAheadHit = true;
 			State.AheadPointCm = AheadHit.ImpactPoint;
-			State.NormalAhead = AheadHit.ImpactNormal.GetSafeNormal(BaseNormal);
+			State.NormalAhead = AheadHit.ImpactNormal.GetSafeNormal(SMALL_NUMBER, BaseNormal);
 		}
 		else
 		{
@@ -223,7 +223,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 				State.bAheadHit = true;
 				State.AheadOriginCm = Start;
 				State.AheadPointCm = AheadHit.ImpactPoint;
-				State.NormalAhead = AheadHit.ImpactNormal.GetSafeNormal(BaseNormal);
+				State.NormalAhead = AheadHit.ImpactNormal.GetSafeNormal(SMALL_NUMBER, BaseNormal);
 			}
 		}
 	}
@@ -231,7 +231,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 	FVector TargetNormal = BaseNormal;
 	if (State.bAheadHit)
 	{
-		TargetNormal = (BaseNormal + State.NormalAhead * (0.8f * FMath::Clamp(SpeedMPerSecond / Tuning.TopSpeed, 0.0f, 1.0f))).GetSafeNormal(BaseNormal);
+		TargetNormal = (BaseNormal + State.NormalAhead * (0.8f * FMath::Clamp(SpeedMPerSecond / Tuning.TopSpeed, 0.0f, 1.0f))).GetSafeNormal(SMALL_NUMBER, BaseNormal);
 	}
 	const float NormalLambda = 1.0f / FMath::Max(1.0e-3f, Tuning.NormalSmoothing);
 	State.Normal = SlerpNormals(State.Normal, TargetNormal, Damp(NormalLambda, DeltaSeconds));

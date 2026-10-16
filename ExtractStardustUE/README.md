@@ -9,8 +9,9 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - As fórmulas de direção, mola, amortecimento, aderência e velocidade de curva foram portadas de `CraftTuning.cs`.
 - O sensor de hover tem cinco sondas, mistura as propriedades das superfícies e antecipa a normal da pista.
 - A classificação de areia, areia funda, slickrock, cascalho e rocha usa Physical Surface Types do Unreal.
-- O controlador de movimento e colisões do veículo, pista, interface, bots, progressão, áudio e assets ainda não foram portados.
-- Esta base ainda não foi compilada. O PC onde este clone foi preparado só tem Unreal 5.5 e recursos modestos; validar no PC de casa com UE 5.8.2.
+- O primeiro controlador C++ reproduz propulsão, travagem, nitro, aderência lateral, drift, mini-turbo e alinhamento à superfície.
+- Faltam colisões/dano e subida de degraus, integração de input do jogador, pista, interface, bots, progressão, áudio e assets.
+- Esta base ainda não foi compilada. O UE 5.8 foi selecionado no Launcher, mas a pasta de instalação ainda só contém ficheiros pendentes. O compilador C++ já está instalado; compilar assim que `UnrealEditor.exe` e o UnrealBuildTool estiverem presentes.
 
 Os parâmetros de tuning mantêm as unidades SI do Unity: metros, segundos, m/s e m/s². A conversão para as unidades de mundo do Unreal deve acontecer na camada física, com `1 m = 100 cm`, sem alterar os valores de tuning.
 

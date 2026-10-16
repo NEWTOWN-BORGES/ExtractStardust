@@ -71,12 +71,12 @@ public:
 		const FStardustCraftTuning& Tuning, float DeltaSeconds, const AActor* IgnoredActor);
 
 	const FStardustHoverState& GetState() const { return State; }
+	static FVector SlerpNormals(const FVector& From, const FVector& To, float Alpha);
 
 private:
 	FStardustHoverState State;
 	float SurfaceWeights[5] = {};
 
 	static EStardustSurface ReadSurface(const FHitResult& Hit);
-	static FVector SlerpNormals(const FVector& From, const FVector& To, float Alpha);
 	static float Damp(float Lambda, float DeltaSeconds);
 };

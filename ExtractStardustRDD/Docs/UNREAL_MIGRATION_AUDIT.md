@@ -15,7 +15,8 @@ Conclusão: a migração ainda não tinha começado no ramo remoto. Foi criado u
 ## Decisão de versão
 
 - Versão alvo: **Unreal Engine 5.8.2**, a versão mais recente da série UE5 confirmada para esta tarefa.
-- Este PC tem Unreal `UE_5.5`; o utilizador indicou que o PC de casa, mais potente, tem Unreal, Unity, Blender e compilador C++. A versão instalada em casa ainda precisa de ser confirmada como 5.8.2.
+- Este PC tem VS 2026 Community e Build Tools VS 2022 com ferramentas C++ detetadas. O UE 5.8 foi selecionado no Launcher, mas o diretório `UE_5.8` ainda só contém `.egstore/Pending`; o editor e o UnrealBuildTool ainda não estão disponíveis.
+- O utilizador indicou que o PC de casa, mais potente, tem Unreal, Unity, Blender e compilador C++. A versão instalada em casa ainda precisa de ser confirmada como 5.8.2.
 - O README do projeto atual indica **PC e Android**, que ficam como plataformas alvo iniciais da migração.
 - O PC atual foi identificado como Intel Core i5-4460, 4 processadores lógicos, cerca de 16 GB de RAM disponíveis e 525 GB livres em disco. Fica abaixo dos 32 GB de RAM recomendados pela Epic e do baseline prático de 12–16 núcleos para compilações locais.
 - Referências oficiais: [anúncio do Unreal Engine 5.8](https://www.unrealengine.com/news/unreal-engine-5-8-is-now-available) e [anúncio do hotfix 5.8.2](https://forums.unrealengine.com/t/5-8-2-hotfix-released/2746335).
@@ -55,9 +56,10 @@ Esta tabela é um mapeamento inicial, não uma conversão já realizada.
 - Portados os campos de input e o tuning de STRIX stock de `CraftTuning.cs` para `FStardustCraftInput` e `FStardustCraftTuning`.
 - Portadas as funções de cálculo de taxa de curva, mola, amortecimento, aderência e velocidade de curva.
 - Portado o sensor de cinco sondas, a mistura de propriedades de superfície e a leitura antecipada da normal.
+- Criado um primeiro controlador de movimento C++ com propulsão, travagem, nitro, aderência, drift, mini-turbo e alinhamento à superfície.
 - Configurados um canal de colisão `Ground` e tipos físicos para areia funda, slickrock, cascalho e rocha.
 - Mantidas as unidades SI da origem nos dados; a camada física Unreal deverá converter metros para centímetros.
-- A compilação ainda não foi executada. O alvo indicado para validação é o PC de casa com UE 5.8.2.
+- Colisões/dano, subida de degraus, input de jogador, pista e restantes sistemas ainda faltam. A compilação ainda não foi executada; o alvo indicado para validação é o PC de casa com UE 5.8.2.
 
 ## Informação ainda necessária para implementar
 
