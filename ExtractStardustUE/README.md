@@ -23,8 +23,8 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - O pawn carrega progresso de corrida ao primeiro aceleramento: cronómetro, checkpoints, estado de chegada e eventos Blueprint, com distância de corrida válida também nos ramos; a telemetria mostra relógio, CP e distância ou avisa quando falta o RDDC.
 - A recuperação de corrida reposiciona após 1,5 s mais de 20 m fora da zona de condução; quedas de mais de 60 m abaixo da pista reposicionam com dano, recuando 12 estações e evitando gaps.
 - A validação anterior de compilação e smoke test estava pendente neste checkout; a revalidação local com UE 5.8.3 está registada abaixo.
-- Revalidação local em 2026-10-16 no Unreal Engine 5.8.3: foi instalado no Visual Studio o SDK .NET Framework 4.8.1; os alvos Editor e Game Development compilaram com sucesso. O Editor abriu o mapa base `OpenWorld`; o Asset Registry comunicou 18 erros porque os `.uasset` de arte ainda estavam apenas como ponteiros Git LFS.
-- O cook/package normal falhou exclusivamente nesses 18 ponteiros. Um package temporário com `-IgnoreCookErrors` cozinhou 578 pacotes e gerou um build de teste com cerca de 950 MiB no total (inclui símbolos; o conteúdo IoStore ocupa cerca de 145 MiB). O smoke test não interativo, com `-nullrhi`, terminou com código 0, carregou `StardustGameMode`, leu 21 137 estações (105,66 km) e construiu 43 secções visuais e 11 de colisão. Isto valida a fatia procedural sem as malhas artísticas; não valida condução visual. Para validar a arte e fazer um package sem ignorar erros, é necessário descarregar os 18 assets LFS (cerca de 497 MB).
+- Revalidação local em 2026-10-16 no Unreal Engine 5.8.3: foi instalado no Visual Studio o SDK .NET Framework 4.8.1; os alvos Editor e Game Development compilaram com sucesso. O Editor abriu o mapa base `OpenWorld`.
+- Após descarregar seletivamente os 18 meshes gerados por Git LFS (cerca de 499 MB armazenados; 9 objetos já estavam em cache), o `BuildCookRun` Win64 Development normal, sem `-IgnoreCookErrors`, concluiu com 578 pacotes, 0 erros e 0 avisos. O pacote local de teste, executado com `-nullrhi`, saiu com código 0, carregou `OpenWorld` e `StardustGameMode`, leu 21 137 estações (105,66 km) e criou 43 secções visuais e 11 de colisão. O teste não renderiza nem verifica input/condução; os meshes de ambiente ainda não estão ligados ao ator do percurso.
 - A migração total continua incompleta: faltam validação visual e de condução, ramos/veículos do Blender, bots com obstáculos, resultados/economia, interface final e áudio.
 
 Os parâmetros de tuning mantêm as unidades SI do Unity: metros, segundos, m/s e m/s². A conversão para as unidades de mundo do Unreal deve acontecer na camada física, com `1 m = 100 cm`, sem alterar os valores de tuning.
@@ -58,7 +58,7 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 
 ### Git LFS para o primeiro teste
 
-`Content/Tracks/sandbox_course.bytes` e `sandbox_graph.bytes` são ficheiros regulares do Git. O código C++ constrói a pista a partir destes dados e não referencia diretamente os `.uasset` ou FBX de arte. Os 18 `.uasset` LFS ocupam cerca de 500 MB; não são necessários para compilar nem para o teste da pista procedural. A abertura do Editor com os ponteiros LFS ainda precisa de verificação: se o Asset Registry exigir os ficheiros reais, descarregar apenas `ExtractStardustUE/Content/Environment/Generated/RedDustDivide/**` com `git lfs pull --include="ExtractStardustUE/Content/Environment/Generated/RedDustDivide/**"`. Não descarregar o pacote Windows nem os FBX em `Saved/` para o primeiro teste.
+`Content/Tracks/sandbox_course.bytes` e `sandbox_graph.bytes` são ficheiros regulares do Git. Compilar C++ e correr o percurso procedural não requer LFS. Para carregar os assets gerados no Editor e fazer um cook limpo, descarregar apenas a pasta dos 18 meshes: `git lfs pull --include="ExtractStardustUE/Content/Environment/Generated/RedDustDivide/**" origin red-dust-divide-v2`. Não descarregar o ZIP de jogo nem integrar assets do Fab. Os meshes ainda não são referenciados pelo GameMode/ator e, por isso, não entram no percurso jogável.
 
 ## Testar no PC de casa
 
@@ -67,6 +67,6 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 3. Compilar o alvo Editor em Development. O projeto abre o mapa base `OpenWorld` incluído no Unreal.
 4. Carregar em Play para gerar a superfície da pista RED DUST DIVIDE, o hovercraft de teste, os dois bots e a telemetria.
 5. Controlos: W acelera, A/D vira, S trava, Shift usa nitro, Espaço derrapa, Q/E inclina no ar. Gamepad: RT acelera, stick esquerdo vira, LT trava, A boost, X drift.
-6. Se preferires testar sem abrir o editor, executar `Saved\Package\Windows\ExtractStardustUE.exe` depois de desempacotar a pasta completa `Saved\Package\Windows`.
+6. Pacote smoke test local: `Saved\PackageSmokeWithLFS\Windows\ExtractStardustUE.exe` (artefacto ignorado pelo Git; executar a pasta completa). O runtime foi verificado com `-nullrhi`, sem verificação visual.
 
 O ramo `red-dust-divide-v2` contém os checkpoints locais já enviados para o GitHub.
