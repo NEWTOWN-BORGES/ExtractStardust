@@ -23,20 +23,22 @@ void UStardustLineFollowerComponent::SetCourse(UStardustCourseComponent* NewCour
 {
 	Course = NewCourse;
 	CurrentStation = INDEX_NONE;
+	CurrentPathIndex = INDEX_NONE;
 	DistanceM = 0.0f;
+	RaceDistanceM = 0.0f;
 }
 
-float UStardustLineFollowerComponent::CurvatureAhead(float SpanM, float& OutBankDegrees) const
+float UStardustLineFollowerComponent::CurvatureAhead(int32 PathIndex, float CurrentDistanceM, float SpanM, float& OutBankDegrees) const
 {
 	OutBankDegrees = 0.0f;
-	if (!Course || Course->CourseLengthM <= 0.0f)
+	if (!Course || Course->GetCoursePathLengthM(PathIndex) <= 0.0f)
 	{
 		return 0.0f;
 	}
 
 	FStardustCoursePoint Start;
 	FStardustCoursePoint End;
-	if (!Course->SampleAtDistance(DistanceM, Start) || !Course->SampleAtDistance(DistanceM + SpanM, End))
+	if (!Course->SamplePathAtDistance(PathIndex, CurrentDistanceM, Start) || !Course->SamplePathAtDistance(PathIndex, CurrentDistanceM + SpanM, End))
 	{
 		return 0.0f;
 	}
@@ -62,25 +64,44 @@ void UStardustLineFollowerComponent::TickComponent(float DeltaTime, ELevelTick T
 	}
 
 	const FVector PositionCm = GetOwner()->GetActorLocation();
-	CurrentStation = Course->FindNearestStation(PositionCm, CurrentStation);
-	if (CurrentStation == INDEX_NONE)
+	int32 LocatedPathIndex = INDEX_NONE;
+	int32 LocatedStationIndex = INDEX_NONE;
+	if (!Course->LocateCoursePath(PositionCm, CurrentPathIndex, CurrentStation, LocatedPathIndex, LocatedStationIndex))
 	{
 		return;
 	}
+	CurrentPathIndex = LocatedPathIndex;
+	CurrentStation = LocatedStationIndex;
+	const float StationDistanceM = Course->GetDistanceAtPathStation(CurrentPathIndex, CurrentStation);
 	FStardustCoursePoint CurrentPoint;
-	if (!Course->SampleAtDistance(Course->GetDistanceAtStation(CurrentStation), CurrentPoint))
+	if (StationDistanceM < 0.0f || !Course->SamplePathAtDistance(CurrentPathIndex, StationDistanceM, CurrentPoint))
 	{
 		return;
 	}
+	const float PathEndDistanceM = Course->GetCoursePathLengthM(CurrentPathIndex);
+	const float PathStartDistanceM = Course->GetDistanceAtPathStation(CurrentPathIndex, 0);
 	DistanceM = FMath::Clamp(CurrentPoint.DistanceM + FVector::DotProduct(PositionCm - CurrentPoint.PositionCm, CurrentPoint.Tangent) / 100.0,
-		0.0f, Course->CourseLengthM);
+		PathStartDistanceM, PathEndDistanceM);
+	RaceDistanceM = Course->MapPathDistanceToRaceDistance(CurrentPathIndex, DistanceM);
 
 	const FStardustCraftTelemetry& Telemetry = CraftMovement->Telemetry;
 	const float SpeedMPerSecond = Telemetry.SpeedMPerSecond;
 	const float LookAheadM = LookAheadBaseM + LookAheadPerSpeed * SpeedMPerSecond;
 	CurrentLaneU = FMath::FInterpTo(CurrentLaneU, FMath::Clamp(LaneU, -1.0f, 1.0f), DeltaTime, LaneResponse);
+	int32 FollowPathIndex = CurrentPathIndex;
+	float FollowDistanceM = DistanceM;
+	if (PreferredPathIndex > 0 && PreferredPathIndex < Course->GetCoursePathCount())
+	{
+		const float BranchEntryM = Course->GetCoursePathEntryDistanceM(PreferredPathIndex);
+		const float BranchExitM = Course->GetCoursePathExitDistanceM(PreferredPathIndex);
+		if (RaceDistanceM >= BranchEntryM && RaceDistanceM < BranchExitM)
+		{
+			FollowPathIndex = PreferredPathIndex;
+			FollowDistanceM = Course->MapRaceDistanceToPathDistance(FollowPathIndex, RaceDistanceM);
+		}
+	}
 	FVector TargetCm;
-	if (!Course->LanePointAtDistance(DistanceM + LookAheadM, CurrentLaneU, TargetCm))
+	if (!Course->LanePointAtPathDistance(FollowPathIndex, FollowDistanceM + LookAheadM, CurrentLaneU, TargetCm))
 	{
 		return;
 	}
@@ -96,7 +117,7 @@ void UStardustLineFollowerComponent::TickComponent(float DeltaTime, ELevelTick T
 	Input.Steer = FMath::Clamp(DesiredTurnRate / FMath::Max(0.05f, CraftMovement->Tuning.GetTurnRate(SpeedMPerSecond)), -1.0f, 1.0f);
 
 	float BankDegrees = 0.0f;
-	const float Curvature = CurvatureAhead(60.0f + SpeedMPerSecond * 1.2f, BankDegrees);
+	const float Curvature = CurvatureAhead(FollowPathIndex, FollowDistanceM, 60.0f + SpeedMPerSecond * 1.2f, BankDegrees);
 	const float CurveSpeed = CraftMovement->Tuning.GetCornerSpeed(Curvature, BankDegrees, CornerMargin);
 	const float MaxSpeed = FMath::Min(CurveSpeed, SpeedLimitMPerSecond);
 	Input.Throttle = SpeedMPerSecond > MaxSpeed ? 0.0f : 1.0f;

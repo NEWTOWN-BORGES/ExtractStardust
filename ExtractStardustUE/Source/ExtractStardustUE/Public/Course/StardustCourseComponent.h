@@ -83,7 +83,13 @@ public:
 	bool SampleAtDistance(float DistanceM, FStardustCoursePoint& OutPoint) const;
 
 	UFUNCTION(BlueprintPure, Category = "Course")
+	bool SamplePathAtDistance(int32 PathIndex, float DistanceM, FStardustCoursePoint& OutPoint) const;
+
+	UFUNCTION(BlueprintPure, Category = "Course")
 	bool LanePointAtDistance(float DistanceM, float LaneU, FVector& OutPositionCm) const;
+
+	UFUNCTION(BlueprintPure, Category = "Course")
+	bool LanePointAtPathDistance(int32 PathIndex, float DistanceM, float LaneU, FVector& OutPositionCm) const;
 
 	UFUNCTION(BlueprintPure, Category = "Course")
 	int32 FindNearestStation(const FVector& PositionCm, int32 HintIndex = -1, int32 SearchWindow = 160) const;
@@ -100,6 +106,24 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Course")
 	float GetRaceDistanceAtStation(int32 PathIndex, int32 StationIndex) const;
 
+	UFUNCTION(BlueprintPure, Category = "Course")
+	float GetCoursePathLengthM(int32 PathIndex) const;
+
+	UFUNCTION(BlueprintPure, Category = "Course")
+	float GetDistanceAtPathStation(int32 PathIndex, int32 StationIndex) const;
+
+	UFUNCTION(BlueprintPure, Category = "Course")
+	float GetCoursePathEntryDistanceM(int32 PathIndex) const;
+
+	UFUNCTION(BlueprintPure, Category = "Course")
+	float GetCoursePathExitDistanceM(int32 PathIndex) const;
+
+	UFUNCTION(BlueprintPure, Category = "Course")
+	float MapPathDistanceToRaceDistance(int32 PathIndex, float DistanceM) const;
+
+	UFUNCTION(BlueprintPure, Category = "Course")
+	float MapRaceDistanceToPathDistance(int32 PathIndex, float RaceDistanceM) const;
+
 	UFUNCTION(BlueprintCallable, Category = "Course")
 	bool LocateCoursePath(const FVector& PositionCm, int32 HintPathIndex, int32 HintStationIndex,
 		int32& OutPathIndex, int32& OutStationIndex, float HysteresisM = 4.0f) const;
@@ -110,4 +134,6 @@ protected:
 private:
 	FStardustCourseData CourseData;
 	FStardustCourseGraphData CourseGraph;
+
+	const FStardustCourseData* GetCourseDataForPath(int32 PathIndex) const;
 };

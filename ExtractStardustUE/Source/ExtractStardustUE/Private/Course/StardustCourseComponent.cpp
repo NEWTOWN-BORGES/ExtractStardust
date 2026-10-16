@@ -101,6 +101,9 @@ bool UStardustCourseComponent::LoadCourse(FString& OutError)
 {
 	CourseLengthM = 0.0f;
 	StationCount = 0;
+	BranchCount = 0;
+	CourseData.Reset();
+	CourseGraph.Reset();
 	if (CourseFileName.IsEmpty())
 	{
 		OutError = TEXT("Course file name is empty.");
@@ -150,10 +153,26 @@ bool UStardustCourseComponent::LoadCourseGraph(FString& OutError)
 	return true;
 }
 
+const FStardustCourseData* UStardustCourseComponent::GetCourseDataForPath(int32 PathIndex) const
+{
+	const TArray<FStardustCoursePath>& Paths = CourseGraph.GetPaths();
+	if (Paths.IsValidIndex(PathIndex))
+	{
+		return &Paths[PathIndex].Data;
+	}
+	return PathIndex == 0 && StationCount > 0 ? &CourseData : nullptr;
+}
+
 bool UStardustCourseComponent::SampleAtDistance(float DistanceM, FStardustCoursePoint& OutPoint) const
 {
+	return SamplePathAtDistance(0, DistanceM, OutPoint);
+}
+
+bool UStardustCourseComponent::SamplePathAtDistance(int32 PathIndex, float DistanceM, FStardustCoursePoint& OutPoint) const
+{
 	FStardustCourseSample Sample;
-	if (!CourseData.SampleAtDistance(DistanceM, Sample))
+	const FStardustCourseData* PathData = GetCourseDataForPath(PathIndex);
+	if (!PathData || !PathData->SampleAtDistance(DistanceM, Sample))
 	{
 		return false;
 	}
@@ -176,8 +195,14 @@ bool UStardustCourseComponent::SampleAtDistance(float DistanceM, FStardustCourse
 
 bool UStardustCourseComponent::LanePointAtDistance(float DistanceM, float LaneU, FVector& OutPositionCm) const
 {
+	return LanePointAtPathDistance(0, DistanceM, LaneU, OutPositionCm);
+}
+
+bool UStardustCourseComponent::LanePointAtPathDistance(int32 PathIndex, float DistanceM, float LaneU, FVector& OutPositionCm) const
+{
 	FStardustCourseSample Sample;
-	if (!CourseData.SampleAtDistance(DistanceM, Sample) || Sample.RingOffsetsM.Num() < 2)
+	const FStardustCourseData* PathData = GetCourseDataForPath(PathIndex);
+	if (!PathData || !PathData->SampleAtDistance(DistanceM, Sample) || Sample.RingOffsetsM.Num() < 2)
 	{
 		return false;
 	}
@@ -233,8 +258,7 @@ int32 UStardustCourseComponent::FindNearestStation(const FVector& PositionCm, in
 
 float UStardustCourseComponent::GetDistanceAtStation(int32 StationIndex) const
 {
-	const TArray<FStardustCourseStation>& Stations = CourseData.GetStations();
-	return Stations.IsValidIndex(StationIndex) ? Stations[StationIndex].DistanceM : -1.0f;
+	return GetDistanceAtPathStation(0, StationIndex);
 }
 
 int32 UStardustCourseComponent::GetCoursePathCount() const
@@ -254,13 +278,81 @@ FString UStardustCourseComponent::GetCoursePathName(int32 PathIndex) const
 
 float UStardustCourseComponent::GetRaceDistanceAtStation(int32 PathIndex, int32 StationIndex) const
 {
+	const float PathDistanceM = GetDistanceAtPathStation(PathIndex, StationIndex);
+	return PathDistanceM >= 0.0f ? MapPathDistanceToRaceDistance(PathIndex, PathDistanceM) : -1.0f;
+}
+
+float UStardustCourseComponent::GetCoursePathLengthM(int32 PathIndex) const
+{
+	const FStardustCourseData* PathData = GetCourseDataForPath(PathIndex);
+	if (!PathData)
+	{
+		return -1.0f;
+	}
+	const TArray<FStardustCourseStation>& Stations = PathData->GetStations();
+	return Stations.Num() > 0 ? Stations.Last().DistanceM : -1.0f;
+}
+
+float UStardustCourseComponent::GetDistanceAtPathStation(int32 PathIndex, int32 StationIndex) const
+{
+	const FStardustCourseData* PathData = GetCourseDataForPath(PathIndex);
+	if (!PathData)
+	{
+		return -1.0f;
+	}
+	const TArray<FStardustCourseStation>& Stations = PathData->GetStations();
+	return Stations.IsValidIndex(StationIndex) ? Stations[StationIndex].DistanceM : -1.0f;
+}
+
+float UStardustCourseComponent::GetCoursePathEntryDistanceM(int32 PathIndex) const
+{
 	const TArray<FStardustCoursePath>& Paths = CourseGraph.GetPaths();
 	if (Paths.IsValidIndex(PathIndex))
 	{
-		const TArray<FStardustCourseStation>& Stations = Paths[PathIndex].Data.GetStations();
-		return Stations.IsValidIndex(StationIndex) ? Paths[PathIndex].ToRaceDistance(Stations[StationIndex].DistanceM) : -1.0f;
+		return Paths[PathIndex].FromM;
 	}
-	return PathIndex == 0 ? GetDistanceAtStation(StationIndex) : -1.0f;
+	return PathIndex == 0 && StationCount > 0 ? 0.0f : -1.0f;
+}
+
+float UStardustCourseComponent::GetCoursePathExitDistanceM(int32 PathIndex) const
+{
+	const TArray<FStardustCoursePath>& Paths = CourseGraph.GetPaths();
+	if (Paths.IsValidIndex(PathIndex))
+	{
+		return Paths[PathIndex].ToM;
+	}
+	return PathIndex == 0 ? CourseLengthM : -1.0f;
+}
+
+float UStardustCourseComponent::MapPathDistanceToRaceDistance(int32 PathIndex, float DistanceM) const
+{
+	const TArray<FStardustCoursePath>& Paths = CourseGraph.GetPaths();
+	if (Paths.IsValidIndex(PathIndex))
+	{
+		return Paths[PathIndex].ToRaceDistance(DistanceM);
+	}
+	return PathIndex == 0 ? DistanceM : -1.0f;
+}
+
+float UStardustCourseComponent::MapRaceDistanceToPathDistance(int32 PathIndex, float RaceDistanceM) const
+{
+	const TArray<FStardustCoursePath>& Paths = CourseGraph.GetPaths();
+	if (!Paths.IsValidIndex(PathIndex))
+	{
+		return PathIndex == 0 ? RaceDistanceM : -1.0f;
+	}
+	const FStardustCoursePath& Path = Paths[PathIndex];
+	if (Path.IsMain())
+	{
+		return RaceDistanceM;
+	}
+	const TArray<FStardustCourseStation>& Stations = Path.Data.GetStations();
+	if (Stations.Num() < 2 || Path.ToM <= Path.FromM)
+	{
+		return -1.0f;
+	}
+	const float Alpha = FMath::Clamp((RaceDistanceM - Path.FromM) / (Path.ToM - Path.FromM), 0.0f, 1.0f);
+	return FMath::Lerp(Stations[0].DistanceM, Stations.Last().DistanceM, Alpha);
 }
 
 bool UStardustCourseComponent::LocateCoursePath(const FVector& PositionCm, int32 HintPathIndex, int32 HintStationIndex,

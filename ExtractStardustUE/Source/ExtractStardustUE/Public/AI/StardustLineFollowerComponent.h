@@ -22,6 +22,9 @@ public:
 	float LaneU = 0.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Racing AI", meta = (ClampMin = "0"))
+	int32 PreferredPathIndex = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Racing AI", meta = (ClampMin = "0"))
 	float SpeedLimitMPerSecond = 1000.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Racing AI", meta = (ClampMin = "0.1"))
@@ -48,6 +51,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Racing AI")
 	float DistanceM = 0.0f;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Racing AI")
+	int32 CurrentPathIndex = INDEX_NONE;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Racing AI")
+	float RaceDistanceM = 0.0f;
+
 	UFUNCTION(BlueprintCallable, Category = "Racing AI")
 	void SetCourse(UStardustCourseComponent* NewCourse);
 
@@ -60,5 +69,5 @@ private:
 	TObjectPtr<UStardustCraftMovementComponent> CraftMovement;
 	float CurrentLaneU = 0.0f;
 
-	float CurvatureAhead(float SpanM, float& OutBankDegrees) const;
+	float CurvatureAhead(int32 PathIndex, float CurrentDistanceM, float SpanM, float& OutBankDegrees) const;
 };
