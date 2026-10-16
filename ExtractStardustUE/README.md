@@ -11,6 +11,7 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - A classificação de areia, areia funda, slickrock, cascalho e rocha usa Physical Surface Types do Unreal.
 - O primeiro controlador C++ reproduz propulsão, travagem, nitro, aderência lateral, drift, mini-turbo e alinhamento à superfície.
 - Existe um pawn de teste com casco provisório, câmara chase e bindings de teclado para aceleração, direção, travão, boost, drift e pitch aéreo.
+- O leitor `FStardustCourseData` carrega RDDC v1, valida os dados e permite interpolar amostras ao longo da pista; a conversão Unity → Unreal troca os eixos para `UE(X=Unity Z, Y=Unity X, Z=Unity Y)`, preservando metros nos dados.
 - Faltam colisões/dano e subida de degraus, input de gamepad, pista, interface, bots, progressão, áudio e assets.
 - Esta base ainda não foi compilada. O UE 5.8 foi selecionado no Launcher, mas a pasta de instalação ainda só contém ficheiros pendentes. O compilador C++ já está instalado; compilar assim que `UnrealEditor.exe` e o UnrealBuildTool estiverem presentes.
 
