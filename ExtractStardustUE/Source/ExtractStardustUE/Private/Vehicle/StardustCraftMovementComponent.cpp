@@ -4,6 +4,7 @@
 #include "Course/StardustCourseComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 #include "Game/StardustRaceProgressComponent.h"
 
 namespace
@@ -43,6 +44,11 @@ void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick 
 			Telemetry.SpeedMPerSecond * 3.6f, Telemetry.Nitro * 100.0f, Telemetry.HullIntegrity,
 			Telemetry.bGrounded ? TEXT("HOVER") : TEXT("AIR"));
 		GEngine->AddOnScreenDebugMessage(817430, 0.0f, FColor::White, TelemetryText);
+		const FStardustHoverState& HoverState = HoverSensor.GetState();
+		const FString ContactText = HoverState.Hits > 0
+			? FString::Printf(TEXT("GROUND CONTACT  %d/5  |  %.2f m"), HoverState.Hits, HoverState.HeightM)
+			: TEXT("GROUND CONTACT  0/5  |  NO HIT");
+		GEngine->AddOnScreenDebugMessage(817434, 0.0f, HoverState.Hits >= 2 ? FColor::Green : FColor::Red, ContactText);
 		GEngine->AddOnScreenDebugMessage(817431, 0.0f, FColor::Yellow,
 			TEXT("W / RT: accelerate   A-D / Stick: steer   S / LT: brake   Shift / A: boost   Space / X: drift"));
 		if (RaceProgressComponent && RaceProgressComponent->State == EStardustRaceState::Racing)
@@ -265,6 +271,19 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 	ApplyRaceVitalLimits(DeltaSeconds, SpeedMPerSecond);
 	HoverSensor.Sample(GetWorld(), PositionCm, Rotation, VelocityMPerSecond * CmPerMeter, Tuning, DeltaSeconds, GetOwner());
 	const FStardustHoverState& Sensor = HoverSensor.GetState();
+	#if !UE_BUILD_SHIPPING
+	if (const APawn* PlayerPawn = Cast<APawn>(GetOwner()))
+	{
+		static double NextGroundDiagnosticTime = 0.0;
+		const double WorldTime = GetWorld()->GetTimeSeconds();
+		if (PlayerPawn->IsPlayerControlled() && WorldTime >= NextGroundDiagnosticTime)
+		{
+			UE_LOG(LogTemp, Display, TEXT("Hover contact: %d/5 probes, height %.2f m, craft Z %.1f m, vertical speed %.2f m/s."),
+				Sensor.Hits, Sensor.Hits > 0 ? Sensor.HeightM : -1.0f, PositionCm.Z / CmPerMeter, VelocityMPerSecond.Z);
+			NextGroundDiagnosticTime = WorldTime + 0.5;
+		}
+	}
+	#endif
 	const bool bGrounded = Sensor.Hits >= 2 && Sensor.HeightM < Tuning.HoverHeightM + Tuning.CaptureRangeM;
 	const FVector SurfaceNormal = bGrounded ? Sensor.Normal : FVector::UpVector;
 	const float Steer = FMath::Clamp(Input.Steer, -1.0f, 1.0f);

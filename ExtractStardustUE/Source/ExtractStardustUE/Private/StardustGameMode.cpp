@@ -4,8 +4,10 @@
 #include "AI/StardustLineFollowerComponent.h"
 #include "Course/StardustCourseData.h"
 #include "Course/StardustProceduralCourseActor.h"
+#include "Engine/PlayerStartPIE.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
+#include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -27,6 +29,28 @@ void AStardustGameMode::StartTestBots()
 			Bot->StartRacing();
 		}
 	}
+}
+
+AActor* AStardustGameMode::ChoosePlayerStart_Implementation(AController* Player)
+{
+	if (GetWorld())
+	{
+		for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
+		{
+			if (It->IsA<APlayerStartPIE>())
+			{
+				return *It;
+			}
+		}
+	}
+
+	if (IsValid(CoursePlayerStart))
+	{
+		UE_LOG(LogTemp, Display, TEXT("Using course PlayerStart at %s."), *CoursePlayerStart->GetActorLocation().ToCompactString());
+		return CoursePlayerStart;
+	}
+
+	return Super::ChoosePlayerStart_Implementation(Player);
 }
 
 void AStardustGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
@@ -84,5 +108,5 @@ void AStardustGameMode::InitGame(const FString& MapName, const FString& Options,
 		}
 	}
 
-	GetWorld()->SpawnActor<APlayerStart>(StartLocation, StartRotation);
+	CoursePlayerStart = GetWorld()->SpawnActor<APlayerStart>(StartLocation, StartRotation);
 }

@@ -3,6 +3,9 @@
 #include "Course/StardustCourseData.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "EngineUtils.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "ProceduralMeshComponent.h"
@@ -173,7 +176,34 @@ bool AStardustProceduralCourseActor::LoadAndBuildCourse(FString& OutError)
 
 	const int32 VisualSectionCount = BuildSections(CourseMesh, VisualStationIndices, false);
 	const int32 CollisionSectionCount = BuildSections(CollisionMesh, CollisionStationIndices, bCreateCollision);
+	// The craft is driven by hover probes. Keep this generated triangle mesh
+	// query-only; complex-as-simple collision does not provide reliable contacts
+	// for the dynamic craft body.
 	CollisionMesh->SetCollisionEnabled(bCreateCollision ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+	if (bCreateCollision && GetWorld())
+	{
+		const FStardustCourseStation& StartStation = Stations[0];
+		const FVector ProbeUp = StartStation.Up.GetSafeNormal(SMALL_NUMBER, FVector::UpVector);
+		const FVector ProbePositionM = StartStation.CenterM + StartStation.Tangent.GetSafeNormal() * 2.0f;
+		const FVector ProbeStart = (ProbePositionM + ProbeUp * 10.0f) * CmPerMeter;
+		const FVector ProbeEnd = (ProbePositionM - ProbeUp * 10.0f) * CmPerMeter;
+		FCollisionQueryParams ProbeParams(SCENE_QUERY_STAT(StardustCourseCollisionStartup), true);
+		for (TActorIterator<APawn> PawnIt(GetWorld()); PawnIt; ++PawnIt)
+		{
+			ProbeParams.AddIgnoredActor(*PawnIt);
+		}
+		FHitResult ProbeHit;
+		const bool bStartSurfaceHit = GetWorld()->LineTraceSingleByChannel(ProbeHit, ProbeStart, ProbeEnd, ECC_GameTraceChannel1, ProbeParams);
+		if (bStartSurfaceHit)
+		{
+			UE_LOG(LogTemp, Display, TEXT("Course collision startup probe: HIT %s at Z %.1f cm."),
+				*GetNameSafe(ProbeHit.GetComponent()), ProbeHit.ImpactPoint.Z);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Course collision startup probe: MISS on Ground channel at the starting station."));
+		}
+	}
 	UE_LOG(LogTemp, Display, TEXT("Built procedural course '%s': %d stations, %d visual sections, %d collision sections at %.1f m."),
 		*CourseFileName, Stations.Num(), VisualSectionCount, bCreateCollision ? CollisionSectionCount : 0,
 		CourseData.GetStepM() * CollisionStationStride);

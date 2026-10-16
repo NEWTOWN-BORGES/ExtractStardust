@@ -111,6 +111,11 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 	constexpr float CmPerMeter = 100.0f;
 	constexpr float RayLiftM = 1.0f;
 	const FVector Up = Rotation.RotateVector(FVector::UpVector);
+	// Keep a stable course-facing direction while the craft is rolled or briefly
+	// passes through the road. State.Normal may follow the craft while airborne;
+	// NormalRaw remains the last sampled surface normal until probes reacquire it.
+	const FVector RecoveryUp = State.NormalRaw.GetSafeNormal(SMALL_NUMBER, Up);
+	const float RecoveryReachM = RayLiftM + Tuning.HoverHeightM + Tuning.CaptureRangeM + Tuning.ProbeReachM;
 	const FVector LocalProbes[5] =
 	{
 		FVector(Tuning.ProbeHalfLengthM, 0.0, 0.0),
@@ -138,21 +143,36 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 	{
 		FStardustHoverProbe& Probe = State.Probes[Index];
 		Probe.LocalPositionM = LocalProbes[Index];
-		const FVector Start = PositionCm + Rotation.RotateVector(LocalProbes[Index] * CmPerMeter) + Up * RayLiftM * CmPerMeter;
+		const FVector ProbeBase = PositionCm + Rotation.RotateVector(LocalProbes[Index] * CmPerMeter);
+		const FVector Start = ProbeBase + Up * RayLiftM * CmPerMeter;
 		const FVector End = Start - Up * (RayLiftM + Tuning.HoverHeightM + Tuning.ProbeReachM) * CmPerMeter;
+		FVector MeasureUp = Up;
 		Probe.bHit = World->LineTraceSingleByChannel(Probe.Hit, Start, End, ECC_GameTraceChannel1, QueryParams);
+		if (!Probe.bHit)
+		{
+			// Reacquire the track from below or while the craft is rolled. A missed
+			// probe must not turn a recoverable skid into an unrecoverable free fall.
+			MeasureUp = RecoveryUp;
+			const FVector RecoveryEnd = ProbeBase + MeasureUp * RecoveryReachM * CmPerMeter;
+			Probe.bHit = World->LineTraceSingleByChannel(Probe.Hit, ProbeBase, RecoveryEnd, ECC_GameTraceChannel1, QueryParams);
+		}
 		if (!Probe.bHit)
 		{
 			continue;
 		}
 
-		Probe.HeightM = FVector::DotProduct(Start - Probe.Hit.ImpactPoint, Up) / CmPerMeter - RayLiftM;
+		Probe.HeightM = FVector::DotProduct(ProbeBase - Probe.Hit.ImpactPoint, MeasureUp) / CmPerMeter;
 		Probe.Surface = ReadSurface(Probe.Hit);
 		const int32 SurfaceIndex = static_cast<int32>(Probe.Surface);
 		SurfaceWeights[SurfaceIndex] += Probe.Weight;
 		++State.Hits;
 		HeightSum += Probe.HeightM * Probe.Weight;
-		NormalSum += Probe.Hit.ImpactNormal * Probe.Weight;
+		FVector HitNormal = Probe.Hit.ImpactNormal.GetSafeNormal(SMALL_NUMBER, MeasureUp);
+		if (FVector::DotProduct(HitNormal, MeasureUp) < 0.0f)
+		{
+			HitNormal *= -1.0f;
+		}
+		NormalSum += HitNormal * Probe.Weight;
 		PointSum += Probe.Hit.ImpactPoint * Probe.Weight;
 		WeightSum += Probe.Weight;
 	}
