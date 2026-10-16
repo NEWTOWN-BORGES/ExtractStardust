@@ -1160,4 +1160,5 @@ def preview(name, paths, terrain, X0, X1, Z0, Z1):
     log("mapa gravado")
 
 
-main()
+if __name__ == "__main__":
+    main()

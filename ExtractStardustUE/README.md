@@ -19,9 +19,10 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - `UStardustCourseComponent` disponibiliza RDDC/RDDG às Blueprints e ao código C++; expõe amostras do eixo, pontos da linha lateral, localização no ramo e distância de corrida equivalente.
 - Quando existe pista RDDC, o GameMode cria dois bots de teste com o seguidor de linha, separados por faixa; aguardam o primeiro aceleramento do jogador e respeitam a velocidade segura em curva.
 - `AStardustProceduralCourseActor` constrói a superfície da pista e colisão a partir do RDDC em `Content/Tracks`; o GameMode posiciona a largada pelo primeiro referencial da pista quando o ficheiro está presente.
+- `Content/Tracks` contém uma rota jogável RED DUST DIVIDE: 105,662 km, 21 137 estações e perfil de secção original. O grafo desta exportação inclui apenas o percurso principal; os ramos, o terreno/canyon e os FBX artísticos continuam dependentes do Blender.
 - O pawn carrega progresso de corrida ao primeiro aceleramento: cronómetro, checkpoints, estado de chegada e eventos Blueprint, com distância de corrida válida também nos ramos; a telemetria mostra relógio, CP e distância ou avisa quando falta o RDDC.
 - A recuperação de corrida reposiciona após 1,5 s mais de 20 m fora da zona de condução; quedas de mais de 60 m abaixo da pista reposicionam com dano, recuando 12 estações e evitando gaps.
-- A base C++ compila no Unreal Engine 5.8. O seguidor de linha pode ser configurado com `PreferredPathIndex` para seguir um ramo; falta validar condução no viewport e integrar as pistas/veículos do Blender, bots com obstáculos, resultados/economia, interface final e áudio.
+- O projeto compila como Editor e Game em Unreal Engine 5.8. A build Windows pode ser empacotada; falta validar condução no viewport e integrar os ramos/veículos do Blender, bots com obstáculos, resultados/economia, interface final e áudio.
 
 Os parâmetros de tuning mantêm as unidades SI do Unity: metros, segundos, m/s e m/s². A conversão para as unidades de mundo do Unreal deve acontecer na camada física, com `1 m = 100 cm`, sem alterar os valores de tuning.
 
@@ -36,9 +37,9 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 
 ### Preparar a pista no PC de casa
 
-1. Instalar Blender e abrir PowerShell na pasta `ExtractStardustUE`.
-2. Executar `powershell -ExecutionPolicy Bypass -File .\Tools\PrepareCourseForUnreal.ps1` (ou passar `-BlenderExe` e `-CourseSpec` se necessário).
-3. O script valida RDDC/RDDG e copia os dados para `Content/Tracks`; os FBX e a pré-visualização ficam em `Saved/GeneratedCourse/red_dust_divide` para importação no Unreal.
+1. Para exportar apenas dados jogáveis do percurso principal sem Blender, executar `python .\Tools\ExportCourseDataWithoutBlender.py --install`; precisa de Python 3 e NumPy.
+2. Para os ramos completos, terreno/canyon e FBX, instalar Blender e executar `powershell -ExecutionPolicy Bypass -File .\Tools\PrepareCourseForUnreal.ps1` (ou passar `-BlenderExe` e `-CourseSpec`).
+3. O script Blender valida RDDC/RDDG e copia os dados para `Content/Tracks`; os FBX e a pré-visualização ficam em `Saved/GeneratedCourse/red_dust_divide` para importação no Unreal.
 4. Abrir o projeto, compilar e carregar em Play para testar a pista e os dois bots de linha.
 
 ## Testar no PC de casa
@@ -46,8 +47,8 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 1. Levar/sincronizar a pasta `ExtractStardustUE/` para o PC de casa.
 2. Abrir `ExtractStardustUE.uproject` com Unreal Engine 5.8 e deixar gerar os ficheiros do IDE.
 3. Compilar o alvo Editor em Development. O projeto abre o mapa base `OpenWorld` incluído no Unreal.
-4. Carregar em Play: aparece uma plataforma temporária, o hovercraft cúbico e telemetria no ecrã.
+4. Carregar em Play para gerar a superfície da pista RED DUST DIVIDE, o hovercraft de teste, os dois bots e a telemetria.
 5. Controlos: W acelera, A/D vira, S trava, Shift usa nitro, Espaço derrapa, Q/E inclina no ar. Gamepad: RT acelera, stick esquerdo vira, LT trava, A boost, X drift.
-6. A plataforma é apenas um laboratório de movimento; a pista RDD real e as naves artísticas serão ligadas depois de importar os assets do Blender.
+6. Se preferires testar sem abrir o editor, executar `Saved\Package\Windows\ExtractStardustUE.exe` depois de desempacotar a pasta completa `Saved\Package\Windows`.
 
 O ramo `red-dust-divide-v2` contém os checkpoints locais já enviados para o GitHub.

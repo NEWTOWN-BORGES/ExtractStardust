@@ -1,5 +1,11 @@
 # Auditoria da migração para Unreal Engine
 
+## Atualização em 2026-10-16
+
+- O estado abaixo é a auditoria inicial; entretanto, o projeto Unreal 5.8 foi compilado para Editor e Game e empacotado para Windows.
+- Foi exportada e empacotada a rota principal RED DUST DIVIDE (21 137 estações, 105,662 km). O teste sem renderização confirmou o carregamento do `StardustGameMode` e dos dados; ainda falta validar a malha e a condução num viewport.
+- A rota completa com ramos, terreno/canyon e arte FBX continua dependente das ferramentas Blender; os sistemas de apresentação, economia e conteúdo ainda não foram portados integralmente.
+
 ## Estado confirmado no clone
 
 - Ramo verificado: `red-dust-divide-v2`.

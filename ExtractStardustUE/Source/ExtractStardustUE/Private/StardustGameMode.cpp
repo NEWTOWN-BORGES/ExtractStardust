@@ -46,6 +46,7 @@ void AStardustGameMode::InitGame(const FString& MapName, const FString& Options,
 	const bool bHasCourse = FFileHelper::LoadFileToArray(CourseBytes, *CoursePath) && CourseData.Load(CourseBytes, CourseError);
 	if (bHasCourse)
 	{
+		UE_LOG(LogTemp, Display, TEXT("Loaded course data: %d stations, %.2f km."), CourseData.GetStations().Num(), CourseData.GetStations().Last().DistanceM / 1000.0f);
 		const FStardustCourseStation& StartStation = CourseData.GetStations()[0];
 		StartLocation = StartStation.CenterM * 100.0 + StartStation.Up * 150.0;
 		StartRotation = FRotationMatrix::MakeFromXZ(StartStation.Tangent, StartStation.Up).Rotator();
@@ -68,6 +69,7 @@ void AStardustGameMode::InitGame(const FString& MapName, const FString& Options,
 	}
 	else
 	{
+		UE_LOG(LogTemp, Warning, TEXT("Course data '%s' is unavailable; starting with the test platform. %s"), *CoursePath, *CourseError);
 		UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 		if (CubeMesh)
 		{

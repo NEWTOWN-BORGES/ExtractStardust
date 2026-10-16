@@ -18,6 +18,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Course")
 	TObjectPtr<UProceduralMeshComponent> CourseMesh;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Course")
+	TObjectPtr<UProceduralMeshComponent> CollisionMesh;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Course")
 	FString CourseFileName = TEXT("sandbox_course.bytes");
 
