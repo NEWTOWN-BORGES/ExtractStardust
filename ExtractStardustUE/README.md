@@ -18,11 +18,11 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - `FStardustCourseGraphData` lê RDDG v2, valida a hierarquia dos percursos e converte a distância percorrida num ramo para a distância equivalente no percurso principal.
 - `UStardustCourseComponent` disponibiliza RDDC/RDDG às Blueprints e ao código C++; expõe amostras do eixo, pontos da linha lateral, localização no ramo e distância de corrida equivalente.
 - Quando existe pista RDDC, o GameMode cria dois bots de teste com o seguidor de linha, separados por faixa; aguardam o primeiro aceleramento do jogador e respeitam a velocidade segura em curva.
-- `AStardustProceduralCourseActor` constrói a superfície da pista e colisão a partir do RDDC em `Content/Tracks`; o GameMode posiciona a largada pelo primeiro referencial da pista quando o ficheiro está presente.
+- `AStardustProceduralCourseActor` constrói a superfície completa e colisão simplificada (amostras a cada 20 m) a partir do RDDC em `Content/Tracks`; o GameMode posiciona a largada pelo primeiro referencial da pista quando o ficheiro está presente.
 - `Content/Tracks` contém uma rota jogável RED DUST DIVIDE: 105,662 km, 21 137 estações e perfil de secção original. O grafo desta exportação inclui apenas o percurso principal; os ramos, o terreno/canyon e os FBX artísticos continuam dependentes do Blender.
 - O pawn carrega progresso de corrida ao primeiro aceleramento: cronómetro, checkpoints, estado de chegada e eventos Blueprint, com distância de corrida válida também nos ramos; a telemetria mostra relógio, CP e distância ou avisa quando falta o RDDC.
 - A recuperação de corrida reposiciona após 1,5 s mais de 20 m fora da zona de condução; quedas de mais de 60 m abaixo da pista reposicionam com dano, recuando 12 estações e evitando gaps.
-- O projeto compila como Editor e Game em Unreal Engine 5.8. A build Windows pode ser empacotada; falta validar condução no viewport e integrar os ramos/veículos do Blender, bots com obstáculos, resultados/economia, interface final e áudio.
+- O projeto compila como Editor e Game em Unreal Engine 5.8.3 e a build Windows foi empacotada. O smoke test sem renderização confirmou os dados e a geração de 43 secções visuais e 11 de colisão; a validação visual e de condução no viewport ainda falta, tal como integrar os ramos/veículos do Blender, bots com obstáculos, resultados/economia, interface final e áudio.
 
 Os parâmetros de tuning mantêm as unidades SI do Unity: metros, segundos, m/s e m/s². A conversão para as unidades de mundo do Unreal deve acontecer na camada física, com `1 m = 100 cm`, sem alterar os valores de tuning.
 
