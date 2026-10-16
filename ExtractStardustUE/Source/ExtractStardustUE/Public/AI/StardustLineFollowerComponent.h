@@ -6,6 +6,7 @@
 
 class UStardustCourseComponent;
 class UStardustCraftMovementComponent;
+class UStardustRaceProgressComponent;
 
 UCLASS(ClassGroup = (Stardust), meta = (BlueprintSpawnableComponent))
 class EXTRACTSTARDUSTUE_API UStardustLineFollowerComponent : public UActorComponent
@@ -67,6 +68,9 @@ protected:
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UStardustCraftMovementComponent> CraftMovement;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStardustRaceProgressComponent> RaceProgress;
 	float CurrentLaneU = 0.0f;
 
 	float CurvatureAhead(int32 PathIndex, float CurrentDistanceM, float SpanM, float& OutBankDegrees) const;

@@ -1,5 +1,7 @@
 #include "StardustGameMode.h"
 
+#include "AI/StardustBotPawn.h"
+#include "AI/StardustLineFollowerComponent.h"
 #include "Course/StardustCourseData.h"
 #include "Course/StardustProceduralCourseActor.h"
 #include "Engine/StaticMesh.h"
@@ -37,6 +39,20 @@ void AStardustGameMode::InitGame(const FString& MapName, const FString& Options,
 		StartLocation = StartStation.CenterM * 100.0 + StartStation.Up * 150.0;
 		StartRotation = FRotationMatrix::MakeFromXZ(StartStation.Tangent, StartStation.Up).Rotator();
 		GetWorld()->SpawnActor<AStardustProceduralCourseActor>();
+		const float BotLaneOffsets[] = { -0.55f, 0.55f };
+		for (const float LaneU : BotLaneOffsets)
+		{
+			const float LaneDistanceM = LaneU < 0.0f ? LaneU * StartStation.RideLeftM : LaneU * StartStation.RideRightM;
+			const FVector BotLocation = (StartStation.CenterM + StartStation.Right * LaneDistanceM + StartStation.Up * 1.5f) * 100.0;
+			const FTransform BotTransform(StartRotation, BotLocation);
+			AStardustBotPawn* Bot = GetWorld()->SpawnActorDeferred<AStardustBotPawn>(AStardustBotPawn::StaticClass(),
+				BotTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			if (Bot)
+			{
+				Bot->LineFollowerComponent->LaneU = LaneU;
+				Bot->FinishSpawning(BotTransform);
+			}
+		}
 	}
 	else
 	{

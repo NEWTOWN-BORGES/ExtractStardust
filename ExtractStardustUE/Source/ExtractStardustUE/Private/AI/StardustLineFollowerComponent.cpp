@@ -1,6 +1,7 @@
 #include "AI/StardustLineFollowerComponent.h"
 
 #include "Course/StardustCourseComponent.h"
+#include "Game/StardustRaceProgressComponent.h"
 #include "Vehicle/StardustCraftMovementComponent.h"
 
 UStardustLineFollowerComponent::UStardustLineFollowerComponent()
@@ -15,7 +16,12 @@ void UStardustLineFollowerComponent::BeginPlay()
 	CurrentLaneU = LaneU;
 	if (GetOwner())
 	{
+		if (!Course)
+		{
+			Course = GetOwner()->FindComponentByClass<UStardustCourseComponent>();
+		}
 		CraftMovement = GetOwner()->FindComponentByClass<UStardustCraftMovementComponent>();
+		RaceProgress = GetOwner()->FindComponentByClass<UStardustRaceProgressComponent>();
 	}
 }
 
@@ -124,4 +130,8 @@ void UStardustLineFollowerComponent::TickComponent(float DeltaTime, ELevelTick T
 	Input.bBrake = SpeedMPerSecond > MaxSpeed + 4.0f && FMath::Abs(Input.Steer) < 0.3f;
 	Input.bBoost = bUseBoost && SpeedMPerSecond < MaxSpeed - 5.0f;
 	CraftMovement->SetInput(Input);
+	if (RaceProgress && RaceProgress->State == EStardustRaceState::Waiting)
+	{
+		RaceProgress->StartRace();
+	}
 }
