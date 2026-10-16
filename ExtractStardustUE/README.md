@@ -22,7 +22,6 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - `Content/Tracks` contém uma rota jogável RED DUST DIVIDE: 105,662 km, 21 137 estações e perfil de secção original. O grafo desta exportação inclui apenas o percurso principal; os ramos, o terreno/canyon e os FBX artísticos continuam dependentes do Blender.
 - O pawn carrega progresso de corrida ao primeiro aceleramento: cronómetro, checkpoints, estado de chegada e eventos Blueprint, com distância de corrida válida também nos ramos; a telemetria mostra relógio, CP e distância ou avisa quando falta o RDDC.
 - A recuperação de corrida reposiciona após 1,5 s mais de 20 m fora da zona de condução; quedas de mais de 60 m abaixo da pista reposicionam com dano, recuando 12 estações e evitando gaps.
-- A validação anterior de compilação e smoke test estava pendente neste checkout; a revalidação local com UE 5.8.3 está registada abaixo.
 - Revalidação local em 2026-10-16 no Unreal Engine 5.8.3: foi instalado no Visual Studio o SDK .NET Framework 4.8.1; os alvos Editor e Game Development compilaram com sucesso. O Editor abriu o mapa base `OpenWorld`.
 - Revalidação local em 2026-10-16 com UE 5.8.3: os alvos Editor e Game compilaram; `BuildCookRun` Win64 Development cozinhou 596 pacotes, 0 erros/avisos e criou um pacote local de cerca de 502 MiB. Arrancado com `-nullrhi`, carregou `OpenWorld`, `StardustGameMode`, as 21 137 estações (105,66 km) e 18/18 meshes de ambiente à escala 100. Não valida renderização ou condução; o log registou um aviso de Enhanced Input sem PlayerInput neste arranque automático.
 - Os 18 meshes gerados estão agora ligados ao ator do percurso; a escala 100 corrige a unidade dos meshes importados. A posição e aparência ainda precisam de validação visual. A migração total continua incompleta: faltam condução verificada com input, ramos/veículos do Blender, bots com obstáculos, resultados/economia, interface final e áudio.
@@ -58,7 +57,7 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 
 ### Git LFS para o primeiro teste
 
-`Content/Tracks/sandbox_course.bytes` e `sandbox_graph.bytes` são ficheiros regulares do Git. Compilar C++ e correr o percurso procedural não requer LFS. Para carregar os assets gerados no Editor e fazer um cook limpo, descarregar apenas a pasta dos 18 meshes: `git lfs pull --include="ExtractStardustUE/Content/Environment/Generated/RedDustDivide/**" origin red-dust-divide-v2`. Não descarregar o ZIP de jogo nem integrar assets do Fab. Os meshes ainda não são referenciados pelo GameMode/ator e, por isso, não entram no percurso jogável.
+`Content/Tracks/sandbox_course.bytes` e `sandbox_graph.bytes` são ficheiros regulares do Git. O percurso procedural funciona sem LFS; os 18 meshes de terreno/canyon são carregados pelo ator para visualização e cook. Sem os UAssets LFS, a pista procedural continua, mas esses meshes visuais ficam ausentes e o log avisa quais faltam. Para os descarregar, usar apenas `git lfs pull --include="ExtractStardustUE/Content/Environment/Generated/RedDustDivide/**" origin red-dust-divide-v2`. Não descarregar o ZIP de jogo nem integrar assets do Fab.
 
 ## Testar no PC de casa
 
@@ -67,6 +66,6 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 3. Compilar o alvo Editor em Development. O projeto abre o mapa base `OpenWorld` incluído no Unreal.
 4. Carregar em Play para gerar a superfície da pista RED DUST DIVIDE, o hovercraft de teste, os dois bots e a telemetria.
 5. Controlos: W acelera, A/D vira, S trava, Shift usa nitro, Espaço derrapa, Q/E inclina no ar. Gamepad: RT acelera, stick esquerdo vira, LT trava, A boost, X drift.
-6. Pacote smoke test local: `Saved\PackageSmokeWithLFS\Windows\ExtractStardustUE.exe` (artefacto ignorado pelo Git; executar a pasta completa). O runtime foi verificado com `-nullrhi`, sem verificação visual.
+6. O pacote de teste desta máquina está em `Saved\PackageSmokeEnvironment\Windows`; é artefacto local ignorado pelo Git. O smoke test confirmou o arranque com `-nullrhi`, mas não valida imagem nem input. Para repetir, gerar o pacote local com Unreal Automation Tool.
 
 O ramo `red-dust-divide-v2` contém os checkpoints locais já enviados para o GitHub.
