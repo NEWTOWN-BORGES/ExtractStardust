@@ -15,6 +15,7 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - O GameMode cria automaticamente uma plataforma plana e um PlayerStart provisórios para abrir uma sessão física mesmo sem mapa ou assets importados.
 - O leitor `FStardustCourseData` carrega RDDC v1, valida os dados e permite interpolar amostras ao longo da pista; a conversão Unity → Unreal troca os eixos para `UE(X=Unity Z, Y=Unity X, Z=Unity Y)`, preservando metros nos dados.
 - `UStardustCourseComponent` disponibiliza os dados RDDC às Blueprints e ao código C++; expõe amostras do eixo, pontos da linha lateral, estação mais próxima e distância de corrida.
+- `AStardustProceduralCourseActor` constrói a superfície da pista e colisão a partir do RDDC em `Content/Tracks`; o GameMode posiciona a largada pelo primeiro referencial da pista quando o ficheiro está presente.
 - A base C++ compila no Unreal Engine 5.8. Falta validar condução no viewport e integrar as pistas/veículos do Blender; o grafo de ramos, bots com obstáculos, regras de corrida/progressão, interface final e áudio continuam por portar.
 
 Os parâmetros de tuning mantêm as unidades SI do Unity: metros, segundos, m/s e m/s². A conversão para as unidades de mundo do Unreal deve acontecer na camada física, com `1 m = 100 cm`, sem alterar os valores de tuning.
@@ -24,9 +25,9 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 ## Integrar uma pista
 
 1. Gerar os ficheiros da pista com `ExtractStardustRDD/Art/Blender/rdd_build_course.py` ou `rdd_build_route.py`, a partir do JSON escolhido em `ExtractStardustRDD/Art/Courses/`.
-2. Importar os FBX da pasta de saída para o Content Browser do Unreal e garantir que as colisões bloqueiam o canal `Ground`.
-3. Copiar o ficheiro `<nome>_course.bytes` para `Content/Tracks/` e definir `CourseFileName` no `StardustCourseComponent` para esse nome.
-4. O componente expõe posição, tangente, referencial, largura, bank, segmento e superfície para checkpoints, linha de corrida e IA.
+2. Copiar o ficheiro `<nome>_course.bytes` para `Content/Tracks/sandbox_course.bytes` (ou atualizar `CourseFileName` no GameMode e no ator procedural).
+3. O `AStardustProceduralCourseActor` cria a superfície transitável e a colisão pelo RDDC; o terreno/canyon visual e os veículos artísticos ainda precisam dos FBX importados no Content Browser.
+4. O `UStardustCourseComponent` expõe posição, tangente, referencial, largura, bank, segmento e superfície para checkpoints, linha de corrida e IA.
 
 ## Testar no PC de casa
 
