@@ -55,6 +55,14 @@ Desktop.ini
 # Python: caches
 **/__pycache__/
 
+# Unreal Engine: pastas geradas pelo editor e pelas compilações
+ExtractStardustUE/Binaries/
+ExtractStardustUE/DerivedDataCache/
+ExtractStardustUE/Intermediate/
+ExtractStardustUE/Saved/
+ExtractStardustUE/*.sln
+ExtractStardustUE/*.slnx
+
 # IDE: solucao do Unity 6000.6 (artefacto de IDE, nao entra)
 **/*.slnx
 

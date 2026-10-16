@@ -121,6 +121,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 	};
 
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(StardustHoverProbe), true);
+	QueryParams.bReturnPhysicalMaterial = true;
 	if (IgnoredActor)
 	{
 		QueryParams.AddIgnoredActor(IgnoredActor);

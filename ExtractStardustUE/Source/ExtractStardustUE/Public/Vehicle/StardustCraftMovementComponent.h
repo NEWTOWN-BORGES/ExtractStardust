@@ -116,7 +116,7 @@ private:
 	bool bNitroLocked = false;
 
 	void InitializeBody();
-	FVector FindAirTargetUp(const FVector& PositionCm, const FVector& VelocityMPerSecond, const FVector& CurrentUp) const;
+	FVector FindAirTargetUp(const FVector& PositionCm, const FVector& VelocityMPerSecond) const;
 	static FVector ConvertUnityVectorToUnreal(const FVector& UnityVector);
 	static FVector ProjectOnPlane(const FVector& Vector, const FVector& PlaneNormal);
 	static float Damp(float Lambda, float DeltaSeconds);

@@ -257,7 +257,7 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 		DriftChargeSeconds = 0.0f;
 	}
 
-	const FVector DesiredUp = bGrounded ? SurfaceNormal : FindAirTargetUp(PositionCm, VelocityMPerSecond, Up);
+	const FVector DesiredUp = bGrounded ? SurfaceNormal : FindAirTargetUp(PositionCm, VelocityMPerSecond);
 	const float RateLimitRadians = FMath::DegreesToRadians(bGrounded ? Tuning.AlignRate : Tuning.AirAlignRate);
 	const FVector AlignAxis = FVector::CrossProduct(Up, DesiredUp);
 	const float AlignSin = AlignAxis.Size();
@@ -309,7 +309,7 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 	PreVelocityCmPerSecond = VelocityMPerSecond * CmPerMeter;
 }
 
-FVector UStardustCraftMovementComponent::FindAirTargetUp(const FVector& PositionCm, const FVector& VelocityMPerSecond, const FVector& CurrentUp) const
+FVector UStardustCraftMovementComponent::FindAirTargetUp(const FVector& PositionCm, const FVector& VelocityMPerSecond) const
 {
 	const FVector Gravity = FVector::DownVector * Tuning.Gravity;
 	FVector PreviousPointCm = PositionCm;
@@ -322,8 +322,10 @@ FVector UStardustCraftMovementComponent::FindAirTargetUp(const FVector& Position
 		const FVector BallisticOffsetM = VelocityMPerSecond * SampleTime + 0.5f * SampleTime * SampleTime * Gravity;
 		const FVector CurrentPointCm = PositionCm + BallisticOffsetM * CmPerMeter;
 		const FVector Segment = CurrentPointCm - PreviousPointCm;
+		const FVector SegmentDirection = Segment.GetSafeNormal();
+		const FVector TraceEndCm = PreviousPointCm + SegmentDirection * (Segment.Size() + Tuning.HoverHeightM * CmPerMeter);
 		FHitResult Hit;
-		if (GetWorld()->LineTraceSingleByChannel(Hit, PreviousPointCm, CurrentPointCm + CurrentUp * Tuning.HoverHeightM * CmPerMeter,
+		if (GetWorld()->LineTraceSingleByChannel(Hit, PreviousPointCm, TraceEndCm,
 			ECC_GameTraceChannel1, QueryParams))
 		{
 			const float HitFraction = FMath::Clamp(Hit.Distance / FMath::Max(1.0f, Segment.Size()), 0.0f, 1.0f);
