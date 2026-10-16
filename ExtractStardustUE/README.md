@@ -22,7 +22,8 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - `Content/Tracks` contém uma rota jogável RED DUST DIVIDE: 105,662 km, 21 137 estações e perfil de secção original. O grafo desta exportação inclui apenas o percurso principal; os ramos, o terreno/canyon e os FBX artísticos continuam dependentes do Blender.
 - O pawn carrega progresso de corrida ao primeiro aceleramento: cronómetro, checkpoints, estado de chegada e eventos Blueprint, com distância de corrida válida também nos ramos; a telemetria mostra relógio, CP e distância ou avisa quando falta o RDDC.
 - A recuperação de corrida reposiciona após 1,5 s mais de 20 m fora da zona de condução; quedas de mais de 60 m abaixo da pista reposicionam com dano, recuando 12 estações e evitando gaps.
-- O projeto compila como Editor e Game em Unreal Engine 5.8.3 e a build Windows foi empacotada. O smoke test sem renderização confirmou os dados e a geração de 43 secções visuais e 11 de colisão; a validação visual e de condução no viewport ainda falta, tal como integrar os ramos/veículos do Blender, bots com obstáculos, resultados/economia, interface final e áudio.
+- O checkpoint anterior regista compilação Editor/Game e empacotamento em Unreal Engine 5.8.3, e um smoke test sem renderização com 43 secções visuais e 11 de colisão. Essa validação ainda não foi reproduzida neste checkout.
+- Revalidação local em 2026-10-16: o UnrealBuildTool parou com `RulesError` ao carregar `SwarmInterface` porque não encontrou `NETFXSDKDir`; a compilação do código C++ do jogo não chegou a começar. Depois de instalar o SDK .NET Framework indicado abaixo, voltar a compilar e repetir o smoke test; ainda falta a validação visual e de condução, além dos ramos/veículos do Blender, bots com obstáculos, resultados/economia, interface final e áudio.
 
 Os parâmetros de tuning mantêm as unidades SI do Unity: metros, segundos, m/s e m/s². A conversão para as unidades de mundo do Unreal deve acontecer na camada física, com `1 m = 100 cm`, sem alterar os valores de tuning.
 
@@ -42,6 +43,20 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 3. O script Blender valida RDDC/RDDG e copia os dados para `Content/Tracks`; os FBX e a pré-visualização ficam em `Saved/GeneratedCourse/red_dust_divide`.
 4. Para importar automaticamente os setores FBX como malhas estáticas combinadas, executar `powershell -ExecutionPolicy Bypass -File .\Tools\ImportGeneratedCourseAssets.ps1`. Se o cache DDC não for gravável, acrescentar `-ForceMemoryDdc`. Os assets importados ficam em `/Game/Environment/Generated/RedDustDivide` e são ignorados pelo Git por serem artefactos regeneráveis de grande dimensão.
 4. Abrir o projeto, compilar e carregar em Play para testar a pista e os dois bots de linha.
+
+## Compilar em Windows
+
+- O projeto está associado ao Unreal Engine 5.8; a tentativa local usa UE 5.8.3.
+- Instalar no Visual Studio o SDK do .NET Framework 4.6.0 ou superior (neste PC, o componente .NET Framework 4.8.1 SDK), além das ferramentas C++ e do Windows SDK. O UnrealBuildTool carrega o módulo `SwarmInterface`; sem `NETFXSDKDir`, a geração das regras falha antes de compilar o código do jogo.
+- Com o Engine instalado em `C:\Program Files\Epic Games\UE_5.8`, compilar o Editor a partir da raiz do repositório:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat" ExtractStardustUEEditor Win64 Development "-Project=$PWD\ExtractStardustUE\ExtractStardustUE.uproject" -WaitMutex -NoHotReloadFromIDE
+```
+
+### Git LFS para o primeiro teste
+
+`Content/Tracks/sandbox_course.bytes` e `sandbox_graph.bytes` são ficheiros regulares do Git. A compilação e o teste procedural inicial não precisam dos `.uasset` nem dos FBX guardados em LFS; o código constrói a pista a partir de `sandbox_course.bytes`. Descarregar os `.uasset` gerados ou os FBX apenas quando for testar a integração visual desses assets.
 
 ## Testar no PC de casa
 
