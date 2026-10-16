@@ -55,9 +55,9 @@ $Build = 'C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat'
 & $Build ExtractStardustUE Win64 Development "-Project=$Project" -WaitMutex -NoHotReloadFromIDE
 ```
 
-Verificação realizada nesta máquina com UE 5.8.3: Editor (19/19 ações), jogo (23/23), e `BuildCookRun` Win64 Development sem `IgnoreCookErrors` (578 pacotes, 0 erros e 0 avisos). Um pacote temporário iniciou com `-nullrhi`, carregou `OpenWorld` e `StardustGameMode`, criou o percurso com 21.137 estações, 43 secções visuais e 11 de colisão (105,66 km), e terminou com código 0. Este smoke test não renderiza nem verifica condução com input.
+Verificação local com UE 5.8.3: Editor e jogo compilam; `BuildCookRun` Win64 Development (596 pacotes) terminou com sucesso, 0 erros e 0 avisos. O pacote local (cerca de 502 MiB) arrancou com `-nullrhi`, abriu `OpenWorld` e `StardustGameMode`, carregou as 21 137 estações (105,66 km) e confirmou 18/18 meshes de ambiente ligados ao ator com escala 100. Este smoke test não renderiza nem valida condução/input; o log registou um aviso de Enhanced Input sem PlayerInput durante este arranque automático.
 
-A migração visual continua incompleta: os meshes gerados ainda não estão ligados ao ator do percurso; o teste acima usa a geometria procedural e o mapa base `OpenWorld`. A colocação e aparência dos setores, condução interativa e validação visual ainda precisam de ser feitas no editor. Nenhum asset do Fab foi integrado. O pacote de teste está em `ExtractStardustUE/Saved/PackageSmokeWithLFS/` e é um artefacto local ignorado pelo Git.
+Os 18 meshes de ambiente gerados estão ligados ao ator do percurso, com escala 100 para converter os valores exportados em metros para centímetros Unreal. O pacote `-nullrhi` confirmou o carregamento dos 18, mas não permite validar aparência, colocação visual ou condução com input. Ramos/veículos do Blender, bots com obstáculos, resultados/economia, interface final e áudio continuam por migrar. Nenhum asset do Fab foi integrado.
 ## Documentação
 
 - Expedição (setores, física, ferramentas): `ExtractStardustRDD/Docs/RDD_01_Expedicao.md`

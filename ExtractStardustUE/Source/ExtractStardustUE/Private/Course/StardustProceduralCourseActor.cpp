@@ -1,6 +1,8 @@
 #include "Course/StardustProceduralCourseActor.h"
 
 #include "Course/StardustCourseData.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "ProceduralMeshComponent.h"
@@ -10,6 +12,8 @@ namespace
 	constexpr int32 MaxSectionVertices = 60000;
 	constexpr double CmPerMeter = 100.0;
 	constexpr float CollisionSampleSpacingM = 20.0f;
+	constexpr int32 GeneratedEnvironmentSectorCount = 9;
+	constexpr float GeneratedEnvironmentImportScale = 100.0f;
 }
 
 AStardustProceduralCourseActor::AStardustProceduralCourseActor()
@@ -25,11 +29,47 @@ AStardustProceduralCourseActor::AStardustProceduralCourseActor()
 	CollisionMesh->SetCollisionProfileName(TEXT("BlockAll"));
 	CollisionMesh->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
 	CollisionMesh->bUseComplexAsSimpleCollision = true;
+
+	// Blender exports this generated geometry in metres, but the committed UAssets
+	// stored those numeric coordinates as Unreal centimetres. Restore 1 m = 100 cm here.
+	const TCHAR* MeshKinds[] = { TEXT("corridor"), TEXT("terrain") };
+	for (const TCHAR* MeshKind : MeshKinds)
+	{
+		for (int32 SectorIndex = 0; SectorIndex < GeneratedEnvironmentSectorCount; ++SectorIndex)
+		{
+			const FString AssetName = FString::Printf(TEXT("red_dust_divide_%s_%02d"), MeshKind, SectorIndex);
+			const FString AssetPath = FString::Printf(TEXT("/Game/Environment/Generated/RedDustDivide/%s.%s"), *AssetName, *AssetName);
+			const FString ComponentLabel = FString::Printf(TEXT("Generated_%s_%02d"), MeshKind, SectorIndex);
+			UStaticMeshComponent* EnvironmentMesh = CreateDefaultSubobject<UStaticMeshComponent>(FName(*ComponentLabel));
+			EnvironmentMesh->SetupAttachment(CourseMesh);
+			EnvironmentMesh->SetMobility(EComponentMobility::Movable);
+			EnvironmentMesh->SetRelativeScale3D(FVector(GeneratedEnvironmentImportScale));
+			EnvironmentMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			EnvironmentMesh->SetGenerateOverlapEvents(false);
+			EnvironmentMesh->SetCanEverAffectNavigation(false);
+			if (UStaticMesh* MeshAsset = LoadObject<UStaticMesh>(nullptr, *AssetPath))
+			{
+				EnvironmentMesh->SetStaticMesh(MeshAsset);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Generated environment asset is unavailable: %s"), *AssetPath);
+			}
+			GeneratedEnvironmentMeshes.Add(EnvironmentMesh);
+		}
+	}
 }
 
 void AStardustProceduralCourseActor::BeginPlay()
 {
 	Super::BeginPlay();
+	int32 LoadedEnvironmentMeshCount = 0;
+	for (const UStaticMeshComponent* EnvironmentMesh : GeneratedEnvironmentMeshes)
+	{
+		LoadedEnvironmentMeshCount += EnvironmentMesh && EnvironmentMesh->GetStaticMesh() ? 1 : 0;
+	}
+	UE_LOG(LogTemp, Display, TEXT("Generated environment: %d/%d sector meshes loaded at import scale %.0f."),
+		LoadedEnvironmentMeshCount, GeneratedEnvironmentMeshes.Num(), GeneratedEnvironmentImportScale);
 	FString Error;
 	if (!LoadAndBuildCourse(Error))
 	{

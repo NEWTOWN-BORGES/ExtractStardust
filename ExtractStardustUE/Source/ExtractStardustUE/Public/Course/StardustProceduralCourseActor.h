@@ -6,6 +6,7 @@
 
 class UMaterialInterface;
 class UProceduralMeshComponent;
+class UStaticMeshComponent;
 
 UCLASS()
 class EXTRACTSTARDUSTUE_API AStardustProceduralCourseActor : public AActor
@@ -20,6 +21,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Course")
 	TObjectPtr<UProceduralMeshComponent> CollisionMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Course|Environment")
+	TArray<TObjectPtr<UStaticMeshComponent>> GeneratedEnvironmentMeshes;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Course")
 	FString CourseFileName = TEXT("sandbox_course.bytes");
