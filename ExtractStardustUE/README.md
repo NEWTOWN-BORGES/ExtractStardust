@@ -56,7 +56,7 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 
 ### Git LFS para o primeiro teste
 
-`Content/Tracks/sandbox_course.bytes` e `sandbox_graph.bytes` são ficheiros regulares do Git. A compilação e o teste procedural inicial não precisam dos `.uasset` nem dos FBX guardados em LFS; o código constrói a pista a partir de `sandbox_course.bytes`. Descarregar os `.uasset` gerados ou os FBX apenas quando for testar a integração visual desses assets.
+`Content/Tracks/sandbox_course.bytes` e `sandbox_graph.bytes` são ficheiros regulares do Git. O código C++ constrói a pista a partir destes dados e não referencia diretamente os `.uasset` ou FBX de arte. Os 18 `.uasset` LFS ocupam cerca de 500 MB; não são necessários para compilar nem para o teste da pista procedural. A abertura do Editor com os ponteiros LFS ainda precisa de verificação: se o Asset Registry exigir os ficheiros reais, descarregar apenas `ExtractStardustUE/Content/Environment/Generated/RedDustDivide/**` com `git lfs pull --include="ExtractStardustUE/Content/Environment/Generated/RedDustDivide/**"`. Não descarregar o pacote Windows nem os FBX em `Saved/` para o primeiro teste.
 
 ## Testar no PC de casa
 
