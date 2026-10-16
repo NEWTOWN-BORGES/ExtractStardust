@@ -10,6 +10,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Vehicle/StardustCraftMovementComponent.h"
+#include "Presentation/StardustSpeedFxComponent.h"
 
 AStardustHovercraftPawn::AStardustHovercraftPawn()
 {
@@ -44,6 +45,8 @@ AStardustHovercraftPawn::AStardustHovercraftPawn()
 	ChaseCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ChaseCamera"));
 	ChaseCamera->SetupAttachment(CameraArm);
 	ChaseCamera->bUsePawnControlRotation = false;
+
+	SpeedFxComponent = CreateDefaultSubobject<UStardustSpeedFxComponent>(TEXT("SpeedFx"));
 
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }

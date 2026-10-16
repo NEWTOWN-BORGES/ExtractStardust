@@ -6,6 +6,7 @@
 #include "StardustHovercraftPawn.generated.h"
 
 class UCameraComponent;
+class UStardustSpeedFxComponent;
 class UPrimitiveComponent;
 class UStardustCourseComponent;
 class UStardustCraftMovementComponent;
@@ -38,6 +39,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UCameraComponent> ChaseCamera;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	TObjectPtr<UStardustSpeedFxComponent> SpeedFxComponent;
 
 protected:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
