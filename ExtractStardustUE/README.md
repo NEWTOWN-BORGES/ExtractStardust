@@ -33,6 +33,13 @@ As malhas de pista devem usar o canal de colisão `Ground`. Os Physical Surface 
 3. O `AStardustProceduralCourseActor` cria a superfície transitável e a colisão pelo RDDC; o terreno/canyon visual e os veículos artísticos ainda precisam dos FBX importados no Content Browser.
 4. O `UStardustCourseComponent` expõe posição, tangente, referencial, largura, bank, segmento e superfície para checkpoints, linha de corrida e IA.
 
+### Preparar a pista no PC de casa
+
+1. Instalar Blender e abrir PowerShell na pasta `ExtractStardustUE`.
+2. Executar `powershell -ExecutionPolicy Bypass -File .\Tools\PrepareCourseForUnreal.ps1` (ou passar `-BlenderExe` e `-CourseSpec` se necessário).
+3. O script valida RDDC/RDDG e copia os dados para `Content/Tracks`; os FBX e a pré-visualização ficam em `Saved/GeneratedCourse/red_dust_divide` para importação no Unreal.
+4. Abrir o projeto, compilar e carregar em Play para testar a pista e os dois bots de linha.
+
 ## Testar no PC de casa
 
 1. Levar/sincronizar a pasta `ExtractStardustUE/` para o PC de casa.
