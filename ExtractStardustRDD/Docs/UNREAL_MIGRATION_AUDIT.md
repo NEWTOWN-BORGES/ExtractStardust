@@ -54,6 +54,8 @@ Esta tabela é um mapeamento inicial, não uma conversão já realizada.
 - Projeto C++ paralelo criado em `ExtractStardustUE/`, associado a Unreal 5.8.
 - Portados os campos de input e o tuning de STRIX stock de `CraftTuning.cs` para `FStardustCraftInput` e `FStardustCraftTuning`.
 - Portadas as funções de cálculo de taxa de curva, mola, amortecimento, aderência e velocidade de curva.
+- Portado o sensor de cinco sondas, a mistura de propriedades de superfície e a leitura antecipada da normal.
+- Configurados um canal de colisão `Ground` e tipos físicos para areia funda, slickrock, cascalho e rocha.
 - Mantidas as unidades SI da origem nos dados; a camada física Unreal deverá converter metros para centímetros.
 - A compilação ainda não foi executada. O alvo indicado para validação é o PC de casa com UE 5.8.2.
 
