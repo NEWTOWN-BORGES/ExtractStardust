@@ -69,6 +69,13 @@ void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick 
 		{
 			GEngine->AddOnScreenDebugMessage(817432, 0.0f, FColor::Orange, TEXT("SEM PISTA: coloca o ficheiro RDDC em Content/Tracks"));
 		}
+		if (RaceProgressComponent && RaceProgressComponent->State == EStardustRaceState::Racing && bEnableRaceVitals)
+		{
+			const TCHAR* VitalState = Telemetry.bDestroyed ? TEXT("DESTROYED") : Telemetry.bStranded ? TEXT("STRANDED")
+				: Telemetry.bOverheated ? TEXT("OVERHEAT") : Telemetry.bFuelEmpty ? TEXT("NO FUEL") : TEXT("SYSTEMS NOMINAL");
+			GEngine->AddOnScreenDebugMessage(817433, 0.0f, Telemetry.bDestroyed || Telemetry.bStranded ? FColor::Red : FColor::Silver,
+				FString::Printf(TEXT("FUEL %02.0f%%  |  HEAT %02.0f%%  |  %s"), Telemetry.FuelFraction * 100.0f, Telemetry.Heat, VitalState));
+		}
 	}
 }
 
@@ -146,6 +153,67 @@ void UStardustCraftMovementComponent::AddNitro(float Amount)
 	}
 }
 
+void UStardustCraftMovementComponent::ApplyRaceVitalLimits(float DeltaSeconds, float SpeedMPerSecond)
+{
+	const bool bRaceActive = bEnableRaceVitals && RaceProgressComponent && RaceProgressComponent->State == EStardustRaceState::Racing;
+	if (!bRaceActive)
+	{
+		return;
+	}
+
+	const float HeatGain = (Telemetry.bBoosting ? 14.0f : 0.0f) + (Telemetry.bDrifting ? 3.0f : 0.0f);
+	const float HeatLoss = 6.0f * (Telemetry.bBoosting ? 0.3f : 1.0f);
+	Telemetry.Heat = FMath::Clamp(Telemetry.Heat + (HeatGain - HeatLoss) * DeltaSeconds, 0.0f, 120.0f);
+	Telemetry.bOverheated = Telemetry.Heat >= 100.0f;
+	if (Telemetry.bOverheated)
+	{
+		Input.bBoost = false;
+		const float Damage = 2.0f * DeltaSeconds;
+		Telemetry.HullIntegrity = FMath::Max(0.0f, Telemetry.HullIntegrity - Damage);
+		OnDamaged.Broadcast(Damage);
+	}
+
+	Telemetry.bFuelEmpty = Telemetry.FuelFraction <= 0.0f;
+	if (Telemetry.bFuelEmpty || Telemetry.bDestroyed || Telemetry.bStranded)
+	{
+		Input.Throttle = 0.0f;
+		Input.bBoost = false;
+	}
+
+	Telemetry.bDestroyed = Telemetry.HullIntegrity <= 0.0f;
+	if (Telemetry.bDestroyed)
+	{
+		Input.Throttle = 0.0f;
+		Input.bBoost = false;
+		Input.bBrake = true;
+	}
+
+	if (Telemetry.bFuelEmpty && SpeedMPerSecond < 4.0f)
+	{
+		StrandedSeconds += DeltaSeconds;
+		Telemetry.bStranded = StrandedSeconds > 3.0f;
+	}
+	else
+	{
+		StrandedSeconds = 0.0f;
+		Telemetry.bStranded = false;
+	}
+}
+
+void UStardustCraftMovementComponent::UpdateRaceFuel(float DeltaSeconds, float SpeedMPerSecond)
+{
+	if (!bEnableRaceVitals || !RaceProgressComponent || RaceProgressComponent->State != EStardustRaceState::Racing)
+	{
+		return;
+	}
+
+	const float ReferenceSeconds = FMath::Max(60.0f, RaceProgressComponent->FinishDistanceM / 100.0f * 0.92f);
+	const float SpeedRatio = FMath::Clamp(SpeedMPerSecond / FMath::Max(1.0f, Tuning.TopSpeed), 0.0f, 1.0f);
+	const float BoostMultiplier = Telemetry.bBoosting ? 2.2f : 1.0f;
+	const float FuelUse = FMath::Clamp(Input.Throttle, 0.0f, 1.0f) * (0.55f + 0.45f * SpeedRatio) * BoostMultiplier;
+	Telemetry.FuelFraction = FMath::Max(0.0f, Telemetry.FuelFraction - FuelUse * DeltaSeconds / ReferenceSeconds);
+}
+
 void UStardustCraftMovementComponent::ApplyImpactSpeed(float ImpactSpeedMPerSecond)
 {
 	if (!FMath::IsFinite(ImpactSpeedMPerSecond) || ImpactSpeedMPerSecond < Tuning.ImpactMin || ImpactCooldownSeconds > 0.0f)
@@ -173,6 +241,7 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 	const FVector Up = Rotation.RotateVector(FVector::UpVector);
 	const FVector Forward = Rotation.RotateVector(FVector::ForwardVector);
 	const float SpeedMPerSecond = VelocityMPerSecond.Size();
+	ApplyRaceVitalLimits(DeltaSeconds, SpeedMPerSecond);
 	HoverSensor.Sample(GetWorld(), PositionCm, Rotation, VelocityMPerSecond * CmPerMeter, Tuning, DeltaSeconds, GetOwner());
 	const FStardustHoverState& Sensor = HoverSensor.GetState();
 	const bool bGrounded = Sensor.Hits >= 2 && Sensor.HeightM < Tuning.HoverHeightM + Tuning.CaptureRangeM;
@@ -200,6 +269,7 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 			bNitroLocked = false;
 		}
 	}
+	UpdateRaceFuel(DeltaSeconds, SpeedMPerSecond);
 
 	FVector SurfaceForward = FVector::ZeroVector;
 	if (bGrounded)

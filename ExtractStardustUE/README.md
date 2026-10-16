@@ -11,6 +11,7 @@ Projeto paralelo de migração a partir de `ExtractStardustRDD/`. O projeto Unit
 - A classificação de areia, areia funda, slickrock, cascalho e rocha usa Physical Surface Types do Unreal.
 - O primeiro controlador C++ reproduz propulsão, travagem, nitro, aderência lateral, drift, mini-turbo e alinhamento à superfície.
 - Choques e aterragens fortes reduzem a integridade do casco; velocidade, nitro e integridade são apresentados na telemetria de teste.
+- Durante uma corrida com pista válida, combustível e calor seguem o ciclo de corrida do Unity: boost acelera o consumo e o calor, sobreaquecimento bloqueia o boost e causa dano, e combustível esgotado pode deixar a nave encalhada.
 - Existe um pawn de teste com casco provisório, câmara chase, comandos de teclado/gamepad e telemetria sobreposta (velocidade, nitro, hover/ar).
 - O GameMode cria automaticamente uma plataforma plana e um PlayerStart provisórios para abrir uma sessão física mesmo sem mapa ou assets importados.
 - O leitor `FStardustCourseData` carrega RDDC v1, valida os dados e permite interpolar amostras ao longo da pista; a conversão Unity → Unreal troca os eixos para `UE(X=Unity Z, Y=Unity X, Z=Unity Y)`, preservando metros nos dados.

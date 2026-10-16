@@ -57,6 +57,24 @@ struct FStardustCraftTelemetry
 	float HullIntegrity = 100.0f;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float FuelFraction = 1.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float Heat = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bOverheated = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bFuelEmpty = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bStranded = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bDestroyed = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
 	float LastImpactSpeedMPerSecond = 0.0f;
 };
 
@@ -76,6 +94,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Craft")
 	bool bAutoStep = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Craft|Race Rules")
+	bool bEnableRaceVitals = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Craft")
 	FStardustCraftInput Input;
@@ -132,8 +153,11 @@ private:
 	float Nitro = 1.0f;
 	bool bNitroLocked = false;
 	float ImpactCooldownSeconds = 0.0f;
+	float StrandedSeconds = 0.0f;
 
 	void InitializeBody();
+	void ApplyRaceVitalLimits(float DeltaSeconds, float SpeedMPerSecond);
+	void UpdateRaceFuel(float DeltaSeconds, float SpeedMPerSecond);
 	FVector FindAirTargetUp(const FVector& PositionCm, const FVector& VelocityMPerSecond) const;
 	static FVector ConvertUnityVectorToUnreal(const FVector& UnityVector);
 	static FVector ProjectOnPlane(const FVector& Vector, const FVector& PlaneNormal);
