@@ -6,6 +6,7 @@
 #include "StardustHovercraftPawn.generated.h"
 
 class UCameraComponent;
+class UPrimitiveComponent;
 class UStardustCraftMovementComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
@@ -46,4 +47,8 @@ private:
 	void ReleaseBoost();
 	void PressDrift();
 	void ReleaseDrift();
+
+	UFUNCTION()
+	void OnHullHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent,
+		FVector NormalImpulse, const FHitResult& Hit);
 };

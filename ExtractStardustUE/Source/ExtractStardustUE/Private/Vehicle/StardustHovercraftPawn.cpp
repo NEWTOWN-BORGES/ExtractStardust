@@ -16,6 +16,7 @@ AStardustHovercraftPawn::AStardustHovercraftPawn()
 	HullMesh->SetCollisionProfileName(TEXT("PhysicsActor"));
 	HullMesh->SetSimulatePhysics(true);
 	HullMesh->SetNotifyRigidBodyCollision(true);
+	HullMesh->OnComponentHit.AddDynamic(this, &AStardustHovercraftPawn::OnHullHit);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (CubeMesh.Succeeded())
 	{
@@ -116,4 +117,15 @@ void AStardustHovercraftPawn::ReleaseDrift()
 {
 	PendingInput.bDrift = false;
 	ApplyInput();
+}
+
+void AStardustHovercraftPawn::OnHullHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent,
+	FVector NormalImpulse, const FHitResult& Hit)
+{
+	if (!MovementComponent || !HitComponent || !OtherComponent || OtherActor == this)
+	{
+		return;
+	}
+	const float ImpactSpeedMPerSecond = NormalImpulse.Size() / FMath::Max(1.0f, MovementComponent->Tuning.MassKg) / 100.0f;
+	MovementComponent->ApplyImpactSpeed(ImpactSpeedMPerSecond);
 }

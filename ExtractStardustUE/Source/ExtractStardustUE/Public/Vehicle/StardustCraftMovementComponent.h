@@ -51,9 +51,16 @@ struct FStardustCraftTelemetry
 
 	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
 	float UpRateSmoothed = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float HullIntegrity = 100.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float LastImpactSpeedMPerSecond = 0.0f;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStardustCraftSpeedEvent, float, SpeedMPerSecond);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStardustCraftDamageEvent, float, Damage);
 
 UCLASS(ClassGroup = (Stardust), meta = (BlueprintSpawnableComponent))
 class EXTRACTSTARDUSTUE_API UStardustCraftMovementComponent : public UActorComponent
@@ -78,6 +85,9 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Craft|Events")
 	FStardustCraftSpeedEvent OnLanded;
 
+	UPROPERTY(BlueprintAssignable, Category = "Craft|Events")
+	FStardustCraftDamageEvent OnDamaged;
+
 	UFUNCTION(BlueprintCallable, Category = "Craft")
 	void SetInput(const FStardustCraftInput& NewInput);
 
@@ -89,6 +99,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Craft")
 	void AddNitro(float Amount);
+
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	void ApplyImpactSpeed(float ImpactSpeedMPerSecond);
 
 	UFUNCTION(BlueprintCallable, Category = "Craft")
 	void StepCraft(float DeltaSeconds);
@@ -114,6 +127,7 @@ private:
 	bool bWasGrounded = false;
 	float Nitro = 1.0f;
 	bool bNitroLocked = false;
+	float ImpactCooldownSeconds = 0.0f;
 
 	void InitializeBody();
 	FVector FindAirTargetUp(const FVector& PositionCm, const FVector& VelocityMPerSecond) const;

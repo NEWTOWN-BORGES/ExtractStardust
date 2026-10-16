@@ -30,10 +30,12 @@ void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick 
 	{
 		StepCraft(DeltaTime);
 	}
+	ImpactCooldownSeconds = FMath::Max(0.0f, ImpactCooldownSeconds - DeltaTime);
 	if (GEngine && GetWorld() && GetWorld()->IsGameWorld())
 	{
-		const FString TelemetryText = FString::Printf(TEXT("EXTRACT: STARDUST  |  %3.0f km/h  |  Nitro %3.0f%%  |  %s"),
-			Telemetry.SpeedMPerSecond * 3.6f, Telemetry.Nitro * 100.0f, Telemetry.bGrounded ? TEXT("HOVER") : TEXT("AIR"));
+		const FString TelemetryText = FString::Printf(TEXT("EXTRACT: STARDUST  |  %3.0f km/h  |  Nitro %3.0f%%  |  Hull %3.0f%%  |  %s"),
+			Telemetry.SpeedMPerSecond * 3.6f, Telemetry.Nitro * 100.0f, Telemetry.HullIntegrity,
+			Telemetry.bGrounded ? TEXT("HOVER") : TEXT("AIR"));
 		GEngine->AddOnScreenDebugMessage(817430, 0.0f, FColor::White, TelemetryText);
 		GEngine->AddOnScreenDebugMessage(817431, 0.0f, FColor::Yellow,
 			TEXT("W / RT: accelerate   A-D / Stick: steer   S / LT: brake   Shift / A: boost   Space / X: drift"));
@@ -95,6 +97,8 @@ void UStardustCraftMovementComponent::PlaceCraft(const FVector& PositionCm, cons
 	YawRate = 0.0f;
 	Telemetry.AirTimeSeconds = 0.0f;
 	Telemetry.LastLandingSpeedMPerSecond = 0.0f;
+	Telemetry.LastImpactSpeedMPerSecond = 0.0f;
+	Telemetry.HullIntegrity = 100.0f;
 	Telemetry.UpRateSmoothed = 0.0f;
 	Nitro = 1.0f;
 	bNitroLocked = false;
@@ -110,6 +114,20 @@ void UStardustCraftMovementComponent::AddNitro(float Amount)
 	{
 		bNitroLocked = false;
 	}
+}
+
+void UStardustCraftMovementComponent::ApplyImpactSpeed(float ImpactSpeedMPerSecond)
+{
+	if (!FMath::IsFinite(ImpactSpeedMPerSecond) || ImpactSpeedMPerSecond < Tuning.ImpactMin || ImpactCooldownSeconds > 0.0f)
+	{
+		return;
+	}
+
+	Telemetry.LastImpactSpeedMPerSecond = ImpactSpeedMPerSecond;
+	const float Damage = (ImpactSpeedMPerSecond - Tuning.ImpactMin) * 1.1f;
+	Telemetry.HullIntegrity = FMath::Max(0.0f, Telemetry.HullIntegrity - Damage);
+	ImpactCooldownSeconds = 0.25f;
+	OnDamaged.Broadcast(Damage);
 }
 
 void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
@@ -301,6 +319,12 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 	if (bGrounded && !bWasGrounded && Telemetry.AirTimeSeconds > 0.08f)
 	{
 		Telemetry.LastLandingSpeedMPerSecond = -FVector::DotProduct(VelocityMPerSecond, SurfaceNormal);
+		if (Telemetry.LastLandingSpeedMPerSecond > Tuning.LandingHard)
+		{
+			const float LandingDamage = (Telemetry.LastLandingSpeedMPerSecond - Tuning.LandingHard) * 1.4f;
+			Telemetry.HullIntegrity = FMath::Max(0.0f, Telemetry.HullIntegrity - LandingDamage);
+			OnDamaged.Broadcast(LandingDamage);
+		}
 		if (Telemetry.LastLandingSpeedMPerSecond > Tuning.LandingSoft)
 		{
 			OnLanded.Broadcast(Telemetry.LastLandingSpeedMPerSecond);
