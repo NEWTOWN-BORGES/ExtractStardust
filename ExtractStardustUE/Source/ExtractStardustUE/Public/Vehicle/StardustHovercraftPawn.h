@@ -11,6 +11,7 @@ class UPrimitiveComponent;
 class UStardustCourseComponent;
 class UStardustCraftMovementComponent;
 class UStardustRaceProgressComponent;
+class UStardustRaceHudWidget;
 class USpringArmComponent;
 class UStaticMeshComponent;
 
@@ -42,6 +43,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UStardustSpeedFxComponent> SpeedFxComponent;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStardustRaceHudWidget> RaceHudWidget;
 
 protected:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;

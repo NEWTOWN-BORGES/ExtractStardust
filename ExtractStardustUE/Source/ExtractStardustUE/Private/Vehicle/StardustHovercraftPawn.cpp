@@ -1,6 +1,7 @@
 #include "Vehicle/StardustHovercraftPawn.h"
 
 #include "Camera/CameraComponent.h"
+#include "Blueprint/UserWidget.h"
 #include "Components/InputComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Course/StardustCourseComponent.h"
@@ -11,6 +12,8 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Vehicle/StardustCraftMovementComponent.h"
 #include "Presentation/StardustSpeedFxComponent.h"
+#include "Presentation/StardustRaceHudWidget.h"
+#include "GameFramework/PlayerController.h"
 
 AStardustHovercraftPawn::AStardustHovercraftPawn()
 {
@@ -54,6 +57,18 @@ AStardustHovercraftPawn::AStardustHovercraftPawn()
 void AStardustHovercraftPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+	if (!RaceHudWidget && IsLocallyControlled())
+	{
+		if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+		{
+			RaceHudWidget = CreateWidget<UStardustRaceHudWidget>(PlayerController, UStardustRaceHudWidget::StaticClass());
+			if (RaceHudWidget)
+			{
+				RaceHudWidget->SetCraft(this);
+				RaceHudWidget->AddToViewport(10);
+			}
+		}
+	}
 	PlayerInputComponent->BindAxis(TEXT("Throttle"), this, &AStardustHovercraftPawn::SetThrottle);
 	PlayerInputComponent->BindAxis(TEXT("Steer"), this, &AStardustHovercraftPawn::SetSteer);
 	PlayerInputComponent->BindAxis(TEXT("AirPitch"), this, &AStardustHovercraftPawn::SetAirPitch);
