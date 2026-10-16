@@ -1,6 +1,7 @@
 #include "Vehicle/StardustCraftMovementComponent.h"
 
 #include "Components/PrimitiveComponent.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 
 namespace
@@ -18,16 +19,24 @@ UStardustCraftMovementComponent::UStardustCraftMovementComponent()
 
 void UStardustCraftMovementComponent::BeginPlay()
 {
-	super::BeginPlay();
+	Super::BeginPlay();
 	InitializeBody();
 }
 
 void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	if (bAutoStep)
 	{
 		StepCraft(DeltaTime);
+	}
+	if (GEngine && GetWorld() && GetWorld()->IsGameWorld())
+	{
+		const FString TelemetryText = FString::Printf(TEXT("EXTRACT: STARDUST  |  %3.0f km/h  |  Nitro %3.0f%%  |  %s"),
+			Telemetry.SpeedMPerSecond * 3.6f, Telemetry.Nitro * 100.0f, Telemetry.bGrounded ? TEXT("HOVER") : TEXT("AIR"));
+		GEngine->AddOnScreenDebugMessage(817430, 0.0f, FColor::White, TelemetryText);
+		GEngine->AddOnScreenDebugMessage(817431, 0.0f, FColor::Yellow,
+			TEXT("W / RT: accelerate   A-D / Stick: steer   S / LT: brake   Shift / A: boost   Space / X: drift"));
 	}
 }
 

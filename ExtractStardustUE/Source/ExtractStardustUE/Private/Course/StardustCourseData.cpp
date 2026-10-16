@@ -189,9 +189,9 @@ bool FStardustCourseData::SampleAtDistance(float DistanceM, FStardustCourseSampl
 	OutSample.Alpha = Alpha;
 	OutSample.DistanceM = ClampedDistance;
 	OutSample.CenterM = FMath::Lerp(Start.CenterM, End.CenterM, Alpha);
-	OutSample.Tangent = FMath::Lerp(Start.Tangent, End.Tangent, Alpha).GetSafeNormal(Start.Tangent);
-	OutSample.Right = FMath::Lerp(Start.Right, End.Right, Alpha).GetSafeNormal(Start.Right);
-	OutSample.Up = FMath::Lerp(Start.Up, End.Up, Alpha).GetSafeNormal(Start.Up);
+	OutSample.Tangent = FMath::Lerp(Start.Tangent, End.Tangent, Alpha).GetSafeNormal(UE_SMALL_NUMBER, Start.Tangent);
+	OutSample.Right = FMath::Lerp(Start.Right, End.Right, Alpha).GetSafeNormal(UE_SMALL_NUMBER, Start.Right);
+	OutSample.Up = FMath::Lerp(Start.Up, End.Up, Alpha).GetSafeNormal(UE_SMALL_NUMBER, Start.Up);
 	OutSample.WidthM = FMath::Lerp(Start.WidthM, End.WidthM, Alpha);
 	OutSample.BankDegrees = FMath::Lerp(Start.BankDegrees, End.BankDegrees, Alpha);
 	OutSample.Slope = FMath::Lerp(Start.Slope, End.Slope, Alpha);

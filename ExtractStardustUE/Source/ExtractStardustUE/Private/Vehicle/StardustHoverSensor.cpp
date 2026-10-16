@@ -64,7 +64,7 @@ FStardustHoverSensor::FStardustHoverSensor()
 void FStardustHoverSensor::Reset(const FVector& Up)
 {
 	State.Hits = 0;
-	State.HeightM = TNumericLimits<float>::Infinity();
+	State.HeightM = TNumericLimits<float>::Max();
 	State.Normal = Up.GetSafeNormal(SMALL_NUMBER, FVector::UpVector);
 	State.NormalRaw = State.Normal;
 	State.NormalAhead = State.Normal;
@@ -87,7 +87,7 @@ FVector FStardustHoverSensor::SlerpNormals(const FVector& From, const FVector& T
 EStardustSurface FStardustHoverSensor::ReadSurface(const FHitResult& Hit)
 {
 	const EPhysicalSurface SurfaceType = Hit.PhysMaterial.IsValid()
-		? UPhysicalMaterial::DetermineSurfaceType(Hit.PhysMaterial.Get())
+		? static_cast<EPhysicalSurface>(Hit.PhysMaterial->SurfaceType)
 		: SurfaceType_Default;
 
 	switch (SurfaceType)
@@ -192,7 +192,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 	}
 	else
 	{
-		State.HeightM = TNumericLimits<float>::Infinity();
+		State.HeightM = TNumericLimits<float>::Max();
 	}
 
 	State.bAheadHit = false;

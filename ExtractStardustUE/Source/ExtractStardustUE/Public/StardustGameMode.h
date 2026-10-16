@@ -11,4 +11,7 @@ class EXTRACTSTARDUSTUE_API AStardustGameMode : public AGameModeBase
 
 public:
 	AStardustGameMode();
+
+protected:
+	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 };

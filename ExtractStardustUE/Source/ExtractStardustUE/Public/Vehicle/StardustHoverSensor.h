@@ -49,7 +49,7 @@ struct FStardustHoverState
 {
 	FStardustHoverProbe Probes[5];
 	int32 Hits = 0;
-	float HeightM = TNumericLimits<float>::Infinity();
+	float HeightM = TNumericLimits<float>::Max();
 	FVector NormalRaw = FVector::UpVector;
 	FVector NormalAhead = FVector::UpVector;
 	bool bAheadHit = false;
