@@ -7,6 +7,7 @@
 #include "StardustCraftMovementComponent.generated.h"
 
 class UPrimitiveComponent;
+class UStardustRaceProgressComponent;
 
 USTRUCT(BlueprintType)
 struct FStardustCraftTelemetry
@@ -115,6 +116,9 @@ protected:
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UPrimitiveComponent> BodyComponent;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStardustRaceProgressComponent> RaceProgressComponent;
 
 	FStardustHoverSensor HoverSensor;
 	FVector LastCommandedSpin = FVector::ZeroVector;

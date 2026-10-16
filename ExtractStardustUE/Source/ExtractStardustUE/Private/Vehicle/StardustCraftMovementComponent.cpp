@@ -1,8 +1,10 @@
 #include "Vehicle/StardustCraftMovementComponent.h"
 
 #include "Components/PrimitiveComponent.h"
+#include "Course/StardustCourseComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Game/StardustRaceProgressComponent.h"
 
 namespace
 {
@@ -21,6 +23,10 @@ void UStardustCraftMovementComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	InitializeBody();
+	if (GetOwner())
+	{
+		RaceProgressComponent = GetOwner()->FindComponentByClass<UStardustRaceProgressComponent>();
+	}
 }
 
 void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -39,6 +45,30 @@ void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick 
 		GEngine->AddOnScreenDebugMessage(817430, 0.0f, FColor::White, TelemetryText);
 		GEngine->AddOnScreenDebugMessage(817431, 0.0f, FColor::Yellow,
 			TEXT("W / RT: accelerate   A-D / Stick: steer   S / LT: brake   Shift / A: boost   Space / X: drift"));
+		if (RaceProgressComponent && RaceProgressComponent->State == EStardustRaceState::Racing)
+		{
+			const int32 Minutes = FMath::FloorToInt(RaceProgressComponent->ElapsedTimeSeconds / 60.0f);
+			const float Seconds = FMath::Fmod(RaceProgressComponent->ElapsedTimeSeconds, 60.0f);
+			const FString RaceText = FString::Printf(TEXT("CORRIDA  %02d:%05.2f  |  CP %02d/%02d  |  %0.1f / %0.1f km"),
+				Minutes, Seconds, RaceProgressComponent->CurrentCheckpoint, RaceProgressComponent->CheckpointCount,
+				RaceProgressComponent->RaceDistanceM / 1000.0f, RaceProgressComponent->FinishDistanceM / 1000.0f);
+			GEngine->AddOnScreenDebugMessage(817432, 0.0f, FColor::Cyan, RaceText);
+		}
+		else if (RaceProgressComponent && RaceProgressComponent->State == EStardustRaceState::Extracted)
+		{
+			const int32 Minutes = FMath::FloorToInt(RaceProgressComponent->FinishTimeSeconds / 60.0f);
+			const float Seconds = FMath::Fmod(RaceProgressComponent->FinishTimeSeconds, 60.0f);
+			GEngine->AddOnScreenDebugMessage(817432, 0.0f, FColor::Green,
+				FString::Printf(TEXT("EXTRACTED  %02d:%05.2f"), Minutes, Seconds));
+		}
+		else if (RaceProgressComponent && RaceProgressComponent->Course && RaceProgressComponent->Course->StationCount >= 2)
+		{
+			GEngine->AddOnScreenDebugMessage(817432, 0.0f, FColor::Cyan, TEXT("CORRIDA PRONTA  |  acelera para iniciar"));
+		}
+		else
+		{
+			GEngine->AddOnScreenDebugMessage(817432, 0.0f, FColor::Orange, TEXT("SEM PISTA: coloca o ficheiro RDDC em Content/Tracks"));
+		}
 	}
 }
 
