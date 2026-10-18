@@ -9,7 +9,7 @@
 
 namespace
 {
-	constexpr float CmPerMeter = 100.0f;
+	constexpr float CraftCmPerMeter = 100.0f;
 }
 
 UStardustCraftMovementComponent::UStardustCraftMovementComponent()
@@ -104,7 +104,7 @@ void UStardustCraftMovementComponent::InitializeBody()
 
 	BodyComponent->SetEnableGravity(false);
 	BodyComponent->SetMassOverrideInKg(NAME_None, Tuning.MassKg, true);
-	BodyComponent->SetCenterOfMass(ConvertUnityVectorToUnreal(Tuning.CenterOfMassM) * CmPerMeter);
+	BodyComponent->SetCenterOfMass(ConvertUnityVectorToUnreal(Tuning.CenterOfMassM) * CraftCmPerMeter);
 	HoverSensor.Reset(BodyComponent->GetUpVector());
 	LastUp = BodyComponent->GetUpVector();
 }
@@ -140,7 +140,7 @@ void UStardustCraftMovementComponent::PlaceCraft(const FVector& PositionCm, cons
 	{
 		BodyComponent->SetWorldLocationAndRotation(PositionCm, SpawnRotation, false, nullptr, ETeleportType::TeleportPhysics);
 	}
-	BodyComponent->SetPhysicsLinearVelocity(SpawnRotation.RotateVector(FVector::ForwardVector) * SpeedMPerSecond * CmPerMeter);
+	BodyComponent->SetPhysicsLinearVelocity(SpawnRotation.RotateVector(FVector::ForwardVector) * SpeedMPerSecond * CraftCmPerMeter);
 	BodyComponent->SetPhysicsAngularVelocityInRadians(FVector::ZeroVector);
 	LastCommandedSpin = FVector::ZeroVector;
 	YawRate = 0.0f;
@@ -264,12 +264,12 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 
 	const FVector PositionCm = BodyComponent->GetComponentLocation();
 	const FQuat Rotation = BodyComponent->GetComponentQuat();
-	FVector VelocityMPerSecond = BodyComponent->GetPhysicsLinearVelocity() / CmPerMeter;
+	FVector VelocityMPerSecond = BodyComponent->GetPhysicsLinearVelocity() / CraftCmPerMeter;
 	const FVector Up = Rotation.RotateVector(FVector::UpVector);
 	const FVector Forward = Rotation.RotateVector(FVector::ForwardVector);
 	const float SpeedMPerSecond = VelocityMPerSecond.Size();
 	ApplyRaceVitalLimits(DeltaSeconds, SpeedMPerSecond);
-	HoverSensor.Sample(GetWorld(), PositionCm, Rotation, VelocityMPerSecond * CmPerMeter, Tuning, DeltaSeconds, GetOwner());
+	HoverSensor.Sample(GetWorld(), PositionCm, Rotation, VelocityMPerSecond * CraftCmPerMeter, Tuning, DeltaSeconds, GetOwner());
 	const FStardustHoverState& Sensor = HoverSensor.GetState();
 	#if !UE_BUILD_SHIPPING
 	if (const APawn* PlayerPawn = Cast<APawn>(GetOwner()))
@@ -279,7 +279,7 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 		if (PlayerPawn->IsPlayerControlled() && WorldTime >= NextGroundDiagnosticTime)
 		{
 			UE_LOG(LogTemp, Display, TEXT("Hover contact: %d/5 probes, height %.2f m, craft Z %.1f m, vertical speed %.2f m/s."),
-				Sensor.Hits, Sensor.Hits > 0 ? Sensor.HeightM : -1.0f, PositionCm.Z / CmPerMeter, VelocityMPerSecond.Z);
+				Sensor.Hits, Sensor.Hits > 0 ? Sensor.HeightM : -1.0f, PositionCm.Z / CraftCmPerMeter, VelocityMPerSecond.Z);
 			NextGroundDiagnosticTime = WorldTime + 0.5;
 		}
 	}
@@ -454,7 +454,7 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 	Spin += ExternalSpin * FMath::Exp(-Tuning.StabilityRecover * DeltaSeconds);
 	LastCommandedSpin = Spin;
 
-	BodyComponent->SetPhysicsLinearVelocity(VelocityMPerSecond * CmPerMeter);
+	BodyComponent->SetPhysicsLinearVelocity(VelocityMPerSecond * CraftCmPerMeter);
 	BodyComponent->SetPhysicsAngularVelocityInRadians(Spin);
 	if (bGrounded && !bWasGrounded && Telemetry.AirTimeSeconds > 0.08f)
 	{
@@ -479,7 +479,7 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 	Telemetry.Nitro = Nitro;
 	Telemetry.bNitroLocked = bNitroLocked;
 	LastUp = Up;
-	PreVelocityCmPerSecond = VelocityMPerSecond * CmPerMeter;
+	PreVelocityCmPerSecond = VelocityMPerSecond * CraftCmPerMeter;
 }
 
 FVector UStardustCraftMovementComponent::FindAirTargetUp(const FVector& PositionCm, const FVector& VelocityMPerSecond) const
@@ -493,10 +493,10 @@ FVector UStardustCraftMovementComponent::FindAirTargetUp(const FVector& Position
 	{
 		const float SampleTime = Index * 0.25f;
 		const FVector BallisticOffsetM = VelocityMPerSecond * SampleTime + 0.5f * SampleTime * SampleTime * Gravity;
-		const FVector CurrentPointCm = PositionCm + BallisticOffsetM * CmPerMeter;
+		const FVector CurrentPointCm = PositionCm + BallisticOffsetM * CraftCmPerMeter;
 		const FVector Segment = CurrentPointCm - PreviousPointCm;
 		const FVector SegmentDirection = Segment.GetSafeNormal();
-		const FVector TraceEndCm = PreviousPointCm + SegmentDirection * (Segment.Size() + Tuning.HoverHeightM * CmPerMeter);
+		const FVector TraceEndCm = PreviousPointCm + SegmentDirection * (Segment.Size() + Tuning.HoverHeightM * CraftCmPerMeter);
 		FHitResult Hit;
 		if (GetWorld()->LineTraceSingleByChannel(Hit, PreviousPointCm, TraceEndCm,
 			ECC_GameTraceChannel1, QueryParams))

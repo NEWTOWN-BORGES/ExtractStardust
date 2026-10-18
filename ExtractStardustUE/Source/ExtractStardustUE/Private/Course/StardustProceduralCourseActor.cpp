@@ -13,7 +13,7 @@
 namespace
 {
 	constexpr int32 MaxSectionVertices = 60000;
-	constexpr double CmPerMeter = 100.0;
+	constexpr double CourseCmPerMeter = 100.0;
 	constexpr float CollisionSampleSpacingM = 20.0f;
 	constexpr int32 GeneratedEnvironmentSectorCount = 9;
 	constexpr float GeneratedEnvironmentImportScale = 100.0f;
@@ -145,7 +145,7 @@ bool AStardustProceduralCourseActor::LoadAndBuildCourse(FString& OutError)
 				const FStardustCourseStation& Station = Stations[StationIndex];
 				for (int32 RingIndex = 0; RingIndex < RingCount; ++RingIndex)
 				{
-					Vertices.Add(Station.RingOffsetsM[RingIndex] * CmPerMeter);
+					Vertices.Add(Station.RingOffsetsM[RingIndex] * CourseCmPerMeter);
 					UVs.Add(FVector2D(Station.DistanceM, static_cast<double>(RingIndex) / (RingCount - 1)));
 					Colors.Add(FLinearColor::White);
 				}
@@ -185,8 +185,8 @@ bool AStardustProceduralCourseActor::LoadAndBuildCourse(FString& OutError)
 		const FStardustCourseStation& StartStation = Stations[0];
 		const FVector ProbeUp = StartStation.Up.GetSafeNormal(SMALL_NUMBER, FVector::UpVector);
 		const FVector ProbePositionM = StartStation.CenterM + StartStation.Tangent.GetSafeNormal() * 2.0f;
-		const FVector ProbeStart = (ProbePositionM + ProbeUp * 10.0f) * CmPerMeter;
-		const FVector ProbeEnd = (ProbePositionM - ProbeUp * 10.0f) * CmPerMeter;
+		const FVector ProbeStart = (ProbePositionM + ProbeUp * 10.0f) * CourseCmPerMeter;
+		const FVector ProbeEnd = (ProbePositionM - ProbeUp * 10.0f) * CourseCmPerMeter;
 		FCollisionQueryParams ProbeParams(SCENE_QUERY_STAT(StardustCourseCollisionStartup), true);
 		for (TActorIterator<APawn> PawnIt(GetWorld()); PawnIt; ++PawnIt)
 		{

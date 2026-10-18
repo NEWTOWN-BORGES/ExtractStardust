@@ -108,7 +108,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 		return;
 	}
 
-	constexpr float CmPerMeter = 100.0f;
+	constexpr float SensorCmPerMeter = 100.0f;
 	constexpr float RayLiftM = 1.0f;
 	const FVector Up = Rotation.RotateVector(FVector::UpVector);
 	// Keep a stable course-facing direction while the craft is rolled or briefly
@@ -143,9 +143,9 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 	{
 		FStardustHoverProbe& Probe = State.Probes[Index];
 		Probe.LocalPositionM = LocalProbes[Index];
-		const FVector ProbeBase = PositionCm + Rotation.RotateVector(LocalProbes[Index] * CmPerMeter);
-		const FVector Start = ProbeBase + Up * RayLiftM * CmPerMeter;
-		const FVector End = Start - Up * (RayLiftM + Tuning.HoverHeightM + Tuning.ProbeReachM) * CmPerMeter;
+		const FVector ProbeBase = PositionCm + Rotation.RotateVector(LocalProbes[Index] * SensorCmPerMeter);
+		const FVector Start = ProbeBase + Up * RayLiftM * SensorCmPerMeter;
+		const FVector End = Start - Up * (RayLiftM + Tuning.HoverHeightM + Tuning.ProbeReachM) * SensorCmPerMeter;
 		FVector MeasureUp = Up;
 		Probe.bHit = World->LineTraceSingleByChannel(Probe.Hit, Start, End, ECC_GameTraceChannel1, QueryParams);
 		if (!Probe.bHit)
@@ -153,7 +153,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 			// Reacquire the track from below or while the craft is rolled. A missed
 			// probe must not turn a recoverable skid into an unrecoverable free fall.
 			MeasureUp = RecoveryUp;
-			const FVector RecoveryEnd = ProbeBase + MeasureUp * RecoveryReachM * CmPerMeter;
+			const FVector RecoveryEnd = ProbeBase + MeasureUp * RecoveryReachM * SensorCmPerMeter;
 			Probe.bHit = World->LineTraceSingleByChannel(Probe.Hit, ProbeBase, RecoveryEnd, ECC_GameTraceChannel1, QueryParams);
 		}
 		if (!Probe.bHit)
@@ -161,7 +161,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 			continue;
 		}
 
-		Probe.HeightM = FVector::DotProduct(ProbeBase - Probe.Hit.ImpactPoint, MeasureUp) / CmPerMeter;
+		Probe.HeightM = FVector::DotProduct(ProbeBase - Probe.Hit.ImpactPoint, MeasureUp) / SensorCmPerMeter;
 		Probe.Surface = ReadSurface(Probe.Hit);
 		const int32 SurfaceIndex = static_cast<int32>(Probe.Surface);
 		SurfaceWeights[SurfaceIndex] += Probe.Weight;
@@ -216,7 +216,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 	}
 
 	State.bAheadHit = false;
-	const float SpeedMPerSecond = VelocityCmPerSecond.Size() / CmPerMeter;
+	const float SpeedMPerSecond = VelocityCmPerSecond.Size() / SensorCmPerMeter;
 	const FVector BaseNormal = State.Hits > 0 ? State.NormalRaw : Up;
 	FVector Forward = FVector::VectorPlaneProject(Rotation.RotateVector(FVector::ForwardVector), BaseNormal);
 	if (!Forward.IsNearlyZero() && State.Hits >= 2 && SpeedMPerSecond > 8.0f)
@@ -226,7 +226,7 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 		State.AheadOriginCm = PositionCm + BaseNormal * 40.0f;
 		FHitResult AheadHit;
 		if (World->LineTraceSingleByChannel(AheadHit, State.AheadOriginCm,
-			State.AheadOriginCm + Forward * (LookM + 2.0f) * CmPerMeter, ECC_GameTraceChannel1, QueryParams)
+			State.AheadOriginCm + Forward * (LookM + 2.0f) * SensorCmPerMeter, ECC_GameTraceChannel1, QueryParams)
 			&& FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(AheadHit.ImpactNormal, BaseNormal), -1.0f, 1.0f))) < 70.0f)
 		{
 			State.bAheadHit = true;
@@ -236,8 +236,8 @@ void FStardustHoverSensor::Sample(UWorld* World, const FVector& PositionCm, cons
 		else
 		{
 			const float LiftM = 2.5f + LookM * 0.18f;
-			const FVector Start = PositionCm + Forward * LookM * CmPerMeter + BaseNormal * LiftM * CmPerMeter;
-			const FVector End = Start - BaseNormal * (LiftM + Tuning.HoverHeightM + Tuning.ProbeReachM) * CmPerMeter;
+			const FVector Start = PositionCm + Forward * LookM * SensorCmPerMeter + BaseNormal * LiftM * SensorCmPerMeter;
+			const FVector End = Start - BaseNormal * (LiftM + Tuning.HoverHeightM + Tuning.ProbeReachM) * SensorCmPerMeter;
 			if (World->LineTraceSingleByChannel(AheadHit, Start, End, ECC_GameTraceChannel1, QueryParams)
 				&& FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(AheadHit.ImpactNormal, BaseNormal), -1.0f, 1.0f))) < 70.0f)
 			{

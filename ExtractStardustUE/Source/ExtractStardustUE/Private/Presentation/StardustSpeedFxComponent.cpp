@@ -6,7 +6,7 @@
 
 namespace
 {
-	constexpr float CmPerMeter = 100.0f;
+	constexpr float SpeedFxCmPerMeter = 100.0f;
 	constexpr float AccelerationForFullPitchMPerSecondSquared = 12.0f;
 	constexpr float LateralSpeedForFullDriftMPerSecond = 20.0f;
 	constexpr float ImpactShakeFrequencyHz = 18.0f;
@@ -27,7 +27,7 @@ void UStardustSpeedFxComponent::BeginPlay()
 		CraftMovement = Owner->FindComponentByClass<UStardustCraftMovementComponent>();
 		CameraArm = Owner->FindComponentByClass<USpringArmComponent>();
 		ChaseCamera = Owner->FindComponentByClass<UCameraComponent>();
-		LastVelocityMPerSecond = Owner->GetVelocity() / CmPerMeter;
+		LastVelocityMPerSecond = Owner->GetVelocity() / SpeedFxCmPerMeter;
 	}
 
 	if (CameraArm)
@@ -68,7 +68,7 @@ void UStardustSpeedFxComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		return;
 	}
 
-	const FVector VelocityMPerSecond = GetOwner()->GetVelocity() / CmPerMeter;
+	const FVector VelocityMPerSecond = GetOwner()->GetVelocity() / SpeedFxCmPerMeter;
 	const float ForwardAcceleration = FVector::DotProduct(
 		(VelocityMPerSecond - LastVelocityMPerSecond) / DeltaTime,
 		GetOwner()->GetActorForwardVector());
