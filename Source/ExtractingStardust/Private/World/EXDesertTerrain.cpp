@@ -28,14 +28,6 @@ namespace
 		return T * T * (3.0f - 2.0f * T);
 	}
 
-	/** Turns a 0..1 slope into ledges, like eroded rock strata. */
-	float Terrace(float T, float Steps)
-	{
-		const float Scaled = FMath::Clamp(T, 0.0f, 1.0f) * Steps;
-		const float Base = FMath::Floor(Scaled);
-		return FMath::Min(1.0f, (Base + Step(0.0f, 0.35f, Scaled - Base)) / Steps);
-	}
-
 	struct FMesa
 	{
 		FVector2D Center;
@@ -208,7 +200,7 @@ namespace
 		return Instance;
 	}
 
-	/** Rock kickers on the canyon floor: a ramp that rises over 30 m and drops off sharply. */
+	/** Rock kickers on the canyon floor: a ramp that rises over 30 m and drops off over 6 m. */
 	float JumpProfile(float DistanceAlong, float Length)
 	{
 		const float Jumps[] = { 0.33f, 0.71f };
@@ -219,6 +211,10 @@ namespace
 			if (Offset > -30.0f && Offset < 0.0f)
 			{
 				Height = FMath::Max(Height, 3.5f * (1.0f + Offset / 30.0f));
+			}
+			else if (Offset >= 0.0f && Offset < 6.0f)
+			{
+				Height = FMath::Max(Height, 3.5f * (1.0f - Offset / 6.0f));
 			}
 		}
 		return Height;
@@ -256,10 +252,8 @@ namespace
 			{
 				continue;
 			}
-			const float Top = Mesa.Height * (1.0f + 0.03f * Fbm(X / 40.0f, Y / 40.0f, 3));
-			const float Body = Top * Terrace(Step(1.0f, 0.93f, D), 2.0f);
-			const float Talus = Step(1.35f, 1.0f, D) * 0.14f * Mesa.Height;
-			Height = FMath::Max(Height, FMath::Max(Body, Talus));
+			// The rock itself is a sculpted mesh; the ground only rises into a talus mound beneath it.
+			Height = FMath::Max(Height, Step(1.3f, 0.7f, D) * 0.22f * Mesa.Height);
 		}
 		return Height;
 	}
@@ -275,7 +269,8 @@ namespace
 			return 0.0f;
 		}
 		const float Top = FMath::Clamp(90.0f + 15.0f * FMath::RoundToFloat(Fbm(X / 600.0f, Y / 600.0f, 3) * 2.0f), 60.0f, 110.0f);
-		const float Cliff = Top * Terrace(Step(1.0f, 0.97f, Q), 3.0f);
+		// Smooth steep edge: sculpted cliff meshes line it, so the landscape needs no terraces (which spike).
+		const float Cliff = Top * Step(1.0f, 0.94f, Q);
 		const float Talus = Step(1.12f, 1.0f, Q) * 12.0f;
 		return FMath::Max(Cliff, Talus);
 	}
@@ -305,7 +300,7 @@ float FEXDesertTerrain::HeightAt(float X, float Y)
 	if (Canyon().Nearest(FVector2D(X, Y), Distance, Sample))
 	{
 		const float Floor = Sample.Floor + JumpProfile(Sample.Distance, Canyon().Length) + 0.4f * Fbm(X / 30.0f, Y / 30.0f, 2);
-		const float WallWidth = 6.0f + 0.12f * FMath::Max(0.0f, Ground - Floor);
+		const float WallWidth = 10.0f + 0.35f * FMath::Max(0.0f, Ground - Floor);
 		if (Distance < Sample.HalfWidth + WallWidth)
 		{
 			const float Inside = Distance / FMath::Max(1.0f, Sample.HalfWidth);
@@ -317,7 +312,7 @@ float FEXDesertTerrain::HeightAt(float X, float Y)
 			else
 			{
 				const float Wall = Step(Sample.HalfWidth, Sample.HalfWidth + WallWidth, Distance);
-				Carved = FMath::Lerp(Floor + Sample.HalfPipe, Ground, Terrace(Wall, 3.0f));
+				Carved = FMath::Lerp(Floor + Sample.HalfPipe, Ground, Wall);
 			}
 			Ground = FMath::Min(Ground, Carved);
 		}
@@ -339,4 +334,42 @@ float FEXDesertTerrain::StartYawDeg()
 {
 	const FVector2D Direction = CanyonKeys[0].Point - StartPoint();
 	return FMath::RadiansToDegrees(FMath::Atan2(Direction.Y, Direction.X));
+}
+
+const TArray<FEXDesertTerrain::FCanyonPoint>& FEXDesertTerrain::CanyonPoints()
+{
+	static const TArray<FCanyonPoint> Points = []()
+	{
+		TArray<FCanyonPoint> Result;
+		for (const FCanyonSample& Sample : Canyon().Samples)
+		{
+			Result.Add({ Sample.Point, Sample.HalfWidth, Sample.Floor });
+		}
+		return Result;
+	}();
+	return Points;
+}
+
+float FEXDesertTerrain::DistanceToCanyon(float X, float Y, float* OutHalfWidth)
+{
+	float Distance = TNumericLimits<float>::Max();
+	FCanyonSample Sample;
+	if (Canyon().Nearest(FVector2D(X, Y), Distance, Sample) && OutHalfWidth)
+	{
+		*OutHalfWidth = Sample.HalfWidth;
+	}
+	return Distance;
+}
+
+void FEXDesertTerrain::MesaSites(TArray<FVector4>& Out)
+{
+	for (const FMesa& Mesa : Mesas)
+	{
+		Out.Add(FVector4(Mesa.Center.X, Mesa.Center.Y, Mesa.Radius, Mesa.Height));
+	}
+}
+
+FVector2D FEXDesertTerrain::PlateauCenter()
+{
+	return FVector2D(450.0f, 300.0f);
 }

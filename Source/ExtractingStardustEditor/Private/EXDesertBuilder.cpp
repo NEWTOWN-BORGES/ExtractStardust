@@ -30,6 +30,236 @@ namespace
 	constexpr float CmPerM = 100.0f;
 	/** Landscape Z scale 100 maps one height unit to 1/128 m, giving a range of +/-256 m around zero. */
 	constexpr float HeightUnitsPerM = 128.0f;
+
+	/** Sculpted rock meshes (Scripts/sculpt_rocks.py): half footprint and wall height above the ground (m). */
+	struct FRockMesh
+	{
+		const TCHAR* Name;
+		float HalfX;
+		float HalfY;
+		float Height;
+	};
+	const FRockMesh RockMeshes[] = {
+		{ TEXT("SM_Mesa_A"), 73.0f, 58.0f, 55.0f }, { TEXT("SM_Mesa_B"), 88.0f, 58.0f, 40.0f }, { TEXT("SM_Butte_A"), 34.0f, 29.0f, 65.0f },
+		{ TEXT("SM_Spire_A"), 14.0f, 13.0f, 42.0f }, { TEXT("SM_Spire_B"), 12.0f, 12.0f, 30.0f },
+		{ TEXT("SM_Cliff_A"), 57.0f, 16.0f, 60.0f }, { TEXT("SM_Cliff_B"), 54.0f, 21.0f, 45.0f }, { TEXT("SM_Cliff_C"), 69.0f, 12.0f, 75.0f },
+		{ TEXT("SM_Boulder_A"), 3.0f, 3.0f, 4.0f }, { TEXT("SM_Boulder_B"), 8.0f, 6.0f, 6.0f }, { TEXT("SM_Boulder_C"), 2.5f, 2.0f, 2.4f } };
+	enum ERockKind { MesaA, MesaB, Butte, SpireA, SpireB, CliffA, CliffB, CliffC, BoulderA, BoulderB, BoulderC, RockKindCount };
+	const TCHAR* RockMaterials[] = { TEXT("MI_Rock_Red"), TEXT("MI_Rock_Dark"), TEXT("MI_Rock_Pale"), TEXT("MI_Rock_Banded") };
+
+	uint32 Hash(uint32 X)
+	{
+		X ^= X >> 16;
+		X *= 0x7feb352dU;
+		X ^= X >> 15;
+		X *= 0x846ca68bU;
+		X ^= X >> 16;
+		return X;
+	}
+
+	float Hash01(uint32 Seed)
+	{
+		return static_cast<float>(Hash(Seed) & 0xFFFFFF) / static_cast<float>(0x1000000);
+	}
+
+	struct FRockPlacer
+	{
+		UWorld* World = nullptr;
+		UStaticMesh* Meshes[RockKindCount] = {};
+		UMaterialInterface* Materials[4] = {};
+		int32 Count = 0;
+
+		bool Load()
+		{
+			for (int32 Kind = 0; Kind < RockKindCount; ++Kind)
+			{
+				Meshes[Kind] = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Desert/Rocks/%s.%s"), RockMeshes[Kind].Name, RockMeshes[Kind].Name));
+				if (!Meshes[Kind])
+				{
+					UE_LOG(LogTemp, Error, TEXT("EXBUILD missing rock mesh %s"), RockMeshes[Kind].Name);
+					return false;
+				}
+			}
+			for (int32 Index = 0; Index < 4; ++Index)
+			{
+				Materials[Index] = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Desert/%s.%s"), RockMaterials[Index], RockMaterials[Index]));
+			}
+			return true;
+		}
+
+		void Spawn(int32 Kind, const FVector& LocationM, float YawDeg, const FVector& Scale, uint32 Seed)
+		{
+			AStaticMeshActor* Rock = World->SpawnActor<AStaticMeshActor>(LocationM * CmPerM, FRotator(0.0f, YawDeg, 0.0f));
+			UStaticMeshComponent* Component = Rock->GetStaticMeshComponent();
+			Component->SetStaticMesh(Meshes[Kind]);
+			if (UMaterialInterface* Material = Materials[Hash(Seed) % 4])
+			{
+				Component->SetMaterial(0, Material);
+			}
+			Rock->SetActorScale3D(Scale);
+			Rock->SetFolderPath(TEXT("Rocks"));
+			++Count;
+		}
+	};
+
+	/** Squircle radius of the plateau outline along a direction (no edge noise). */
+	float PlateauRadius(const FVector2D& Direction)
+	{
+		const float A = FMath::Pow(FMath::Abs(Direction.X) / 1050.0f, 4.0f) + FMath::Pow(FMath::Abs(Direction.Y) / 1350.0f, 4.0f);
+		return FMath::Pow(1.0f / FMath::Max(A, 1.0e-12f), 0.25f);
+	}
+
+	void PlaceRocks(UWorld* World)
+	{
+		FRockPlacer Placer;
+		Placer.World = World;
+		if (!Placer.Load())
+		{
+			return;
+		}
+
+		// Mesas and buttes stand on their talus mounds; the base sits at the mound's rim so nothing floats.
+		TArray<FVector4> Mesas;
+		FEXDesertTerrain::MesaSites(Mesas);
+		for (int32 Index = 0; Index < Mesas.Num(); ++Index)
+		{
+			const FVector4& Site = Mesas[Index];
+			const float Radius = Site.Z;
+			const int32 Kind = Radius >= 150.0f ? (Index % 2 ? MesaA : MesaB) : (Radius >= 90.0f ? MesaA : Butte);
+			const FRockMesh& Mesh = RockMeshes[Kind];
+			const float Scale = Radius / ((Mesh.HalfX + Mesh.HalfY) * 0.5f);
+			float Rim = TNumericLimits<float>::Max();
+			for (int32 Step = 0; Step < 8; ++Step)
+			{
+				const float Angle = Step * PI / 4.0f;
+				Rim = FMath::Min(Rim, FEXDesertTerrain::HeightAt(Site.X + Radius * FMath::Cos(Angle), Site.Y + Radius * FMath::Sin(Angle)));
+			}
+			Placer.Spawn(Kind, FVector(Site.X, Site.Y, Rim - 2.0f), Hash01(Index * 7 + 1) * 360.0f, FVector(Scale, Scale, Site.W / Mesh.Height), Index);
+
+			// Scree: boulders fallen around the foot.
+			for (int32 Stone = 0; Stone < 18; ++Stone)
+			{
+				const uint32 Seed = 1000 + Index * 64 + Stone;
+				const float Angle = Hash01(Seed) * 2.0f * PI;
+				const float Distance = Radius * (1.0f + 0.3f * Hash01(Seed + 1));
+				const float X = Site.X + Distance * FMath::Cos(Angle);
+				const float Y = Site.Y + Distance * FMath::Sin(Angle);
+				const float Size = 0.6f + 1.2f * Hash01(Seed + 2);
+				Placer.Spawn(BoulderA + Hash(Seed + 3) % 3, FVector(X, Y, FEXDesertTerrain::HeightAt(X, Y) - 0.5f), Hash01(Seed + 4) * 360.0f, FVector(Size), Seed);
+			}
+		}
+
+		// Canyon walls: a cliff every 70 m on each side wherever the canyon is cut deep enough.
+		const TArray<FEXDesertTerrain::FCanyonPoint>& Points = FEXDesertTerrain::CanyonPoints();
+		float Along = 0.0f;
+		float Next = 0.0f;
+		for (int32 Index = 1; Index < Points.Num(); ++Index)
+		{
+			Along += FVector2D::Distance(Points[Index - 1].Point, Points[Index].Point);
+			if (Along < Next)
+			{
+				continue;
+			}
+			Next = Along + 70.0f;
+			const FEXDesertTerrain::FCanyonPoint& Point = Points[Index];
+			const FVector2D Tangent = (Point.Point - Points[Index - 1].Point).GetSafeNormal();
+			const FVector2D Normal(-Tangent.Y, Tangent.X);
+			for (int32 SideIndex = 0; SideIndex < 2; ++SideIndex)
+			{
+				const float Side = SideIndex == 0 ? -1.0f : 1.0f;
+				const uint32 Seed = 5000 + Index * 2 + SideIndex;
+				const FVector2D Outside = Point.Point + Normal * Side * (Point.HalfWidth + 70.0f);
+				const float WallHeight = FEXDesertTerrain::HeightAt(Outside.X, Outside.Y) - Point.Floor;
+				if (WallHeight < 15.0f)
+				{
+					continue;
+				}
+				const int32 Kind = CliffA + Hash(Seed) % 3;
+				const FRockMesh& Mesh = RockMeshes[Kind];
+				const float Scale = 95.0f / (2.0f * Mesh.HalfX) * (0.9f + 0.25f * Hash01(Seed + 1));
+				const FVector2D Center = Point.Point + Normal * Side * (Point.HalfWidth + 3.0f + Mesh.HalfY * Scale);
+				const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(Tangent.Y, Tangent.X)) + (Hash01(Seed + 2) - 0.5f) * 12.0f;
+				Placer.Spawn(Kind, FVector(Center.X, Center.Y, Point.Floor - 2.0f), Yaw, FVector(Scale, Scale, (WallHeight + 4.0f) / Mesh.Height), Seed);
+			}
+		}
+
+		// Plateau rim: cliffs every 5 degrees where its edge drops to the plain, leaving the canyon mouths open.
+		const FVector2D Center = FEXDesertTerrain::PlateauCenter();
+		for (int32 Step = 0; Step < 72; ++Step)
+		{
+			const float Angle = FMath::DegreesToRadians(Step * 5.0f);
+			const FVector2D Direction(FMath::Cos(Angle), FMath::Sin(Angle));
+			const float Nominal = PlateauRadius(Direction);
+			float Edge = -1.0f;
+			for (float Radius = Nominal * 0.85f; Radius < Nominal * 1.2f; Radius += 4.0f)
+			{
+				const FVector2D Probe = Center + Direction * Radius;
+				if (FEXDesertTerrain::HeightAt(Probe.X, Probe.Y) < 30.0f)
+				{
+					Edge = Radius;
+					break;
+				}
+			}
+			const FVector2D EdgePoint = Center + Direction * Edge;
+			if (Edge < 0.0f || FEXDesertTerrain::DistanceToCanyon(EdgePoint.X, EdgePoint.Y) < 90.0f
+				|| FMath::Max(FMath::Abs(EdgePoint.X), FMath::Abs(EdgePoint.Y)) > 1700.0f)
+			{
+				continue;
+			}
+			const FVector2D Inner = Center + Direction * (Edge - 60.0f);
+			const FVector2D Outer = Center + Direction * (Edge + 40.0f);
+			const float Top = FEXDesertTerrain::HeightAt(Inner.X, Inner.Y);
+			const float Base = FEXDesertTerrain::HeightAt(Outer.X, Outer.Y);
+			if (Top - Base < 20.0f)
+			{
+				continue;
+			}
+			const uint32 Seed = 9000 + Step;
+			const int32 Kind = CliffA + Hash(Seed) % 3;
+			const FRockMesh& Mesh = RockMeshes[Kind];
+			const float Scale = 100.0f / (2.0f * Mesh.HalfX) * (0.9f + 0.2f * Hash01(Seed + 1));
+			const FVector2D Place = Center + Direction * (Edge - Mesh.HalfY * Scale * 0.6f);
+			Placer.Spawn(Kind, FVector(Place.X, Place.Y, Base - 3.0f), Step * 5.0f + 90.0f + (Hash01(Seed + 2) - 0.5f) * 10.0f,
+				FVector(Scale, Scale, (Top - Base + 5.0f) / Mesh.Height), Seed);
+		}
+
+		// Hoodoos on the open plain, and boulders scattered off the racing line.
+		const FVector2D Start = FEXDesertTerrain::StartPoint();
+		int32 Hoodoos = 0;
+		for (int32 Try = 0; Try < 200 && Hoodoos < 14; ++Try)
+		{
+			const uint32 Seed = 20000 + Try;
+			const float X = -1700.0f + 1350.0f * Hash01(Seed);
+			const float Y = -1700.0f + 3400.0f * Hash01(Seed + 1);
+			bool bClear = FVector2D::Distance(FVector2D(X, Y), Start) > 300.0f && FEXDesertTerrain::DistanceToCanyon(X, Y) > 100.0f;
+			for (const FVector4& Site : Mesas)
+			{
+				bClear &= FVector2D::Distance(FVector2D(X, Y), FVector2D(Site.X, Site.Y)) > Site.Z * 1.4f + 30.0f;
+			}
+			if (!bClear)
+			{
+				continue;
+			}
+			const float Size = 0.7f + 0.8f * Hash01(Seed + 2);
+			Placer.Spawn(Hash(Seed + 3) % 2 ? SpireA : SpireB, FVector(X, Y, FEXDesertTerrain::HeightAt(X, Y) - 1.5f), Hash01(Seed + 4) * 360.0f, FVector(Size), Seed);
+			++Hoodoos;
+		}
+		for (int32 Try = 0; Try < 420; ++Try)
+		{
+			const uint32 Seed = 40000 + Try;
+			const float X = -1700.0f + 3400.0f * Hash01(Seed);
+			const float Y = -1700.0f + 3400.0f * Hash01(Seed + 1);
+			float HalfWidth = 0.0f;
+			const float ToCanyon = FEXDesertTerrain::DistanceToCanyon(X, Y, &HalfWidth);
+			if (FVector2D::Distance(FVector2D(X, Y), Start) < 200.0f || ToCanyon < HalfWidth * 0.6f)
+			{
+				continue;
+			}
+			const float Size = 0.5f + 1.5f * Hash01(Seed + 2);
+			Placer.Spawn(BoulderA + Hash(Seed + 3) % 3, FVector(X, Y, FEXDesertTerrain::HeightAt(X, Y) - 0.5f), Hash01(Seed + 4) * 360.0f, FVector(Size), Seed);
+		}
+		UE_LOG(LogTemp, Display, TEXT("EXBUILD placed %d sculpted rocks"), Placer.Count);
+	}
 }
 
 bool UEXDesertBuilder::BuildDesertMap()
@@ -142,6 +372,8 @@ bool UEXDesertBuilder::BuildDesertMap()
 			Wall->SetActorHiddenInGame(true);
 		}
 	}
+
+	PlaceRocks(World);
 
 	const bool bSaved = UEditorLoadingAndSavingUtils::SaveMap(World, TEXT("/Game/Maps/DesertCanyon"));
 	UE_LOG(LogTemp, Display, TEXT("EXBUILD saved /Game/Maps/DesertCanyon: %s"), bSaved ? TEXT("OK") : TEXT("FAILED"));

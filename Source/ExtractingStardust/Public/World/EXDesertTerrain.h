@@ -24,4 +24,21 @@ struct EXTRACTINGSTARDUST_API FEXDesertTerrain
 	/** Race start on the open plain and the direction it faces. */
 	static FVector2D StartPoint();
 	static float StartYawDeg();
+
+	/** Canyon centre-line samples with the canyon half-width and floor height there (metres). */
+	struct FCanyonPoint
+	{
+		FVector2D Point;
+		float HalfWidth;
+		float Floor;
+	};
+	static const TArray<FCanyonPoint>& CanyonPoints();
+
+	/** Distance (m) from a point to the canyon centre line; optionally the canyon half-width there. */
+	static float DistanceToCanyon(float X, float Y, float* OutHalfWidth = nullptr);
+
+	/** Sites where sculpted mesas/buttes stand: X, Y, radius, height (m). */
+	static void MesaSites(TArray<FVector4>& Out);
+
+	static FVector2D PlateauCenter();
 };
