@@ -73,3 +73,5 @@ As malhas de pista devem usar o canal de colisÃ£o `Ground`. Os Physical Surface 
 6. O pacote de teste desta mÃ¡quina estÃ¡ em `Saved\PackageSmokeEnvironment\Windows`; Ã© artefacto local ignorado pelo Git. O smoke test confirmou o arranque com `-nullrhi`, mas nÃ£o valida imagem nem input. Para repetir, gerar o pacote local com Unreal Automation Tool.
 
 O ramo `red-dust-divide-v2` contÃ©m os checkpoints locais jÃ¡ enviados para o GitHub.
+
+- Revalidação em 2026-10-18 (UE 5.8): o estado do remoto não compilava por colisão de constantes `CmPerMeter` em unity build; renomeadas por ficheiro e os alvos Editor e Game (Win64 Development) compilam com sucesso. A validação headless `-StardustTestEconomy` passou todos os testes (slot inexistente, perfil novo, corrida destruída/abandonada, tabela de recompensas, idempotência, save/load). Não valida renderização nem condução manual.

@@ -454,15 +454,71 @@ FStardustRaceReport UStardustEconomySubsystem::ProcessRaceFromProgress(
 
 void UStardustEconomySubsystem::RunEconomyDiagnostics()
 {
-	UE_LOG(LogTemp, Display, TEXT("=== STARTING STARDUST ECONOMY RUNTIME VALIDATION ==="));
+	UE_LOG(LogTemp, Display, TEXT("=== STARTING STARDUST ECONOMY RUNTIME VALIDATION (FASE 1) ==="));
 
-	// 1. Reset profile to known initial balance
+	// 1. Test behaviour when save file does not exist (non-existent slot)
+	const FString NonExistentSlot = TEXT("StardustNonExistentSlot_99999");
+	const bool bNonExistentLoaded = LoadProfile(NonExistentSlot);
+	if (bNonExistentLoaded)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Economy validation FAILED: LoadProfile returned true for non-existent slot!"));
+		return;
+	}
+	UE_LOG(LogTemp, Display, TEXT("Economy validation [Test A - NonExistentSlot]: Correctly returned false for missing slot without crash."));
+
+	// 2. Reset profile (new profile with known initial balance)
 	ResetProfile(1000);
-	UE_LOG(LogTemp, Display, TEXT("Economy validation: Initial balance set to %lld Stardust."), CurrentBalance);
+	if (CurrentBalance != 1000 || TotalRaces != 0 || TotalExtractions != 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Economy validation FAILED: ResetProfile did not set expected defaults!"));
+		return;
+	}
+	UE_LOG(LogTemp, Display, TEXT("Economy validation [Test A - NewProfile]: ResetProfile(1000) verified. Balance: %lld, Races: %d."), CurrentBalance, TotalRaces);
 
-	// 2. Process race outcome
+	// 3. Test Destroyed/Cancelled race (must pay 0 rewards, no duplicate or unintended credits)
+	{
+		FStardustRaceOutcome DestroyedOutcome;
+		DestroyedOutcome.RaceId = TEXT("Validation_Destroyed_001");
+		DestroyedOutcome.CourseName = TEXT("Red Dust Divide");
+		DestroyedOutcome.Mode = EStardustGameModeType::Race;
+		DestroyedOutcome.State = EStardustRaceState::Racing;
+		DestroyedOutcome.Position = 15;
+		DestroyedOutcome.ReferenceMinutes = 5.0f;
+
+		const int64 BalanceBeforeDestroyed = CurrentBalance;
+		const FStardustRaceReport DestroyedReport = ProcessRaceOutcome(DestroyedOutcome);
+		if (DestroyedReport.TotalStardustEarned != 0 || CurrentBalance != BalanceBeforeDestroyed)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Economy validation FAILED: Destroyed race paid %lld Stardust! Expected 0."), DestroyedReport.TotalStardustEarned);
+			return;
+		}
+		UE_LOG(LogTemp, Display, TEXT("Economy validation [Test D - Destroyed Race]: 0 Stardust paid for destroyed craft. Balance intact: %lld."), CurrentBalance);
+	}
+
+	// 4. Test Abandoned race (pays participation only: PosBase / 4, no extraction bonus, no contracts)
+	{
+		FStardustRaceOutcome AbandonedOutcome;
+		AbandonedOutcome.RaceId = TEXT("Validation_Abandoned_001");
+		AbandonedOutcome.CourseName = TEXT("Red Dust Divide");
+		AbandonedOutcome.Mode = EStardustGameModeType::Race;
+		AbandonedOutcome.State = EStardustRaceState::Abandoned;
+		AbandonedOutcome.Position = 4;
+		AbandonedOutcome.ReferenceMinutes = 5.0f;
+
+		const int64 BalanceBeforeAbandoned = CurrentBalance;
+		const FStardustRaceReport AbandonedReport = ProcessRaceOutcome(AbandonedOutcome);
+		if (AbandonedReport.TotalStardustEarned <= 0 || CurrentBalance != BalanceBeforeAbandoned + AbandonedReport.TotalStardustEarned)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Economy validation FAILED: Abandoned race did not pay expected participation reward!"));
+			return;
+		}
+		UE_LOG(LogTemp, Display, TEXT("Economy validation [Test D - Abandoned Race]: Paid participation %lld Stardust. Balance: %lld."),
+			AbandonedReport.TotalStardustEarned, CurrentBalance);
+	}
+
+	// 5. Test Full Completed Race with Extraction, Prowess, First Extraction bonus and Contracts
 	FStardustRaceOutcome Outcome;
-	Outcome.RaceId = TEXT("ValidationRace_001");
+	Outcome.RaceId = TEXT("ValidationRace_Extracted_001");
 	Outcome.CourseName = TEXT("Red Dust Divide");
 	Outcome.Mode = EStardustGameModeType::Race;
 	Outcome.State = EStardustRaceState::Extracted;
@@ -480,43 +536,43 @@ void UStardustEconomySubsystem::RunEconomyDiagnostics()
 	Outcome.Penalties = 0;
 	Outcome.SkillRoutes = 1;
 
-	const int64 BalanceBefore = CurrentBalance;
+	const int64 BalanceBeforeExtracted = CurrentBalance;
 	const FStardustRaceReport Report1 = ProcessRaceOutcome(Outcome);
-	const int64 BalanceAfter = CurrentBalance;
+	const int64 BalanceAfterExtracted = CurrentBalance;
 	const int64 Earned1 = Report1.TotalStardustEarned;
 
-	UE_LOG(LogTemp, Display, TEXT("Economy validation: Race processed. Earned: %lld. Balance before: %lld, Balance after: %lld."),
-		Earned1, BalanceBefore, BalanceAfter);
+	UE_LOG(LogTemp, Display, TEXT("Economy validation [Test E - Rewards Table]: Race processed. Earned: %lld. Balance before: %lld, Balance after: %lld."),
+		Earned1, BalanceBeforeExtracted, BalanceAfterExtracted);
 
-	if (BalanceAfter != BalanceBefore + Earned1 || Earned1 <= 0)
+	if (BalanceAfterExtracted != BalanceBeforeExtracted + Earned1 || Earned1 <= 0)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Economy validation FAILED: Balance did not increase by earned reward!"));
 		return;
 	}
 
-	// 3. Test idempotency (duplicate race conclusion)
+	// 6. Test Idempotency (repeating the exact same finished race)
 	const FStardustRaceReport Report2 = ProcessRaceOutcome(Outcome);
-	if (CurrentBalance != BalanceAfter || Report2.TotalStardustEarned != Earned1)
+	if (CurrentBalance != BalanceAfterExtracted || Report2.TotalStardustEarned != Earned1)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Economy validation FAILED: Duplicate race processing paid rewards twice! Balance now %lld vs expected %lld."),
-			CurrentBalance, BalanceAfter);
+			CurrentBalance, BalanceAfterExtracted);
 		return;
 	}
-	UE_LOG(LogTemp, Display, TEXT("Economy validation: Idempotency check PASSED. Duplicate race conclusion ignored, balance unchanged at %lld."), CurrentBalance);
+	UE_LOG(LogTemp, Display, TEXT("Economy validation [Test C - Idempotency]: Duplicate race conclusion ignored, balance unchanged at %lld."), CurrentBalance);
 
-	// 4. Test SaveGameToSlot and LoadGameFromSlot
+	// 7. Test SaveGameToSlot and LoadGameFromSlot persistence
 	const FString TestSlot = TEXT("StardustTestSaveSlot");
 	const int64 ExpectedBalance = CurrentBalance;
 	const int32 ExpectedRaces = TotalRaces;
 	const int32 ExpectedExtractions = TotalExtractions;
 
 	const bool bSaved = SaveProfile(TestSlot);
-	if (!bSaved)
+	if (!bSaved || !UGameplayStatics::DoesSaveGameExist(TestSlot, 0))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Economy validation FAILED: SaveProfile returned false!"));
+		UE_LOG(LogTemp, Error, TEXT("Economy validation FAILED: SaveProfile or DoesSaveGameExist failed for slot '%s'!"), *TestSlot);
 		return;
 	}
-	UE_LOG(LogTemp, Display, TEXT("Economy validation: SaveGameToSlot succeeded for slot '%s'."), *TestSlot);
+	UE_LOG(LogTemp, Display, TEXT("Economy validation [Test B - SaveGameToSlot]: Successfully saved profile to slot '%s'."), *TestSlot);
 
 	// Tamper in-memory state
 	CurrentBalance = 42;
@@ -526,7 +582,7 @@ void UStardustEconomySubsystem::RunEconomyDiagnostics()
 	const bool bLoaded = LoadProfile(TestSlot);
 	if (!bLoaded)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Economy validation FAILED: LoadProfile returned false!"));
+		UE_LOG(LogTemp, Error, TEXT("Economy validation FAILED: LoadProfile returned false for existing slot!"));
 		return;
 	}
 
@@ -536,10 +592,10 @@ void UStardustEconomySubsystem::RunEconomyDiagnostics()
 			CurrentBalance, ExpectedBalance);
 		return;
 	}
-	UE_LOG(LogTemp, Display, TEXT("Economy validation: LoadGameFromSlot succeeded! Restored balance %lld and stats correctly."), CurrentBalance);
+	UE_LOG(LogTemp, Display, TEXT("Economy validation [Test B - LoadGameFromSlot]: Successfully restored balance %lld, races %d, extractions %d."),
+		CurrentBalance, TotalRaces, TotalExtractions);
 
 	// Clean up test save slot
 	UGameplayStatics::DeleteGameInSlot(TestSlot, 0);
-
 	UE_LOG(LogTemp, Display, TEXT("=== STARDUST ECONOMY RUNTIME VALIDATION PASSED: ALL TESTS OK ==="));
 }
