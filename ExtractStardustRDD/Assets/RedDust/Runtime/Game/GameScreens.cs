@@ -31,7 +31,24 @@ namespace RedDust.Game
             public Action ok;
             public Action<int> lr;
             public Card card;
+
+            /// <summary>
+            /// Pré-visualização de instalação (ecrã de escolha de peça): quando != None, a linha
+            /// pinta-se de verde (dá para montar) ou vermelho (não dá), em vez de ficar cinzenta.
+            /// </summary>
+            public Preview preview = Preview.None;
         }
+
+        /// <summary>Estado de uma peça em relação ao encaixe aberto.</summary>
+        enum Preview
+        {
+            None,        // linha normal, sem semântica de instalação
+            Disponivel,  // pode ser montada agora — VERDE
+            Indisponivel // não encaixa (classe errada, ou já montada) — VERMELHO
+        }
+
+        static readonly Color PreviewOk = new Color(0.36f, 1f, 0.42f);      // verde: pronta a instalar
+        static readonly Color PreviewNo = new Color(1f, 0.32f, 0.30f);      // vermelho: não encaixa
 
         readonly List<Item> items = new List<Item>();
         readonly Dictionary<Page, int> selMem = new Dictionary<Page, int>();
@@ -259,7 +276,8 @@ namespace RedDust.Game
                 return StatResolver.Resolve(c, list);
             }
             var stockCard = ItemCard(null, sock); stockCard.now = nowStats; stockCard.then = With(null);
-            Add("(peça de série)", string.IsNullOrEmpty(current) ? "MONTADA" : "", () => { Economy.Equip(p, c.id, sock.id, null); Save(p); RefreshPreview(); Go(Page.Hangar); }, icon: Icons.Empty(), card: stockCard);
+            var stockRow = Add("(peça de série)", string.IsNullOrEmpty(current) ? "MONTADA" : "", () => { Economy.Equip(p, c.id, sock.id, null); Save(p); RefreshPreview(); Go(Page.Hangar); }, icon: Icons.Empty(), card: stockCard);
+            stockRow.preview = string.IsNullOrEmpty(current) ? Preview.None : Preview.Disponivel;
             foreach (var it in p.items.Where(i => i.Def.family == sock.family).OrderByDescending(i => i.rarity).ThenByDescending(i => i.value))
             {
                 var item = it;
@@ -273,6 +291,9 @@ namespace RedDust.Game
                     Save(p); RefreshPreview(); Go(Page.Hangar);
                 }, icon: Icons.Equipment(it), color: Icons.RarityColor(it.rarity), card: card);
                 row.enabled = fits;
+                // Pré-visualização: verde se dá para montar, vermelho se não encaixa.
+                // A que já está montada não é "disponível" nem "indisponível" — fica normal.
+                row.preview = it.id == current ? Preview.None : fits ? Preview.Disponivel : Preview.Indisponivel;
             }
             Add("VOLTAR", "", () => Go(Page.Hangar));
         }

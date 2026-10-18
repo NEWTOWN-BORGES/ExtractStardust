@@ -1,0 +1,178 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "Vehicle/StardustCraftTypes.h"
+#include "Vehicle/StardustHoverSensor.h"
+#include "StardustCraftMovementComponent.generated.h"
+
+class UPrimitiveComponent;
+class UStardustRaceProgressComponent;
+
+USTRUCT(BlueprintType)
+struct FStardustCraftTelemetry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bGrounded = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float SpeedMPerSecond = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float ForwardSpeedMPerSecond = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float LateralSpeedMPerSecond = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float AirTimeSeconds = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float LastLandingSpeedMPerSecond = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float Nitro = 1.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bNitroLocked = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bDrifting = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bBoosting = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bMiniTurbo = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float UpRateDegreesPerSecond = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float UpRateSmoothed = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float HullIntegrity = 100.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float FuelFraction = 1.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float Heat = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bOverheated = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bFuelEmpty = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bStranded = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	bool bDestroyed = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	float LastImpactSpeedMPerSecond = 0.0f;
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStardustCraftSpeedEvent, float, SpeedMPerSecond);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FStardustCraftDamageEvent, float, Damage);
+
+UCLASS(ClassGroup = (Stardust), meta = (BlueprintSpawnableComponent))
+class EXTRACTSTARDUSTUE_API UStardustCraftMovementComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UStardustCraftMovementComponent();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Craft")
+	FStardustCraftTuning Tuning;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Craft")
+	bool bAutoStep = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Craft|Race Rules")
+	bool bEnableRaceVitals = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Craft")
+	FStardustCraftInput Input;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Craft|Telemetry")
+	FStardustCraftTelemetry Telemetry;
+
+	UPROPERTY(BlueprintAssignable, Category = "Craft|Events")
+	FStardustCraftSpeedEvent OnLanded;
+
+	UPROPERTY(BlueprintAssignable, Category = "Craft|Events")
+	FStardustCraftDamageEvent OnDamaged;
+
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	void SetInput(const FStardustCraftInput& NewInput);
+
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	void SetBodyComponent(UPrimitiveComponent* NewBody);
+
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	void PlaceCraft(const FVector& PositionCm, const FRotator& Rotation, float SpeedMPerSecond);
+
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	void AddNitro(float Amount);
+
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	void ApplyImpactSpeed(float ImpactSpeedMPerSecond);
+
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	void ApplyDamage(float Damage);
+
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	void StepCraft(float DeltaSeconds);
+
+	/** Teleports the craft back to the last position where it had solid ground contact. */
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	bool RecoverToSafePoint();
+
+	const FStardustHoverState& GetHoverState() const { return HoverSensor.GetState(); }
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+private:
+	UPROPERTY(Transient)
+	TObjectPtr<UPrimitiveComponent> BodyComponent;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStardustRaceProgressComponent> RaceProgressComponent;
+
+	FStardustHoverSensor HoverSensor;
+	FVector LastCommandedSpin = FVector::ZeroVector;
+	FVector LastUp = FVector::UpVector;
+	FVector PreVelocityCmPerSecond = FVector::ZeroVector;
+	float YawRate = 0.0f;
+	float GripBlend = 1.0f;
+	float SlipAngleRadians = 0.0f;
+	float DriftChargeSeconds = 0.0f;
+	bool bWasGrounded = false;
+	float Nitro = 1.0f;
+	bool bNitroLocked = false;
+	float ImpactCooldownSeconds = 0.0f;
+	float StrandedSeconds = 0.0f;
+	double NextGroundDiagnosticTime = 0.0;
+	bool bHasSafePoint = false;
+	FVector SafePositionCm = FVector::ZeroVector;
+	FQuat SafeRotation = FQuat::Identity;
+	float UngroundedSeconds = 0.0f;
+
+	void UpdateSafetyNet(float DeltaSeconds);
+	void InitializeBody();
+	void ApplyRaceVitalLimits(float DeltaSeconds, float SpeedMPerSecond);
+	void UpdateRaceFuel(float DeltaSeconds, float SpeedMPerSecond);
+	FVector FindAirTargetUp(const FVector& PositionCm, const FVector& VelocityMPerSecond) const;
+	static FVector ConvertUnityVectorToUnreal(const FVector& UnityVector);
+	static FVector ProjectOnPlane(const FVector& Vector, const FVector& PlaneNormal);
+	static float Damp(float Lambda, float DeltaSeconds);
+};

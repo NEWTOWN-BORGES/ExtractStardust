@@ -1,3 +1,11 @@
 # Jogos compilados (zip/apk de dezenas a centenas de MB): vão pelo Git LFS
 Builds_Jogaveis/*.zip filter=lfs diff=lfs merge=lfs -text
 Builds_Jogaveis/*.apk filter=lfs diff=lfs merge=lfs -text
+ExtractStardustUE/Content/Environment/Generated/RedDustDivide/** filter=lfs diff=lfs merge=lfs -text
+ExtractStardustUE/Saved/GeneratedCourse/red_dust_divide_blender_full_20261016/** filter=lfs diff=lfs merge=lfs -text
+
+# CI: os workflows correm em ubuntu-latest, manter LF mesmo em checkouts Windows
+.github/workflows/*.yml text eol=lf
+
+# Scripts PowerShell: CRLF para a Windows PowerShell 5.1 (nao gosta de LF em blocos)
+*.ps1 text eol=crlf

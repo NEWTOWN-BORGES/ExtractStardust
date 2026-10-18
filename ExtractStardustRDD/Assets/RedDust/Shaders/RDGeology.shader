@@ -9,6 +9,11 @@ Shader "RedDust/Geology"
         _DetailScale ("Escala do detalhe", Float) = 1
         _BumpStrength ("Relevo de detalhe", Range(0, 2)) = 1
         _Specular ("Especular", Range(0, 1)) = 0.16
+        [Tooltip("Variacao de cor em escala grande (100 m a 4 km). 0 desliga e volta ao aspeto anterior.")]
+        _MacroAmount ("Variacao macro da cor", Range(0, 1)) = 1
+        [Tooltip("Normal map de rocha: fissuras e granulado abaixo do que a geometria resolve.")]
+        [Normal] _NormalMap ("Normal map da rocha", 2D) = "bump" {}
+        _NormalScale ("Forca do normal map", Range(0, 3)) = 1
     }
     SubShader
     {
@@ -16,10 +21,15 @@ Shader "RedDust/Geology"
 
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        TEXTURE2D(_NormalMap);
+        SAMPLER(sampler_NormalMap);
         CBUFFER_START(UnityPerMaterial)
+            float4 _NormalMap_ST;
             float _DetailScale;
             float _BumpStrength;
             float _Specular;
+            float _MacroAmount;
+            float _NormalScale;
         CBUFFER_END
         ENDHLSL
 
@@ -37,10 +47,15 @@ Shader "RedDust/Geology"
             #pragma multi_compile _ RD_LOW
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "RDGeology.hlsl"
+            #include "RDColour.hlsl"
 
             float _RD_Grid;
+            // Limites verticais da geologia: x = cota mínima, y = amplitude (m).
+            // Usados para normalizar a altura da parede (pé = 0, topo = 1) na variação macro
+            // da cor. Se ninguém os definir, os valores por omissão cobrem uma parede de 300 m.
+            float4 _RD_GeoBounds = float4(-200.0, 300.0, 0.0, 0.0);
 
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 color : COLOR; float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD1; };
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 tangentOS : TANGENT; float4 color : COLOR; float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD1; };
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
@@ -48,16 +63,25 @@ Shader "RedDust/Geology"
                 float3 normalWS : TEXCOORD1;
                 float4 color : TEXCOORD2;
                 float4 uv : TEXCOORD3;
+                float2 uvMain : TEXCOORD4;
+                float3 tangentWS : TEXCOORD5;
+                float3 bitangentWS : TEXCOORD6;
             };
 
             Varyings vert(Attributes v)
             {
                 Varyings o;
                 o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
-                o.normalWS = TransformObjectToWorldNormal(v.normalOS);
+                // GetVertexNormalInputs devolve a base tangente já alinhada com UV0 e com a
+                // convenção de handedness do Unity — é o que permite usar normal map tangente.
+                VertexNormalInputs tbn = GetVertexNormalInputs(v.normalOS, v.tangentOS);
+                o.normalWS = tbn.normalWS;
+                o.tangentWS = tbn.tangentWS;
+                o.bitangentWS = tbn.bitangentWS;
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.color = v.color;
                 o.uv = float4(v.uv, v.uv2);
+                o.uvMain = v.uv;
                 return o;
             }
 
@@ -121,6 +145,26 @@ Shader "RedDust/Geology"
                 n = normalize(n - (g - n * dot(g, n)));
             #endif
 
+                // Normal map de rocha: fissuras e granulado finos, que a geometria não resolve
+                // (abaixo de ~4 m exigiria ~1 M de triângulos por parede). Detalhe fino em textura
+                // mantém o jogo leve.
+                //
+                // Base tangente completa: o normal map está em espaço tangente, logo é preciso o
+                // TBN para a luz reagir ao relevo na direção certa. Exige UV0 e tangentes na malha
+                // (RecalculateTangents no laboratório; no Blender, UVs + tangentes no FBX).
+                float nmFade = saturate(1.0 - camDist / 320.0);
+                if (_NormalScale > 0.001 && nmFade > 0.01)
+                {
+                    float3 nmTS = UnpackNormalScale(
+                        SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, i.uvMain * _NormalMap_ST.xy + _NormalMap_ST.zw),
+                        _NormalScale);
+                    float3 bitangent = i.bitangentWS;
+                    float3 nmWS = nmTS.x * i.tangentWS + nmTS.y * bitangent + nmTS.z * n;
+                    // nas zonas sem tangente válida (malhas antigas) o termo dominante é o z, logo
+                    // degrada para o comportamento anterior em vez de rebentar
+                    n = normalize(lerp(n, nmWS, nmFade));
+                }
+
                 // materiais
                 float3 sandCol = lerp(RD_PAL[12] * 0.88, RD_PAL[12] * 1.05, rd_noise(pw * 0.03));
                 float3 slick = lerp(rock, RD_PAL[12], 0.25) * lerp(0.93, 1.06, rd_noise(float3(pw.x * 0.04, pw.y * 0.9 + pw.x * 0.2, pw.z * 0.04)));
@@ -147,6 +191,14 @@ Shader "RedDust/Geology"
                 float2 gl = grid(pw, n0);
                 float gm = _RD_Grid * saturate(ride * 1.5 - 0.3);
                 albedo = lerp(albedo, float3(0.85, 0.95, 1.0), gm * (gl.x * 0.55 + gl.y * 0.18));
+
+                // variação MACRO da cor (RDColour.hlsl): 100 m a 4 km.
+                // É isto que impede as paredes de serem faixas da mesma cor durante quilómetros.
+                // wallU: 0 no pé da parede, 1 no topo, a partir dos limites da geologia.
+                float span = max(_RD_GeoBounds.y, 1.0);
+                float wallU = saturate((pw.y - _RD_GeoBounds.x) / span);
+                float3 macro = rd_macro_colour(albedo, pw, wallU, ride);
+                albedo = lerp(albedo, macro, _MacroAmount);
 
                 // iluminação
                 Light sun = GetMainLight(TransformWorldToShadowCoord(pw));

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace RedDust.Track
@@ -83,13 +83,13 @@ namespace RedDust.Track
     public static class SurfaceNormals
     {
         struct MeshData { public Vector3[] normals; public int[] triangles; }
-        static readonly Dictionary<int, MeshData> cache = new Dictionary<int, MeshData>();
+        static readonly Dictionary<EntityId, MeshData> cache = new Dictionary<EntityId, MeshData>();
 
         public static Vector3 Smooth(in RaycastHit hit)
         {
             if (!(hit.collider is MeshCollider mc) || mc.sharedMesh == null || hit.triangleIndex < 0) return hit.normal;
             var mesh = mc.sharedMesh;
-            int id = mesh.GetInstanceID();
+            var id = mesh.GetEntityId();
             if (!cache.TryGetValue(id, out var md))
             {
                 if (!mesh.isReadable) { cache[id] = default; return hit.normal; }
@@ -149,7 +149,7 @@ namespace RedDust.Track
     public static class SurfaceTypes
     {
         struct MeshData { public Color[] colors; public int[] triangles; }
-        static readonly Dictionary<int, MeshData> cache = new Dictionary<int, MeshData>();
+        static readonly Dictionary<EntityId, MeshData> cache = new Dictionary<EntityId, MeshData>();
 
         public static Surface FromClass(float r)
         {
@@ -166,7 +166,7 @@ namespace RedDust.Track
         {
             if (!(hit.collider is MeshCollider mc) || mc.sharedMesh == null || hit.triangleIndex < 0) return Surface.Rock;
             var mesh = mc.sharedMesh;
-            int id = mesh.GetInstanceID();
+            var id = mesh.GetEntityId();
             if (!cache.TryGetValue(id, out var md))
             {
                 md = mesh.isReadable ? new MeshData { colors = mesh.colors, triangles = mesh.triangles } : default;

@@ -1,7 +1,7 @@
 {
     "name": "RedDust.Editor",
     "rootNamespace": "RedDust.EditorTools",
-    "references": ["RedDust.Core", "RedDust.Track", "RedDust.Vehicle", "RedDust.AI", "RedDust.Presentation", "RedDust.Meta", "RedDust.Game", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime"],
+    "references": ["RedDust.Core", "RedDust.Track", "RedDust.Vehicle", "RedDust.AI", "RedDust.Presentation", "RedDust.Meta", "RedDust.Game", "RedDust.Lab", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime"],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

@@ -1,0 +1,14 @@
+{
+    "name": "RedDust.Lab",
+    "rootNamespace": "RedDust.Lab",
+    "references": ["RedDust.Core"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
