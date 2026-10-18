@@ -11,6 +11,7 @@ namespace
 {
 	constexpr int32 PuffCount = 44;
 	constexpr int32 StreakCount = 48;
+	constexpr int32 SparkCount = 80;
 	const FName ColorParam(TEXT("Color"));
 	const FName IntensityParam(TEXT("Intensity"));
 	const FName OpacityParam(TEXT("Opacity"));
@@ -99,7 +100,71 @@ void UEXCraftFx::Initialize(USceneComponent* ShipAttach)
 		Streak->SetVisibility(false);
 		StreakMeshes.Add(Streak);
 	}
+	SparkMaterial = UMaterialInstanceDynamic::Create(GlowMaterial, this);
+	SparkMaterial->SetVectorParameterValue(ColorParam, FLinearColor(1.0f, 0.55f, 0.15f));
+	SparkMaterial->SetScalarParameterValue(IntensityParam, 14.0f);
+	Sparks.SetNum(SparkCount);
+	for (int32 Index = 0; Index < SparkCount; ++Index)
+	{
+		UStaticMeshComponent* Spark = MakeMesh(CylinderMesh, SparkMaterial, Root, true);
+		Spark->SetVisibility(false);
+		SparkMeshes.Add(Spark);
+	}
 	SetShipHalfSize(ShipHalfSize);
+}
+
+void UEXCraftFx::ImpactSparks(const FVector& Point, const FVector& Normal, const FVector& CraftVelocity, float Strength)
+{
+	if (!bInitialized)
+	{
+		return;
+	}
+	const int32 Count = FMath::RoundToInt(8.0f + 16.0f * Strength);
+	int32 Spawned = 0;
+	for (int32 Index = 0; Index < Sparks.Num() && Spawned < Count; ++Index)
+	{
+		FSpark& Spark = Sparks[Index];
+		if (Spark.bActive)
+		{
+			continue;
+		}
+		// Sparks keep part of the craft's speed and fly off the wall in a cone.
+		Spark.Location = Point + Normal * 10.0f;
+		Spark.Velocity = CraftVelocity * 0.3f + (Normal * Random.FRandRange(200.0f, 600.0f) + Random.VRand() * Random.FRandRange(300.0f, 900.0f)) * Strength;
+		Spark.Age = 0.0f;
+		Spark.Life = Random.FRandRange(0.25f, 0.6f);
+		Spark.bActive = true;
+		SparkMeshes[Index]->SetVisibility(true);
+		++Spawned;
+	}
+}
+
+void UEXCraftFx::UpdateSparks(float Dt)
+{
+	for (int32 Index = 0; Index < Sparks.Num(); ++Index)
+	{
+		FSpark& Spark = Sparks[Index];
+		if (!Spark.bActive)
+		{
+			continue;
+		}
+		Spark.Age += Dt;
+		if (Spark.Age >= Spark.Life)
+		{
+			Spark.bActive = false;
+			SparkMeshes[Index]->SetVisibility(false);
+			continue;
+		}
+		Spark.Velocity.Z -= 980.0f * Dt;
+		Spark.Velocity *= FMath::Exp(-1.5f * Dt);
+		Spark.Location += Spark.Velocity * Dt;
+		// Stretched along their motion and shrinking as they cool.
+		const float Speed = Spark.Velocity.Size();
+		const float LengthCm = FMath::Clamp(Speed * 0.05f, 15.0f, 150.0f) * (1.0f - Spark.Age / Spark.Life);
+		const FVector Direction = Speed > 1.0f ? Spark.Velocity / Speed : FVector::UpVector;
+		SparkMeshes[Index]->SetWorldLocationAndRotation(Spark.Location, FRotationMatrix::MakeFromZ(Direction).ToQuat());
+		SparkMeshes[Index]->SetWorldScale3D(FVector(0.025f, 0.025f, LengthCm / 100.0f));
+	}
 }
 
 void UEXCraftFx::SetShipHalfSize(const FVector& HalfSizeCm)
@@ -120,6 +185,7 @@ void UEXCraftFx::UpdateFx(float Dt, const FEXCraftFxInput& Input)
 	UpdateFlames(Dt, Input);
 	UpdateDust(Dt, Input);
 	UpdateStreaks(Dt, Input);
+	UpdateSparks(Dt);
 }
 
 void UEXCraftFx::UpdateFlames(float Dt, const FEXCraftFxInput& Input)
@@ -129,6 +195,9 @@ void UEXCraftFx::UpdateFlames(float Dt, const FEXCraftFxInput& Input)
 	const float TargetPower = FMath::Clamp((0.2f + 0.8f * Input.Throttle) * (0.45f + 0.55f * Input.SpeedAlpha), 0.0f, 1.0f) * (Input.bBoosting ? 1.7f : 1.0f);
 	FlamePower = FMath::FInterpTo(FlamePower, TargetPower, Dt, 8.0f);
 	const float Power = FMath::Min(FlamePower, 1.0f);
+	BoostBlend = FMath::FInterpTo(BoostBlend, Input.bBoosting ? 1.0f : 0.0f, Dt, 6.0f);
+	const FLinearColor OuterColor = FMath::Lerp(FlameColor, BoostFlameColor, BoostBlend);
+	const FLinearColor CoreColor = FMath::Lerp(FlameCoreColor, BoostCoreColor, BoostBlend);
 	for (int32 Engine = 0; Engine < 2; ++Engine)
 	{
 		const float Flicker = 1.0f + 0.12f * FMath::Sin(FlickerTime * 37.0f + Engine * 1.7f) + 0.08f * FMath::Sin(FlickerTime * 61.0f + Engine * 0.9f);
@@ -145,7 +214,9 @@ void UEXCraftFx::UpdateFlames(float Dt, const FEXCraftFxInput& Input)
 			Flame->SetRelativeScale3D(FVector(Length / 100.0f, Radius / 50.0f, Radius / 50.0f));
 			const float Intensity = FMath::Lerp(0.6f, 2.6f, Power) * Flicker * (Input.bBoosting ? 1.3f : 1.0f) * (Layer == 0 ? 1.0f : 1.4f);
 			FlameMaterials[Engine * 2 + Layer]->SetScalarParameterValue(IntensityParam, Intensity);
+			FlameMaterials[Engine * 2 + Layer]->SetVectorParameterValue(ColorParam, Layer == 0 ? OuterColor : CoreColor);
 		}
+		EngineLights[Engine]->SetLightColor(OuterColor);
 		EngineLights[Engine]->SetRelativeLocation(EngineAnchors[Engine] - FVector(60.0f, 0.0f, 0.0f));
 		EngineLights[Engine]->SetIntensity(FMath::Lerp(3.0f, 18.0f, FlamePower) * Flicker);
 	}

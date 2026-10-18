@@ -165,7 +165,7 @@ private:
 	bool bBoostHeld = false, bDriftHeld = false, bBoosting = false, bDrifting = false, bBraking = false, bGrounded = false, bLost = false;
 	float HeightM = 0.0f, Nitro = 1.0f, ForwardSpeedMps = 0.0f, LateralSpeedMps = 0.0f, LongAccelMps2 = 0.0f;
 	float YawRate = 0.0f, GripBlend = 1.0f, SlipRad = 0.0f, DriftCharge = 0.0f, MiniTurboFlash = 0.0f;
-	float AirTimeSeconds = 0.0f, ImpactShake = 0.0f;
+	float AirTimeSeconds = 0.0f, ImpactShake = 0.0f, SparkCooldown = 0.0f;
 	float VisualRoll = 0.0f, VisualPitch = 0.0f, VisualYaw = 0.0f, HoverBobTime = 0.0f;
 	int32 ShipIndex = 0, CameraMode = 0;
 
@@ -178,7 +178,7 @@ private:
 	bool bLookBack = false;
 
 	// Automated flight test (-EXFlightTest): scripted inputs, screenshots and telemetry log.
-	bool bFlightTest = false;
+	bool bFlightTest = false, bTestWallPlaced = false;
 	float TestTime = 0.0f, NextTestLog = 0.0f, TestDriftStart = -1.0f;
 	int32 TestShotMask = 0;
 };

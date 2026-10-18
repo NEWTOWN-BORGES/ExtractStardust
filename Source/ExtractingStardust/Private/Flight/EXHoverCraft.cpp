@@ -349,6 +349,7 @@ void AEXHoverCraft::StepFlight(float Dt)
 
 void AEXHoverCraft::MoveWithCollision(float Dt)
 {
+	SparkCooldown -= Dt;
 	FVector Delta = VelocityCmps * Dt;
 	for (int32 Iteration = 0; Iteration < 4 && !Delta.IsNearlyZero(0.01); ++Iteration)
 	{
@@ -378,6 +379,11 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 			if (bWall)
 			{
 				CamJolt = FMath::Max(CamJolt, FMath::Clamp(-IntoSpeed / CmPerM / 20.0f, 0.0f, 1.0f));
+				if (SparkCooldown <= 0.0f)
+				{
+					SparkCooldown = 0.05f;
+					Fx->ImpactSparks(Hit.ImpactPoint, Normal, VelocityCmps, FMath::Clamp(-IntoSpeed / CmPerM / 15.0f, 0.2f, 1.0f));
+				}
 			}
 		}
 		Delta = FVector::VectorPlaneProject(Delta * (1.0f - Hit.Time), Normal);
@@ -624,7 +630,25 @@ void AEXHoverCraft::RunFlightTest(float Dt)
 		}
 		if (TestTime > 7.5f) { Shot(3, TEXT("04_speed")); }
 		if (AirTimeSeconds > 0.35f) { Shot(4, TEXT("05_jump")); }
-		if (TestTime > 9.0f && CamJolt > 0.4f) { Shot(6, TEXT("07_landing")); }
+		if (TestTime > 9.0f && TestTime < 17.0f && CamJolt > 0.4f) { Shot(6, TEXT("07_landing")); }
+		if (TestTime > 17.0f)
+		{
+			// Wall scrape: drop the craft into the walled corridor heading slightly into its right wall, on nitro.
+			if (!bTestWallPlaced)
+			{
+				bTestWallPlaced = true;
+				const FRotator Rotation(0.0f, 12.0f, 0.0f);
+				SetActorLocationAndRotation(FVector(150000.0f, 1700.0f, 160.0f), Rotation, false, nullptr, ETeleportType::TeleportPhysics);
+				Heading = Rotation.Vector();
+				SurfaceUp = FVector::UpVector;
+				VelocityCmps = Heading * 8500.0f;
+				bCamInitialized = false;
+			}
+			bDriftHeld = false;
+			bBoostHeld = true;
+			SteerInput = 0.3f;
+			if (CamJolt > 0.25f) { Shot(7, TEXT("08_wall")); }
+		}
 	}
 
 	if (TestTime >= NextTestLog)

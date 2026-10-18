@@ -47,9 +47,14 @@ public:
 	void SetShipHalfSize(const FVector& HalfSizeCm);
 	void UpdateFx(float Dt, const FEXCraftFxInput& Input);
 	void LandingBurst(const FVector& Point, const FVector& Up, float Strength);
+	/** Sparks thrown off a wall hit or scrape. */
+	void ImpactSparks(const FVector& Point, const FVector& Normal, const FVector& CraftVelocity, float Strength);
 
 	UPROPERTY(EditAnywhere, Category = "Fx") FLinearColor FlameColor = FLinearColor(1.0f, 0.25f, 0.04f);
 	UPROPERTY(EditAnywhere, Category = "Fx") FLinearColor FlameCoreColor = FLinearColor(1.0f, 0.7f, 0.35f);
+	/** Nitro turns the flames blue. */
+	UPROPERTY(EditAnywhere, Category = "Fx") FLinearColor BoostFlameColor = FLinearColor(0.25f, 0.45f, 1.0f);
+	UPROPERTY(EditAnywhere, Category = "Fx") FLinearColor BoostCoreColor = FLinearColor(0.75f, 0.88f, 1.0f);
 	/** Unlit, so it is kept darker than the sand it comes from. */
 	UPROPERTY(EditAnywhere, Category = "Fx") FLinearColor DustColor = FLinearColor(0.34f, 0.25f, 0.17f);
 	/** Dust puffs per second at top speed. */
@@ -68,7 +73,17 @@ private:
 		bool bActive = false;
 	};
 
+	struct FSpark
+	{
+		FVector Location = FVector::ZeroVector;
+		FVector Velocity = FVector::ZeroVector;
+		float Age = 0.0f;
+		float Life = 0.4f;
+		bool bActive = false;
+	};
+
 	UStaticMeshComponent* MakeMesh(UStaticMesh* Mesh, UMaterialInterface* Material, USceneComponent* Parent, bool bWorldSpace);
+	void UpdateSparks(float Dt);
 	void SpawnPuff(const FVector& Location, const FVector& Velocity, float Life, float StartSizeM, float EndSizeM, float Opacity);
 	void UpdateFlames(float Dt, const FEXCraftFxInput& Input);
 	void UpdateDust(float Dt, const FEXCraftFxInput& Input);
@@ -86,8 +101,12 @@ private:
 	UPROPERTY(Transient) TArray<TObjectPtr<UMaterialInstanceDynamic>> PuffMaterials;
 	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> StreakMeshes;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> StreakMaterial;
+	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> SparkMeshes;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> SparkMaterial;
 
 	TArray<FPuff> Puffs;
+	TArray<FSpark> Sparks;
+	float BoostBlend = 0.0f;
 	TArray<FVector> StreakLocations;
 	TArray<bool> StreakActive;
 	FVector EngineAnchors[2] = { FVector::ZeroVector, FVector::ZeroVector };
