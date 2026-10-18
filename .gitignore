@@ -8,3 +8,4 @@ DerivedDataCache/
 *.VC.db
 *.opensdf
 *.sdf
+Build/Windows/FileOpenOrder/
