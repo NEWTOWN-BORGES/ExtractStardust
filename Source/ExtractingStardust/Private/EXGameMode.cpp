@@ -2,6 +2,7 @@
 
 #include "Arena/EXTestArena.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Flight/EXHoverCraft.h"
 #include "GameFramework/PlayerStart.h"
 
@@ -15,6 +16,15 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 	Super::InitGame(MapName, Options, ErrorMessage);
 	if (UWorld* World = GetWorld())
 	{
+		// Maps built for the game (e.g. the desert) bring their own world and a start tagged EXWorld.
+		for (TActorIterator<APlayerStart> It(World); It; ++It)
+		{
+			if (It->ActorHasTag(TEXT("EXWorld")))
+			{
+				ArenaPlayerStart = *It;
+				return;
+			}
+		}
 		FActorSpawnParameters Params;
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		World->SpawnActor<AEXTestArena>(FVector::ZeroVector, FRotator::ZeroRotator, Params);

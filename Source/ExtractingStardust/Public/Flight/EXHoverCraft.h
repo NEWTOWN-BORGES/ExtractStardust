@@ -135,6 +135,7 @@ private:
 	void UpdateCamera(float Dt);
 	void ShowTelemetry() const;
 	void RunFlightTest(float Dt);
+	void RunDesertTest(float Dt);
 
 	void InputThrottle(float Value) { ThrottleInput = FMath::Clamp(Value, 0.0f, 1.0f); }
 	void InputBrake(float Value) { BrakeInput = FMath::Clamp(Value, 0.0f, 1.0f); }
@@ -178,7 +179,9 @@ private:
 	bool bLookBack = false;
 
 	// Automated flight test (-EXFlightTest): scripted inputs, screenshots and telemetry log.
-	bool bFlightTest = false, bTestWallPlaced = false;
+	bool bFlightTest = false, bTestWallPlaced = false, bDesertTest = false;
+	int32 TestPathIndex = 0;
+	float TestStuckSeconds = 0.0f;
 	float TestTime = 0.0f, NextTestLog = 0.0f, TestDriftStart = -1.0f;
 	int32 TestShotMask = 0;
 };

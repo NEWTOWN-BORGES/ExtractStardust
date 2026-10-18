@@ -11,5 +11,6 @@ public class ExtractingStardustEditorTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V7;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
 		ExtraModuleNames.Add("ExtractingStardust");
+		ExtraModuleNames.Add("ExtractingStardustEditor");
 	}
 }

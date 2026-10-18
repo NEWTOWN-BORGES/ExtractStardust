@@ -8,7 +8,10 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Flight/EXCraftFx.h"
+#include "GameFramework/PlayerStart.h"
+#include "World/EXDesertTerrain.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformMisc.h"
 #include "Math/RotationMatrix.h"
@@ -108,6 +111,14 @@ void AEXHoverCraft::BeginPlay()
 	Fx->Initialize(VisualPivot);
 	SelectShip(0);
 	bFlightTest = FParse::Param(FCommandLine::Get(), TEXT("EXFlightTest"));
+	for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
+	{
+		bDesertTest = bFlightTest && It->ActorHasTag(TEXT("EXWorld"));
+		if (bDesertTest)
+		{
+			break;
+		}
+	}
 }
 
 void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -138,7 +149,11 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 void AEXHoverCraft::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (bFlightTest)
+	if (bDesertTest)
+	{
+		RunDesertTest(DeltaSeconds);
+	}
+	else if (bFlightTest)
 	{
 		RunFlightTest(DeltaSeconds);
 	}
@@ -570,6 +585,48 @@ void AEXHoverCraft::ShowTelemetry() const
 	if (bLost)
 	{
 		GEngine->AddOnScreenDebugMessage(9103, 0.0f, FColor::Red, TEXT("NAVE PERDIDA - carrega R / Triangulo para recomecar"));
+	}
+}
+
+void AEXHoverCraft::RunDesertTest(float Dt)
+{
+	// Drives the whole canyon route: from the start to the canyon entry, then along its centre line.
+	TestTime += Dt;
+	const TArray<FVector2D>& Path = FEXDesertTerrain::CanyonPath();
+	const FVector Location = GetActorLocation();
+	const FVector2D Here(Location.X / CmPerM, Location.Y / CmPerM);
+	while (TestPathIndex < Path.Num() - 1 && FVector2D::Distance(Here, Path[TestPathIndex]) < 45.0f)
+	{
+		++TestPathIndex;
+	}
+	const FVector2D Target = Path[FMath::Min(TestPathIndex + 2, Path.Num() - 1)];
+	const FVector ToTarget = FVector(Target.X * CmPerM - Location.X, Target.Y * CmPerM - Location.Y, 0.0f).GetSafeNormal();
+	const FVector Flat = Heading.GetSafeNormal2D();
+	const float AngleDeg = FMath::RadiansToDegrees(FMath::Atan2(FVector::CrossProduct(Flat, ToTarget).Z, FVector::DotProduct(Flat, ToTarget)));
+	SteerInput = FMath::Clamp(AngleDeg / 20.0f, -1.0f, 1.0f);
+	ThrottleInput = TestTime > 1.5f && ForwardSpeedMps < 65.0f ? 1.0f : 0.0f;
+	BrakeInput = FMath::Abs(AngleDeg) > 50.0f && ForwardSpeedMps > 30.0f ? 1.0f : 0.0f;
+	bBoostHeld = false;
+	bDriftHeld = false;
+
+	TestStuckSeconds = TestTime > 4.0f && ForwardSpeedMps < 5.0f ? TestStuckSeconds + Dt : 0.0f;
+	const int32 ShotIndex = FMath::FloorToInt(TestTime / 9.0f);
+	if (TestTime > 2.0f && ShotIndex < 8 && !(TestShotMask & (1 << ShotIndex)))
+	{
+		TestShotMask |= 1 << ShotIndex;
+		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("DesertTest"), FString::Printf(TEXT("desert_%02d.png"), ShotIndex)), true, false);
+	}
+	if (TestTime >= NextTestLog)
+	{
+		NextTestLog = TestTime + 2.0f;
+		UE_LOG(LogTemp, Display, TEXT("EXDESERT t=%.0f pos=(%.0f, %.0f, %.1f) m path=%d/%d speed=%.0f height=%.2f grounded=%d lost=%d stuck=%.1f fps=%.0f"),
+			TestTime, Here.X, Here.Y, Location.Z / CmPerM, TestPathIndex, Path.Num(), ForwardSpeedMps, HeightM, bGrounded ? 1 : 0, bLost ? 1 : 0,
+			TestStuckSeconds, Dt > 0.0f ? 1.0f / Dt : 0.0f);
+	}
+	if (TestTime > 70.0f || TestPathIndex >= Path.Num() - 1 || bLost)
+	{
+		UE_LOG(LogTemp, Display, TEXT("EXDESERT DONE t=%.0f path=%d/%d lost=%d"), TestTime, TestPathIndex, Path.Num(), bLost ? 1 : 0);
+		FPlatformMisc::RequestExit(false);
 	}
 }
 
