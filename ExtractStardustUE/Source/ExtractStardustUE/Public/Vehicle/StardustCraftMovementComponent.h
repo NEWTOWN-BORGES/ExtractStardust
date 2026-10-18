@@ -131,6 +131,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Craft")
 	void StepCraft(float DeltaSeconds);
 
+	/** Teleports the craft back to the last position where it had solid ground contact. */
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	bool RecoverToSafePoint();
+
 	const FStardustHoverState& GetHoverState() const { return HoverSensor.GetState(); }
 
 protected:
@@ -157,7 +161,13 @@ private:
 	bool bNitroLocked = false;
 	float ImpactCooldownSeconds = 0.0f;
 	float StrandedSeconds = 0.0f;
+	double NextGroundDiagnosticTime = 0.0;
+	bool bHasSafePoint = false;
+	FVector SafePositionCm = FVector::ZeroVector;
+	FQuat SafeRotation = FQuat::Identity;
+	float UngroundedSeconds = 0.0f;
 
+	void UpdateSafetyNet(float DeltaSeconds);
 	void InitializeBody();
 	void ApplyRaceVitalLimits(float DeltaSeconds, float SpeedMPerSecond);
 	void UpdateRaceFuel(float DeltaSeconds, float SpeedMPerSecond);

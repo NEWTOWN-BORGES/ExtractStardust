@@ -63,6 +63,8 @@ private:
 	void ReleaseBoost();
 	void PressDrift();
 	void ReleaseDrift();
+	void PressReset();
+	void PressQuit();
 
 	UFUNCTION()
 	void OnHullHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent,

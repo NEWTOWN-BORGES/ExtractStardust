@@ -78,6 +78,24 @@ void AStardustHovercraftPawn::SetupPlayerInputComponent(UInputComponent* PlayerI
 	PlayerInputComponent->BindAction(TEXT("Boost"), IE_Released, this, &AStardustHovercraftPawn::ReleaseBoost);
 	PlayerInputComponent->BindAction(TEXT("Drift"), IE_Pressed, this, &AStardustHovercraftPawn::PressDrift);
 	PlayerInputComponent->BindAction(TEXT("Drift"), IE_Released, this, &AStardustHovercraftPawn::ReleaseDrift);
+	PlayerInputComponent->BindAction(TEXT("ResetCraft"), IE_Pressed, this, &AStardustHovercraftPawn::PressReset);
+	PlayerInputComponent->BindAction(TEXT("QuitGame"), IE_Pressed, this, &AStardustHovercraftPawn::PressQuit);
+}
+
+void AStardustHovercraftPawn::PressReset()
+{
+	if (MovementComponent)
+	{
+		MovementComponent->RecoverToSafePoint();
+	}
+}
+
+void AStardustHovercraftPawn::PressQuit()
+{
+	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	{
+		PlayerController->ConsoleCommand(TEXT("quit"));
+	}
 }
 
 void AStardustHovercraftPawn::ApplyInput()

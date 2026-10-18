@@ -6,6 +6,9 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Game/StardustRaceProgressComponent.h"
+#include "StardustGameMode.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -35,7 +38,35 @@ void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick 
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	if (bAutoStep)
 	{
-		StepCraft(DeltaTime);
+#if !UE_BUILD_SHIPPING
+		static const bool bAutoDriveTest = FParse::Param(FCommandLine::Get(), TEXT("StardustAutoDrive"));
+		const APawn* OwnerPawn = Cast<APawn>(GetOwner());
+		if (bAutoDriveTest && OwnerPawn && OwnerPawn->IsPlayerControlled())
+		{
+			Input.Throttle = 1.0f;
+			static bool bFallInjected = false;
+			if (!bFallInjected && GetWorld() && GetWorld()->GetTimeSeconds() > 15.0 && BodyComponent)
+			{
+				bFallInjected = true;
+				UE_LOG(LogTemp, Display, TEXT("Auto-drive test: throwing the craft 800 m off the course to test the fall safety net."));
+				PlaceCraft(BodyComponent->GetComponentLocation() + FVector(0.0f, 80000.0f, 20000.0f), BodyComponent->GetComponentRotation(), 0.0f);
+			}
+			if (RaceProgressComponent && RaceProgressComponent->State == EStardustRaceState::Waiting)
+			{
+				if (RaceProgressComponent->StartRace() && GetWorld())
+				{
+					if (AStardustGameMode* GameMode = Cast<AStardustGameMode>(GetWorld()->GetAuthGameMode()))
+					{
+						GameMode->StartTestBots();
+					}
+				}
+			}
+		}
+#endif
+		// Loading hitches produce multi-second frames; a huge step would throw the craft through the track.
+		const float StepSeconds = FMath::Min(DeltaTime, 1.0f / 30.0f);
+		StepCraft(StepSeconds);
+		UpdateSafetyNet(StepSeconds);
 	}
 	ImpactCooldownSeconds = FMath::Max(0.0f, ImpactCooldownSeconds - DeltaTime);
 	if (GEngine && GetWorld() && GetWorld()->IsGameWorld())
@@ -50,7 +81,7 @@ void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick 
 			: TEXT("GROUND CONTACT  0/5  |  NO HIT");
 		GEngine->AddOnScreenDebugMessage(817434, 0.0f, HoverState.Hits >= 2 ? FColor::Green : FColor::Red, ContactText);
 		GEngine->AddOnScreenDebugMessage(817431, 0.0f, FColor::Yellow,
-			TEXT("W / RT: accelerate   A-D / Stick: steer   S / LT: brake   Shift / A: boost   Space / X: drift"));
+			TEXT("W: acelerar  A-D: virar  S: travar  Shift: boost  Espaco: drift  R: repor nave  Esc: SAIR"));
 		if (RaceProgressComponent && RaceProgressComponent->State == EStardustRaceState::Racing)
 		{
 			const int32 Minutes = FMath::FloorToInt(RaceProgressComponent->ElapsedTimeSeconds / 60.0f);
@@ -89,6 +120,53 @@ void UStardustCraftMovementComponent::TickComponent(float DeltaTime, ELevelTick 
 				FString::Printf(TEXT("FUEL %02.0f%%  |  HEAT %02.0f%%  |  %s"), Telemetry.FuelFraction * 100.0f, Telemetry.Heat, VitalState));
 		}
 	}
+}
+
+void UStardustCraftMovementComponent::UpdateSafetyNet(float DeltaSeconds)
+{
+	if (!BodyComponent || !BodyComponent->IsSimulatingPhysics())
+	{
+		return;
+	}
+	const FVector PositionCm = BodyComponent->GetComponentLocation();
+	if (!bHasSafePoint)
+	{
+		bHasSafePoint = true;
+		SafePositionCm = PositionCm;
+		SafeRotation = BodyComponent->GetComponentQuat();
+	}
+	if (HoverSensor.GetState().Hits >= 3)
+	{
+		UngroundedSeconds = 0.0f;
+		SafePositionCm = PositionCm;
+		SafeRotation = BodyComponent->GetComponentQuat();
+		return;
+	}
+	UngroundedSeconds += DeltaSeconds;
+	constexpr float MaxFallBelowSafeCm = 8000.0f;
+	constexpr float MaxUngroundedSeconds = 12.0f;
+	if (PositionCm.Z < SafePositionCm.Z - MaxFallBelowSafeCm || UngroundedSeconds > MaxUngroundedSeconds)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Safety net trigger: now %s (Z %.1f m), ungrounded %.1f s, last safe Z %.1f m, t=%.1f s."),
+			*PositionCm.ToCompactString(), PositionCm.Z / CraftCmPerMeter, UngroundedSeconds, SafePositionCm.Z / CraftCmPerMeter,
+			GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0);
+		RecoverToSafePoint();
+	}
+}
+
+bool UStardustCraftMovementComponent::RecoverToSafePoint()
+{
+	if (!bHasSafePoint || !BodyComponent)
+	{
+		return false;
+	}
+	FRotator Level = SafeRotation.Rotator();
+	Level.Roll = 0.0f;
+	Level.Pitch = 0.0f;
+	PlaceCraft(SafePositionCm + FVector(0.0f, 0.0f, 150.0f), Level, 15.0f);
+	UngroundedSeconds = 0.0f;
+	UE_LOG(LogTemp, Display, TEXT("Safety net: craft recovered to last grounded point %s."), *SafePositionCm.ToCompactString());
+	return true;
 }
 
 void UStardustCraftMovementComponent::InitializeBody()
@@ -274,13 +352,13 @@ void UStardustCraftMovementComponent::StepCraft(float DeltaSeconds)
 	#if !UE_BUILD_SHIPPING
 	if (const APawn* PlayerPawn = Cast<APawn>(GetOwner()))
 	{
-		static double NextGroundDiagnosticTime = 0.0;
 		const double WorldTime = GetWorld()->GetTimeSeconds();
-		if (PlayerPawn->IsPlayerControlled() && WorldTime >= NextGroundDiagnosticTime)
+		if (WorldTime >= NextGroundDiagnosticTime)
 		{
-			UE_LOG(LogTemp, Display, TEXT("Hover contact: %d/5 probes, height %.2f m, craft Z %.1f m, vertical speed %.2f m/s."),
-				Sensor.Hits, Sensor.Hits > 0 ? Sensor.HeightM : -1.0f, PositionCm.Z / CraftCmPerMeter, VelocityMPerSecond.Z);
-			NextGroundDiagnosticTime = WorldTime + 0.5;
+			UE_LOG(LogTemp, Display, TEXT("Hover contact [%s]: %d/5 probes, height %.2f m, pos %s cm, speed %.1f m/s, vertical %.2f m/s, steer %.2f."),
+				*PlayerPawn->GetName(), Sensor.Hits, Sensor.Hits > 0 ? Sensor.HeightM : -1.0f, *PositionCm.ToCompactString(),
+				SpeedMPerSecond, VelocityMPerSecond.Z, Input.Steer);
+			NextGroundDiagnosticTime = WorldTime + 1.0;
 		}
 	}
 	#endif
