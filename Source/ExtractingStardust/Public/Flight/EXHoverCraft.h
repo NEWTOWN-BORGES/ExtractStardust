@@ -1,0 +1,179 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Pawn.h"
+#include "EXHoverCraft.generated.h"
+
+class UBoxComponent;
+class UCameraComponent;
+class USceneComponent;
+class UStaticMesh;
+class UStaticMeshComponent;
+
+/**
+ * Free-flying hover craft used to tune the handling feel. It is not attached to any track: it hovers over
+ * whatever surface is below it and falls under gravity when there is none.
+ * Handling and chase camera follow the previous game's controller, which the player had tuned.
+ * Units: metres and seconds; angular rates in rad/s unless the name says Deg.
+ */
+UCLASS()
+class EXTRACTINGSTARDUST_API AEXHoverCraft : public APawn
+{
+	GENERATED_BODY()
+
+public:
+	AEXHoverCraft();
+
+	virtual void Tick(float DeltaSeconds) override;
+	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+
+	UFUNCTION(BlueprintCallable, Category = "Flight")
+	void ResetToStart();
+
+	UFUNCTION(BlueprintCallable, Category = "Flight")
+	void SelectShip(int32 Index);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float MaxSpeedMps = 118.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float BoostTopMul = 1.16f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float AccelerationMps2 = 36.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float BoostAccelerationMps2 = 34.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float BrakeMps2 = 44.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float CoastDecelMps2 = 6.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float OverspeedBleed = 0.6f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float AeroDrag = 0.00012f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float ReverseMaxSpeedMps = 15.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float AirThrust = 0.3f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float NitroSeconds = 3.4f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float NitroRegen = 0.20f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float NitroDriftRegen = 0.30f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float NitroAirRegen = 0.15f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateLow = 2.4f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateHigh = 0.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float SteerResponse = 10.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float AirTurnMul = 0.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float BrakeTurnMul = 1.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Grip") float GripRedirect = 5.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Grip") float GripLateralMax = 85.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Grip") float GripFriction = 1.2f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Grip") float GripBase = 0.10f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Grip") float GripSpeedRef = 125.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Grip") float GripCap = 0.55f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Grip") float BrakeGripMul = 1.25f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftRedirect = 2.2f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftLateralMax = 62.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftTurnMul = 1.6f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftDecel = 3.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftKick = 0.45f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftMaxSlipDeg = 32.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftRecoverTime = 0.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftBoost = 10.0f;
+
+	/** Soft, long spring (natural frequency ~1 Hz) so landings settle instead of bouncing. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverHeightM = 1.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverStiffness = 40.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverDamping = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float GravityMps2 = 22.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float SlopeGravityScale = 0.6f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float SurfaceAlignDegPerSec = 160.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AirLevelDegPerSec = 45.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallBounce = 0.3f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallScrapeLoss = 0.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float BankMaxDeg = 22.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float NoseLeadMaxDeg = 5.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float PitchFromAccel = 0.12f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float VisualResponse = 6.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamDistanceM = 6.4f;
+	/** Negative: the camera closes in at top speed. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamDistanceAtSpeedM = -1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeightM = 1.6f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeightAtSpeedM = -0.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookAheadM = 16.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookHeightM = 0.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamUpFollow = 0.7f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamRollFollow = 0.4f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamOffsetStiffness = 7.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamUpSmoothing = 6.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeadingSmoothing = 8.0f;
+	/** Vertical field of view in degrees, as in the previous game; converted to Unreal's horizontal FOV. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovMinV = 62.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovMaxV = 100.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovBoostV = 9.0f;
+	/** Speeds (km/h) between which the vertigo effect (wider FOV, shake) builds up. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float VertigoKmhMin = 230.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float VertigoKmhMax = 450.0f;
+	/** Light vibration near top speed, in degrees (the player preferred this to the old noise shake). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float TopSpeedShakeDeg = 0.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float ShakeScale = 1.0f;
+	/** Share of the craft's visual bank that the camera follows. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CameraBankFollow = 0.35f;
+	/** How far the right stick orbits the camera around the craft. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float LookYawMaxDeg = 120.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UBoxComponent> Collision;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<USceneComponent> VisualPivot;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UStaticMeshComponent> ShipMesh;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UCameraComponent> Camera;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Ships") TArray<TObjectPtr<UStaticMesh>> ShipMeshes;
+	/** Yaw that turns the imported test models (long axis on Y) to face +X. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Ships") float ModelYawOffsetDeg = -90.0f;
+
+protected:
+	virtual void BeginPlay() override;
+
+private:
+	void StepFlight(float Dt);
+	void MoveWithCollision(float Dt);
+	void UpdateVisuals(float Dt);
+	void UpdateCamera(float Dt);
+	void ShowTelemetry() const;
+	void RunFlightTest(float Dt);
+
+	void InputThrottle(float Value) { ThrottleInput = FMath::Clamp(Value, 0.0f, 1.0f); }
+	void InputBrake(float Value) { BrakeInput = FMath::Clamp(Value, 0.0f, 1.0f); }
+	void InputSteer(float Value) { SteerInput = FMath::Clamp(Value, -1.0f, 1.0f); }
+	void BoostPressed() { bBoostHeld = true; }
+	void BoostReleased() { bBoostHeld = false; }
+	void DriftPressed() { bDriftHeld = true; }
+	void DriftReleased() { bDriftHeld = false; }
+	void InputLookYaw(float Value) { LookYawInput = FMath::Clamp(Value, -1.0f, 1.0f); }
+	void LookBackPressed() { bLookBack = true; }
+	void LookBackReleased() { bLookBack = false; }
+	void QuitPressed();
+	void NextShip() { SelectShip(ShipIndex + 1); }
+	void PrevShip() { SelectShip(ShipIndex - 1); }
+	void Ship1() { SelectShip(0); }
+	void Ship2() { SelectShip(1); }
+	void Ship3() { SelectShip(2); }
+	void Ship4() { SelectShip(3); }
+	void Ship5() { SelectShip(4); }
+	void CycleCamera() { CameraMode = (CameraMode + 1) % 4; bCamInitialized = false; }
+
+	FVector VelocityCmps = FVector::ZeroVector;
+	FVector Heading = FVector::ForwardVector;
+	FVector SurfaceUp = FVector::UpVector;
+	FVector StartLocation = FVector::ZeroVector;
+	FRotator StartRotation = FRotator::ZeroRotator;
+	float ThrottleInput = 0.0f, BrakeInput = 0.0f, SteerInput = 0.0f, SteerVisual = 0.0f;
+	bool bBoostHeld = false, bDriftHeld = false, bBoosting = false, bDrifting = false, bBraking = false, bGrounded = false, bLost = false;
+	float HeightM = 0.0f, Nitro = 1.0f, ForwardSpeedMps = 0.0f, LateralSpeedMps = 0.0f, LongAccelMps2 = 0.0f;
+	float YawRate = 0.0f, GripBlend = 1.0f, SlipRad = 0.0f, DriftCharge = 0.0f, MiniTurboFlash = 0.0f;
+	float AirTimeSeconds = 0.0f, ImpactShake = 0.0f;
+	float VisualRoll = 0.0f, VisualPitch = 0.0f, VisualYaw = 0.0f, HoverBobTime = 0.0f;
+	int32 ShipIndex = 0, CameraMode = 0;
+
+	// Chase camera state (ported from the previous game's chase camera).
+	bool bCamInitialized = false, bCamWasBoosting = false;
+	FVector CamOffsetCm = FVector::ZeroVector, CamSmoothUp = FVector::UpVector, CamSmoothHeading = FVector::ForwardVector;
+	float CamFovV = 62.0f, CamKick = 0.0f, CamKickVel = 0.0f, CamBoostPunch = 0.0f, CamDriftSwing = 0.0f, CamLastSpeed = 0.0f;
+	float LookYawInput = 0.0f, CamLookYaw = 0.0f;
+	bool bLookBack = false;
+
+	// Automated flight test (-EXFlightTest): scripted inputs, screenshots and telemetry log.
+	bool bFlightTest = false;
+	float TestTime = 0.0f, NextTestLog = 0.0f, TestDriftStart = -1.0f;
+	int32 TestShotMask = 0;
+};

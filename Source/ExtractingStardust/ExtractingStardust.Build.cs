@@ -10,7 +10,13 @@ public class ExtractingStardust : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] {  });
+		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "InputDevice" });
+
+		if (Target.Platform == UnrealTargetPlatform.Win64)
+		{
+			// PlayStation pads are read directly over HID (see EXDualShockDevice).
+			PublicSystemLibraries.AddRange(new string[] { "hid.lib", "setupapi.lib" });
+		}
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
