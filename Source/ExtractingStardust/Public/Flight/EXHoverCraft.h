@@ -6,6 +6,7 @@
 
 class UBoxComponent;
 class UCameraComponent;
+class UEXCraftFx;
 class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
@@ -108,7 +109,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float TopSpeedShakeDeg = 0.35f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float ShakeScale = 1.0f;
 	/** Share of the craft's visual bank that the camera follows. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CameraBankFollow = 0.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CameraBankFollow = 0.5f;
+	/** Peak camera jolt on a hard landing or wall hit, in degrees. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float LandingShakeDeg = 2.2f;
 	/** How far the right stick orbits the camera around the craft. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float LookYawMaxDeg = 120.0f;
 
@@ -116,6 +119,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<USceneComponent> VisualPivot;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UStaticMeshComponent> ShipMesh;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UCameraComponent> Camera;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UEXCraftFx> Fx;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Ships") TArray<TObjectPtr<UStaticMesh>> ShipMeshes;
 	/** Yaw that turns the imported test models (long axis on Y) to face +X. */
@@ -169,7 +173,8 @@ private:
 	bool bCamInitialized = false, bCamWasBoosting = false;
 	FVector CamOffsetCm = FVector::ZeroVector, CamSmoothUp = FVector::UpVector, CamSmoothHeading = FVector::ForwardVector;
 	float CamFovV = 62.0f, CamKick = 0.0f, CamKickVel = 0.0f, CamBoostPunch = 0.0f, CamDriftSwing = 0.0f, CamLastSpeed = 0.0f;
-	float LookYawInput = 0.0f, CamLookYaw = 0.0f;
+	float LookYawInput = 0.0f, CamLookYaw = 0.0f, CamJolt = 0.0f, CamJoltTime = 0.0f;
+	FVector GroundPointCm = FVector::ZeroVector;
 	bool bLookBack = false;
 
 	// Automated flight test (-EXFlightTest): scripted inputs, screenshots and telemetry log.

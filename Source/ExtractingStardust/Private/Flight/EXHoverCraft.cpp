@@ -8,6 +8,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Flight/EXCraftFx.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformMisc.h"
 #include "Math/RotationMatrix.h"
@@ -88,11 +89,14 @@ AEXHoverCraft::AEXHoverCraft()
 	Camera->SetupAttachment(Collision);
 	Camera->SetUsingAbsoluteLocation(true);
 	Camera->SetUsingAbsoluteRotation(true);
-	// Moderate blur: strong motion blur measurably lowers the perceived speed.
+	// Blur mostly smears nearby scenery (as in the reference video); kept moderate because heavy full-screen
+	// blur measurably lowers the perceived speed.
 	Camera->PostProcessSettings.bOverride_MotionBlurAmount = true;
-	Camera->PostProcessSettings.MotionBlurAmount = 0.35f;
+	Camera->PostProcessSettings.MotionBlurAmount = 0.5f;
 	Camera->PostProcessSettings.bOverride_MotionBlurMax = true;
-	Camera->PostProcessSettings.MotionBlurMax = 6.0f;
+	Camera->PostProcessSettings.MotionBlurMax = 8.0f;
+
+	Fx = CreateDefaultSubobject<UEXCraftFx>(TEXT("Fx"));
 }
 
 void AEXHoverCraft::BeginPlay()
@@ -101,6 +105,7 @@ void AEXHoverCraft::BeginPlay()
 	StartLocation = GetActorLocation();
 	StartRotation = FRotator(0.0f, GetActorRotation().Yaw, 0.0f);
 	Heading = StartRotation.Vector();
+	Fx->Initialize(VisualPivot);
 	SelectShip(0);
 	bFlightTest = FParse::Param(FCommandLine::Get(), TEXT("EXFlightTest"));
 }
@@ -155,6 +160,21 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	}
 	UpdateVisuals(DeltaSeconds);
 	UpdateCamera(DeltaSeconds);
+
+	FEXCraftFxInput FxInput;
+	FxInput.Velocity = VelocityCmps;
+	FxInput.Heading = Heading;
+	FxInput.SurfaceUp = SurfaceUp;
+	FxInput.GroundPoint = GroundPointCm;
+	FxInput.CameraLocation = Camera->GetComponentLocation();
+	FxInput.CameraForward = Camera->GetForwardVector();
+	FxInput.SpeedAlpha = FMath::Clamp(ForwardSpeedMps / MaxSpeedMps, 0.0f, 1.2f);
+	FxInput.Throttle = ThrottleInput;
+	FxInput.HeightM = HeightM;
+	FxInput.bGrounded = bGrounded;
+	FxInput.bBoosting = bBoosting;
+	FxInput.bDrifting = bDrifting;
+	Fx->UpdateFx(DeltaSeconds, FxInput);
 	ShowTelemetry();
 }
 
@@ -167,6 +187,7 @@ void AEXHoverCraft::StepFlight(float Dt)
 		FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(ProbeRadiusCm), Params);
 	HeightM = bHit ? (GroundHit.bStartPenetrating ? 0.3f : (GroundHit.Distance + ProbeRadiusCm) / CmPerM) : 99.0f;
 	const FVector GroundNormal = bHit ? FVector(GroundHit.ImpactNormal) : FVector::UpVector;
+	GroundPointCm = bHit ? FVector(GroundHit.ImpactPoint) : Location - SurfaceUp * (HoverHeightM * CmPerM);
 	const bool bWasGrounded = bGrounded;
 	const float AirTimeBefore = AirTimeSeconds;
 	bGrounded = bHit && FVector::DotProduct(GroundNormal, SurfaceUp) > 0.5f && HeightM < HoverHeightM * 2.5f;
@@ -306,7 +327,14 @@ void AEXHoverCraft::StepFlight(float Dt)
 
 	if (bGrounded && !bWasGrounded && AirTimeBefore > 0.08f)
 	{
-		CamKickVel -= FMath::Min(FMath::Max(0.0f, -FVector::DotProduct(V, SurfaceUp)) * 0.06f, 1.4f);
+		// Touchdown: the camera dips and jolts, and the sand bursts out around the craft.
+		const float LandingSpeed = FMath::Max(0.0f, -FVector::DotProduct(V, SurfaceUp));
+		CamKickVel -= FMath::Min(LandingSpeed * 0.06f, 1.4f);
+		CamJolt = FMath::Max(CamJolt, FMath::Clamp(LandingSpeed / 14.0f, 0.15f, 1.0f));
+		if (LandingSpeed > 3.0f)
+		{
+			Fx->LandingBurst(GroundPointCm, SurfaceUp, FMath::Clamp(LandingSpeed / 15.0f, 0.3f, 1.0f));
+		}
 	}
 
 	const float PreviousForward = ForwardSpeedMps;
@@ -347,6 +375,10 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 				VelocityCmps *= 1.0f - FMath::Clamp(WallScrapeLoss * (-IntoSpeed / CmPerM) / 20.0f, 0.0f, 0.5f);
 			}
 			ImpactShake = FMath::Max(ImpactShake, FMath::Clamp(-IntoSpeed / CmPerM / 25.0f, 0.0f, 1.0f));
+			if (bWall)
+			{
+				CamJolt = FMath::Max(CamJolt, FMath::Clamp(-IntoSpeed / CmPerM / 20.0f, 0.0f, 1.0f));
+			}
 		}
 		Delta = FVector::VectorPlaneProject(Delta * (1.0f - Hit.Time), Normal);
 	}
@@ -455,6 +487,16 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	const float Shake = ShakeScale * TopSpeedShakeDeg * FMath::Clamp((SpeedAlpha - 0.85f) / 0.15f, 0.0f, 1.0f) * (bBoosting ? 1.6f : 1.0f);
 	Rotation.Pitch += FMath::Sin(HoverBobTime * 31.0f) * Shake;
 	Rotation.Yaw += FMath::Sin(HoverBobTime * 23.0f + 1.3f) * Shake;
+	// Short, sharp jolt after a hard landing or a wall hit.
+	CamJoltTime += Dt;
+	if (CamJolt > 0.0f)
+	{
+		const float Jolt = CamJolt * LandingShakeDeg * ShakeScale;
+		Rotation.Pitch += FMath::Sin(CamJoltTime * 47.0f) * Jolt;
+		Rotation.Roll += FMath::Sin(CamJoltTime * 39.0f + 0.7f) * Jolt * 0.6f;
+		Rotation.Yaw += FMath::Sin(CamJoltTime * 53.0f + 1.9f) * Jolt * 0.4f;
+		CamJolt = FMath::Max(0.0f, CamJolt - Dt * 2.8f);
+	}
 	Camera->SetWorldLocationAndRotation(Position, Rotation);
 
 	const float Vertigo = FMath::SmoothStep(VertigoKmhMin, VertigoKmhMax, Speed * 3.6f);
@@ -476,6 +518,10 @@ void AEXHoverCraft::SelectShip(int32 Index)
 	ShipMesh->SetRelativeRotation(ModelRotation);
 	// Centre the model's bounds on the pivot so every ship hovers and banks around its middle.
 	ShipMesh->SetRelativeLocation(-ModelRotation.RotateVector(Mesh ? Mesh->GetBounds().Origin : FVector::ZeroVector));
+	if (Mesh)
+	{
+		Fx->SetShipHalfSize(ModelRotation.RotateVector(Mesh->GetBounds().BoxExtent).GetAbs());
+	}
 }
 
 void AEXHoverCraft::ResetToStart()
@@ -578,6 +624,7 @@ void AEXHoverCraft::RunFlightTest(float Dt)
 		}
 		if (TestTime > 7.5f) { Shot(3, TEXT("04_speed")); }
 		if (AirTimeSeconds > 0.35f) { Shot(4, TEXT("05_jump")); }
+		if (TestTime > 9.0f && CamJolt > 0.4f) { Shot(6, TEXT("07_landing")); }
 	}
 
 	if (TestTime >= NextTestLog)
