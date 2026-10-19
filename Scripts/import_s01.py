@@ -55,9 +55,9 @@ STRATA = {
 }
 for name, (tint, contrast, period, varnish, tile) in STRATA.items():
     path = "/Game/Desert/" + name
-    if eal.does_asset_exist(path):
-        eal.delete_asset(path)
-    mi = tools.create_asset(name, "/Game/Desert", unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    # Updated in place when it exists, so the map keeps its references.
+    mi = eal.load_asset(path) if eal.does_asset_exist(path) else \
+        tools.create_asset(name, "/Game/Desert", unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
     mel.set_material_instance_parent(mi, rock)
     mel.set_material_instance_vector_parameter_value(mi, "Tint", unreal.LinearColor(tint[0], tint[1], tint[2], 1.0))
     mel.set_material_instance_scalar_parameter_value(mi, "StrataContrast", contrast)
@@ -69,9 +69,14 @@ for name, (tint, contrast, period, varnish, tile) in STRATA.items():
 # ---- M_Plant: vertex colour base, leaves (vertex alpha 1) let warm-green light through when backlit.
 path = "/Game/Desert/M_Plant"
 if eal.does_asset_exist(path):
-    eal.delete_asset(path)
-plant = tools.create_asset("M_Plant", "/Game/Desert", unreal.Material, unreal.MaterialFactoryNew())
+    plant = eal.load_asset(path)
+    mel.delete_all_material_expressions(plant)  # rebuilt in place, so meshes keep their reference
+else:
+    plant = tools.create_asset("M_Plant", "/Game/Desert", unreal.Material, unreal.MaterialFactoryNew())
 plant.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_TWO_SIDED_FOLIAGE)
+# Cooked games only get shaders for declared usages: plants are Nanite meshes drawn through instanced components.
+plant.set_editor_property("used_with_nanite", True)
+plant.set_editor_property("used_with_instanced_static_meshes", True)
 y_cursor = [0]
 
 
@@ -83,19 +88,17 @@ def expr(cls, **props):
     return e
 
 
+# The vertex colour node's default output is RGB only: alpha comes from its own "A" output.
 vertex = expr(unreal.MaterialExpressionVertexColor)
-leafiness = expr(unreal.MaterialExpressionComponentMask, r=False, g=False, b=False, a=True)
-mel.connect_material_expressions(vertex, "", leafiness, "")
-rgb = expr(unreal.MaterialExpressionComponentMask, r=True, g=True, b=True, a=False)
-mel.connect_material_expressions(vertex, "", rgb, "")
 through = expr(unreal.MaterialExpressionMultiply)
-mel.connect_material_expressions(rgb, "", through, "A")
-mel.connect_material_expressions(leafiness, "", through, "B")
+for out, pin in (("", "A"), ("A", "B")):
+    if not mel.connect_material_expressions(vertex, out, through, pin):
+        failures.append("M_Plant vertex %s" % pin)
 transmission = expr(unreal.MaterialExpressionMultiply, const_b=0.7)
 mel.connect_material_expressions(through, "", transmission, "A")
 roughness = expr(unreal.MaterialExpressionConstant, r=0.82)
 specular = expr(unreal.MaterialExpressionConstant, r=0.3)
-for src, prop in ((rgb, unreal.MaterialProperty.MP_BASE_COLOR), (transmission, unreal.MaterialProperty.MP_SUBSURFACE_COLOR),
+for src, prop in ((vertex, unreal.MaterialProperty.MP_BASE_COLOR), (transmission, unreal.MaterialProperty.MP_SUBSURFACE_COLOR),
                   (roughness, unreal.MaterialProperty.MP_ROUGHNESS), (specular, unreal.MaterialProperty.MP_SPECULAR)):
     if not mel.connect_material_property(src, "", prop):
         failures.append("M_Plant %s" % prop)

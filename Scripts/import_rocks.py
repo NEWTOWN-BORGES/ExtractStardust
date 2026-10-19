@@ -37,6 +37,9 @@ path = "/Game/Desert/M_Rock"
 if eal.does_asset_exist(path):
     eal.delete_asset(path)
 mat = tools.create_asset("M_Rock", "/Game/Desert", unreal.Material, unreal.MaterialFactoryNew())
+# Cooked games only get shaders for declared usages: rocks are Nanite meshes, sometimes instanced.
+mat.set_editor_property("used_with_nanite", True)
+mat.set_editor_property("used_with_instanced_static_meshes", True)
 
 
 def expr(cls, **props):
