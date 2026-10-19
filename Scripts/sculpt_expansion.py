@@ -213,7 +213,19 @@ for period, amp, sharp in ((900.0, 0.55, 7), (380.0, 0.4, 10), (160.0, 0.25, 18)
     cutv = amp * side ** sharp * smoothstep(0.05, 0.45, G)
     F -= cutv
     slot = np.maximum(slot, cutv / amp)
-flute_p = 9.0 + 22.0 * G
+# Wall relief in metres (converted to the rock field through its local gradient, so a giant wall and a small one get
+# the same metres of in and out). On the big walls:
+#  - buttress ribs that stand out and bays that go in (+-18 m, ~45 m apart) and flutes (+-8 m, ~16 m apart);
+#  - chimneys: deep narrow vertical cracks (8-15 m wide, 26 m into the rock) from the floor to the rim;
+#  - cracks that open at the rim and run part of the way down (applied to the upper tiers only, see the layers).
+gyF, gxF = np.gradient(F, CELL)
+gF = np.clip(np.hypot(gxF, gyF), 1e-4, 0.02)
+Gw = smoothstep(0.2, 0.7, G)
+ribs = 5.0 * (1.0 - 2.0 * np.abs(fbm(XM - 11, YM + 7, 45, 1))) + 2.5 * (1.0 - 2.0 * np.abs(fbm(XM + 5, YM, 16, 1)))
+chimneys = 6.0 * (1.0 - np.abs(fbm(XM + 200, YM - 90, 110, 1))) ** 14  # small: texture, never slicing the wall
+F += (ribs - chimneys) * Gw * gF
+rim_cracks = 4.0 * (1.0 - np.abs(fbm(XM + 77, YM, 70, 1))) ** 10 * (0.6 + 0.4 * fbm(XM, YM - 50, 300, 1)) * Gw * gF
+top_cracks = 2.5 * (1.0 - np.abs(fbm(XM - 41, YM + 33, 35, 1))) ** 12 * Gw * gF
 F += 0.012 * fbm(XM, YM, 30 + 20 * G.mean(), 1) + 0.008 * (1.0 - 2.0 * np.abs(fbm(XM, YM, 14, 1))) + 0.004 * (1.0 - 2.0 * np.abs(fbm(XM, YM, 6, 1)))
 LEVEL = 0.55
 floor = 5.0 * fbm(XM, YM, 320, 3) + 2.2 * fbm(XM, YM, 60, 2) + 0.9 * fbm(XM, YM, 14, 2)
@@ -230,9 +242,27 @@ rim = 1.0 + 0.15 * fbm(XM, YM, 80, 2)
 wall_h = (1 - G ** 1.1) * 38.0 * rim * (1.5 * tilt ** 1.3 + 0.8 * steps) + G ** 1.1 * (270.0 + 40.0 * fbm(XM, YM, 1500, 2)) * rim
 setback = 0.03 * np.clip(fbm(XM + 71, YM + 13, 200, 2) * 2.0, 0.0, 1.0)
 rock = floor.copy()
-for level, width, frac in ((LEVEL - 0.10, 0.02, 0.06), (LEVEL, 0.005, 0.56), (LEVEL + setback, 0.005, 0.28),
-                           (LEVEL + setback + 0.012, 0.016, 0.10)):
-    rock += wall_h * frac * smoothstep(level - width, level + width, F)
+# Tiers bottom to top; the upper ones are notched by the rim cracks (and the rim by finer ones too), so those cracks
+# start at the top of the wall and come down only part of the way.
+for level, width, frac, notch in ((LEVEL - 0.10, 0.02, 0.06, 0.0), (LEVEL, 0.005, 0.56, 0.0),
+                                  (LEVEL + setback, 0.005, 0.28, 1.0), (LEVEL + setback + 0.012, 0.016, 0.10, 2.0)):
+    Fl = F - notch * rim_cracks - (notch > 1.5) * top_cracks
+    rock += wall_h * frac * smoothstep(level - width, level + width, Fl)
+# Giant walls do not drop sheer to the floor: they come down in steps, cliff bands with benches and talus slopes
+# between them that stand out 15-40 m (varying along the wall), as in the Grand Canyon. Offsets and widths are in
+# metres, turned into the rock field through its gradient; the stepped profile takes over where the walls are big.
+step_rock = floor.copy()
+off = 0.0
+spread = 0.7 + 0.6 * np.clip(0.5 + fbm(XM - 70, YM + 40, 400, 2), 0.0, 1.0)
+for steep_frac, bench_m, slope_frac in ((0.22, 20.0, 0.05), (0.20, 30.0, 0.07), (0.20, 15.0, 0.04), (0.18, 35.0, 0.0)):
+    lv = LEVEL + off * gF
+    step_rock += wall_h * steep_frac * smoothstep(lv - 1.5 * gF, lv + 1.5 * gF, F)  # cliff band
+    if slope_frac:
+        sl = lv + (bench_m * 0.5 * spread) * gF
+        step_rock += wall_h * slope_frac * smoothstep(sl - bench_m * 0.4 * spread * gF, sl + bench_m * 0.4 * spread * gF, F)  # talus slope
+    off += bench_m * spread
+step_rock += wall_h * 0.04 * smoothstep(LEVEL - 0.10 - 0.02, LEVEL - 0.10 + 0.02, F)  # the low bench at the foot
+rock = rock * (1.0 - Gw) + step_rock * Gw
 rocky = smoothstep(LEVEL - 0.01, LEVEL + 0.01, F)
 rock += (1.0 + 1.5 * G) * fbm(XM, YM, 90, 3) * rocky  # plateau tops: gently rolling slickrock
 
@@ -613,6 +643,19 @@ shot("monument_valley", at(1350, 80, 6), at(450, 700, 70), lens=35)
 bm = BAD_MESAS[0]
 shot("badlands_aerea", at(bm[0] - 900, bm[1] - 900, 650), at(bm[0] + 600, bm[1] + 150, 0), lens=30)
 shot("fim_das_dunas", at(9350, 2000, 3), at(9700, 2150, 15), lens=26)
+# A giant wall close up: from the canyon floor square on, and grazing along it (shows the in-and-out relief).
+for frac, tag in ((0.3, "a"), (0.55, "b")):
+    i_c = int(frac * (len(ch) - 1))
+    pc, dv = ch[i_c], ch[i_c + 6] - ch[i_c - 6]
+    dv = dv / (np.linalg.norm(dv) + 1e-9)
+    nv = np.array([-dv[1], dv[0]])
+    hw = float(half_w[int(np.clip(pc[1] / CELL, 0, NY - 1)), int(np.clip(pc[0] / CELL, 0, NX - 1))])
+    eye = pc + nv * hw * 0.5
+    wallp = pc - nv * (hw + 4.0)
+    shot(f"parede_gigante_frente_{tag}", at(eye[0], eye[1], 6), at(wallp[0], wallp[1], 110), lens=24)
+    eye2 = pc - nv * (hw - 18.0)
+    tgt2 = pc - nv * (hw - 4.0) + dv * 320.0
+    shot(f"parede_gigante_rasante_{tag}", at(eye2[0], eye2[1], 8), at(tgt2[0], tgt2[1], 70), lens=26)
 # Inside a side canyon at craft height, looking along it (direction from the slot cells around), and the maze from above.
 cand = np.argwhere(slot_floor & (G > 0.8) & (dcan > 400) & (slope < 8) & (np.abs(XM - 2500) < 1500) & (YM > 6000))
 if len(cand):
