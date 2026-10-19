@@ -99,7 +99,16 @@ blender -b -P Scripts/sculpt_grand_circuit.py -- C:/rdd/mundo plan
 Esse comando escreve `gc_plan.png` e mede tudo; com `GC_CROPS="x0,y0,x1,y1;..."` faz também planta ampliada dessas
 zonas (`gc_cropN.png`). Precisa de `world_fields.npz` na pasta do mundo, que o passo 4 já escreve.
 
-- **Resultado atual (a 4 m):**
+- **Atualização (fim da sessão):**
+  - traçado afinado: volta de **31,3 km**, 0,1 % das curvas abaixo de 210 m de raio e um único toque na rocha
+    (10 m, no portal do túnel da mesa);
+  - Spider Rock passa a ser contornado por sul e as Mittens no sentido dos ponteiros do relógio;
+  - o `relax` passou a reespaçar os pontos a cada passagem: era isso que fechava as curvas;
+  - o modo completo (secções 7-12 do script: terreno, tetos, adereços, JSON, fotos de piloto, vistas 3D) foi
+    escrito, mas **NUNCA CORREU**. Primeiro passo em casa: `blender -b C:/rdd/mundo/world.blend -P
+    Scripts/sculpt_grand_circuit.py -- C:/rdd/mundo`, depois corrigir os erros e mostrar as imagens ao jogador.
+  - os valores abaixo são da versão anterior.
+- **Resultado anterior (a 4 m):**
   - volta de **30,5 km**, dos quais 7,1 km do núcleo (A + perna sul do D);
   - secções: Hoodoos (slalom), Dunas, Badlands (túnel de 365 m sob a mesa do meio), North_gap, Fendas_Norte (laço a
     norte do Chinle), Chinle (a norte do Spider Rock), Muerto (pelo arco duplo), Monument;

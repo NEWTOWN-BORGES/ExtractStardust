@@ -99,13 +99,18 @@ def curvature(p, window=31):
     return (dx_ * ddy_ - dy_ * ddx_) / (np.hypot(dx_, dy_) ** 3 + 1e-9)
 
 
-def relax(p, rmin, fixed=None, iters=80, reach=30):
+def relax(p, rmin, fixed=None, iters=150, reach=30):
     """Opens every bend tighter than rmin (scalar or per point) a little each pass, pulling its points towards the
-    chord between the points reach m before and after. Fixed points (and both ends) stay where they are."""
+    chord between the points reach m before and after, and puts the points back one metre apart (curvature is
+    measured per point). Fixed points (and both ends) stay where they are. Returns the line and, for every new
+    point, the index of the input point it came from (to carry per-point values along)."""
     a0, a1 = p[0].copy(), p[-1].copy()
-    rm = np.asarray(rmin, float) if np.ndim(rmin) else np.full(len(p), float(rmin))
-    fx_ = np.zeros(len(p), bool) if fixed is None else fixed
+    rm0 = np.asarray(rmin, float) if np.ndim(rmin) else np.full(len(p), float(rmin))
+    fx0 = np.zeros(len(p), bool) if fixed is None else fixed
+    src = np.arange(len(p), dtype=np.float64)
     for _ in range(iters):
+        si = np.clip(np.round(src).astype(int), 0, len(rm0) - 1)
+        rm, fx_ = rm0[si], fx0[si]
         k_ = curvature(p)
         bad = (np.abs(k_) * rm > 1.0) & ~fx_
         bad[:reach] = False
@@ -119,7 +124,13 @@ def relax(p, rmin, fixed=None, iters=80, reach=30):
         sm = np.stack([smooth1d(p[:, 0], 5), smooth1d(p[:, 1], 5)], 1)
         p = np.where(fx_[:, None], p, sm)
         p[0], p[-1] = a0, a1
-    return p
+        s_ = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(p, axis=0).T))])
+        t_ = np.arange(0.0, s_[-1], 1.0)
+        p = np.stack([np.interp(t_, s_, p[:, 0]), np.interp(t_, s_, p[:, 1])], 1)
+        src = np.interp(t_, s_, src)
+        if np.hypot(*(p[-1] - a1)) > 0.01:
+            p, src = np.vstack([p, a1[None]]), np.append(src, len(rm0) - 1)
+    return p, np.clip(np.round(src).astype(int), 0, len(rm0) - 1)
 
 
 def bilinear(grid, x, y):
@@ -239,6 +250,9 @@ NRY, NRX = rock_r.shape
 gyr, gxr = np.gradient(H[::RG, ::RG], RG * CELL)
 steep_r = (np.hypot(gxr, gyr) > 0.35) & ~sea[::RG, ::RG]
 base_r = 1.0 + 3.0 * steep_r + 30.0 * (in_core[::RG, ::RG] & ~sea[::RG, ::RG]) - 0.15 * (fz["canyon_floor"][::RG, ::RG] > 0.5)
+# Spires stand on the canyon floors: the router keeps 60 m off them, passing on the wider side.
+for cx_, cy_, r, h in LM["spires"]:
+    base_r = base_r + 6.0 * (np.hypot(XM[::RG, ::RG] - cx_, YM[::RG, ::RG] - cy_) < r + 60.0)
 _costs = {}
 
 
@@ -389,39 +403,53 @@ arch_in = (ax_ - ad[0] * 100.0, ay_ - ad[1] * 100.0, "S")
 arch_mid = (ax_, ay_, "S")
 arch_out = (ax_ + ad[0] * 100.0, ay_ + ad[1] * 100.0)
 A_start = tuple(A_line[0])
-# Spider Rock: the lap passes 170 m north of the twin towers (the crevices branch leaves south, past their foot).
+# Spider Rock: the lap passes 160 m south of the twin towers, where Monument canyon opens into Chinle (the crevices
+# branch leaves there, down Monument canyon).
 tw = np.array(LM["spires"][:2])[:, :2].mean(0)
-spider = (float(tw[0]), float(tw[1]) + 170.0)
+spider = (float(tw[0]), float(tw[1]) - 160.0)
+
+
+def clear_of_spires(wps, margin=200.0):
+    """Drops canyon waypoints that fall next to a spire (the router then goes round it)."""
+    return [w_ for w_ in wps if all(math.hypot(w_[0] - s_[0], w_[1] - s_[1]) > s_[2] + margin for s_ in LM["spires"])]
 
 
 def chinle(start, end):
-    """Chinle westwards between two points, swinging north of Spider Rock when it is on the way."""
-    wps = along_line("Chinle", start, end)
-    if min(start[0], end[0]) < spider[0] < max(start[0], end[0]):
-        wps = [w_ for w_ in wps if abs(w_[0] - spider[0]) > 350.0]
-        k_ = next((i for i, w_ in enumerate(wps) if w_[0] < spider[0]), len(wps))
-        wps.insert(k_, spider)
+    """Chinle westwards between two points: south of Spider Rock, north of the other spires on its floor."""
+    wps = clear_of_spires(along_line("Chinle", start, end))
+    lo, hi = min(start[0], end[0]), max(start[0], end[0])
+    passes = [spider] if lo < spider[0] < hi else []
+    passes += [(s_[0], s_[1] + s_[2] + 75.0) for s_ in LM["spires"][2:] if lo + 150 < s_[0] < hi - 150 and abs(s_[1] - 6600) < 500]
+    for pt in passes:
+        wps = [w_ for w_ in wps if abs(w_[0] - pt[0]) > 350.0]
+        k_ = next((i for i, w_ in enumerate(wps) if w_[0] < pt[0]), len(wps))
+        wps.insert(k_, pt)
     return wps
 
 
 # Section: (name, waypoints, half width m, narrowest half width m, tightest bend radius m, how it is traced).
 # "route": A* between waypoints (steering points snap to open floor), then a high-speed line kept off the walls;
-# "spline": a designed line through the waypoints (the hoodoo slalom), left as drawn.
+# "spline": a designed line through the waypoints, left as drawn (no centring).
 north_loop = [(6080.0, 6950.0), (5900.0, 7060.0), (5350.0, 7020.0), (4950.0, 7180.0), (4600.0, 7450.0), (4250.0, 7350.0),
-              (4080.0, 7020.0), (3950.0, 6720.0)]
+              (4080.0, 7020.0), (3990.0, 6600.0)]
+# Hoodoo slalom: a wide S between the towers (bends of 250 m and more), passing each one 60-130 m away.
+slalom = [(8800.0, 1565.0), (9150.0, 1490.0), (9380.0, 1560.0), (9480.0, 1760.0), (9720.0, 2010.0), (9580.0, 2330.0),
+          (9650.0, 2560.0), (9600.0, 2950.0)]
+# Mittens loop: off Muerto's floor to the west, round the Mittens clockwise, back north up the east side of Muerto's
+# floor (clear of the way down) and straight into the narrow A_west canyon, east along it to the start of wash A.
+mittens = [(520.0, 1180.0), (180.0, 980.0), (160.0, 620.0), (380.0, 280.0), (800.0, 220.0), (960.0, 470.0), (1150.0, 820.0),
+           (1220.0, 1200.0), (1200.0, 1440.0)] + along_line("A_west", (1250, 1500), (2000, 1500), 300.0)[:-1] + [A_start]
 SECTIONS = [
-    ("Hoodoos", [None, (8800.0, 1565.0), (9150.0, 1490.0), (9420.0, 1470.0), (9650.0, 1640.0), (9530.0, 1980.0),
-                 (9715.0, 2360.0), (9605.0, 2660.0), (9600.0, 2950.0)], 16.0, 10.0, 90.0, "spline"),
+    ("Hoodoos", [None] + slalom, 16.0, 10.0, 150.0, "spline"),
     ("Dunas", [None, (9380.0, 3500.0), (9330.0, 4300.0), (9300.0, 4850.0)], 20.0, 12.0, 200.0, "route"),
-    ("Badlands", [None, (9080.0, 5200.0), (9020.0, 5420.0, "S"), (8180.0, 5440.0), (7600.0, 5620.0), (6950.0, 5450.0),
-                  (6520.0, 5330.0)], 18.0, 11.0, 150.0, "route"),
+    ("Badlands_in", [None, (9150.0, 4980.0), (9020.0, 5150.0), (8960.0, 5330.0), (8950.0, 5430.0)], 18.0, 11.0, 150.0, "spline"),
+    ("Badlands", [None, (8180.0, 5440.0), (7600.0, 5620.0), (6950.0, 5450.0), (6520.0, 5330.0)], 18.0, 11.0, 150.0, "route_s"),
     ("North_gap", [None] + along_line("North_gap", (6520, 5330), (6500, 6500), 400.0), 18.0, 11.0, 150.0, "route"),
     ("Fendas_Norte", [None] + chinle((6500, 6500), (6150, 6650)) + north_loop, 18.0, 10.0, 150.0, "route"),
-    ("Chinle", [None] + chinle((3950, 6720), (1250, 6600)), 18.0, 11.0, 150.0, "route"),
-    ("Muerto", [None] + along_line("Muerto", (1250, 6600), arch_in[:2]) + [arch_in, arch_mid, arch_out] +
-     along_line("Muerto", arch_out, (830, 700)), 18.0, 10.0, 150.0, "route"),
-    ("Monument", [None, (1250.0, 560.0), (1700.0, 640.0), (1850.0, 1050.0), (1790.0, 1380.0), (1880.0, 1495.0), A_start],
-     18.0, 11.0, 120.0, "spline_end"),
+    ("Chinle", [None] + chinle((3990, 6600), (1250, 6600)), 18.0, 11.0, 150.0, "route"),
+    ("Muerto", [None, (1180.0, 6610.0)] + clear_of_spires(along_line("Muerto", (1250, 6600), arch_in[:2])) + [arch_in, arch_mid, arch_out] +
+     clear_of_spires(along_line("Muerto", arch_out, (850, 1250))), 18.0, 10.0, 150.0, "route"),
+    ("Mittens", [None] + mittens, 18.0, 10.0, 150.0, "route"),
 ]
 
 
@@ -445,9 +473,9 @@ for si, (name, wps, w, wmin, rmin, how) in enumerate(SECTIONS):
     wps = [tuple(parts[-1][-1])] + list(wps[1:])  # sections join end to start
     if how == "spline":
         p = spline(wps)
-    elif how == "spline_end":  # routed, but the last 3 waypoints (into the core's wash A) as drawn
-        p = np.vstack([resample(route(wps[:-2], wmin)), spline(wps[-3:])[1:]])
-        p = resample(p)
+    elif how == "route_s":  # starts with a dead-straight stretch (through the middle badlands mesa: a tunnel)
+        wps[0] = tuple(wps[0][:2]) + ("S",)
+        p = resample(route(wps, wmin))
     else:
         p = resample(route(wps, wmin))
     n_ = len(p) - 1
@@ -459,13 +487,21 @@ lap_rmin, lap_w, lap_wmin, lap_sec, nocentre = [np.concatenate(c_) for c_ in zip
 fixed = lap_sec < 0
 # Arch: the straight through it stays where it is and narrows to its opening.
 d_arch = np.hypot(lap[:, 0] - ax_, lap[:, 1] - ay_)
-fixed |= d_arch < 90.0
+fixed |= d_arch < 45.0
 lap_w = np.where(d_arch < 40.0, 10.0, lap_w)
 lap_wmin = np.where(d_arch < 40.0, 9.0, lap_wmin)
 # High speed line over the whole lap (the core part and the arch stay put), then keep off the walls.
-lap = relax(lap, np.maximum(lap_rmin, 1e-3), fixed=fixed)
-lap = np.where((fixed | nocentre)[:, None], lap, centre(lap, 18.0, fixed=fixed | nocentre))
-lap = relax(lap, np.maximum(lap_rmin, 1e-3), fixed=fixed, iters=40)
+lap_arrays = [np.maximum(lap_rmin, 1e-3), lap_w, lap_wmin, lap_sec, fixed, nocentre]
+first = True
+for step in ("relax", "centre", "relax"):
+    lap_rmin, lap_w, lap_wmin, lap_sec, fixed, nocentre = lap_arrays
+    if step == "centre":
+        lap = np.where((fixed | nocentre)[:, None], lap, centre(lap, 18.0, fixed=fixed | nocentre))
+        continue
+    lap, src_ = relax(lap, lap_rmin, fixed=fixed, iters=400 if first else 120)
+    first = False
+    lap_arrays = [arr[src_] for arr in lap_arrays]
+lap_rmin, lap_w, lap_wmin, lap_sec, fixed, nocentre = lap_arrays
 print("LAP", int(len(lap)), "m")
 
 
@@ -488,8 +524,8 @@ def at_lap(x, y):
 
 # ---- 4. Branches. The first and last waypoints ("@", x, y) are junctions: the lap point nearest (x, y).
 BRANCHES = [
-    ("B1_Atalho_A_west", [("@", 950, 1700), (1300, 1520), ("@", 1850, 1480)], 16.0, 10.0, 120.0, "surface"),
-    ("B2_Fendas", [("@", spider[0] + 250, spider[1] - 60)] + along_line("Monument", (3800, 6500), (3420, 5900), 300.0) +
+    ("B1_Atalho_A_west", [("@", 900, 1700), (1250, 1520), ("@", 1500, 1510)], 16.0, 10.0, 120.0, "surface"),
+    ("B2_Fendas", [("@", spider[0] + 200, spider[1] + 40)] + along_line("Monument", (3800, 6500), (3420, 5900), 300.0) +
      [(3000, 5780), (2650, 5760), (2520, 5950), ("@", 2450, 6300)], 10.0, 6.0, 60.0, "surface"),
     ("B3_Tunel_Muerto", [("@", 2300, 6330, "S"), ("@", 1000, 5300)], 16.0, 12.0, 150.0, "surface"),
     ("B4_Escadaria", [("@", 9330, 4520), (foot_up[0], foot_up[1], "S"), (LOOK[0], LOOK[1] - 40.0, "S"),
@@ -503,10 +539,11 @@ for name, wps, w, wmin, rmin, kind in BRANCHES:
     p = resample(route(wq, wmin))
     fx_ = np.zeros(len(p), bool)
     fx_[:2] = fx_[-2:] = True
-    p = relax(p, rmin, fixed=fx_)
+    p, src_ = relax(p, rmin, fixed=fx_)
+    fx_ = fx_[src_]
     if kind != "high":
         p = centre(p, w, fixed=fx_)
-        p = relax(p, rmin, fixed=fx_, iters=30)
+        p, _ = relax(p, rmin, fixed=fx_)
     p = resample_with(p)[0]
     branches[name] = dict(p=p, w0=w, wmin=wmin, rmin=rmin, kind=kind, leave=i0, rejoin=i1)
     print("BRANCH", name, int(len(p)), "m, leaves at", i0, "rejoins at", i1)
@@ -585,9 +622,41 @@ def find_jumps(p, tun, v=100.0, g=20.0):
 
 skip_core = np.arange(len(lap)) < core_n
 LAPI = analyse(lap, lap_w, lap_wmin, "surface", skip=skip_core)
-LAPI["jumps"] = find_jumps(lap, LAPI["tun"] | skip_core)
 for name, b in branches.items():
     b.update(analyse(b["p"], b["w0"], b["wmin"], b["kind"]))
+# Tunnel floors: under each roof the heightfield is opened down to the bed, as wide as the floor (+1 m); 25 m
+# outside each portal the ground eases down to it (the approach cut every portal needs). Nothing else is cut.
+H_rock = H.copy()  # the rock surface the roofs follow
+in_tunnel = np.zeros((NY, NX), bool)
+
+
+def carve(p, tun, w, bed):
+    w = np.broadcast_to(np.asarray(w, float), (len(p),))
+    nx_, ny_ = normals(p)
+    for s0, s1 in runs(tun):
+        a0, a1 = max(0, s0 - 25), min(len(p), s1 + 25)
+        idx = np.arange(a0, a1)
+        ease = np.clip(np.minimum(idx - (s0 - 25), (s1 + 25) - idx) / 25.0, 0.0, 1.0)  # 0 at 25 m out, 1 inside
+        ww = w[idx] + 1.0
+        L = np.arange(-float(ww.max()), float(ww.max()) + 0.1, CELL * 0.5)
+        xs = p[idx, 0, None] + nx_[idx, None] * L[None, :]
+        ys = p[idx, 1, None] + ny_[idx, None] * L[None, :]
+        keep = np.abs(L)[None, :] <= ww[:, None]
+        ii = np.clip(np.round(ys / CELL).astype(int), 0, NY - 1)[keep]
+        jj = np.clip(np.round(xs / CELL).astype(int), 0, NX - 1)[keep]
+        bed_ = np.broadcast_to(bed[idx, None], keep.shape)[keep]
+        e_ = np.broadcast_to(ease[:, None], keep.shape)[keep]
+        target = np.where(e_ >= 1.0, bed_, H[ii, jj] + (bed_ - H[ii, jj]) * e_)
+        H[ii, jj] = np.minimum(H[ii, jj], target)
+        inside = (np.broadcast_to(idx[:, None], keep.shape)[keep] >= s0) & (np.broadcast_to(idx[:, None], keep.shape)[keep] < s1)
+        in_tunnel[ii[inside], jj[inside]] = True
+
+
+carve(lap, LAPI["tun"], LAPI["w"], LAPI["bed"])
+for name, b in branches.items():
+    carve(b["p"], b["tun"], b["w"], b["bed"])
+LAPI["jumps"] = find_jumps(lap, LAPI["tun"] | skip_core)
+for name, b in branches.items():
     b["jumps"] = find_jumps(b["p"], b["tun"])
 
 
@@ -685,3 +754,343 @@ for k_, reg_ in enumerate(os.environ.get("GC_CROPS", "").split(";")):
 print("PLAN", f"{WD}/gc_plan.png")
 if PLAN:
     raise SystemExit
+
+# ---- 7. Into the world: the terrain mesh takes the new heights (staircase, ramps, tunnel floors) and colours.
+import bmesh
+from mathutils import Euler, Vector, kdtree
+
+terrain = bpy.data.objects["CanyonField"]
+me = terrain.data
+me.vertices.foreach_set("co", np.stack([XM - hx, YM - hy, H], -1).astype(np.float32).ravel())
+col = np.empty(NX * NY * 4, np.float32)
+me.color_attributes["Col"].data.foreach_get("color", col)
+col = col.reshape(NY, NX, 4)
+gy_, gx_ = np.gradient(H, CELL)
+steep = smoothstep(35, 60, np.degrees(np.arctan(np.hypot(gx_, gy_))))[..., None]
+
+
+def punch(c):  # the expansion's final saturation boost
+    c = np.asarray(c, np.float32)
+    return np.clip(c.mean() + (c - c.mean()) * 1.25, 0, 1)
+
+
+top_c, wall_c, dune_c, gravel_c = punch((0.64, 0.35, 0.16)), punch((0.52, 0.17, 0.06)), punch((0.74, 0.43, 0.18)), punch((0.58, 0.36, 0.20))
+beds = (0.86 + 0.14 * (np.sin(H / 2.2 + 1.5 * fbm(XM, YM, 140, 2)) * 0.5 + 0.5) ** 3)[..., None]
+new_rock = (added == 1.0)[..., None]
+col[..., :3] = np.where(new_rock, top_c * (1 - steep) + wall_c * beds * steep, col[..., :3])
+col[..., :3] = np.where((added == 2.0)[..., None], dune_c * (1.0 - 0.15 * steep), col[..., :3])
+col[..., :3] = np.where(in_tunnel[..., None], gravel_c, col[..., :3])
+me.color_attributes["Col"].data.foreach_set("color", col.ravel())
+me.update()
+
+
+# ---- 8. Tunnel roofs (as in sculpt_canyon_field.py): over each opened tunnel floor a rock roof whose top follows the
+# rock that was there and whose underside is a rounded vault (16 m clear in the middle). One FBX each, for Unreal.
+for o in [o for o in bpy.data.objects if o.name.startswith("SM_TunnelGC_")]:
+    bpy.data.objects.remove(o)
+mat = me.materials[0]
+os.makedirs(f"{WD}/tunnels_gc", exist_ok=True)
+tunnels = []
+
+
+def roofs(rname, p, tun, w, bed):
+    w = np.broadcast_to(np.asarray(w, float), (len(p),))
+    nx_, ny_ = normals(p)
+    for k, (s0, s1) in enumerate(runs(tun, 4)):
+        idx = np.arange(s0, s1)
+        ww = float(w[idx].max())
+        L = np.linspace(-(ww + 5.0), ww + 5.0, 61)
+        x2 = p[idx, None, 0] + L[None, :] * nx_[idx, None]
+        y2 = p[idx, None, 1] + L[None, :] * ny_[idx, None]
+        a_ = np.clip(np.abs(L) / (ww + 1.0), 0.0, 1.0)
+        vault = 2.0 + 14.0 * np.sqrt(np.maximum(0.0, 1.0 - a_ ** 2))
+        under = bed[idx, None] + np.where(np.abs(L)[None, :] <= ww + 1.0, vault[None, :], -1.0)
+        top = np.maximum(bilinear(H_rock, x2, y2) + 0.15, under + 3.0)
+        ns, nl = top.shape
+        verts = np.concatenate([np.stack([x2 - hx, y2 - hy, top], -1).reshape(-1, 3), np.stack([x2 - hx, y2 - hy, under], -1).reshape(-1, 3)])
+        T = lambda i, j: i * nl + j
+        B = lambda i, j: ns * nl + i * nl + j
+        faces = []
+        for i in range(ns - 1):
+            for j in range(nl - 1):
+                faces.append((T(i, j), T(i + 1, j), T(i + 1, j + 1), T(i, j + 1)))
+                faces.append((B(i, j), B(i, j + 1), B(i + 1, j + 1), B(i + 1, j)))
+            for j in (0, nl - 1):
+                faces.append((T(i, j), B(i, j), B(i + 1, j), T(i + 1, j)))
+        for i in (0, ns - 1):
+            for j in range(nl - 1):
+                faces.append((T(i, j), T(i, j + 1), B(i, j + 1), B(i, j)))
+        rme = bpy.data.meshes.new(f"SM_TunnelGC_{rname}{k + 1}")
+        rme.from_pydata(verts.tolist(), [], faces)
+        rbm = bmesh.new()
+        rbm.from_mesh(rme)
+        bmesh.ops.recalc_face_normals(rbm, faces=rbm.faces)
+        for f_r in rbm.faces:
+            f_r.smooth = True
+        rbm.to_mesh(rme)
+        rbm.free()
+        zz = verts[:, 2]
+        bands = (0.86 + 0.14 * (np.sin(zz / 2.2) * 0.5 + 0.5) ** 3)[:, None]
+        top_col = np.stack([bilinear(col[..., c_], x2, y2).ravel() for c_ in range(3)], 1)
+        rcol = np.concatenate([top_col, (wall_c * bands)[ns * nl:]])
+        rattr = rme.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+        rattr.data.foreach_set("color", np.concatenate([rcol, np.ones((len(verts), 1))], 1).astype(np.float32).ravel())
+        rme.materials.append(mat)
+        roof = bpy.data.objects.new(rme.name, rme)
+        bpy.context.scene.collection.objects.link(roof)
+        bpy.ops.object.select_all(action="DESELECT")
+        roof.select_set(True)
+        bpy.context.view_layer.objects.active = roof
+        bpy.ops.export_scene.fbx(filepath=f"{WD}/tunnels_gc/{rme.name}.fbx", use_selection=True, object_types={"MESH"})
+        tunnels.append({"name": rme.name, "route": rname, "length_m": int(s1 - s0), "start_m": int(s0),
+                        "portal_in": [round(float(p[s0, 0] - hx), 1), round(float(p[s0, 1] - hy), 1)],
+                        "portal_out": [round(float(p[s1 - 1, 0] - hx), 1), round(float(p[s1 - 1, 1] - hy), 1)]})
+
+
+roofs("Lap", lap, LAPI["tun"], LAPI["w"], LAPI["bed"])
+for name, b in branches.items():
+    roofs(name.split("_")[0], b["p"], b["tun"], b["w"], b["bed"])
+print("TUNNELS", [(t_["name"], t_["length_m"]) for t_ in tunnels])
+
+# ---- 9. Rocks and plants on the new tracks go (floor width + 6 m); the giant arches and other landmarks stay.
+route_pts = np.vstack([lap[core_n:]] + [b["p"] for b in branches.values()])
+route_w = np.concatenate([LAPI["w"][core_n:]] + [b["w"] for b in branches.values()])
+kd = kdtree.KDTree(len(route_pts))
+for i, (x_, y_) in enumerate(route_pts):
+    kd.insert((x_ - hx, y_ - hy, 0.0), i)
+kd.balance()
+
+
+def on_track(x_, y_):
+    co, i, d = kd.find((x_, y_, 0.0))
+    return i is not None and d < route_w[i] + 6.0
+
+
+with open(f"{WD}/props.json") as f_:
+    pj = json.load(f_)
+keep = [p_ for p_ in pj["props"] if p_.get("group") == "landmark" or p_["mesh"] == "SM_Kit_Arch" or not on_track(p_["x"], p_["y"])]
+removed = len(pj["props"]) - len(keep)
+pj["props"] = keep
+gone = 0
+for o in list(bpy.data.objects):
+    if o.type == "MESH" and (o.name.startswith("Prop")) and "landmark" not in o.name and o.data and not o.data.name.startswith("SM_Kit_Arch"):
+        if on_track(o.location.x, o.location.y):
+            bpy.data.objects.remove(o)
+            gone += 1
+print("PROPS removed", removed, "from props.json,", gone, "objects")
+
+# ---- 10. Save: world.blend, heightmap, JSON (grand_circuit), props.
+bpy.ops.wm.save_as_mainfile(filepath=f"{WD}/world.blend")
+
+
+def write_png(path, data, bits, channels):
+    h_, w_ = data.shape[:2]
+    raw = (data.astype(">u2") if bits == 16 else data.astype(np.uint8)).reshape(h_, w_ * channels).tobytes()
+    stride = w_ * channels * (2 if bits == 16 else 1)
+    rows = b"".join(b"\x00" + raw[r * stride:(r + 1) * stride] for r in range(h_))
+
+    def chunk(kind, payload):
+        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+
+    with open(path, "wb") as f_:
+        f_.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w_, h_, bits, 0 if channels == 1 else 2, 0, 0, 0))
+                 + chunk(b"IDAT", zlib.compress(rows, 6)) + chunk(b"IEND", b""))
+
+
+zlo, zhi = float(H.min()), float(H.max())
+write_png(f"{WD}/world_height16.png", np.round((H - zlo) / (zhi - zlo) * 65535)[::-1], 16, 1)
+
+
+def pts_json(p, step=4):
+    z = bilinear(H, p[::step, 0], p[::step, 1])
+    return [[round(float(x_ - hx), 1), round(float(y_ - hy), 1), round(float(z_), 1)] for (x_, y_), z_ in zip(p[::step], z)]
+
+
+sec_names = ["core_A_D"] + [s_[0] for s_ in SECTIONS]
+sections = []
+for si in np.unique(lap_sec):
+    ii = np.flatnonzero(lap_sec == si)
+    sections.append({"name": sec_names[int(si) + 1], "from_m": int(ii[0]), "to_m": int(ii[-1])})
+gc = {
+    "note": "Lap and branches in metres from the world centre, one point every 4 m; widths are full floor widths (m) "
+            "at the same points. The lap starts at the west end of the core's wash A and runs east (the core part "
+            "keeps the core's own tunnels). Branches leave and rejoin the lap at the given lap distances.",
+    "lap": {"length_m": int(len(lap)), "points": pts_json(lap), "width_m": [round(float(2 * w_), 1) for w_ in LAPI["w"][::4]],
+            "sections": sections, "jumps": LAPI["jumps"], "pinches": [[int(s0), int(s1 - s0)] for s0, s1 in runs(LAPI["pinch"], 4)],
+            "speed_check": radius_stats(lap, skip_core), "core_tunnels": [t_["name"] for t_ in core_tunnels]},
+    "branches": {name: {"kind": b["kind"], "length_m": int(len(b["p"])), "leaves_lap_at_m": int(b["leave"]),
+                        "rejoins_lap_at_m": int(b["rejoin"]), "points": pts_json(b["p"]),
+                        "width_m": [round(float(2 * w_), 1) for w_ in b["w"][::4]], "jumps": b["jumps"],
+                        "speed_check": radius_stats(b["p"])} for name, b in branches.items()},
+    "tunnels": tunnels,
+    "staircase": stair,
+    "ramps": [{"from": [round(foot_up[0] - hx, 1), round(foot_up[1] - hy, 1)], "to": [round(LOOK[0] - hx, 1), round(LOOK[1] - LOOK[2] - hy, 1)]},
+              {"from": [round(x_edge - hx, 1), round(STAIR_Y - hy, 1)], "to": [round(foot_dn[0] - hx, 1), round(foot_dn[1] - hy, 1)]}],
+    "arch_pass": {"at": [round(ax_ - hx, 1), round(ay_ - hy, 1)], "opening_m": 23.0, "floor_width_m": 20.0},
+}
+world["grand_circuit"] = gc
+world["z_m"] = [round(zlo, 1), round(zhi, 1)]
+with open(f"{WD}/canyon_field.json", "w") as f_:
+    json.dump(world, f_, indent=1, default=float)
+with open(f"{WD}/props.json", "w") as f_:
+    json.dump(pj, f_, default=float)
+print("SAVED lap", len(lap), "m, branches", {n_: len(b["p"]) for n_, b in branches.items()}, "z", round(zlo, 1), round(zhi, 1))
+
+# ---- 11. Pilot shots in the world as it is (sky, low sun), at craft height looking down the track.
+scene = bpy.context.scene
+w_ = bpy.data.worlds.new("Sky")
+w_.use_nodes = True
+sky = w_.node_tree.nodes.new("ShaderNodeTexSky")
+sky.sky_type = "NISHITA"
+SUN_ELEV, SUN_AZ = math.radians(25), math.radians(-35)
+sky.sun_elevation, sky.sun_rotation, sky.air_density, sky.dust_density, sky.sun_disc = SUN_ELEV, SUN_AZ + math.pi, 1.4, 3.0, False
+w_.node_tree.links.new(sky.outputs["Color"], w_.node_tree.nodes["Background"].inputs[0])
+w_.node_tree.nodes["Background"].inputs[1].default_value = 0.12
+scene.world = w_
+sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", "SUN"))
+sun.data.energy, sun.data.angle, sun.data.color = 3.6, math.radians(1.5), (1.0, 0.82, 0.62)
+sun.rotation_euler = (math.pi / 2 - SUN_ELEV, 0, SUN_AZ)
+scene.collection.objects.link(sun)
+scene.view_settings.look = "AgX - Punchy"
+scene.view_settings.exposure = -0.2
+scene.render.engine = "CYCLES"
+scene.cycles.device = "CPU"
+scene.cycles.samples = 16
+scene.cycles.use_denoising = True
+cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
+cam.data.clip_end = 60000
+scene.collection.objects.link(cam)
+scene.camera = cam
+scene.render.resolution_x, scene.render.resolution_y = 1600, 900
+
+
+def shot(name, p, i, up=5.0, ahead=160.0, lens=24, look_up=0.0):
+    j = min(len(p) - 1, i + int(ahead))
+    z0 = float(bilinear(H, p[i, 0], p[i, 1]))
+    z1 = float(bilinear(H, p[j, 0], p[j, 1]))
+    eye = Vector((p[i, 0] - hx, p[i, 1] - hy, z0 + up))
+    tgt = Vector((p[j, 0] - hx, p[j, 1] - hy, z1 + up * 0.6 + look_up))
+    cam.data.lens = lens
+    cam.location = eye
+    cam.rotation_euler = (tgt - eye).to_track_quat("-Z", "Y").to_euler()
+    scene.render.filepath = f"{WD}/gc_{name}.png"
+    bpy.ops.render.render(write_still=True)
+    print("SHOT", name)
+
+
+def near(p, x_, y_):
+    return int(np.argmin(np.hypot(p[:, 0] - x_, p[:, 1] - y_)))
+
+
+shot("piloto_spider_rock", lap, near(lap, spider[0] + 450, spider[1] + 60), ahead=420, lens=22, look_up=60)
+shot("piloto_arco", lap, near(lap, ax_, ay_) - 140, ahead=140, lens=26, look_up=6)
+shot("piloto_slalom", lap, near(lap, 9380, 1560), ahead=300, lens=24)
+dj = [j_ for j_ in LAPI["jumps"] if j_["at"][0] + hx > 9000 and 2950 < j_["at"][1] + hy < 4850]
+if dj:
+    shot("piloto_salto_duna", lap, dj[0]["s"] - 30, ahead=200, lens=22)
+bs = branches["B4_Escadaria"]
+sj = [j_ for j_ in bs["jumps"] if 2.0 < j_["drop_m"] < 6.0]
+if sj:
+    shot("piloto_escadaria", bs["p"], sj[len(sj) // 2]["s"] - 40, up=4.0, ahead=200, lens=24)
+shot("piloto_tunel_badlands", lap, near(lap, 8950, 5435) - 60, ahead=200, lens=24)
+shot("piloto_fendas_norte", lap, near(lap, 4950, 7180), ahead=220, lens=22, look_up=10)
+b2 = branches["B2_Fendas"]["p"]
+shot("piloto_fendas_b2", b2, len(b2) // 2, ahead=160, lens=22, look_up=10)
+# Aerial over the staircase and over Spider Rock with the lap passing.
+cam.data.lens = 30
+for name, (ex, ey, ez), (tx, ty) in (("aerea_escadaria", (8400, 5150, 380), (8700, 5800)),
+                                     ("aerea_spider_rock", (spider[0] + 700, spider[1] - 700, 420), (spider[0], spider[1] + 100))):
+    eye = Vector((ex - hx, ey - hy, float(bilinear(H, ex, ey)) + ez))
+    tgt = Vector((tx - hx, ty - hy, float(bilinear(H, tx, ty))))
+    cam.location = eye
+    cam.rotation_euler = (tgt - eye).to_track_quat("-Z", "Y").to_euler()
+    scene.render.filepath = f"{WD}/gc_{name}.png"
+    bpy.ops.render.render(write_still=True)
+    print("SHOT", name)
+
+# ---- 12. Overview in the style of render_world_3d.py (height colours, the lap orange, branches in their colours).
+bpy.ops.wm.read_factory_settings(use_empty=True)
+sc = bpy.context.scene
+C8 = 8.0
+s8 = int(round(C8 / CELL))
+Hm = H[::s8, ::s8]
+ny_, nx_ = Hm.shape
+xs_, ys_ = np.meshgrid(np.arange(nx_) * C8, np.arange(ny_) * C8)
+co = np.stack([xs_, ys_, Hm], -1).reshape(-1, 3).astype(np.float32)
+ii_ = np.arange(ny_ * nx_).reshape(ny_, nx_)
+quads = np.stack([ii_[:-1, :-1], ii_[:-1, 1:], ii_[1:, 1:], ii_[1:, :-1]], -1).reshape(-1, 4)
+ov = bpy.data.meshes.new("overview")
+ov.vertices.add(len(co))
+ov.vertices.foreach_set("co", co.ravel())
+ov.loops.add(quads.size)
+ov.loops.foreach_set("vertex_index", quads.ravel().astype(np.int32))
+ov.polygons.add(len(quads))
+ov.polygons.foreach_set("loop_start", (np.arange(len(quads)) * 4).astype(np.int32))
+ov.update(calc_edges=True)
+ov.shade_smooth()
+STOPS = [(-70, (0.55, 0.40, 0.28)), (0, (0.88, 0.68, 0.45)), (25, (0.86, 0.60, 0.38)), (60, (0.78, 0.42, 0.22)),
+         (150, (0.66, 0.30, 0.15)), (330, (0.84, 0.58, 0.40))]
+zs_ = np.array([t_[0] for t_ in STOPS], float)
+rgb = np.stack([np.interp(Hm.ravel(), zs_, [t_[1][c_] for t_ in STOPS]) for c_ in range(3)] + [np.ones(Hm.size)], -1)
+ca = ov.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+ca.data.foreach_set("color", rgb.astype(np.float32).ravel())
+m_ = bpy.data.materials.new("ground")
+m_.use_nodes = True
+at_ = m_.node_tree.nodes.new("ShaderNodeAttribute")
+at_.attribute_name = "Col"
+m_.node_tree.links.new(at_.outputs["Color"], m_.node_tree.nodes["Principled BSDF"].inputs["Base Color"])
+m_.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.9
+ov.materials.append(m_)
+sc.collection.objects.link(bpy.data.objects.new("overview", ov))
+
+
+def ribbon(name, p, colour, depth):
+    cu = bpy.data.curves.new(name, "CURVE")
+    cu.dimensions = "3D"
+    cu.bevel_depth = depth
+    sp_ = cu.splines.new("POLY")
+    q_ = p[::8]
+    sp_.points.add(len(q_) - 1)
+    zz = bilinear(H, q_[:, 0], q_[:, 1])
+    for k_, ((x_, y_), z_) in enumerate(zip(q_, zz)):
+        sp_.points[k_].co = (x_, y_, z_ + 6.0, 1.0)
+    cm = bpy.data.materials.new(name)
+    cm.use_nodes = True
+    em = cm.node_tree.nodes.new("ShaderNodeEmission")
+    em.inputs["Color"].default_value = (*colour, 1)
+    em.inputs["Strength"].default_value = 2.0
+    cm.node_tree.links.new(em.outputs[0], cm.node_tree.nodes["Material Output"].inputs[0])
+    cu.materials.append(cm)
+    sc.collection.objects.link(bpy.data.objects.new(name, cu))
+
+
+ribbon("lap", lap, (1.0, 0.35, 0.02), 10.0)
+for name, b in branches.items():
+    ribbon(name, b["p"], BRANCH_COLS[name], 7.0)
+sun2 = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN"))
+sun2.data.energy = 4.0
+sun2.rotation_euler = (math.radians(55), 0, math.radians(-135))
+sc.collection.objects.link(sun2)
+wd = bpy.data.worlds.new("w")
+wd.use_nodes = True
+wd.node_tree.nodes["Background"].inputs["Color"].default_value = (0.55, 0.68, 0.85, 1)
+wd.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.8
+sc.world = wd
+cam2 = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
+cam2.data.lens = 30
+cam2.data.clip_end = 100000
+sc.collection.objects.link(cam2)
+sc.camera = cam2
+sc.render.engine = "CYCLES"
+sc.cycles.device = "CPU"
+sc.cycles.samples = 24
+sc.render.resolution_x, sc.render.resolution_y = 1920, 1080
+sc.view_settings.view_transform = "Standard"
+for name, (loc, rot) in {"sul": ((5000, -5600, 5200), (62, 0, 0)), "sudoeste": ((-2600, -3600, 3200), (73, 0, -45)),
+                         "nordeste": ((12600, 11600, 3600), (70, 0, 135))}.items():
+    cam2.location = loc
+    cam2.rotation_euler = tuple(math.radians(v_) for v_ in rot)
+    sc.render.filepath = f"{WD}/gc_3d_{name}.png"
+    bpy.ops.render.render(write_still=True)
+    print("VIEW", name)
+print("GRAND CIRCUIT DONE")
