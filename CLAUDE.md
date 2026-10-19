@@ -96,7 +96,34 @@ Mapa de depuração (rocha, chão dos canyons, fendas, dunas, grelha de 500 m) p
 blender -b -P Scripts/debug_world_fields.py -- C:/rdd/mundo/world_fields.npz C:/rdd/mundo/canyon_field.json C:/rdd/mundo/dbg.png
 ```
 
-## CONTINUAR AQUI — estado em 2026-10-19 à noite (PC de casa)
+## CONTINUAR AQUI — o mundo já está no Unreal (2026-10-19, noite, PC de casa)
+
+- **Mapa `/Game/Maps/RedDustDivide`** (10 × 8 km a 3 m), feito por código. Passos, depois dos passos 1-4 e do circuito:
+  1. `blender -b -P Scripts/export_world_unreal.py -- C:/rdd/mundo` (altura em bruto, máscaras de superfície e de pista);
+  2. `python Scripts/download_polyhaven.py` (texturas e modelos CC0 do Poly Haven, ~130 MB, uma vez por PC);
+  3. `Scripts/import_world.py` no commandlet (kit, tetos dos túneis, máscaras, material `M_World` e `M_Beacon`);
+  4. no editor completo: `unreal.EXDesertBuilder.build_world_map("C:/rdd/mundo")`;
+  5. teste: `-game /Game/Maps/RedDustDivide -EXFlightTest -EXTestSpeed=100` (segue a rota `EXRoute`); fotos em
+     qualquer ponto com `-EXLook="x,y,z,yaw,pitch;..."` (metros do Unreal).
+- O jogador escolheu **Poly Haven/ambientCG (CC0)** para os materiais: "nível gaming realismo", não fotografia.
+- Pediu que **a pista se veja**: está pintada no chão (areia compactada mais escura) e há 292 balizas com luz
+  no exterior das curvas. Corre a ~55 fps na GTX 1650.
+- **Assets do Fab que ele tem (Licença Standard, comercial permitido)**, a descarregar no PC do trabalho em
+  qualidade média (2K) com Window → Fab → My Library → Add to Project:
+  - *Elite Landscapes: Desert III*: aproveitar **só o céu** (esfera, material, panorama, sombras das nuvens) e apagar
+    as paisagens de 8K **antes do commit** (são vários GB);
+  - Megascans *Desert Western Cliff Layered* (Large 03, XL 01, XL 14), *Formation Layered XL 05*, *Rock* (Cluster
+    Large 04, Ledge Medium 05, Medium 08, Pile Small 01), *Patch Ground Slate Small 01*, *Rock Sandstone*,
+    *Large Fallen Tree*, *Old Tree Branch* (os *Quarry Cliff* e o *African Slate Quarry* são cinzentos: pouco úteis);
+  - *Monument Valley–Style Desert Rock Tower 01 e 02* (Artemus Blay): torres-marco do Monument Valley.
+  Integrar: falésias nas paredes dos canyons, torres no Monument Valley, pedras nos taludes, troncos nos canyons
+  verdes. Reduzir texturas a 2K antes do commit (o GitHub não aceita ficheiros > 100 MB e não há LFS).
+- **Pedido novo do jogador:** o deserto (mar de dunas) não convence. **Ampliá-lo** e deixar **estruturas de canyon
+  soterradas na areia** (mesas e paredes meio enterradas a sair das dunas), sem tocar no mapa aprovado nem no circuito.
+- Ainda por fazer: o piloto automático do teste escorrega nas dunas e fica preso à saída do túnel A7 (corredor de
+  ~18 m), não é defeito do mapa.
+
+## Estado anterior — 2026-10-19 à noite (PC de casa), antes do Unreal
 
 - PC de casa: 16 GB de RAM, por isso os passos 3 e 4 foram feitos a **3 m** (regra da secção 0). No Blender 5.2 o
   céu `NISHITA` chama-se `MULTIPLE_SCATTERING` e `dust_density` chama-se `aerosol_density` (os scripts já tratam
