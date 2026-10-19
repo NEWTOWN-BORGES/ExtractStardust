@@ -406,9 +406,11 @@ ax_, ay_ = arch["x"] + hx, arch["y"] + hy
 ad = (-math.sin(math.radians(arch["yaw"])), math.cos(math.radians(arch["yaw"])))
 if ad[1] > 0:  # the lap runs south through it
     ad = (-ad[0], -ad[1])
-arch_in = (ax_ - ad[0] * 100.0, ay_ - ad[1] * 100.0, "S")
+# The arch stands at the apex of a meander, so the straight is kept short (40 m each side): the turn spreads out
+# before and after it instead of folding into a hairpin where the straight ends.
+arch_in = (ax_ - ad[0] * 40.0, ay_ - ad[1] * 40.0, "S")
 arch_mid = (ax_, ay_, "S")
-arch_out = (ax_ + ad[0] * 100.0, ay_ + ad[1] * 100.0)
+arch_out = (ax_ + ad[0] * 40.0, ay_ + ad[1] * 40.0)
 A_start = tuple(A_line[0])
 # Spider Rock: the lap passes 160 m south of the twin towers, where Monument canyon opens into Chinle (the crevices
 # branch leaves there, down Monument canyon).
@@ -438,14 +440,16 @@ def chinle(start, end):
 # "route": A* between waypoints (steering points snap to open floor), then a high-speed line kept off the walls;
 # "spline": a designed line through the waypoints, left as drawn (no centring).
 north_loop = [(6080.0, 6950.0), (5900.0, 7060.0), (5350.0, 7020.0), (4950.0, 7180.0), (4600.0, 7450.0), (4250.0, 7350.0),
-              (4080.0, 7020.0), (3990.0, 6600.0)]
+              (4060.0, 7030.0), (3990.0, 6600.0)]
 # Hoodoo slalom: a wide S between the towers (bends of 250 m and more), passing each one 60-130 m away.
-slalom = [(8800.0, 1565.0), (9150.0, 1490.0), (9380.0, 1560.0), (9480.0, 1760.0), (9720.0, 2010.0), (9580.0, 2330.0),
+slalom = [(8800.0, 1565.0), (9150.0, 1490.0), (9380.0, 1560.0), (9480.0, 1760.0), (9720.0, 2010.0), (9568.0, 2330.0),
           (9650.0, 2560.0), (9600.0, 2950.0)]
 # Mittens loop: off Muerto's floor to the west, round the Mittens clockwise, back north up the east side of Muerto's
 # floor (clear of the way down) and straight into the narrow A_west canyon, east along it to the start of wash A.
+# A_west is a dead-straight canyon along y = 1500 (x 1153-2000) whose floor is narrower than the router's wall band,
+# so the router would cut through the mesa beside it: the lap runs straight down its axis to the start of wash A.
 mittens = [(520.0, 1180.0), (180.0, 980.0), (160.0, 620.0), (380.0, 280.0), (800.0, 220.0), (960.0, 470.0), (1150.0, 820.0),
-           (1220.0, 1200.0), (1200.0, 1440.0)] + along_line("A_west", (1250, 1500), (2000, 1500), 300.0)[:-1] + [A_start]
+           (1220.0, 1200.0), (1200.0, 1440.0), (1260.0, 1500.0, "S"), A_start]
 SECTIONS = [
     ("Hoodoos", [None] + slalom, 16.0, 10.0, 150.0, "spline"),
     ("Dunas", [None, (9380.0, 3500.0), (9330.0, 4300.0), (9300.0, 4850.0)], 20.0, 12.0, 200.0, "route"),
@@ -494,7 +498,7 @@ lap_rmin, lap_w, lap_wmin, lap_sec, nocentre = [np.concatenate(c_) for c_ in zip
 fixed = lap_sec < 0
 # Arch: the straight through it stays where it is and narrows to its opening.
 d_arch = np.hypot(lap[:, 0] - ax_, lap[:, 1] - ay_)
-fixed |= d_arch < 45.0
+fixed |= d_arch < 25.0
 lap_w = np.where(d_arch < 40.0, 10.0, lap_w)
 lap_wmin = np.where(d_arch < 40.0, 9.0, lap_wmin)
 # High speed line over the whole lap (the core part and the arch stay put), then keep off the walls.
@@ -589,8 +593,10 @@ def analyse(p, w, wmin, kind, skip=None):
         for sgn in (-1.0, 1.0):
             ex, ey = p[:, 0] + nx_ * sgn * wi, p[:, 1] + ny_ * sgn * wi
             pinch |= rock[np.clip((ey / CELL).astype(int), 0, NY - 1), np.clip((ex / CELL).astype(int), 0, NX - 1)]
-        pinch &= ~tun & ~sk
-    return dict(p=p, w=wi, tun=tun, pinch=pinch, bed=bed)
+        # The 25 m outside every portal is cut down to the tunnel floor (carve), so rock there is not a pinch.
+        near_tunnel = np.convolve(tun.astype(float), np.ones(51), "same") > 0.0
+        pinch &= ~near_tunnel & ~sk
+    return dict(p=p, w=wi, tun=tun, pinch=pinch, bed=bed, free=np.minimum(left, right))
 
 
 def runs(mask, minlen=1):
@@ -690,7 +696,10 @@ def tight_spots(p, skip=None, under=120.0):
 
 core_tunnels = [t_ for t_ in world["tunnels"] if t_["wash"] in ("A", "D")]
 print("TIGHT lap", tight_spots(lap, skip_core))
-print("PINCH lap", [(int(lap[s0, 0]), int(lap[s0, 1]), s1 - s0) for s0, s1 in runs(LAPI["pinch"], 4)])
+# (x, y, length m, how far the rock reaches into the floor m, section)
+print("PINCH lap", [(int(lap[s0, 0]), int(lap[s0, 1]), s1 - s0, round(float(LAPI["w"][s0:s1].max() - LAPI["free"][s0:s1].min()), 1),
+                     SECTIONS[int(lap_sec[s0])][0] if lap_sec[s0] >= 0 else "core") for s0, s1 in runs(LAPI["pinch"], 4)])
+print("ARCH", round(ax_), round(ay_), "yaw", arch["yaw"], "scale", arch["scale"])
 for name, b in branches.items():
     print("TIGHT", name, tight_spots(b["p"], under=b["rmin"] * 0.8), "PINCH", [(int(b["p"][s0, 0]), int(b["p"][s0, 1]), s1 - s0) for s0, s1 in runs(b["pinch"], 4)])
 print("LAP LENGTH", len(lap), "m  core", core_n, "m")
