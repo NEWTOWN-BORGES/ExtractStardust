@@ -210,3 +210,31 @@ de drift. Ficou:
 - Afinar os toques nas paredes (contar e evitar só os de falésias a sério).
 - Versão de vales (circuito desenhado primeiro) guardada como alternativa nas notas desta sessão; pode
   voltar para troços específicos.
+
+## 12. Mundo de 10 × 8 km: `Scripts/sculpt_expansion.py`
+
+O mapa aprovado (7 × 5 km) **fica exatamente como está** no centro-sul; o mundo cresce à volta dele:
+
+```
+blender -b <core>/canyon_field.blend -P Scripts/sculpt_expansion.py -- <core> <saida> <pasta_fbx_kit> <pasta_fbx_plantas> [seed]
+```
+
+(plantas: `Scripts/sculpt_plants.py`; o kit: `Scripts/sculpt_rock_kit.py`). ~40 min a 4 m neste PC.
+
+- **Oeste (2 km) e norte (3 km): canyons gigantes** (Canyon de Chelly / Monument Valley). Nascem do mapa atual:
+  junto a ele as mesas têm o tamanho de agora; mais longe crescem até um planalto de 230–310 m. Canyons
+  principais com meandros: **Chinle** (todo o norte) e **Muerto** (oeste); os washes A e B do circuito e o
+  afluente H continuam até eles (pouco fundos à saída do mapa, 300 m mais dentro — como em de Chelly: 9 m na
+  boca, >300 m dentro). Fundos verdes, rio barrento, choupos e salgueiros; zimbros e mato no planalto.
+- **Fendas**: rede ramificada de canyons laterais que corta o planalto em blocos; ramos principais de 20–60 m
+  (conduz-se a alta velocidade), ramos finos de 6–12 m (slot canyons). Fundos limpos de detritos e de pedras.
+- **Chão ondulado**: ondulações grandes (20–35 m em ~1 km), médias e pequenas, com trechos retos.
+- **Marcos um a um**: Spider Rock (agulhas de 240 e 200 m na confluência Monument/Chinle) e mais agulhas;
+  buttes de Monument Valley numa planície a sudoeste; 3 mesas de badlands com saias de ravinas entre as dunas e
+  o planalto (nordeste); arco duplo gigante e uma lâmina enorme (kit em escala); alcovas nas paredes.
+- **Leste (1 km)**: o mar de dunas continua (espelho do último km, cristas alinhadas) e acaba numa planície
+  de cascalho com pedras escuras de basalto e um grupo de torres de rocha.
+- Costura com o mapa atual em espelho distorcido, que se transforma no terreno novo em ~300 m.
+- Saídas: `world_height16.png`, `world.blend`, `canyon_field.json` (tudo em coordenadas do mundo, com os
+  canyons gigantes na rede e a lista de marcos), `props.json` (~19 mil peças: núcleo + expansão).
+- Referências: Spider Rock ~230–245 m; paredes de 9 m na boca a >300 m (NHMU, MiraCosta, montagna.tv).
