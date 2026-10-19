@@ -79,3 +79,34 @@ as nossas medições com a tabela acima (meta: falésia 70°+ ≥ 10 %, plano 30
 
 Os `.blend` (1K, ~330 MB no total) **não vão para o repositório**. Para voltar a baixar: abrir os links da
 tabela com o add-on BlendKit no Blender, ou pedir ao Claude para os baixar pela API pública (grátis, sem login).
+
+## 5. Protótipo: `Scripts/sculpt_canyon_field.py` (2026-10-19)
+
+Primeiro gerador com a receita da secção 3, independente da pipeline atual (não mexe no mapa nem no Unreal).
+Gera um campo de mesas de **2 × 2 km** (1024 × 1024 amostras a 2 m, o mesmo espaçamento do `FEXDesertTerrain`)
+em ~1,5 min no PC do trabalho:
+
+```
+blender -b -P Scripts/sculpt_canyon_field.py -- <pasta_saida> [seed] [amostras]
+```
+
+Saídas: heightmap 16 bits (importação de Landscape no Unreal), máscara (R inclinação, G detritos, B camada),
+`.blend` com a malha colorida e duas imagens (vista alta e vista do piloto a 4 m do chão).
+
+O que faz: campo de massa rochosa com domain warp (contornos recortados), juntas que partem as mesas em
+blocos, caneluras com profundidade variável, bancadas da Kayenta, parede de Navajo em dois andares onde há
+recuo, borda arredondada, topos com fendas, detritos a 33° com pedregulhos, cores por camada (estratos,
+banda clara sob a borda, verniz escuro, manchas de slickrock no chão) e céu físico com sol baixo.
+
+Medições (seed 7, 2 km), comparadas com o Canyon Desert Landscape:
+
+| | Plano | Suave | Detritos | Íngreme | Falésia 70°+ |
+|---|---|---|---|---|---|
+| BlendKit | 32 | 30 | 14 | 12 | 12 |
+| Protótipo | 46 | 19 | 21 | 4 | **10** |
+
+O chão fica de propósito mais plano do que a referência: é onde se corre a 450 km/h.
+
+Próximos passos: importar o heightmap no Unreal como Landscape e voar por ele; material do Unreal a ler a
+máscara (o detalhe fino de estratos e verniz vai para a textura, não para a cor por vértice); encaixar a rota
+do S01 (bacia de largada aberta, butte-ilha na bifurcação) definindo zonas obrigatórias no campo de rocha.
