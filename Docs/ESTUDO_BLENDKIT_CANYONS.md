@@ -188,10 +188,25 @@ sair com `-- <saida> 7 1024`.
 Resultado (seed 7, 4 m): volta de **18,6 km**, 18 túneis, 4 938 esculturas colocadas (3 755 pedras, 584 blocos
 gigantes, 66 mega, 33 meio enterradas, 500 troncos), ~35 min neste PC.
 
-## 10. Pendente (pedido do jogador): circuitos para mais de 450 km/h
+## 10. Circuito misturado (escolha do jogador) e mesas de alturas variadas
 
-Ajustar o traçado aos números do plano S01: curvas médias com raio de 210–440 m e mega arcos de 875–2100 m,
-largura principal 22–38 m e gargalos de 11–19 m (hoje o A* suavizado deixa curvas apertadas e o wash
-estreita até 16 m). Reduzir também os toques nas paredes (cortes) no mapa grande: 22 no seed 7 (6–26 m, um de 57 m no wash A).
-Outros ajustes vistos nas imagens: dunas com pouco relevo à vista (subir cristas e espaçamento, ex. 30–50 m a
-400–500 m), e tetos dos túneis com degraus vistos de cima (mais resolução na malha do teto).
+Testámos um circuito todo desenhado primeiro (curvas ≥ 250 m, vales abertos à volta): bom para 450 km/h mas
+perdia o carácter. O jogador escolheu **misturar**: as naves vão a 450 km/h, mas não sempre; tem de haver curvas
+de drift. Ficou:
+
+- **O circuito sinuoso de antes** (washes A, B, C e o laço D nas dunas), com curvas de drift (raio mínimo
+  suavizado a ~100 m, sem cotovelos impossíveis) e larguras de 32–36 m (mínimo 22 m).
+- **Duas retas pela montanha**: no wash A a sul (atravessa a mesa em túnel) e a diagonal **R**, do wash M
+  até ao B. Nos waypoints, `"S"` marca o início de um troço a direito, que passa pelo que estiver à frente.
+- **Mesas de alturas variadas**: mesas baixas (10–20 m), médias e torres até ~90 m; topos inclinados
+  (cuestas) que descem até ao chão como rampas (subir e saltar na borda); topos em patamares com escarpas de
+  ~10 m (saltos de topo em topo); topos mais lisos para andar livre por cima. Túneis só com ≥ 20 m de rocha.
+- Resultado (seed 7, 4 m): volta de 17,6 km, 27 túneis. Toques nas paredes: 52 contados, mas muitos são agora
+  bordas de mesas baixas (rampas) — afinar a contagem para só contar falésias (> 10 m).
+- `Scripts/render_ships.py`: fotos de escala com a nave STRIX (6,4 m) — topo, perseguição, lateral, salto.
+
+## 11. Pendente
+
+- Afinar os toques nas paredes (contar e evitar só os de falésias a sério).
+- Versão de vales (circuito desenhado primeiro) guardada como alternativa nas notas desta sessão; pode
+  voltar para troços específicos.

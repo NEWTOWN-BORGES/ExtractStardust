@@ -102,7 +102,15 @@ q = lambda p: float(np.quantile(F[canyon_zone], p))
 #  Kayenta: two soft ledges (benches). Navajo wall: hard and near-vertical, split in two tiers where an upper
 #  tier is set back (a mid-wall ledge, only in some places), with a rounded rim. Navajo dome: rounded tops.
 rim = 1.0 + 0.2 * fbm(XM, YM, 60, 2)  # each block of wall tops out at its own height: ragged rim
-wall_h = 38.0 * rim
+# Mesa heights vary across the map, for riding over the tops as well as round them:
+#  - tilt: a slow swell of the strata, so some mesa tops lean (cuestas): one side runs down to the floor as a gentle
+#    ramp (8-10 deg), the other ends in the cliff: ride up the dip slope and jump off the edge;
+#  - steps: the tops break into levels with ~10 m escarpments between them: jumps from one top down to the next;
+#  - the rest gives low mesas (10-20 m), mid ones and a few towers up to ~90 m.
+tilt = np.clip(0.5 + 1.3 * fbm(XM + 1234.0, YM - 777.0, 1100, 2), 0.0, 1.0)
+steps = np.floor(np.clip(0.5 + 1.2 * fbm(XM - 321.0, YM + 456.0, 500, 2), 0.0, 0.999) * 4.0) / 3.0
+tier = 1.5 * tilt ** 1.3 + 0.8 * steps
+wall_h = 38.0 * rim * tier
 wall_at = q(0.55)
 setback = 0.035 * np.clip(fbm(XM + 71, YM + 13, 170, 2) * 2.0, 0.0, 1.0)  # 0 where the wall is one sheer face
 layers = [
@@ -111,7 +119,7 @@ layers = [
     ("navajo_wall", wall_at, 0.005, 0.55 * wall_h),
     ("navajo_upper", wall_at + setback, 0.005, 0.32 * wall_h),
     ("navajo_rim", wall_at + setback + 0.014, 0.016, 0.13 * wall_h),
-    ("navajo_dome", q(0.86), 0.060, 14.0),
+    ("navajo_dome", q(0.86), 0.060, 14.0 * np.minimum(tier, 1.5)),
 ]
 # Floor: broad swells, hummocks and small slickrock humps.
 floor = 5.0 * fbm(XM, YM, 320, 3) + 2.2 * fbm(XM, YM, 60, 2) + 0.9 * fbm(XM, YM, 14, 2)
@@ -122,8 +130,8 @@ for i, (name, level, width, height) in enumerate(layers):
     rock += height * s
     layer_id = np.where(s > 0.5, i + 1, layer_id)
 tops = smoothstep(q(0.58), q(0.64), F)
-rock += 2.0 * fbm(XM, YM, 36, 3) * tops  # lumpy mesa tops
-rock -= 2.6 * (1.0 - np.abs(fbm(XM, YM, 28, 2))) ** 10 * tops  # weathered crack network on the tops
+rock += 1.2 * fbm(XM, YM, 36, 3) * tops  # gently lumpy mesa tops: free riding up there
+rock -= 1.0 * (1.0 - np.abs(fbm(XM, YM, 28, 2))) ** 10 * tops  # shallow weathered crack network on the tops
 
 # ---- 2b. Drainage network (the race lines), after the BlendKit "Drainage Ditch" scaled up: dry washes with a
 # flat gravel floor; on the outside of each bend the water cuts a high, steep bank in ledges (cut bank), on the
@@ -157,11 +165,19 @@ def grow(mask, r):
     return out
 
 
-band_r = grow(mesa_r, 3) & grow(~mesa_r, 3)  # cells within ~24 m of a mesa outline, inside or out
-route_cost = (1.0 + 1.5 * mesa_r + 9.0 * band_r).ravel().tolist()
+_costs = {}
 
 
-def astar(a, b):
+def cost_for(r):
+    """Router cost with a wall band of r cells on both sides of every mesa outline: a wash keeps that far off the
+    walls, so a passage narrower than the wash needs is avoided (or the mesa crossed straight, in a tunnel)."""
+    if r not in _costs:
+        band_r = grow(mesa_r, r) & grow(~mesa_r, r)
+        _costs[r] = (1.0 + 1.5 * mesa_r + 12.0 * band_r).ravel().tolist()
+    return _costs[r]
+
+
+def astar(a, b, route_cost):
     """Cheapest 8-connected path between router cells a and b (row, col)."""
     s, g = a[0] * NRX + a[1], b[0] * NRX + b[1]
     best = [math.inf] * (NRY * NRX)
@@ -196,7 +212,7 @@ def to_cell(xm, ym):
     return (int(np.clip(ym / (RG * CELL), 0, NRY - 1)), int(np.clip(xm / (RG * CELL), 0, NRX - 1)))
 
 
-def snap_to_floor(cell, reach=20):
+def snap_to_floor(cell, route_cost, reach=20):
     """Moves an inner waypoint that falls on a mesa or its wall band to the nearest open floor cell."""
     i, j = cell
     if route_cost[i * NRX + j] <= 1.0:
@@ -223,6 +239,38 @@ def free_sides(p, nx_, ny_, w):
     return out[0], out[1]
 
 
+def curvature(p, window=31):
+    """Signed curvature (1/m) along a polyline sampled every metre, measured on a lightly smoothed copy."""
+    q_ = np.stack([smooth1d(p[:, 0], window), smooth1d(p[:, 1], window)], 1)
+    dx_, dy_ = np.gradient(q_[:, 0]), np.gradient(q_[:, 1])
+    ddx_, ddy_ = np.gradient(dx_), np.gradient(dy_)
+    return (dx_ * ddy_ - dy_ * ddx_) / (np.hypot(dx_, dy_) ** 3 + 1e-9)
+
+
+def relax(p, rmin, iters=80, reach=30):
+    """High-speed line: every bend tighter than rmin is opened up a little each pass, its points pulled towards
+    the chord between the points reach m before and after. The ends (junctions) stay where they are."""
+    kmax = 1.0 / rmin
+    a0, a1 = p[0].copy(), p[-1].copy()
+    for _ in range(iters):
+        k_ = curvature(p)
+        bad = np.abs(k_) > kmax
+        bad[:reach] = False
+        bad[-reach:] = False
+        if not bad.any():
+            break
+        ii = np.arange(len(p))
+        mid = 0.5 * (p[np.clip(ii - reach, 0, len(p) - 1)] + p[np.clip(ii + reach, 0, len(p) - 1)])
+        wgt = (np.clip(np.abs(k_) / kmax - 1.0, 0.0, 1.0) * bad)[:, None]
+        p = p + 0.4 * wgt * (mid - p)
+        p = np.stack([smooth1d(p[:, 0], 5), smooth1d(p[:, 1], 5)], 1)
+        p[0], p[-1] = a0, a1
+        p = resample(p)
+        if np.hypot(*(p[-1] - a1)) > 0.01:  # resampling drops the last partial metre: keep the exact end
+            p = np.vstack([p, a1[None]])
+    return p
+
+
 def resample(pts, step=1.0):
     seg = np.hypot(*np.diff(pts, axis=0).T)
     s_ = np.concatenate([[0.0], np.cumsum(seg)])
@@ -230,35 +278,42 @@ def resample(pts, step=1.0):
     return np.stack([np.interp(t_, s_, pts[:, 0]), np.interp(t_, s_, pts[:, 1])], 1)
 
 
-# name: (waypoints, half width of the floor m, depth m). A waypoint is a tile fraction (x, y) or a junction
+# name: (waypoints, half width of the floor m, depth m, narrowest half width m, tightest bend radius m).
+# Lap washes are built for 450+ km/h (plan S01: main route 22-38 m wide, bends of 210-440 m and mega arcs beyond);
+# side washes may be tighter. A waypoint is a map fraction (x, y) or a junction
 # ("A", x, y): the point of an already routed wash nearest to (x, y). Inner waypoints only steer the route.
+# A waypoint ending in "S" starts a straight: the next segment runs dead straight to the following waypoint, through
+# the mountain if one is in the way (a tunnel where there is rock over it), instead of being routed round.
 # Depth 0 marks a surface route: driven over the ground as it is (the dune loop), never carved.
 if CANYON_X >= SX:  # the 2 x 2 km canyon tile
     NETWORK = {
-        "A": ([(0.0, 0.33), (0.2, 0.30), (0.4, 0.38), (0.6, 0.31), (0.8, 0.37), (1.0, 0.33)], 15.0, 4.0),
-        "B": ([(0.0, 0.70), (0.25, 0.74), (0.5, 0.66), (0.75, 0.72), (1.0, 0.68)], 13.0, 3.5),
-        "C": ([("A", 0.2, 0.30), (0.16, 0.44), (0.23, 0.58), ("B", 0.25, 0.74)], 12.0, 3.5),
-        "D": ([("A", 0.8, 0.37), (0.87, 0.5), (0.81, 0.61), ("B", 0.75, 0.72)], 16.0, 1.0),
-        "E": ([("A", 0.4, 0.38), (0.48, 0.47), ("A", 0.6, 0.31)], 10.0, 3.0),
-        "G": ([(0.66, 0.0), (0.68, 0.15), ("A", 0.70, 0.34)], 8.0, 2.5),
-        "H": ([(0.42, 1.0), (0.43, 0.85), ("B", 0.38, 0.70)], 8.0, 2.5),
+        "A": ([(0.0, 0.33), (0.2, 0.30), (0.4, 0.38), (0.6, 0.31), (0.8, 0.37), (1.0, 0.33)], 18.0, 4.0, 11.0, 100.0),
+        "B": ([(0.0, 0.70), (0.25, 0.74), (0.5, 0.66), (0.75, 0.72), (1.0, 0.68)], 17.0, 3.5, 11.0, 100.0),
+        "C": ([("A", 0.2, 0.30), (0.16, 0.44), (0.23, 0.58), ("B", 0.25, 0.74)], 16.0, 3.5, 11.0, 100.0),
+        "D": ([("A", 0.8, 0.37), (0.87, 0.5), (0.81, 0.61), ("B", 0.75, 0.72)], 18.0, 1.0, 11.0, 100.0),
+        "E": ([("A", 0.4, 0.38), (0.48, 0.47), ("A", 0.6, 0.31)], 13.0, 3.0, 8.0, 120.0),
+        "G": ([(0.66, 0.0), (0.68, 0.15), ("A", 0.70, 0.34)], 9.0, 2.5, 8.0, 100.0),
+        "H": ([(0.42, 1.0), (0.43, 0.85), ("B", 0.38, 0.70)], 9.0, 2.5, 8.0, 100.0),
     }
     DUNE_LEGS = []
 else:  # canyon on the west, sand sea on the east: the lap leaves the canyon for a loop over the dunes
     cx = CANYON_X / SX  # canyon edge as a fraction of the map width
     DUNE_LEGS = [0.31, 0.72]  # interdune corridors (fractions of the height) the lap follows east and back west
     NETWORK = {
-        "A": ([(0.0, 0.30), (0.12, 0.27), (0.25, 0.34), (0.38, 0.28), (0.52, 0.33), (cx - 0.07, 0.30), (cx, 0.31)], 15.0, 4.0),
-        "B": ([(0.0, 0.72), (0.12, 0.76), (0.25, 0.68), (0.38, 0.74), (0.52, 0.70), (cx - 0.07, 0.73), (cx, 0.72)], 13.0, 3.5),
-        "C": ([("A", 0.10, 0.28), (0.08, 0.42), (0.11, 0.58), ("B", 0.10, 0.75)], 12.0, 3.5),
-        "M": ([("C", 0.09, 0.50), (0.2, 0.52), (0.33, 0.47), (0.46, 0.53), (0.58, 0.49), (cx - 0.04, 0.52)], 11.0, 3.0),
-        "K": ([("M", 0.58, 0.49), (0.60, 0.40), ("A", 0.60, 0.32)], 10.0, 3.0),
-        "E": ([("A", 0.25, 0.34), (0.31, 0.41), ("A", 0.38, 0.28)], 10.0, 3.0),
-        "F": ([("B", 0.38, 0.74), (0.45, 0.63), ("B", 0.52, 0.70)], 10.0, 3.0),
-        "G": ([(0.45, 0.0), (0.46, 0.12), ("A", 0.47, 0.30)], 8.0, 2.5),
-        "H": ([(0.18, 1.0), (0.19, 0.88), ("B", 0.19, 0.74)], 8.0, 2.5),
+        # Lap washes wind between the mesas with drift bends (radius 100 m and up); A has a straight through the
+        # mountain in the south, and R is a long diagonal straight through the mountain from M up to B.
+        "A": ([(0.0, 0.30), (0.12, 0.27), (0.25, 0.34), (0.34, 0.31, "S"), (0.48, 0.30), (0.52, 0.33), (cx - 0.07, 0.30), (cx, 0.31)], 18.0, 4.0, 11.0, 100.0),
+        "B": ([(0.0, 0.72), (0.12, 0.76), (0.25, 0.68), (0.38, 0.74), (0.52, 0.70), (cx - 0.07, 0.73), (cx, 0.72)], 17.0, 3.5, 11.0, 100.0),
+        "C": ([("A", 0.10, 0.28), (0.08, 0.42), (0.11, 0.58), ("B", 0.10, 0.75)], 16.0, 3.5, 11.0, 100.0),
+        "M": ([("C", 0.09, 0.50), (0.2, 0.52), (0.33, 0.47), (0.46, 0.53), (0.58, 0.49), (cx - 0.04, 0.52)], 15.0, 3.0, 9.0, 100.0),
+        "R": ([("M", 0.36, 0.48, "S"), ("B", 0.56, 0.70)], 15.0, 3.5, 11.0, 100.0),
+        "K": ([("M", 0.58, 0.49), (0.60, 0.40), ("A", 0.60, 0.32)], 14.0, 3.0, 9.0, 80.0),
+        "E": ([("A", 0.25, 0.34), (0.31, 0.41), ("A", 0.38, 0.28)], 13.0, 3.0, 8.0, 80.0),
+        "F": ([("B", 0.38, 0.74), (0.45, 0.63), ("B", 0.52, 0.70)], 13.0, 3.0, 8.0, 80.0),
+        "G": ([(0.45, 0.0), (0.46, 0.12), ("A", 0.47, 0.30)], 9.0, 2.5, 8.0, 60.0),
+        "H": ([(0.18, 1.0), (0.19, 0.88), ("B", 0.19, 0.74)], 9.0, 2.5, 8.0, 60.0),
         "D": ([("A", cx, 0.31), (cx + 0.09, 0.31), (0.93, 0.31), (0.94, 0.45), (0.94, 0.60), (0.93, 0.72),
-               (cx + 0.09, 0.72), ("B", cx, 0.72)], 15.0, 0.0),
+               (cx + 0.09, 0.72), ("B", cx, 0.72)], 20.0, 0.0, 11.0, 300.0),
     }
 # The washes never cut the mesas: where a wash runs through one it goes in a tunnel and the mesa stays whole
 # above it. Tunnels shorter than TUNNEL_MIN m are not worth a roof.
@@ -267,8 +322,10 @@ rock_pre = rock.copy()
 layer_pre = layer_id.copy()
 curves = {}
 junctions = {}  # (wash, other wash, waypoint index) -> index on the other wash
-for name, (wps, w, d) in NETWORK.items():
+for name, (wps, w, d, wmin, rmin) in NETWORK.items():
+    rcost = cost_for(int(math.ceil((wmin + 12.0) / (RG * CELL))))
     cells = []
+    straight = [isinstance(wp[-1], str) and wp[-1] == "S" for wp in wps]
     for k_, wp in enumerate(wps):
         if isinstance(wp[0], str):
             other = curves[wp[0]]["p"]
@@ -277,10 +334,15 @@ for name, (wps, w, d) in NETWORK.items():
             cells.append(to_cell(*other[ji]))
         else:
             c_ = to_cell(min(wp[0], 0.999) * SX, min(wp[1], 0.999) * SY)
-            cells.append(c_ if k_ in (0, len(wps) - 1) else snap_to_floor(c_))
+            fixed = k_ in (0, len(wps) - 1) or straight[k_] or (k_ > 0 and straight[k_ - 1])
+            cells.append(c_ if fixed else snap_to_floor(c_, rcost))
     path = []
-    for a_, b_ in zip(cells, cells[1:]):
-        seg_ = astar(a_, b_)
+    for k_, (a_, b_) in enumerate(zip(cells, cells[1:])):
+        if straight[k_]:  # dead straight, through whatever is in the way
+            n_ = max(abs(b_[0] - a_[0]), abs(b_[1] - a_[1])) + 1
+            seg_ = [(int(round(a_[0] + (b_[0] - a_[0]) * t_)), int(round(a_[1] + (b_[1] - a_[1]) * t_))) for t_ in np.linspace(0, 1, n_)]
+        else:
+            seg_ = astar(a_, b_, rcost)
         path += seg_ if not path else seg_[1:]
     pts = (np.array(path, np.float64)[:, ::-1] + 0.5) * RG * CELL
     for wp_i in (0, -1):  # junction ends land exactly on the other wash
@@ -290,6 +352,7 @@ for name, (wps, w, d) in NETWORK.items():
     for _ in range(2):  # smooth the 8 m staircase into a flowing line
         pts = np.stack([smooth1d(pts[:, 0], 9), smooth1d(pts[:, 1], 9)], 1)
     p = resample(pts)
+    p = relax(p, rmin)  # no bend tighter than this wash allows
     # Keep off the walls: like water, the wash centres itself in the passage between mesas (ends stay put).
     for _ in range(12):
         ddx_, ddy_ = np.gradient(p[:, 0]), np.gradient(p[:, 1])
@@ -297,11 +360,12 @@ for name, (wps, w, d) in NETWORK.items():
         nx_, ny_ = -ddy_ / sp_, ddx_ / sp_
         left, right = free_sides(p, nx_, ny_, w)
         reach = w + 8.0
-        push = np.clip((left - right) / 2.0, -2.0, 2.0) * ((left > 0) & (right > 0)) * ((left < reach) | (right < reach))
+        push = np.clip((left - right) / 2.0, -1.5, 1.5) * ((left > 0) & (right > 0)) * ((left < reach) | (right < reach))
         push[:5] = push[-5:] = 0.0
         p = p + np.stack([nx_ * push, ny_ * push], 1)
         p = np.stack([smooth1d(p[:, 0], 7), smooth1d(p[:, 1], 7)], 1)
     p = resample(p)
+    p = relax(p, rmin, iters=30)  # centring may have tightened a bend again
     dx, dy = np.gradient(p[:, 0]), np.gradient(p[:, 1])
     ddx, ddy = np.gradient(dx), np.gradient(dy)
     speed = np.hypot(dx, dy) + 1e-9
@@ -317,7 +381,7 @@ for name, (wps, w, d) in NETWORK.items():
     for off in (-(w + 4.0), 0.0, w + 4.0):
         ei = np.clip(np.round((p[:, 1] + ny * off) / CELL).astype(int), 0, NY - 1)
         ej = np.clip(np.round((p[:, 0] + nx * off) / CELL).astype(int), 0, NX - 1)
-        m = layer_pre[ei, ej] >= 3
+        m = (layer_pre[ei, ej] >= 3) & (rock_pre[ei, ej] - bed_c > 20.0)  # a tunnel needs 20 m of rock overhead
         inside_all &= m
         inside_any |= m
     tun = np.zeros(len(p), bool)
@@ -329,7 +393,7 @@ for name, (wps, w, d) in NETWORK.items():
     # the walls; only where even that does not fit is the wall cut (a subtle slot cut).
     left, right = free_sides(p, nx, ny, w)
     wi = np.where((left > 0) & (right > 0), np.minimum(left, right) - 1.5, w)
-    wi = np.clip(np.minimum(wi, smooth1d(wi, 31)), 8.0, w)
+    wi = np.clip(np.minimum(wi, smooth1d(wi, 31)), wmin, w)
     wi = np.where(tun, w, wi)
     cut = np.zeros(len(p), bool)
     for off in (-1.0, 1.0):
@@ -340,7 +404,7 @@ for name, (wps, w, d) in NETWORK.items():
     if d <= 0.0:  # surface route: nothing carved, no tunnels or cuts
         tun[:], cut[:], wi = False, False, np.full(len(p), w)
     curves[name] = dict(p=p, t=np.stack([dx, dy], 1) / speed[:, None], k=smooth1d(k, 31), bed=bed_c, w=wi, w0=w, d=d,
-                        tun=tun, cut=cut)
+                        tun=tun, cut=cut, wmin=wmin, rmin=rmin)
 carve = [c for c in curves.values() if c["d"] > 0.0]  # the washes that shape the ground
 Px = np.concatenate([c["p"][:, 0] for c in carve])
 Py = np.concatenate([c["p"][:, 1] for c in carve])
@@ -393,7 +457,7 @@ gravel = 0.3 * fbm(XM, YM, 7, 2) * (u < W)
 target = bedc + bank + gravel
 # The open floor and the low Kayenta ledges are carved within the banks. Mesas are only ever opened for the race
 # floor itself (u < W + 1): under a tunnel roof, or as a narrow slot where a wash grazes a mesa. Nothing wider.
-open_ground = (layer_pre <= 2) & (u < W + BAR_W + 2.0) & ~Ptun[b]
+open_ground = ((layer_pre <= 2) | (rock_pre - floor < 8.0)) & (u < W + BAR_W + 2.0) & ~Ptun[b]
 carved = near & (target < rock) & (open_ground | (u < W + 1.0))
 rock = np.where(carved, target, rock)
 layer_id = np.where(carved & (rock < bedc + D * 0.9 + 1.0), 0, layer_id)
@@ -436,17 +500,17 @@ H = rock + debris + boulders
 # roughly east-west: a gentle windward slope (concave, steepening to ~12 deg at the top) facing south and a steep
 # slip face (~30 deg) facing north,
 # so driving north up a dune launches the craft off a sharp crest (jumps and tricks). Crest height changes
-# along each crest (15-35 m), so the crests break up every kilometre or so. Small dunes (1-2 m, ~50 m apart) ride
+# along each crest (30-50 m, ~480 m apart; slip face ~33 deg), so the crests break up every kilometre or so. Small dunes (1-2 m, ~50 m apart) ride
 # on top. Two east-west interdune corridors are kept low for the lap legs. The sand also banks up against the last
 # mesas of the canyon (sand ramps), and fills the washes where they run out into the sea.
 dune_amount = np.zeros_like(H)
 if CANYON_X < SX:
     sea = smoothstep(CANYON_X - 700.0, CANYON_X + 300.0, XM)
-    lam = 320.0  # crest spacing, m
+    lam = 480.0  # crest spacing, m
     phase = (YM + 70.0 * fbm(XM, YM, 650, 2) + 22.0 * fbm(XM, YM, 160, 2)) / lam
     f_ = phase - np.floor(phase)
-    crest_h = 15.0 + 20.0 * np.clip(0.5 + 1.2 * fbm(XM + 77.0, YM, 900, 2), 0.0, 1.0)
-    big = crest_h * np.where(f_ < 0.85, (f_ / 0.85) ** 1.5, (1.0 - f_) / 0.15)  # concave ramp up, sharp crest
+    crest_h = 30.0 + 20.0 * np.clip(0.5 + 1.2 * fbm(XM + 77.0, YM, 900, 2), 0.0, 1.0)
+    big = crest_h * np.where(f_ < 0.84, (f_ / 0.84) ** 1.6, (1.0 - f_) / 0.16)  # concave ramp up, sharp crest
     # Corridors: the dune field drops to a low sand sheet along the lap legs.
     corridor = np.zeros_like(H)
     for leg in DUNE_LEGS:
@@ -521,7 +585,7 @@ col = col * (1 - deb) + (0.45 * sand + 0.55 * wall * 0.8) * deb
 col *= (0.92 + 0.08 * fbm(XM, YM, 24, 2) + 0.04 * fbm(XM, YM, 5, 1))[..., None]
 # Dune sand: cleaner and more golden than the canyon floor; slip faces a touch deeper in colour.
 dunecol = np.array([0.74, 0.43, 0.18]) * (0.95 + 0.05 * fbm(XM, YM, 60, 2))[..., None]
-dunecol = dunecol * (1.0 - 0.08 * smoothstep(15, 28, slope))[..., None]
+dunecol = dunecol * (1.0 - 0.15 * smoothstep(15, 30, slope))[..., None]
 col = col + (dunecol - col) * smoothstep(0.3, 2.5, dune_amount)[..., None]
 # A touch more saturation: the Utah reds read stronger under a low sun.
 grey = col.mean(-1, keepdims=True)
@@ -582,11 +646,11 @@ tunnels = []
 for cname, c in curves.items():
     edges = np.flatnonzero(np.diff(np.concatenate([[0], c["tun"].astype(int), [0]])))
     for k, (s0, s1) in enumerate(zip(edges[::2], edges[1::2])):
-        idx = np.arange(s0, s1, 2)
+        idx = np.arange(s0, s1, 1)
         if len(idx) < 4:
             continue
         p, t, bedv, w = c["p"][idx], c["t"][idx], c["bed"][idx], c["w0"]
-        L = np.linspace(-(w + 5.0), w + 5.0, 41)
+        L = np.linspace(-(w + 5.0), w + 5.0, 61)
         x2 = p[:, None, 0] - L[None, :] * t[:, None, 1]
         y2 = p[:, None, 1] + L[None, :] * t[:, None, 0]
         a = np.clip(np.abs(L) / (w + 1.0), 0.0, 1.0)
@@ -613,6 +677,8 @@ for cname, c in curves.items():
         rbm = bmesh.new()
         rbm.from_mesh(rme)
         bmesh.ops.recalc_face_normals(rbm, faces=rbm.faces)
+        for f_r in rbm.faces:
+            f_r.smooth = True
         rbm.to_mesh(rme)
         rbm.free()
         z = verts[:, 2]
@@ -653,7 +719,7 @@ prng = np.random.default_rng(SEED + 101)
 route_mask = np.zeros((NY, NX), bool)
 for c in curves.values():
     route_mask[np.clip((c["p"][::2, 1] / CELL).astype(int), 0, NY - 1), np.clip((c["p"][::2, 0] / CELL).astype(int), 0, NX - 1)] = True
-keep_out = grow(route_mask, int(round(30.0 / CELL)))
+keep_out = grow(route_mask, int(round(40.0 / CELL)))
 bank_zone = grow(route_mask, int(round(55.0 / CELL))) & ~keep_out
 area = SX * SY / (2048.0 * 2048.0)
 KIT_GROUPS = {
@@ -840,6 +906,7 @@ else:  # canyon + sand sea
              "canyon_aerial": ((aa[0] - 160.0, aa[1] - 220.0, ground(*aa) + 170.0), (ab[0], ab[1], ground(*ab)), 26),
              "wash_A": pilot("A", 0.3),
              "wash_M": pilot("M", 0.5),
+             "straight_R": pilot("R", 0.1, 300.0),
              "wash_B": pilot("B", 0.55),
              "dunes_pilot": pilot("D", dfrac, 220.0),
              "dunes_aerial": ((ex + 400.0, -hy * 0.9, 380.0), (ex + 1300.0, 0.0, 0.0), 28),
@@ -895,7 +962,15 @@ lap = (stretch("A", junctions[("C", "A", 0)], junctions[("D", "A", 0)])
        + stretch("B", junctions[("D", "B", nD)], junctions[("C", "B", nC)])
        + stretch("C", len(curves["C"]["p"]) - 1, 0))
 lap_m = float(sum(math.dist(a[:2], b[:2]) for a, b in zip(lap, lap[1:])))
-circuit = {"length_m": round(lap_m), "points": lap[::8]}
+lap_xy = np.array([q_[:2] for q_ in lap], np.float64)
+lap_k = np.abs(curvature(lap_xy, 41))
+lap_r = 1.0 / np.maximum(lap_k, 1e-6)
+lap_w = np.concatenate([curves[n_]["w"] for n_ in ("A", "B", "C") if n_ in curves])
+circuit = {"length_m": round(lap_m), "points": lap[::8],
+           "speed_check": {"min_bend_radius_m": round(float(np.percentile(lap_r, 0.5)), 1),
+                           "share_under_210m_radius": round(float((lap_r < 210.0).mean()), 3),
+                           "min_floor_width_m": round(2 * float(lap_w.min()), 1)}}
+print("SPEED", circuit["speed_check"])
 with open(f"{OUT}/props.json", "w") as f:
     json.dump({"kit": "Scripts/sculpt_rock_kit.py", "units": "m from the map centre, yaw/tilt in degrees",
                "props": props}, f)
