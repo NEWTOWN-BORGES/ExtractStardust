@@ -1,5 +1,5 @@
 # Imports the S01 hero geology (Nanite, collision from the real shape) and the plants (Nanite, vertex colours,
-# collision only on tree trunks and crowns), and builds their materials:
+# no collision at all: the craft flies through bushes and trees), and builds their materials:
 #  - stratum variants of M_Rock, one per rock layer of the sector (Docs/MAPA_01_RED_DUST_DIVIDE_S01.md, 3);
 #  - M_Plant: vertex colour, light passing through leaves (vertex alpha marks leaves).
 # Run after import_rocks.py (which builds M_Rock).
@@ -12,7 +12,6 @@ ROOT = unreal.Paths.project_dir() + "SourceArt/"
 PIECES = ["SM_MesaArch", "SM_IslandButte", "SM_Slab_A", "SM_Slab_B"]
 PLANTS = ["SM_Cottonwood_A", "SM_Cottonwood_B", "SM_Juniper_A", "SM_Juniper_B", "SM_Willow", "SM_Sagebrush",
           "SM_DeadBrush", "SM_DryGrass", "SM_GreenGrass", "SM_PricklyPear", "SM_Yucca"]
-SOLID_PLANTS = {"SM_Cottonwood_A", "SM_Cottonwood_B", "SM_Juniper_A", "SM_Juniper_B"}
 failures = []
 
 
@@ -103,7 +102,8 @@ for src, prop in ((rgb, unreal.MaterialProperty.MP_BASE_COLOR), (transmission, u
 mel.recompile_material(plant)
 eal.save_asset(path)
 
-# ---- Mesh settings: Nanite everywhere; rocks and slabs collide on their real surface; plants by type.
+# ---- Mesh settings: Nanite everywhere; rocks and slabs collide on their real surface; plants never collide
+# (no simple shapes are generated, and simple-as-complex leaves them with nothing to hit).
 navajo = eal.load_asset("/Game/Desert/MI_Navajo")
 kayenta = eal.load_asset("/Game/Desert/MI_Kayenta")
 plant = eal.load_asset(path)
@@ -117,10 +117,10 @@ for folder, names in (("/Game/Desert/S01/", PIECES), ("/Game/Desert/Plants/", PL
         nanite.enabled = True
         mesh.set_editor_property("nanite_settings", nanite)
         body = mesh.get_editor_property("body_setup")
-        solid = folder.endswith("S01/") or name in SOLID_PLANTS
+        solid = folder.endswith("S01/")
         if body:
             body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE if solid
-                                     else unreal.CollisionTraceFlag.CTF_USE_DEFAULT)
+                                     else unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX)
         if folder.endswith("Plants/"):
             material = plant
         else:

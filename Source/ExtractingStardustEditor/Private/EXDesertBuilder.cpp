@@ -455,10 +455,10 @@ namespace
 
 	enum EPlant { Cottonwood, Juniper, Willow, Sage, DeadBrush, DryGrass, GreenGrass, PricklyPear, Yucca, PlantCount };
 
+	/** Vegetation never collides: at 400+ km/h a bush or a tree must not stop the craft (player decision). */
 	struct FPlantKind
 	{
 		const TCHAR* Meshes[2];
-		bool bCollision;
 		bool bShadow;
 		float CullM;   // 0: always drawn
 		float ClearM;  // closest distance to a race line
@@ -470,15 +470,15 @@ namespace
 	};
 
 	const FPlantKind PlantKinds[PlantCount] = {
-		{ { TEXT("SM_Cottonwood_A"), TEXT("SM_Cottonwood_B") }, true, true, 0.0f, 34.0f, 0.8f, 1.15f, 1, 1, 0.0f },
-		{ { TEXT("SM_Juniper_A"), TEXT("SM_Juniper_B") }, true, true, 0.0f, 30.0f, 0.7f, 1.25f, 1, 1, 0.0f },
-		{ { TEXT("SM_Willow"), nullptr }, false, true, 700.0f, 30.0f, 0.8f, 1.2f, 1, 3, 3.5f },
-		{ { TEXT("SM_Sagebrush"), nullptr }, false, true, 400.0f, 24.0f, 0.7f, 1.3f, 1, 3, 2.5f },
-		{ { TEXT("SM_DeadBrush"), nullptr }, false, true, 300.0f, 24.0f, 0.7f, 1.3f, 1, 2, 2.0f },
-		{ { TEXT("SM_DryGrass"), nullptr }, false, false, 180.0f, 22.0f, 0.7f, 1.4f, 4, 7, 1.8f },
-		{ { TEXT("SM_GreenGrass"), nullptr }, false, false, 180.0f, 22.0f, 0.8f, 1.4f, 5, 9, 2.2f },
-		{ { TEXT("SM_PricklyPear"), nullptr }, false, true, 300.0f, 26.0f, 0.7f, 1.3f, 1, 2, 1.5f },
-		{ { TEXT("SM_Yucca"), nullptr }, false, true, 350.0f, 26.0f, 0.8f, 1.2f, 1, 1, 0.0f } };
+		{ { TEXT("SM_Cottonwood_A"), TEXT("SM_Cottonwood_B") }, true, 0.0f, 34.0f, 0.8f, 1.15f, 1, 1, 0.0f },
+		{ { TEXT("SM_Juniper_A"), TEXT("SM_Juniper_B") }, true, 0.0f, 30.0f, 0.7f, 1.25f, 1, 1, 0.0f },
+		{ { TEXT("SM_Willow"), nullptr }, true, 700.0f, 30.0f, 0.8f, 1.2f, 1, 3, 3.5f },
+		{ { TEXT("SM_Sagebrush"), nullptr }, true, 400.0f, 24.0f, 0.7f, 1.3f, 1, 3, 2.5f },
+		{ { TEXT("SM_DeadBrush"), nullptr }, true, 300.0f, 24.0f, 0.7f, 1.3f, 1, 2, 2.0f },
+		{ { TEXT("SM_DryGrass"), nullptr }, false, 180.0f, 22.0f, 0.7f, 1.4f, 4, 7, 1.8f },
+		{ { TEXT("SM_GreenGrass"), nullptr }, false, 180.0f, 22.0f, 0.8f, 1.4f, 5, 9, 2.2f },
+		{ { TEXT("SM_PricklyPear"), nullptr }, true, 300.0f, 26.0f, 0.7f, 1.3f, 1, 2, 1.5f },
+		{ { TEXT("SM_Yucca"), nullptr }, true, 350.0f, 26.0f, 0.8f, 1.2f, 1, 1, 0.0f } };
 
 	/** How likely each plant is to take a 10 m cell at P. Cottonwoods and willows need water under the wash banks
 	 *  or a seep; junipers root in slickrock cracks and gravel; sage, grass, yucca and cactus want sandy soil;
@@ -622,7 +622,7 @@ namespace
 				UHierarchicalInstancedStaticMeshComponent* Component = NewObject<UHierarchicalInstancedStaticMeshComponent>(Holder, TEXT("Instances"));
 				Component->SetMobility(EComponentMobility::Static);
 				Component->SetStaticMesh(Mesh);
-				Component->SetCollisionProfileName(Plant.bCollision ? UCollisionProfile::BlockAll_ProfileName : UCollisionProfile::NoCollision_ProfileName);
+				Component->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 				Component->SetCastShadow(Plant.bShadow);
 				if (Plant.CullM > 0.0f)
 				{
