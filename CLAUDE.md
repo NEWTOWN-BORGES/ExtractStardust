@@ -88,7 +88,37 @@ Feito hoje no mundo 10 × 8 km (`sculpt_expansion.py`):
 - o script escreve `world_fields.npz` (H, floor, rocky, slot, slot_floor, canyon_floor, sea, in_core, badlands, ...).
   Com `FIELDS_ONLY=1` no ambiente, para logo a seguir (~3 min a 4 m), para iterar o circuito sem refazer tudo.
 
-### Tarefa 1 (pedida pelo jogador, começada mas NADA gerado ainda): GRANDE CIRCUITO pelo mapa todo
+### Tarefa 1 (pedida pelo jogador, EM CURSO): GRANDE CIRCUITO pelo mapa todo
+
+**Estado (fim do dia 2026-10-19):** o `Scripts/sculpt_grand_circuit.py` já existe e o **modo planta** funciona:
+
+```
+blender -b -P Scripts/sculpt_grand_circuit.py -- C:/rdd/mundo plan
+```
+
+Esse comando escreve `gc_plan.png` e mede tudo; com `GC_CROPS="x0,y0,x1,y1;..."` faz também planta ampliada dessas
+zonas (`gc_cropN.png`). Precisa de `world_fields.npz` na pasta do mundo, que o passo 4 já escreve.
+
+- **Resultado atual (a 4 m):**
+  - volta de **30,5 km**, dos quais 7,1 km do núcleo (A + perna sul do D);
+  - secções: Hoodoos (slalom), Dunas, Badlands (túnel de 365 m sob a mesa do meio), North_gap, Fendas_Norte (laço a
+    norte do Chinle), Chinle (a norte do Spider Rock), Muerto (pelo arco duplo), Monument;
+  - ramificações: B1 1,3 km, B2 2,7 km, B3 1,8 km com 3 túneis, B4 Escadaria 4,7 km com 11 saltos (vãos de 50-72 m,
+    3 m de descida cada), B5 1,6 km.
+- **Falta afinar:**
+  - curvas apertadas (raio 40-100 m) no slalom das torres, perto de (9550-9630, 1520-1760), e à entrada das badlands,
+    perto de (9060-9190, 5000-5190);
+  - toques na rocha ("pinches") na boca do A_west (1835, 1411), a sul do Spider Rock (3400, 6670), no Chinle
+    (1930, 6550) e no Muerto (700, 4880);
+  - a B2 tem 2 túneis (deveria ir por fendas abertas).
+- **Ainda não escrito (modo completo, sem `plan`):**
+  - abrir o heightfield debaixo dos tetos dos túneis e fazer os tetos (FBX), como no núcleo;
+  - atualizar a malha e as cores do `world.blend`, escrever `world_height16.png` e acrescentar `grand_circuit` ao JSON;
+  - tirar do `props.json` os adereços que ficam na pista;
+  - fazer as vistas 3D com as fitas das rotas e as fotos de piloto.
+
+A escadaria (blocos e rampas) já é construída no terreno em memória: entra no heightfield quando o modo completo
+gravar.
 
 Pedido: "um circuito maior ainda, a serpentear, túneis, pelo mapa todo, pelos pontos mais importantes, com
 ramificações de caminho, saltos de topo, pelas fendas". Volta atual do mapa aprovado: 17,6 km. Meta: **~33-36 km por
