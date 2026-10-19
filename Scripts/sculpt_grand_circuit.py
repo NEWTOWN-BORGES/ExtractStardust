@@ -34,6 +34,13 @@ fz = np.load(f"{WD}/world_fields.npz")
 SX, SY, CELL = world["size_x_m"], world["size_y_m"], world["cell_m"]
 hx, hy = SX / 2, SY / 2
 H = fz["H"].astype(np.float32).copy()
+# Lone spikes left by older worlds (sculpt_expansion.py now removes them itself): one or two samples standing over
+# 6 m above the rest of their neighbours drop to them (outside the approved core).
+_nb = np.sort(np.stack([np.roll(np.roll(H, dy, 0), dx, 1) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx]), axis=0)
+_spike = (H - _nb[-2] > 6.0) & ~fz["in_core"]
+H = np.where(_spike, _nb[-2] + 1.0, H)
+print("SPIKES removed", int(_spike.sum()))
+del _nb
 floor = fz["floor"].astype(np.float32)
 sea, in_core = fz["sea"], fz["in_core"]
 NY, NX = H.shape
@@ -445,7 +452,7 @@ SECTIONS = [
     ("Badlands_in", [None, (9150.0, 4980.0), (9020.0, 5150.0), (8960.0, 5330.0), (8950.0, 5430.0)], 18.0, 11.0, 150.0, "spline"),
     ("Badlands", [None, (8180.0, 5440.0), (7600.0, 5620.0), (6950.0, 5450.0), (6520.0, 5330.0)], 18.0, 11.0, 150.0, "route_s"),
     ("North_gap", [None] + along_line("North_gap", (6520, 5330), (6500, 6500), 400.0), 18.0, 11.0, 150.0, "route"),
-    ("Fendas_Norte", [None] + chinle((6500, 6500), (6150, 6650)) + north_loop, 18.0, 10.0, 150.0, "route"),
+    ("Planalto_Norte", [None] + chinle((6500, 6500), (6150, 6650)) + north_loop, 18.0, 10.0, 150.0, "route"),
     ("Chinle", [None] + chinle((3990, 6600), (1250, 6600)), 18.0, 11.0, 150.0, "route"),
     ("Muerto", [None, (1180.0, 6610.0)] + clear_of_spires(along_line("Muerto", (1250, 6600), arch_in[:2])) + [arch_in, arch_mid, arch_out] +
      clear_of_spires(along_line("Muerto", arch_out, (850, 1250))), 18.0, 10.0, 150.0, "route"),
@@ -788,6 +795,8 @@ me.update()
 # rock that was there and whose underside is a rounded vault (16 m clear in the middle). One FBX each, for Unreal.
 for o in [o for o in bpy.data.objects if o.name.startswith("SM_TunnelGC_")]:
     bpy.data.objects.remove(o)
+for m_old in [m for m in bpy.data.meshes if m.name.startswith("SM_TunnelGC_")]:  # re-runs keep the same names
+    bpy.data.meshes.remove(m_old)
 mat = me.materials[0]
 os.makedirs(f"{WD}/tunnels_gc", exist_ok=True)
 tunnels = []
@@ -987,13 +996,23 @@ shot("piloto_arco", lap, near(lap, ax_, ay_) - 140, ahead=140, lens=26, look_up=
 shot("piloto_slalom", lap, near(lap, 9380, 1560), ahead=300, lens=24)
 dj = [j_ for j_ in LAPI["jumps"] if j_["at"][0] + hx > 9000 and 2950 < j_["at"][1] + hy < 4850]
 if dj:
-    shot("piloto_salto_duna", lap, dj[0]["s"] - 30, ahead=200, lens=22)
+    # From the side, 220 m along the same crest: the crest line, the slip face and the track crossing it.
+    s0 = dj[0]["s"]
+    nxd, nyd = normals(lap[s0 - 5:s0 + 6])
+    px_, py_ = lap[s0]
+    ex_, ey_ = px_ + nxd[5] * 220.0, py_ + nyd[5] * 220.0
+    cam.data.lens = 28
+    cam.location = Vector((ex_ - hx, ey_ - hy, float(bilinear(H, ex_, ey_)) + 30.0))
+    cam.rotation_euler = (Vector((px_ - hx, py_ - hy, float(bilinear(H, px_, py_)) + 5.0)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+    scene.render.filepath = f"{WD}/gc_piloto_salto_duna.png"
+    bpy.ops.render.render(write_still=True)
+    print("SHOT", "piloto_salto_duna")
 bs = branches["B4_Escadaria"]
 sj = [j_ for j_ in bs["jumps"] if 2.0 < j_["drop_m"] < 6.0]
 if sj:
     shot("piloto_escadaria", bs["p"], sj[len(sj) // 2]["s"] - 40, up=4.0, ahead=200, lens=24)
 shot("piloto_tunel_badlands", lap, near(lap, 8950, 5435) - 60, ahead=200, lens=24)
-shot("piloto_fendas_norte", lap, near(lap, 4950, 7180), ahead=220, lens=22, look_up=10)
+shot("piloto_planalto_norte", lap, near(lap, 4950, 7180), ahead=220, lens=22, look_up=10)
 b2 = branches["B2_Fendas"]["p"]
 shot("piloto_fendas_b2", b2, len(b2) // 2, ahead=160, lens=22, look_up=10)
 # Aerial over the staircase and over Spider Rock with the lap passing.

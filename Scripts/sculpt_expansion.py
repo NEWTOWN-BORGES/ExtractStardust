@@ -390,6 +390,18 @@ H = H + debris * (river < 0.5) * np.where(slot_floor, 0.15, 1.0)
 seam = np.where(east_sea, smoothstep(9300.0, 9900.0, XM), smoothstep(0.0, 300.0, dcore + 110.0 * fbm(XM, YM, 220, 2)) * smoothstep(0.0, 60.0, dcore))  # irregular seam line, 0 at the edge
 H = np.where(in_core, Hc[ci, cj], H_mir * (1 - seam) + H * seam)
 H = np.maximum(H, floor + land_hoodoo)
+
+
+def despike(Hh, keep):
+    """Lone spikes (one or two samples standing over 6 m above the rest of their neighbours, left where thin rock
+    was taken down) drop to their neighbours; they render as sharp cones. `keep` is left untouched."""
+    nb = np.sort(np.stack([np.roll(np.roll(Hh, dy, 0), dx, 1) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx]), axis=0)
+    spike = (Hh - nb[-2] > 6.0) & ~keep
+    return np.where(spike, nb[-2] + 1.0, Hh), int(spike.sum())
+
+
+H, n_spikes = despike(H, in_core)
+print("SPIKES removed", n_spikes)
 # Fields for the grand circuit (sculpt_grand_circuit.py): where rock stands, the open floor, the side canyons.
 np.savez_compressed(f"{OUT}/world_fields.npz", H=H, floor=floor, rocky=rocky * seam, slot=slot * seam, G=G, seam=seam,
                     canyon_floor=canyon_floor, in_core=in_core, sea=(sea_w > 0) | east_sea, badlands=badlands,

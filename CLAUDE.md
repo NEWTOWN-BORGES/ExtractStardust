@@ -57,6 +57,23 @@ Usa a mesma resolução do passo 3 (lê-a do JSON). Verificar no fim do log: `WO
 `EXPANSION DONE`. Gera `world.blend`, `world_height16.png`, `canyon_field.json` (tudo em coordenadas do mundo),
 `props.json` (~19 mil peças) e imagens `world_*.png`.
 
+### 4b. Grande circuito (31 km, 5 ramificações) por cima do mundo — a 2 m
+
+```
+blender -b C:/rdd/mundo/world.blend -P Scripts/sculpt_grand_circuit.py -- C:/rdd/mundo
+```
+
+Testado a 4 m no PC do trabalho: corre do princípio ao fim em ~10 min. O que faz:
+- grava no `world.blend` e no `world_height16.png` a escadaria, as rampas e o chão dos túneis;
+- faz os tetos dos túneis em `tunnels_gc/*.fbx`;
+- tira das pistas os adereços que lá ficavam (751 a 4 m);
+- acrescenta `grand_circuit` ao `canyon_field.json`;
+- faz as imagens `gc_plan.png`, `gc_piloto_*.png`, `gc_aerea_*.png` e `gc_3d_*.png` (o estilo de que o jogador
+  gosta).
+
+Verificar no log: `LAP LENGTH ~31300`, `TUNNELS`, `SAVED`, `GRAND CIRCUIT DONE`. Com `plan` no fim só traça e mede
+(~40 s). Mostrar ao jogador a planta, as vistas 3D e as fotos de piloto.
+
 ### 5. Fotos e planta (opcional, para mostrar ao jogador)
 
 ```
@@ -104,30 +121,26 @@ zonas (`gc_cropN.png`). Precisa de `world_fields.npz` na pasta do mundo, que o p
     (10 m, no portal do túnel da mesa);
   - Spider Rock passa a ser contornado por sul e as Mittens no sentido dos ponteiros do relógio;
   - o `relax` passou a reespaçar os pontos a cada passagem: era isso que fechava as curvas;
-  - o modo completo (secções 7-12 do script: terreno, tetos, adereços, JSON, fotos de piloto, vistas 3D) foi
-    escrito, mas **NUNCA CORREU**. Primeiro passo em casa: `blender -b C:/rdd/mundo/world.blend -P
-    Scripts/sculpt_grand_circuit.py -- C:/rdd/mundo`, depois corrigir os erros e mostrar as imagens ao jogador.
+  - o modo completo (secções 7-12 do script: terreno, tetos, adereços, JSON, fotos de piloto, vistas 3D) **já
+    correu bem a 4 m** (ver o passo 4b). Em casa: refazer os passos 1 a 4b a 2 m e mostrar as imagens ao jogador;
+  - corrigidos os ~2 000 picos soltos de 4 m que ficavam no mundo e apareciam como cones afiados nas fotos.
+    Agora saem no `sculpt_expansion.py` (e também no circuito, para mundos antigos).
   - os valores abaixo são da versão anterior.
 - **Resultado anterior (a 4 m):**
   - volta de **30,5 km**, dos quais 7,1 km do núcleo (A + perna sul do D);
-  - secções: Hoodoos (slalom), Dunas, Badlands (túnel de 365 m sob a mesa do meio), North_gap, Fendas_Norte (laço a
+  - secções: Hoodoos (slalom), Dunas, Badlands (túnel de 365 m sob a mesa do meio), North_gap, Planalto_Norte (laço a
     norte do Chinle), Chinle (a norte do Spider Rock), Muerto (pelo arco duplo), Monument;
   - ramificações: B1 1,3 km, B2 2,7 km, B3 1,8 km com 3 túneis, B4 Escadaria 4,7 km com 11 saltos (vãos de 50-72 m,
     3 m de descida cada), B5 1,6 km.
-- **Falta afinar:**
-  - curvas apertadas (raio 40-100 m) no slalom das torres, perto de (9550-9630, 1520-1760), e à entrada das badlands,
-    perto de (9060-9190, 5000-5190);
-  - toques na rocha ("pinches") na boca do A_west (1835, 1411), a sul do Spider Rock (3400, 6670), no Chinle
-    (1930, 6550) e no Muerto (700, 4880);
-  - a B2 tem 2 túneis (deveria ir por fendas abertas).
-- **Ainda não escrito (modo completo, sem `plan`):**
-  - abrir o heightfield debaixo dos tetos dos túneis e fazer os tetos (FBX), como no núcleo;
-  - atualizar a malha e as cores do `world.blend`, escrever `world_height16.png` e acrescentar `grand_circuit` ao JSON;
-  - tirar do `props.json` os adereços que ficam na pista;
-  - fazer as vistas 3D com as fitas das rotas e as fotos de piloto.
-
-A escadaria (blocos e rampas) já é construída no terreno em memória: entra no heightfield quando o modo completo
-gravar.
+- **Já resolvido:** as curvas apertadas do slalom e da entrada das badlands, os toques na rocha (Spider Rock, Chinle,
+  Muerto, boca do A_west) e o modo completo.
+- **Melhorias sugeridas para casa (mostrar primeiro as imagens ao jogador e perguntar):**
+  - o laço **Planalto_Norte** (a norte do Chinle, x 3900-6100) passa por chão aberto e quase plano, e o jogador não
+    gosta de descampados. Pode ir antes por fendas verdadeiras entre os blocos do planalto (no
+    `debug_world_fields.py`, o azul entre o castanho) ou ganhar ondulação;
+  - a B2 (Fendas) tem 2 túneis curtos; podia ir por fendas abertas;
+  - nas bordas do chão dos canyons ficam pequenos dentes da resolução de 4 m; a 2 m diminuem e no Unreal o
+    material e as rochas por cima escondem-nos.
 
 Pedido: "um circuito maior ainda, a serpentear, túneis, pelo mapa todo, pelos pontos mais importantes, com
 ramificações de caminho, saltos de topo, pelas fendas". Volta atual do mapa aprovado: 17,6 km. Meta: **~33-36 km por
