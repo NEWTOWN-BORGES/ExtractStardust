@@ -111,14 +111,32 @@ for projection, weight in zip([mask(world, g=True, b=True), mask(world, r=True, 
 color = binary(unreal.MaterialExpressionDivide, color, weight_sum)
 normal = binary(unreal.MaterialExpressionDivide, normal, weight_sum)
 
-# Strata bands from world height, then the per-rock tint.
-band = expr(unreal.MaterialExpressionSine, period=500.0)
-link(mask(world, b=True), band, "")
+# Strata bands from world height (period and contrast per rock layer: massive sandstones barely show them),
+# then the per-layer tint.
+height = mask(world, b=True)
+band = expr(unreal.MaterialExpressionSine, period=1.0)
+link(binary(unreal.MaterialExpressionDivide, height, scalar("StrataPeriodCm", 500.0)), band, "")
 band01 = binary(unreal.MaterialExpressionAdd, binary(unreal.MaterialExpressionMultiply, band, 0.5), 0.5)
 contrast = scalar("StrataContrast", 0.3)
 color = binary(unreal.MaterialExpressionMultiply, color, lerp(binary(unreal.MaterialExpressionSubtract, 1.0, contrast), 1.0, band01))
 tint = expr(unreal.MaterialExpressionVectorParameter, parameter_name="Tint", default_value=unreal.LinearColor(1.0, 1.0, 1.0, 1.0))
 color = binary(unreal.MaterialExpressionMultiply, color, tint)
+
+# Desert varnish: dark streaks running down steep walls where water spills over the rim after storms.
+# Noise stretched 15x vertically, projected on the two vertical planes like the rock texture.
+streaks = None
+for projection, weight in ((mask(world, g=True, b=True), weights[0]), (mask(world, r=True, b=True), weights[1])):
+    uv = binary(unreal.MaterialExpressionDivide, projection, expr(unreal.MaterialExpressionConstant2Vector, r=600.0, g=9000.0))
+    s = binary(unreal.MaterialExpressionMultiply, mask(sample("T_Macro_D", uv, unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR), r=True), weight)
+    streaks = s if streaks is None else binary(unreal.MaterialExpressionAdd, streaks, s)
+streaks = binary(unreal.MaterialExpressionDivide, streaks, binary(unreal.MaterialExpressionAdd, binary(unreal.MaterialExpressionAdd, weights[0], weights[1]), 0.001))
+streak_mask = expr(unreal.MaterialExpressionSaturate)
+link(binary(unreal.MaterialExpressionMultiply, binary(unreal.MaterialExpressionSubtract, streaks, 0.45), 3.0), streak_mask, "")
+steep = expr(unreal.MaterialExpressionSaturate)
+link(binary(unreal.MaterialExpressionDivide, binary(unreal.MaterialExpressionSubtract, 0.6, mask(n_abs, b=True)), 0.3), steep, "")
+varnish = binary(unreal.MaterialExpressionMultiply, binary(unreal.MaterialExpressionMultiply, streak_mask, steep), scalar("Varnish", 0.0))
+color = lerp(color, binary(unreal.MaterialExpressionMultiply, color, expr(unreal.MaterialExpressionConstant3Vector,
+                                                                          constant=unreal.LinearColor(0.3, 0.22, 0.19, 1.0))), varnish)
 
 # Sand settles on ledges and tops (upward-facing surfaces).
 sand_uv = binary(unreal.MaterialExpressionDivide, mask(world, r=True, g=True), 400.0)
@@ -135,8 +153,8 @@ mel.recompile_material(mat)
 eal.save_asset(path)
 
 # Colour variants, so neighbouring rocks never look identical.
-variants = {"MI_Rock_Red": (1.0, 1.0, 1.0, 0.3), "MI_Rock_Dark": (0.62, 0.56, 0.55, 0.2),
-            "MI_Rock_Pale": (1.3, 1.12, 0.95, 0.4), "MI_Rock_Banded": (1.08, 0.95, 0.9, 0.55)}
+variants = {"MI_Rock_Red": (1.35, 1.25, 1.2, 0.3), "MI_Rock_Dark": (0.95, 0.85, 0.82, 0.2),
+            "MI_Rock_Pale": (1.7, 1.45, 1.25, 0.4), "MI_Rock_Banded": (1.45, 1.25, 1.15, 0.55)}
 for name, (r, g, b, strata) in variants.items():
     mi_path = "/Game/Desert/" + name
     if eal.does_asset_exist(mi_path):

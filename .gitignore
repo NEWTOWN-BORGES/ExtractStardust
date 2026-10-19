@@ -9,3 +9,5 @@ DerivedDataCache/
 *.opensdf
 *.sdf
 Build/Windows/FileOpenOrder/
+__pycache__/
+*.pyc

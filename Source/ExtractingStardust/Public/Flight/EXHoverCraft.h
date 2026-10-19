@@ -136,6 +136,7 @@ private:
 	void ShowTelemetry() const;
 	void RunFlightTest(float Dt);
 	void RunDesertTest(float Dt);
+	void RunTour(float Dt);
 
 	void InputThrottle(float Value) { ThrottleInput = FMath::Clamp(Value, 0.0f, 1.0f); }
 	void InputBrake(float Value) { BrakeInput = FMath::Clamp(Value, 0.0f, 1.0f); }
@@ -184,4 +185,9 @@ private:
 	float TestStuckSeconds = 0.0f;
 	float TestTime = 0.0f, NextTestLog = 0.0f, TestDriftStart = -1.0f;
 	int32 TestShotMask = 0;
+
+	// Camera tour of the sector (-EXFlightTest -EXTour): fixed viewpoints of the geology, one screenshot each.
+	bool bTour = false;
+	FVector TourCameraLocation = FVector::ZeroVector;
+	FRotator TourCameraRotation = FRotator::ZeroRotator;
 };

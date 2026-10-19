@@ -7,6 +7,6 @@ public class ExtractingStardustEditor : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
-		PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "Landscape", "RenderCore", "ExtractingStardust" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "Landscape", "RenderCore", "AssetRegistry", "ExtractingStardust" });
 	}
 }

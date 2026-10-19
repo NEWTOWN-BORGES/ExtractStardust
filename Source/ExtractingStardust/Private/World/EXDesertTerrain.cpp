@@ -28,348 +28,512 @@ namespace
 		return T * T * (3.0f - 2.0f * T);
 	}
 
-	struct FMesa
-	{
-		FVector2D Center;
-		float Radius;
-		float Height;
-	};
-
-	// Isolated buttes on the plain, as in Wadi Rum.
-	const FMesa Mesas[] = {
-		{ FVector2D(-1350.0f, -250.0f), 170.0f, 85.0f },
-		{ FVector2D(-950.0f, 650.0f), 110.0f, 55.0f },
-		{ FVector2D(-1500.0f, 1250.0f), 230.0f, 110.0f },
-		{ FVector2D(-450.0f, -1550.0f), 140.0f, 70.0f },
-		{ FVector2D(-1250.0f, -1600.0f), 90.0f, 45.0f },
-		{ FVector2D(-700.0f, 150.0f), 60.0f, 35.0f },
-	};
-
-	// Canyon route through the plateau: control points with half-width, half-pipe depth and floor height (metres).
+	// ---- Designed layout (Docs/MAPA_01_RED_DUST_DIVIDE_S01.md) ----
+	const FVector2D GridPoint(-2150.0f, -1400.0f);
+	const FVector2D BasinCenter(-1850.0f, -1400.0f);
+	const FVector2D ForkStart(-250.0f, -760.0f);
+	const FVector2D BowlCenter(600.0f, -420.0f);
+	const FVector2D IslandCenter(175.0f, -590.0f);
+	const FVector2D ArchCenter(-700.0f, -350.0f);
+	const FVector2D ApproachKeys[] = { FVector2D(-2150, -1400), FVector2D(-1800, -1400), FVector2D(-1400, -1340),
+		FVector2D(-1000, -1200), FVector2D(-600, -1000), FVector2D(-250, -760) };
+	// Canyon head: centre, half-width and floor (m). The last key closes as a box canyon until S02 is built.
 	struct FCanyonKey
 	{
 		FVector2D Point;
 		float HalfWidth;
-		float HalfPipe;
 		float Floor;
 	};
+	const FCanyonKey CanyonKeys[] = { { FVector2D(600, -420), 60.0f, -3.0f }, { FVector2D(900, -430), 30.0f, -6.0f },
+		{ FVector2D(1250, -380), 24.0f, -20.0f }, { FVector2D(1600, -420), 20.0f, -45.0f }, { FVector2D(1950, -520), 26.0f, -60.0f },
+		{ FVector2D(2250, -600), 14.0f, -62.0f } };
+	constexpr int32 FinishKey = 4;
 
-	const FCanyonKey CanyonKeys[] = {
-		{ FVector2D(-950.0f, -950.0f), 45.0f, 0.0f, 0.0f },
-		{ FVector2D(-450.0f, -850.0f), 32.0f, 4.0f, -1.0f },
-		{ FVector2D(0.0f, -1000.0f), 22.0f, 14.0f, -3.0f },     // natural half-pipe
-		{ FVector2D(450.0f, -950.0f), 18.0f, 16.0f, -5.0f },
-		{ FVector2D(800.0f, -600.0f), 10.0f, 2.0f, -7.0f },     // narrow stone corridor
-		{ FVector2D(900.0f, -100.0f), 9.0f, 2.0f, -8.0f },
-		{ FVector2D(650.0f, 350.0f), 45.0f, 3.0f, -10.0f },     // dry basin
-		{ FVector2D(900.0f, 800.0f), 55.0f, 3.0f, -10.0f },
-		{ FVector2D(1350.0f, 1050.0f), 30.0f, 10.0f, -8.0f },
-		{ FVector2D(1250.0f, 1500.0f), 14.0f, 2.0f, -6.0f },    // canyon throat
-		{ FVector2D(700.0f, 1650.0f), 12.0f, 2.0f, -5.0f },
-		{ FVector2D(150.0f, 1450.0f), 25.0f, 8.0f, -3.0f },
-		{ FVector2D(-350.0f, 1550.0f), 35.0f, 2.0f, -1.0f },
-		{ FVector2D(-950.0f, 1350.0f), 45.0f, 0.0f, 0.0f },
-	};
-	constexpr int32 CanyonKeyCount = UE_ARRAY_COUNT(CanyonKeys);
-	constexpr int32 SamplesPerSegment = 40;
-
-	struct FCanyonSample
+	struct FDome
 	{
 		FVector2D Point;
-		float HalfWidth;
-		float HalfPipe;
-		float Floor;
-		float Distance;
+		float Radius;
+		float Height;
 	};
+	// Navajo slickrock domes framing the basin and the first wash (never on the race line).
+	const FDome Domes[] = { { FVector2D(-1950, -1060), 110.0f, 24.0f }, { FVector2D(-1640, -990), 90.0f, 18.0f },
+		{ FVector2D(-1980, -1760), 120.0f, 28.0f }, { FVector2D(-1560, -1740), 95.0f, 20.0f },
+		{ FVector2D(-1150, -1520), 80.0f, 16.0f }, { FVector2D(-820, -1390), 70.0f, 14.0f } };
 
-	/** Catmull-Rom path with per-sample attributes, a jump profile on the floor and a grid for fast lookups. */
-	struct FCanyon
+	// The arch faces south-west: seen through from the grid and along the whole approach wash.
+	const FEXDesertTerrain::FLandmark Arch = { ArchCenter, 130.0f, 70.0f, 245.0f };
+	// Footprint kept inside 80 m so the RACING line (130 m away) keeps 40 m of open slickrock beside it.
+	const FEXDesertTerrain::FLandmark Island = { IslandCenter, 80.0f, 95.0f, 20.0f };
+	const FEXDesertTerrain::FLandmark Boundary[] = {
+		{ FVector2D(-2250, 2050), 300.0f, 140.0f, 10.0f }, { FVector2D(-1250, 1950), 260.0f, 120.0f, 75.0f },
+		{ FVector2D(-250, 2050), 320.0f, 150.0f, 140.0f }, { FVector2D(800, 1950), 280.0f, 130.0f, 200.0f },
+		{ FVector2D(1850, 2050), 300.0f, 140.0f, 260.0f }, { FVector2D(2700, 1300), 280.0f, 130.0f, 320.0f },
+		{ FVector2D(2700, 200), 300.0f, 140.0f, 40.0f }, { FVector2D(2750, -1250), 280.0f, 130.0f, 110.0f } };
+
+	/** Dense Catmull-Rom sampling (about one point every 5 m). */
+	void SampleSpline(const TArray<FVector2D>& Keys, TArray<FVector2D>& Out)
 	{
-		TArray<FCanyonSample> Samples;
+		for (int32 Key = 0; Key < Keys.Num() - 1; ++Key)
+		{
+			const FVector2D& P0 = Keys[FMath::Max(Key - 1, 0)];
+			const FVector2D& P1 = Keys[Key];
+			const FVector2D& P2 = Keys[Key + 1];
+			const FVector2D& P3 = Keys[FMath::Min(Key + 2, Keys.Num() - 1)];
+			const int32 Steps = FMath::Max(2, FMath::CeilToInt(FVector2D::Distance(P1, P2) / 5.0f));
+			for (int32 Sub = 0; Sub < Steps; ++Sub)
+			{
+				const float T = static_cast<float>(Sub) / Steps;
+				const float T2 = T * T;
+				const float T3 = T2 * T;
+				Out.Add(0.5f * ((2.0f * P1) + (-P0 + P2) * T + (2.0f * P0 - 5.0f * P1 + 4.0f * P2 - P3) * T2 + (-P0 + 3.0f * P1 - 3.0f * P2 + P3) * T3));
+			}
+		}
+		Out.Add(Keys.Last());
+	}
+
+	/** The fork around the island butte: SAFE swings 200 m north (about +6 % distance), RACING 130 m south. */
+	void BranchKeys(float OffsetM, TArray<FVector2D>& Out)
+	{
+		const FVector2D Direction = (BowlCenter - ForkStart).GetSafeNormal();
+		const FVector2D Left(-Direction.Y, Direction.X);
+		for (int32 Index = 0; Index <= 6; ++Index)
+		{
+			const float T = Index / 6.0f;
+			Out.Add(FMath::Lerp(ForkStart, BowlCenter, T) + Left * OffsetM * FMath::Sin(PI * T));
+		}
+	}
+
+	/** A sampled channel (wash or canyon) with a grid for fast nearest-point queries. */
+	struct FChannel
+	{
 		TArray<FVector2D> Points;
-		float Length = 0.0f;
-		static constexpr float CellM = 100.0f;
-		static constexpr int32 GridCells = 42;
+		TArray<float> Along;
+		static constexpr float CellM = 120.0f;
+		int32 Cells = 0;
 		TArray<TArray<int32>> Grid;
 
-		FCanyon()
+		void Build(const TArray<FVector2D>& InPoints, float Reach)
 		{
-			for (int32 Key = 0; Key < CanyonKeyCount - 1; ++Key)
+			Points = InPoints;
+			Along.SetNumZeroed(Points.Num());
+			for (int32 Index = 1; Index < Points.Num(); ++Index)
 			{
-				const FCanyonKey& P0 = CanyonKeys[FMath::Max(Key - 1, 0)];
-				const FCanyonKey& P1 = CanyonKeys[Key];
-				const FCanyonKey& P2 = CanyonKeys[Key + 1];
-				const FCanyonKey& P3 = CanyonKeys[FMath::Min(Key + 2, CanyonKeyCount - 1)];
-				for (int32 Sub = 0; Sub < SamplesPerSegment; ++Sub)
-				{
-					const float T = static_cast<float>(Sub) / SamplesPerSegment;
-					const float T2 = T * T;
-					const float T3 = T2 * T;
-					const FVector2D Point = 0.5f * ((2.0f * P1.Point) + (-P0.Point + P2.Point) * T
-						+ (2.0f * P0.Point - 5.0f * P1.Point + 4.0f * P2.Point - P3.Point) * T2
-						+ (-P0.Point + 3.0f * P1.Point - 3.0f * P2.Point + P3.Point) * T3);
-					const float Smooth = T2 * (3.0f - 2.0f * T);
-					FCanyonSample Sample;
-					Sample.Point = Point;
-					Sample.HalfWidth = FMath::Lerp(P1.HalfWidth, P2.HalfWidth, Smooth);
-					Sample.HalfPipe = FMath::Lerp(P1.HalfPipe, P2.HalfPipe, Smooth);
-					Sample.Floor = FMath::Lerp(P1.Floor, P2.Floor, Smooth);
-					Sample.Distance = Samples.Num() > 0 ? Samples.Last().Distance + FVector2D::Distance(Samples.Last().Point, Point) : 0.0f;
-					Samples.Add(Sample);
-				}
+				Along[Index] = Along[Index - 1] + FVector2D::Distance(Points[Index - 1], Points[Index]);
 			}
-			FCanyonSample Last;
-			Last.Point = CanyonKeys[CanyonKeyCount - 1].Point;
-			Last.HalfWidth = CanyonKeys[CanyonKeyCount - 1].HalfWidth;
-			Last.HalfPipe = CanyonKeys[CanyonKeyCount - 1].HalfPipe;
-			Last.Floor = CanyonKeys[CanyonKeyCount - 1].Floor;
-			Last.Distance = Samples.Last().Distance + FVector2D::Distance(Samples.Last().Point, Last.Point);
-			Samples.Add(Last);
-			Length = Last.Distance;
-			for (const FCanyonSample& Sample : Samples)
+			Cells = FMath::CeilToInt(2.0f * FEXDesertTerrain::HalfSizeM / CellM);
+			Grid.SetNum(Cells * Cells);
+			for (int32 Index = 0; Index < Points.Num() - 1; ++Index)
 			{
-				Points.Add(Sample.Point);
-			}
-
-			// Each grid cell lists the path segments that can influence it (canyon half-width plus walls).
-			Grid.SetNum(GridCells * GridCells);
-			const float Reach = 160.0f;
-			for (int32 Index = 0; Index < Samples.Num() - 1; ++Index)
-			{
-				const FVector2D A = Samples[Index].Point;
-				const FVector2D B = Samples[Index + 1].Point;
-				const int32 MinX = CellOf(FMath::Min(A.X, B.X) - Reach);
-				const int32 MaxX = CellOf(FMath::Max(A.X, B.X) + Reach);
-				const int32 MinY = CellOf(FMath::Min(A.Y, B.Y) - Reach);
-				const int32 MaxY = CellOf(FMath::Max(A.Y, B.Y) + Reach);
-				for (int32 CellY = MinY; CellY <= MaxY; ++CellY)
+				const FVector2D A = Points[Index];
+				const FVector2D B = Points[Index + 1];
+				for (int32 CellY = CellOf(FMath::Min(A.Y, B.Y) - Reach); CellY <= CellOf(FMath::Max(A.Y, B.Y) + Reach); ++CellY)
 				{
-					for (int32 CellX = MinX; CellX <= MaxX; ++CellX)
+					for (int32 CellX = CellOf(FMath::Min(A.X, B.X) - Reach); CellX <= CellOf(FMath::Max(A.X, B.X) + Reach); ++CellX)
 					{
-						Grid[CellY * GridCells + CellX].Add(Index);
+						Grid[CellY * Cells + CellX].Add(Index);
 					}
 				}
 			}
 		}
 
-		static int32 CellOf(float Coordinate)
+		int32 CellOf(float Coordinate) const
 		{
-			return FMath::Clamp(FMath::FloorToInt((Coordinate + FEXDesertTerrain::HalfSizeM) / CellM), 0, GridCells - 1);
+			return FMath::Clamp(FMath::FloorToInt((Coordinate + FEXDesertTerrain::HalfSizeM) / CellM), 0, Cells - 1);
 		}
 
-		/** Nearest point on the path: distance to it and the interpolated canyon attributes there. */
-		bool Nearest(const FVector2D& Point, float& OutDistance, FCanyonSample& OutSample) const
+		/** Distance to the centre line and the parameter (segment index + fraction) of the nearest point. */
+		bool Nearest(const FVector2D& Point, float& OutDistance, int32& OutIndex, float& OutT) const
 		{
-			const TArray<int32>& Candidates = Grid[CellOf(Point.Y) * GridCells + CellOf(Point.X)];
-			float BestSquared = TNumericLimits<float>::Max();
-			int32 BestIndex = INDEX_NONE;
-			float BestT = 0.0f;
-			for (const int32 Index : Candidates)
+			float Best = TNumericLimits<float>::Max();
+			OutIndex = INDEX_NONE;
+			for (const int32 Index : Grid[CellOf(Point.Y) * Cells + CellOf(Point.X)])
 			{
-				const FVector2D A = Samples[Index].Point;
-				const FVector2D AB = Samples[Index + 1].Point - A;
+				const FVector2D A = Points[Index];
+				const FVector2D AB = Points[Index + 1] - A;
 				const float LengthSquared = AB.SizeSquared();
 				const float T = LengthSquared > KINDA_SMALL_NUMBER ? FMath::Clamp(FVector2D::DotProduct(Point - A, AB) / LengthSquared, 0.0f, 1.0f) : 0.0f;
 				const float DistanceSquared = FVector2D::DistSquared(Point, A + AB * T);
-				if (DistanceSquared < BestSquared)
+				if (DistanceSquared < Best)
 				{
-					BestSquared = DistanceSquared;
-					BestIndex = Index;
-					BestT = T;
+					Best = DistanceSquared;
+					OutIndex = Index;
+					OutT = T;
 				}
 			}
-			if (BestIndex == INDEX_NONE)
-			{
-				return false;
-			}
-			const FCanyonSample& A = Samples[BestIndex];
-			const FCanyonSample& B = Samples[BestIndex + 1];
-			OutDistance = FMath::Sqrt(BestSquared);
-			OutSample.Point = FMath::Lerp(A.Point, B.Point, BestT);
-			OutSample.HalfWidth = FMath::Lerp(A.HalfWidth, B.HalfWidth, BestT);
-			OutSample.HalfPipe = FMath::Lerp(A.HalfPipe, B.HalfPipe, BestT);
-			OutSample.Floor = FMath::Lerp(A.Floor, B.Floor, BestT);
-			OutSample.Distance = FMath::Lerp(A.Distance, B.Distance, BestT);
-			return true;
+			OutDistance = FMath::Sqrt(Best);
+			return OutIndex != INDEX_NONE;
 		}
 	};
 
-	const FCanyon& Canyon()
+	struct FWorld
 	{
-		static const FCanyon Instance;
+		FChannel ApproachWash;
+		FChannel SafeWash;
+		FChannel Canyon;
+		FChannel RacingLine;
+		FChannel SafeLine;
+		TArray<float> CanyonHalfWidth;
+		TArray<float> CanyonFloor;
+		TArray<FVector2D> Racing;
+		TArray<FVector2D> Safe;
+		TArray<FEXDesertTerrain::FCanyonPoint> CanyonPoints;
+		TArray<FEXDesertTerrain::FSlab> Slabs;
+
+		FWorld()
+		{
+			TArray<FVector2D> Approach;
+			SampleSpline(TArray<FVector2D>(ApproachKeys, UE_ARRAY_COUNT(ApproachKeys)), Approach);
+			ApproachWash.Build(Approach, 150.0f);
+
+			TArray<FVector2D> SafeKeys;
+			TArray<FVector2D> RacingKeys;
+			BranchKeys(200.0f, SafeKeys);
+			BranchKeys(-130.0f, RacingKeys);
+			TArray<FVector2D> SafeBranch;
+			TArray<FVector2D> RacingBranch;
+			SampleSpline(SafeKeys, SafeBranch);
+			SampleSpline(RacingKeys, RacingBranch);
+			SafeWash.Build(SafeBranch, 150.0f);
+
+			TArray<FVector2D> CanyonKeyPoints;
+			for (const FCanyonKey& Key : CanyonKeys)
+			{
+				CanyonKeyPoints.Add(Key.Point);
+			}
+			TArray<FVector2D> CanyonLine;
+			SampleSpline(CanyonKeyPoints, CanyonLine);
+			Canyon.Build(CanyonLine, 150.0f);
+			// Per-sample half-width and floor, interpolated between keys by distance.
+			TArray<float> KeyAlong;
+			KeyAlong.Add(0.0f);
+			for (int32 Key = 1; Key < UE_ARRAY_COUNT(CanyonKeys); ++Key)
+			{
+				KeyAlong.Add(KeyAlong.Last() + FVector2D::Distance(CanyonKeys[Key - 1].Point, CanyonKeys[Key].Point));
+			}
+			const float Scale = Canyon.Along.Last() / KeyAlong.Last();
+			for (int32 Index = 0; Index < CanyonLine.Num(); ++Index)
+			{
+				const float S = Canyon.Along[Index] / Scale;
+				int32 Key = 0;
+				while (Key < KeyAlong.Num() - 2 && S > KeyAlong[Key + 1])
+				{
+					++Key;
+				}
+				const float T = Step(KeyAlong[Key], KeyAlong[Key + 1], S);
+				CanyonHalfWidth.Add(FMath::Lerp(CanyonKeys[Key].HalfWidth, CanyonKeys[Key + 1].HalfWidth, T));
+				CanyonFloor.Add(FMath::Lerp(CanyonKeys[Key].Floor, CanyonKeys[Key + 1].Floor, T));
+				CanyonPoints.Add({ CanyonLine[Index], CanyonHalfWidth.Last(), CanyonFloor.Last() });
+			}
+
+			// Race lines: approach, branch, then the canyon head up to the finish key.
+			TArray<FVector2D> Exit;
+			SampleSpline(TArray<FVector2D>(CanyonKeyPoints.GetData(), FinishKey + 1), Exit);
+			for (TArray<FVector2D>* Line : { &Racing, &Safe })
+			{
+				Line->Append(Approach);
+				Line->Append(Line == &Racing ? RacingBranch : SafeBranch);
+				Line->Append(Exit);
+			}
+			RacingLine.Build(Racing, 450.0f);
+			SafeLine.Build(Safe, 450.0f);
+
+			// Four broken Kayenta slabs on the RACING branch, each tilted so its far end lifts ~1.2 m: a flow jump.
+			for (const float Fraction : { 0.16f, 0.36f, 0.56f, 0.76f })
+			{
+				const int32 Index = FMath::Clamp(FMath::RoundToInt(Fraction * (RacingBranch.Num() - 1)), 1, RacingBranch.Num() - 1);
+				const FVector2D Tangent = (RacingBranch[Index] - RacingBranch[Index - 1]).GetSafeNormal();
+				Slabs.Add({ RacingBranch[Index], static_cast<float>(FMath::RadiansToDegrees(FMath::Atan2(Tangent.Y, Tangent.X))), 34.0f, 26.0f });
+			}
+		}
+	};
+
+	const FWorld& World()
+	{
+		static const FWorld Instance;
 		return Instance;
 	}
 
-	/** Rock kickers on the canyon floor: a ramp that rises over 30 m and drops off over 6 m. */
-	float JumpProfile(float DistanceAlong, float Length)
+	float Bench(float X, float Y)
 	{
-		const float Jumps[] = { 0.33f, 0.71f };
-		float Height = 0.0f;
-		for (const float Fraction : Jumps)
-		{
-			const float Offset = DistanceAlong - Fraction * Length;
-			if (Offset > -30.0f && Offset < 0.0f)
-			{
-				Height = FMath::Max(Height, 3.5f * (1.0f + Offset / 30.0f));
-			}
-			else if (Offset >= 0.0f && Offset < 6.0f)
-			{
-				Height = FMath::Max(Height, 3.5f * (1.0f - Offset / 6.0f));
-			}
-		}
-		return Height;
+		return 1.2f * Fbm(X / 450.0f, Y / 450.0f, 4) + 0.4f * Fbm(X / 90.0f, Y / 90.0f, 3);
 	}
 
-	float PlainHeight(float X, float Y)
+	/** Navajo tableland rising to the north and east: the natural edge of the sector. */
+	float PlateauMask(float X, float Y)
 	{
-		return 2.5f * Fbm(X / 500.0f, Y / 500.0f, 4) + 0.6f * Fbm(X / 60.0f, Y / 60.0f, 3);
+		const float North = Step(1550.0f, 1800.0f, Y + 120.0f * Fbm(X / 600.0f, 0.3f, 3));
+		const float East = Step(2450.0f, 2700.0f, X + 120.0f * Fbm(0.7f, Y / 600.0f, 3));
+		return FMath::Max(North, East);
+	}
+
+	/** Dune sea to the west and south (deep sand, the soft natural limit). */
+	float DuneMask(float X, float Y)
+	{
+		return FMath::Max(Step(-2200.0f, -2550.0f, X + 80.0f * Fbm(0.1f, Y / 400.0f, 3)), Step(-2100.0f, -2450.0f, Y + 80.0f * Fbm(X / 400.0f, 0.9f, 3)));
 	}
 
 	float DuneHeight(float X, float Y)
 	{
-		const FVector2D Start = FEXDesertTerrain::StartPoint();
-		const float Region = Step(0.05f, 0.35f, Fbm(X / 700.0f + 5.0f, Y / 700.0f - 3.0f, 3)) * Step(-350.0f, -650.0f, X)
-			* Step(250.0f, 450.0f, FVector2D::Distance(FVector2D(X, Y), Start));
-		if (Region <= 0.0f)
+		const float Mask = DuneMask(X, Y);
+		if (Mask <= 0.0f)
 		{
 			return 0.0f;
 		}
-		// Wind from the west: long gentle windward slopes and short steep slip faces, broken up by noise.
-		const float Phase = X / 110.0f + 0.35f * Fbm(X / 300.0f, Y / 300.0f, 3) * 3.0f + 0.15f * Y / 110.0f;
+		// Prevailing wind from the south-west: gentle windward slopes, short steep slip faces.
+		const float Phase = (X * 0.7f + Y * 0.7f) / 120.0f + Fbm(X / 300.0f, Y / 300.0f, 3) * 1.2f;
 		const float P = Phase - FMath::Floor(Phase);
 		const float Profile = P < 0.78f ? FMath::Pow(P / 0.78f, 1.6f) : FMath::Square(1.0f - (P - 0.78f) / 0.22f);
-		return Region * 14.0f * Profile * (0.6f + 0.4f * Fbm(X / 250.0f, Y / 250.0f, 2) + 0.2f);
+		return Mask * (8.0f + 14.0f * Mask) * Profile * (0.75f + 0.25f * Fbm(X / 220.0f, Y / 220.0f, 2) + 0.25f);
 	}
 
-	float MesaHeight(float X, float Y)
+	float Mound(const FEXDesertTerrain::FLandmark& Site, float X, float Y)
+	{
+		const float D = FVector2D::Distance(FVector2D(X, Y), Site.Point) / Site.Radius;
+		return Step(1.35f, 0.75f, D) * 0.18f * Site.Height;
+	}
+
+	/** Natural low ledges across the approach wash: flow jumps (1 m lip, < 4 degree ramp). */
+	float WashLedges(float Along)
 	{
 		float Height = 0.0f;
-		for (const FMesa& Mesa : Mesas)
+		for (const float At : { 650.0f, 1350.0f })
 		{
-			const float Radius = Mesa.Radius * (1.0f + 0.15f * Fbm(X / 80.0f, Y / 80.0f, 3));
-			const float D = FVector2D::Distance(FVector2D(X, Y), Mesa.Center) / Radius;
-			if (D > 1.4f)
+			const float Offset = Along - At;
+			if (Offset > -15.0f && Offset < 0.0f)
 			{
-				continue;
+				Height = FMath::Max(Height, 1.0f + Offset / 15.0f);
 			}
-			// The rock itself is a sculpted mesh; the ground only rises into a talus mound beneath it.
-			Height = FMath::Max(Height, Step(1.3f, 0.7f, D) * 0.22f * Mesa.Height);
+			else if (Offset >= 0.0f && Offset < 4.0f)
+			{
+				Height = FMath::Max(Height, 1.0f - Offset / 4.0f);
+			}
 		}
 		return Height;
 	}
 
-	float PlateauHeight(float X, float Y)
+	/** Ground before the canyon is cut: bench, domes, mounds, plateau, dunes, basin, bowl and washes. */
+	float GroundHeight(float X, float Y, float* OutWashFactor = nullptr)
 	{
-		// Squircle-shaped tableland on the east side, with a wobbling cliff edge and terraced tops.
-		const float QX = (X - 450.0f) / 1050.0f;
-		const float QY = (Y - 300.0f) / 1350.0f;
-		const float Q = FMath::Pow(FMath::Pow(FMath::Abs(QX), 4.0f) + FMath::Pow(FMath::Abs(QY), 4.0f), 0.25f) + 0.06f * Fbm(X / 150.0f, Y / 150.0f, 4);
-		if (Q > 1.15f)
+		const FVector2D P(X, Y);
+		const float Base = Bench(X, Y);
+		float Height = Base;
+		for (const FDome& Dome : Domes)
 		{
-			return 0.0f;
+			const float T = FVector2D::Distance(P, Dome.Point) / Dome.Radius;
+			if (T < 1.0f)
+			{
+				Height = FMath::Max(Height, Base + Dome.Height * FMath::Pow(1.0f - T * T, 1.5f));
+			}
 		}
-		const float Top = FMath::Clamp(90.0f + 15.0f * FMath::RoundToFloat(Fbm(X / 600.0f, Y / 600.0f, 3) * 2.0f), 60.0f, 110.0f);
-		// Smooth steep edge: sculpted cliff meshes line it, so the landscape needs no terraces (which spike).
-		const float Cliff = Top * Step(1.0f, 0.94f, Q);
-		const float Talus = Step(1.12f, 1.0f, Q) * 12.0f;
-		return FMath::Max(Cliff, Talus);
-	}
+		Height = FMath::Max(Height, Base + Mound(Arch, X, Y));
+		Height = FMath::Max(Height, Base + Mound(Island, X, Y));
+		for (const FEXDesertTerrain::FLandmark& Mesa : Boundary)
+		{
+			Height = FMath::Max(Height, Base + Mound(Mesa, X, Y));
+		}
+		Height = FMath::Max(Height, PlateauMask(X, Y) * (110.0f + 10.0f * Fbm(X / 300.0f, Y / 300.0f, 3)));
+		Height += DuneHeight(X, Y);
+		const float Edge = FMath::Max(FMath::Abs(X), FMath::Abs(Y)) - 2750.0f;
+		if (Edge > 0.0f)
+		{
+			Height += FMath::Pow(Edge / 274.0f, 1.6f) * 90.0f;
+		}
 
-	float RimHeight(float X, float Y)
-	{
-		const float Edge = FMath::Max(FMath::Abs(X), FMath::Abs(Y)) - 1750.0f;
-		return Edge > 0.0f ? FMath::Pow(Edge / 266.0f, 1.6f) * 130.0f * (0.85f + 0.3f * Fbm(X / 200.0f, Y / 200.0f, 3)) : 0.0f;
+		// The basin: a shallow slickrock depression around the grid, and the bowl where the fork rejoins.
+		const float Basin = FMath::Sqrt(FMath::Square((X - BasinCenter.X) / 480.0f) + FMath::Square((Y - BasinCenter.Y) / 280.0f));
+		Height -= 6.0f * Step(1.0f, 0.55f, Basin);
+		Height -= 5.0f * Step(75.0f, 15.0f, FVector2D::Distance(P, BowlCenter));
+
+		// Dry washes drain the basin east to the canyon: shallow channels with gravel beds.
+		float WashFactor = 0.0f;
+		float Distance;
+		int32 Index;
+		float T;
+		const FWorld& W = World();
+		if (W.ApproachWash.Nearest(P, Distance, Index, T))
+		{
+			const float Along = FMath::Lerp(W.ApproachWash.Along[Index], W.ApproachWash.Along[FMath::Min(Index + 1, W.ApproachWash.Along.Num() - 1)], T);
+			const float Inside = Step(28.0f, 16.0f, Distance);
+			Height -= 1.5f * Inside;
+			Height += WashLedges(Along) * Step(30.0f, 20.0f, Distance);
+			WashFactor = FMath::Max(WashFactor, Inside);
+		}
+		if (W.SafeWash.Nearest(P, Distance, Index, T))
+		{
+			const float Inside = Step(24.0f, 12.0f, Distance);
+			Height -= 2.5f * Inside;
+			WashFactor = FMath::Max(WashFactor, Inside);
+		}
+
+		// Each jump slab lies on a flat bed of the bench, so its top rises evenly from flush to the 1.2 m lip.
+		for (const FEXDesertTerrain::FSlab& Slab : W.Slabs)
+		{
+			const FVector2D Local = (P - Slab.Point).GetRotated(-Slab.YawDeg);
+			const float Outside = FMath::Max(FMath::Abs(Local.X) - Slab.LengthM * 0.5f, FMath::Abs(Local.Y) - Slab.WidthM * 0.5f);
+			if (Outside < 9.0f)
+			{
+				Height = FMath::Lerp(Height, Bench(Slab.Point.X, Slab.Point.Y) - 0.1f, Step(9.0f, 2.0f, Outside));
+			}
+		}
+		if (OutWashFactor)
+		{
+			*OutWashFactor = WashFactor;
+		}
+		return Height;
 	}
+}
+
+float FEXDesertTerrain::CanyonWallWidth(float WallHeight)
+{
+	return 6.0f + 0.4f * FMath::Max(0.0f, WallHeight);
+}
+
+float FEXDesertTerrain::WashDistance(float X, float Y)
+{
+	float Best = TNumericLimits<float>::Max();
+	float Distance;
+	int32 Index;
+	float T;
+	const FWorld& W = World();
+	for (const FChannel* Channel : { &W.ApproachWash, &W.SafeWash })
+	{
+		if (Channel->Nearest(FVector2D(X, Y), Distance, Index, T))
+		{
+			Best = FMath::Min(Best, Distance);
+		}
+	}
+	return Best;
+}
+
+float FEXDesertTerrain::RouteDistance(float X, float Y)
+{
+	float Best = TNumericLimits<float>::Max();
+	float Distance;
+	int32 Index;
+	float T;
+	const FWorld& W = World();
+	for (const FChannel* Channel : { &W.RacingLine, &W.SafeLine })
+	{
+		if (Channel->Nearest(FVector2D(X, Y), Distance, Index, T))
+		{
+			Best = FMath::Min(Best, Distance);
+		}
+	}
+	return Best;
 }
 
 float FEXDesertTerrain::HeightAt(float X, float Y)
 {
-	// Surrounding ground: plain, dunes, mesas, plateau and the raised map rim.
-	float Ground = PlainHeight(X, Y) + DuneHeight(X, Y);
-	Ground = FMath::Max(Ground, MesaHeight(X, Y));
-	Ground = FMath::Max(Ground, PlateauHeight(X, Y));
-	Ground += RimHeight(X, Y);
-
-	// Flatten the start grid.
-	const float StartBlend = Step(120.0f, 220.0f, FVector2D::Distance(FVector2D(X, Y), StartPoint()));
-	Ground = FMath::Lerp(PlainHeight(X, Y) * 0.3f, Ground, StartBlend);
-
-	// Carve the canyon: half-pipe floor between the walls, terraced walls up to the surrounding ground.
-	float Distance = 0.0f;
-	FCanyonSample Sample;
-	if (Canyon().Nearest(FVector2D(X, Y), Distance, Sample))
+	float Height = GroundHeight(X, Y);
+	// The canyon head cuts down through the bench: flat floor, then a steep wall slope up to the bench
+	// (the Wingate cliff meshes stand on that slope; the lower part is the Chinle talus).
+	float Distance;
+	int32 Index;
+	float T;
+	const FWorld& W = World();
+	if (W.Canyon.Nearest(FVector2D(X, Y), Distance, Index, T))
 	{
-		const float Floor = Sample.Floor + JumpProfile(Sample.Distance, Canyon().Length) + 0.4f * Fbm(X / 30.0f, Y / 30.0f, 2);
-		const float WallWidth = 10.0f + 0.35f * FMath::Max(0.0f, Ground - Floor);
-		if (Distance < Sample.HalfWidth + WallWidth)
+		const int32 Next = FMath::Min(Index + 1, W.CanyonFloor.Num() - 1);
+		const float HalfWidth = FMath::Lerp(W.CanyonHalfWidth[Index], W.CanyonHalfWidth[Next], T);
+		const float Floor = FMath::Lerp(W.CanyonFloor[Index], W.CanyonFloor[Next], T) + 0.3f * Fbm(X / 40.0f, Y / 40.0f, 2);
+		const float WallWidth = CanyonWallWidth(Height - Floor);
+		if (Distance < HalfWidth)
 		{
-			const float Inside = Distance / FMath::Max(1.0f, Sample.HalfWidth);
-			float Carved;
-			if (Distance <= Sample.HalfWidth)
-			{
-				Carved = Floor + Sample.HalfPipe * FMath::Square(Inside);
-			}
-			else
-			{
-				const float Wall = Step(Sample.HalfWidth, Sample.HalfWidth + WallWidth, Distance);
-				Carved = FMath::Lerp(Floor + Sample.HalfPipe, Ground, Wall);
-			}
-			Ground = FMath::Min(Ground, Carved);
+			Height = FMath::Min(Height, Floor);
+		}
+		else if (Distance < HalfWidth + WallWidth)
+		{
+			Height = FMath::Min(Height, FMath::Lerp(Floor, Height, Step(HalfWidth, HalfWidth + WallWidth, Distance)));
 		}
 	}
-	return Ground;
+	return Height;
 }
 
-const TArray<FVector2D>& FEXDesertTerrain::CanyonPath()
+FLinearColor FEXDesertTerrain::SurfaceAt(float X, float Y)
 {
-	return Canyon().Points;
+	const FVector2D P(X, Y);
+	float WashFactor = 0.0f;
+	const float Ground = GroundHeight(X, Y, &WashFactor);
+	const float Height = HeightAt(X, Y);
+
+	// Kayenta slickrock shows through the sand on the bench; fully bare on domes, the basin floor and the slab field.
+	float Slick = FMath::Clamp(0.3f + 0.7f * Fbm(X / 220.0f, Y / 220.0f, 3), 0.0f, 0.6f);
+	for (const FDome& Dome : Domes)
+	{
+		Slick = FMath::Max(Slick, Step(1.05f, 0.85f, FVector2D::Distance(P, Dome.Point) / Dome.Radius));
+	}
+	const float Basin = FMath::Sqrt(FMath::Square((X - BasinCenter.X) / 480.0f) + FMath::Square((Y - BasinCenter.Y) / 280.0f));
+	Slick = FMath::Max(Slick, Step(1.0f, 0.7f, Basin) * (Fbm(X / 60.0f, Y / 60.0f, 3) > -0.1f ? 0.85f : 0.2f));
+	const TArray<FVector2D>& Racing = RoutePath(ERoute::Racing);
+	for (int32 Index = 0; Index < Racing.Num(); Index += 6)
+	{
+		if (FVector2D::DistSquared(Racing[Index], IslandCenter) < FMath::Square(260.0f) && FVector2D::DistSquared(Racing[Index], P) < FMath::Square(45.0f))
+		{
+			Slick = FMath::Max(Slick, 0.8f);
+			break;
+		}
+	}
+
+	// Deep sand: the dune sea and loose patches in the SAFE wash.
+	float Deep = DuneMask(X, Y);
+	float Distance;
+	int32 Index;
+	float T;
+	const FWorld& W = World();
+	if (W.SafeWash.Nearest(P, Distance, Index, T) && Distance < 22.0f && Fbm(X / 50.0f, Y / 50.0f, 2) > 0.05f)
+	{
+		Deep = FMath::Max(Deep, 0.85f);
+	}
+
+	// Gravel: wash beds, the canyon floor and its talus slopes, and the mounds under the mesas.
+	float Gravel = WashFactor * 0.5f;
+	const float Cut = Ground - Height;
+	Gravel = FMath::Max(Gravel, Step(1.0f, 6.0f, Cut) * 0.9f);
+	for (const FLandmark& Site : { Arch, Island })
+	{
+		Gravel = FMath::Max(Gravel, Step(1.35f, 0.95f, FVector2D::Distance(P, Site.Point) / Site.Radius) * 0.7f);
+	}
+	Gravel = FMath::Max(Gravel, PlateauMask(X, Y) * (1.0f - PlateauMask(X, Y)) * 2.4f);
+	Slick *= 1.0f - FMath::Max(Deep, WashFactor);
+	return FLinearColor(FMath::Clamp(Slick, 0.0f, 1.0f), FMath::Clamp(Deep, 0.0f, 1.0f), FMath::Clamp(Gravel, 0.0f, 1.0f), 1.0f);
+}
+
+const TArray<FVector2D>& FEXDesertTerrain::RoutePath(ERoute Route)
+{
+	return Route == ERoute::Racing ? World().Racing : World().Safe;
 }
 
 FVector2D FEXDesertTerrain::StartPoint()
 {
-	return FVector2D(-1600.0f, -1050.0f);
+	return GridPoint;
 }
 
 float FEXDesertTerrain::StartYawDeg()
 {
-	const FVector2D Direction = CanyonKeys[0].Point - StartPoint();
-	return FMath::RadiansToDegrees(FMath::Atan2(Direction.Y, Direction.X));
+	return 0.0f;
+}
+
+FEXDesertTerrain::FLandmark FEXDesertTerrain::MesaArch()
+{
+	return Arch;
+}
+
+FEXDesertTerrain::FLandmark FEXDesertTerrain::IslandButte()
+{
+	return Island;
+}
+
+void FEXDesertTerrain::BoundaryMesas(TArray<FLandmark>& Out)
+{
+	Out.Append(Boundary, UE_ARRAY_COUNT(Boundary));
+}
+
+void FEXDesertTerrain::RacingSlabs(TArray<FSlab>& Out)
+{
+	Out.Append(World().Slabs);
 }
 
 const TArray<FEXDesertTerrain::FCanyonPoint>& FEXDesertTerrain::CanyonPoints()
 {
-	static const TArray<FCanyonPoint> Points = []()
-	{
-		TArray<FCanyonPoint> Result;
-		for (const FCanyonSample& Sample : Canyon().Samples)
-		{
-			Result.Add({ Sample.Point, Sample.HalfWidth, Sample.Floor });
-		}
-		return Result;
-	}();
-	return Points;
-}
-
-float FEXDesertTerrain::DistanceToCanyon(float X, float Y, float* OutHalfWidth)
-{
-	float Distance = TNumericLimits<float>::Max();
-	FCanyonSample Sample;
-	if (Canyon().Nearest(FVector2D(X, Y), Distance, Sample) && OutHalfWidth)
-	{
-		*OutHalfWidth = Sample.HalfWidth;
-	}
-	return Distance;
-}
-
-void FEXDesertTerrain::MesaSites(TArray<FVector4>& Out)
-{
-	for (const FMesa& Mesa : Mesas)
-	{
-		Out.Add(FVector4(Mesa.Center.X, Mesa.Center.Y, Mesa.Radius, Mesa.Height));
-	}
-}
-
-FVector2D FEXDesertTerrain::PlateauCenter()
-{
-	return FVector2D(450.0f, 300.0f);
+	return World().CanyonPoints;
 }

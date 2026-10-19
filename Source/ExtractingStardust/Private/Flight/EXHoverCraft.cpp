@@ -119,6 +119,12 @@ void AEXHoverCraft::BeginPlay()
 			break;
 		}
 	}
+	bTour = bDesertTest && FParse::Param(FCommandLine::Get(), TEXT("EXTour"));
+	if (bTour)
+	{
+		bDesertTest = false;
+		VisualPivot->SetVisibility(false, true);
+	}
 }
 
 void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -149,7 +155,11 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 void AEXHoverCraft::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (bDesertTest)
+	if (bTour)
+	{
+		RunTour(DeltaSeconds);
+	}
+	else if (bDesertTest)
 	{
 		RunDesertTest(DeltaSeconds);
 	}
@@ -175,6 +185,11 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	}
 	UpdateVisuals(DeltaSeconds);
 	UpdateCamera(DeltaSeconds);
+	if (bTour)
+	{
+		Camera->SetWorldLocationAndRotation(TourCameraLocation, TourCameraRotation);
+		Camera->SetFieldOfView(70.0f);
+	}
 
 	FEXCraftFxInput FxInput;
 	FxInput.Velocity = VelocityCmps;
@@ -590,9 +605,12 @@ void AEXHoverCraft::ShowTelemetry() const
 
 void AEXHoverCraft::RunDesertTest(float Dt)
 {
-	// Drives the whole canyon route: from the start to the canyon entry, then along its centre line.
+	// Drives the whole sector along the RACING line (or the SAFE line with -EXRouteSafe) at -EXTestSpeed=<m/s>.
 	TestTime += Dt;
-	const TArray<FVector2D>& Path = FEXDesertTerrain::CanyonPath();
+	const bool bSafeRoute = FParse::Param(FCommandLine::Get(), TEXT("EXRouteSafe"));
+	float TestSpeed = 65.0f;
+	FParse::Value(FCommandLine::Get(), TEXT("EXTestSpeed="), TestSpeed);
+	const TArray<FVector2D>& Path = FEXDesertTerrain::RoutePath(bSafeRoute ? FEXDesertTerrain::ERoute::Safe : FEXDesertTerrain::ERoute::Racing);
 	const FVector Location = GetActorLocation();
 	const FVector2D Here(Location.X / CmPerM, Location.Y / CmPerM);
 	while (TestPathIndex < Path.Num() - 1 && FVector2D::Distance(Here, Path[TestPathIndex]) < 45.0f)
@@ -604,14 +622,14 @@ void AEXHoverCraft::RunDesertTest(float Dt)
 	const FVector Flat = Heading.GetSafeNormal2D();
 	const float AngleDeg = FMath::RadiansToDegrees(FMath::Atan2(FVector::CrossProduct(Flat, ToTarget).Z, FVector::DotProduct(Flat, ToTarget)));
 	SteerInput = FMath::Clamp(AngleDeg / 20.0f, -1.0f, 1.0f);
-	ThrottleInput = TestTime > 1.5f && ForwardSpeedMps < 65.0f ? 1.0f : 0.0f;
+	ThrottleInput = TestTime > 1.5f && ForwardSpeedMps < TestSpeed ? 1.0f : 0.0f;
 	BrakeInput = FMath::Abs(AngleDeg) > 50.0f && ForwardSpeedMps > 30.0f ? 1.0f : 0.0f;
 	bBoostHeld = false;
 	bDriftHeld = false;
 
 	TestStuckSeconds = TestTime > 4.0f && ForwardSpeedMps < 5.0f ? TestStuckSeconds + Dt : 0.0f;
-	const int32 ShotIndex = FMath::FloorToInt(TestTime / 9.0f);
-	if (TestTime > 2.0f && ShotIndex < 8 && !(TestShotMask & (1 << ShotIndex)))
+	const int32 ShotIndex = FMath::FloorToInt(TestTime / 6.0f);
+	if (TestTime > 2.0f && ShotIndex < 24 && !(TestShotMask & (1 << ShotIndex)))
 	{
 		TestShotMask |= 1 << ShotIndex;
 		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("DesertTest"), FString::Printf(TEXT("desert_%02d.png"), ShotIndex)), true, false);
@@ -623,10 +641,59 @@ void AEXHoverCraft::RunDesertTest(float Dt)
 			TestTime, Here.X, Here.Y, Location.Z / CmPerM, TestPathIndex, Path.Num(), ForwardSpeedMps, HeightM, bGrounded ? 1 : 0, bLost ? 1 : 0,
 			TestStuckSeconds, Dt > 0.0f ? 1.0f / Dt : 0.0f);
 	}
-	if (TestTime > 70.0f || TestPathIndex >= Path.Num() - 1 || bLost)
+	if (TestTime > 140.0f || TestPathIndex >= Path.Num() - 1 || bLost)
 	{
 		UE_LOG(LogTemp, Display, TEXT("EXDESERT DONE t=%.0f path=%d/%d lost=%d"), TestTime, TestPathIndex, Path.Num(), bLost ? 1 : 0);
 		FPlatformMisc::RequestExit(false);
+	}
+}
+
+void AEXHoverCraft::RunTour(float Dt)
+{
+	// Viewpoints of the S01 geology (metres): where the camera stands, its eye height, what it looks at and how high.
+	struct FView
+	{
+		FVector2D From;
+		float EyeM;
+		FVector2D To;
+		float TargetM;
+	};
+	static const FView Views[] = {
+		{ FVector2D(-2150, -1400), 3.0f, FVector2D(-700, -350), 60.0f },  // the grid: arch mesa on the horizon
+		{ FVector2D(-650, -1000), 3.0f, FVector2D(-700, -350), 50.0f },   // approach wash, closest to the arch
+		{ FVector2D(-835, -640), 5.0f, FVector2D(-700, -350), 70.0f },    // arch mesa from the south-west
+		{ FVector2D(223, -711), 3.0f, FVector2D(175, -590), 40.0f },      // island butte from the RACING line
+		{ FVector2D(101, -404), 3.0f, FVector2D(175, -590), 40.0f },      // island butte from the SAFE wash
+		{ FVector2D(-160, -790), 2.5f, FVector2D(95, -748), 0.0f },       // slab field and its jumps
+		{ FVector2D(520, -470), 2.5f, FVector2D(650, -400), 2.0f },       // the seep in the rejoin bowl
+		{ FVector2D(850, -430), 3.0f, FVector2D(1250, -380), -10.0f },    // into the canyon head
+		{ FVector2D(1450, -400), 3.0f, FVector2D(1700, -450), -40.0f },   // along the canyon
+		{ FVector2D(1600, -420), 3.0f, FVector2D(1600, -480), -15.0f },   // Wingate wall close up
+		{ FVector2D(2100, -560), 3.0f, FVector2D(2250, -600), -45.0f },   // box canyon head
+		{ FVector2D(-500, 800), 3.0f, FVector2D(-500, 1700), 80.0f },     // Navajo escarpment to the north
+		{ FVector2D(-2300, -1700), 120.0f, FVector2D(-500, -700), 0.0f }, // aerial over the basin
+		{ FVector2D(-2300, -2000), 3.0f, FVector2D(-2500, -2400), 5.0f }, // dune sea
+	};
+	constexpr float SecondsPerView = 3.5f;
+	TestTime += Dt;
+	const int32 Index = FMath::FloorToInt(TestTime / SecondsPerView);
+	if (Index >= UE_ARRAY_COUNT(Views))
+	{
+		UE_LOG(LogTemp, Display, TEXT("EXTOUR DONE"));
+		FPlatformMisc::RequestExit(false);
+		return;
+	}
+	const FView& View = Views[Index];
+	const FVector Eye(View.From.X * CmPerM, View.From.Y * CmPerM, (FEXDesertTerrain::HeightAt(View.From.X, View.From.Y) + View.EyeM) * CmPerM);
+	const FVector Target(View.To.X * CmPerM, View.To.Y * CmPerM, (FEXDesertTerrain::HeightAt(View.To.X, View.To.Y) + View.TargetM) * CmPerM);
+	TourCameraLocation = Eye;
+	TourCameraRotation = (Target - Eye).Rotation();
+	ThrottleInput = 0.0f;
+	if (TestTime - Index * SecondsPerView > 2.8f && !(TestShotMask & (1 << Index)))
+	{
+		TestShotMask |= 1 << Index;
+		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Tour"), FString::Printf(TEXT("tour_%02d.png"), Index)), false, false);
+		UE_LOG(LogTemp, Display, TEXT("EXTOUR shot %d fps=%.0f"), Index, Dt > 0.0f ? 1.0f / Dt : 0.0f);
 	}
 }
 
