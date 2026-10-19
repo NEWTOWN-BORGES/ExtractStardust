@@ -228,6 +228,23 @@ rim_cracks = 4.0 * (1.0 - np.abs(fbm(XM + 77, YM, 70, 1))) ** 10 * (0.6 + 0.4 * 
 top_cracks = 2.5 * (1.0 - np.abs(fbm(XM - 41, YM + 33, 35, 1))) ** 12 * Gw * gF
 F += 0.012 * fbm(XM, YM, 30 + 20 * G.mean(), 1) + 0.008 * (1.0 - 2.0 * np.abs(fbm(XM, YM, 14, 1))) + 0.004 * (1.0 - 2.0 * np.abs(fbm(XM, YM, 6, 1)))
 LEVEL = 0.55
+
+
+def dilate(mask, r):
+    out = mask.copy()
+    for k in range(1, r + 1):
+        out |= np.roll(mask, k, 0) | np.roll(mask, -k, 0)
+    m2 = out.copy()
+    for k in range(1, r + 1):
+        out |= np.roll(m2, k, 1) | np.roll(m2, -k, 1)
+    return out
+
+
+# No thin needles pointing at the sky: rock thinner than ~40 m (left between two crevices or on a jagged rim) is
+# taken down to the floor; the landmark spires are added later (stout, see SPIRES).
+solid = F > LEVEL
+opened = dilate(~dilate(~solid, int(round(20.0 / CELL))), int(round(20.0 / CELL)))
+F = np.where(solid & ~opened, LEVEL - 0.03, F)
 floor = 5.0 * fbm(XM, YM, 320, 3) + 2.2 * fbm(XM, YM, 60, 2) + 0.9 * fbm(XM, YM, 14, 2)
 # No dead-flat open ground out here: big swells (20-35 m over ~1 km), medium rolls and small humps, damped in places
 # so some flat runs remain, gentler on the main canyon floors (river) and on the dune sea (its own dunes).
@@ -286,17 +303,18 @@ def column(cx_, cy_, r, h, lean=0.0, taper=0.15):
     return np.maximum(body, cone)
 
 
-# Spider Rock: twin spires (240 m and 200 m) where Monument meets Chinle; more spires along the canyons.
+# Spider Rock: twin towers (200 m and 170 m) where Monument meets Chinle; more towers along the canyons.
+# Stout on purpose (the player wants no thin needles pointing at the sky): height at most ~1.6x the diameter.
 ch = canyon_lines["Chinle"]
 mo_end = canyon_lines["Monument"][-1]
 sp = ch[int(np.argmin(np.hypot(ch[:, 0] - mo_end[0], ch[:, 1] - mo_end[1])))]
-SPIRES = [(sp[0] + 40, sp[1] + 10, 42, 240), (sp[0] + 120, sp[1] - 30, 30, 200)]
+SPIRES = [(sp[0] + 30, sp[1] + 10, 65, 200), (sp[0] + 170, sp[1] - 40, 52, 170)]
 for frac in (0.18, 0.62, 0.86):
     q = ch[int(frac * (len(ch) - 1))]
-    SPIRES.append((q[0], q[1] + 15, 28 + 10 * frac, 130 + 60 * frac))
+    SPIRES.append((q[0], q[1] + 15, 45 + 15 * frac, 110 + 40 * frac))
 mu = canyon_lines["Muerto"]
 q = mu[int(0.72 * (len(mu) - 1))]
-SPIRES.append((q[0] + 10, q[1], 32, 180))
+SPIRES.append((q[0] + 10, q[1], 50, 150))
 # Monument Valley buttes ("Mittens", Merrick) on the open south-west plain: tall blocks on talus cones.
 BUTTES = [(500, 650, 150, 70, 20, 165), (1450, 850, 120, 60, -15, 140), (1050, 300, 70, 60, 40, 120), (300, 1200, 60, 35, 5, 150)]
 # Badlands mesas (flat tops, dissected skirts) between the dune sea and the plateau.
@@ -372,6 +390,12 @@ H = H + debris * (river < 0.5) * np.where(slot_floor, 0.15, 1.0)
 seam = np.where(east_sea, smoothstep(9300.0, 9900.0, XM), smoothstep(0.0, 300.0, dcore + 110.0 * fbm(XM, YM, 220, 2)) * smoothstep(0.0, 60.0, dcore))  # irregular seam line, 0 at the edge
 H = np.where(in_core, Hc[ci, cj], H_mir * (1 - seam) + H * seam)
 H = np.maximum(H, floor + land_hoodoo)
+# Fields for the grand circuit (sculpt_grand_circuit.py): where rock stands, the open floor, the side canyons.
+np.savez_compressed(f"{OUT}/world_fields.npz", H=H, floor=floor, rocky=rocky * seam, slot=slot * seam, G=G, seam=seam,
+                    canyon_floor=canyon_floor, in_core=in_core, sea=(sea_w > 0) | east_sea, badlands=badlands,
+                    debris=debris, slot_floor=slot_floor & (seam > 0.5))
+if os.environ.get("FIELDS_ONLY"):
+    raise SystemExit
 
 # ---- 7. Colours: the core's palette, plus green canyon floors, a muddy river, juniper-dotted plateaus, golden dunes
 # and a grey gravel plain where the dune sea ends.
