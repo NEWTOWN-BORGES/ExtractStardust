@@ -162,8 +162,36 @@ só onde não há outra hipótese, estreitos (no seed 7: 4 toques de 6–17 m).
 3. Importar `canyon_field_height16.png` como Landscape (Z scale no `canyon_field.json`), os tetos dos
    túneis como malhas estáticas e o circuito como spline de rota.
 
-## 9. A seguir: mapa de 6 km
+## 9. Mapa grande: canyon de 5 km + mar de dunas de 2 km
 
-Pedido do jogador: alargar o canyon mais 3 km (5 km de canyon) e juntar 2 km de deserto de dunas: dunas
-longas para saltos e acrobacias e dunas pequenas (referências: Dunes by the lake, Desert Sandstone Dunes,
-Sand Dunes with Rocky Cliffs, Desert Procedural).
+```
+blender -b -P Scripts/sculpt_canyon_field.py -- <saida> 7 7000x5000 4 5000 <pasta_fbx_do_kit>
+```
+
+(7 × 5 km, 4 m por ponto neste PC; em casa usar 2 m: `... 7000x5000 2 5000 ...`). O mapa de 2 km continua a
+sair com `-- <saida> 7 1024`.
+
+- **Canyon (oeste, 5 km)**: as mesmas regras de geologia; perto do mar de dunas as mesas rareiam e ficam como
+  ilhas meio enterradas na areia (rampas de areia contra as paredes).
+- **Mar de dunas (leste, 2 km)**: vento de sul → dunas transversais compridas com cristas este-oeste que se
+  partem a cada ~1 km; rampa a sul côncava (fica mais íngreme no topo) e face de deslizamento a norte (~30°):
+  quem conduz para norte sobe a rampa e salta na crista (saltos e acrobacias). Cristas de 15–35 m, a ~320 m
+  umas das outras; dunas pequenas de ~2 m por cima. Dois corredores baixos este-oeste para as pernas da volta.
+- **Rede e circuito**: washes A (sul), B (norte), M (meio), ligações C (oeste) e K, braços E e F, afluentes
+  G e H. A volta sai do canyon pelo wash A, faz um laço nas dunas (D: corredor sul para leste, subida para
+  norte a saltar as cristas, corredor norte para oeste), volta pelo wash B e fecha pelo C.
+- **Esculturas no mapa** (kit da secção 6): pedras e lajes nos cones de detritos, blocos gigantes no pé das
+  paredes, rochas mega como marcos no chão aberto, mega meio enterradas na transição para as dunas, troncos e
+  árvores mortas nas margens dos washes; nada a menos de 30 m de uma rota. Colocações em `props.json`
+  (malha, posição, rotação, escala) para o Unreal; no `.blend` entram como instâncias.
+
+Resultado (seed 7, 4 m): volta de **18,6 km**, 18 túneis, 4 938 esculturas colocadas (3 755 pedras, 584 blocos
+gigantes, 66 mega, 33 meio enterradas, 500 troncos), ~35 min neste PC.
+
+## 10. Pendente (pedido do jogador): circuitos para mais de 450 km/h
+
+Ajustar o traçado aos números do plano S01: curvas médias com raio de 210–440 m e mega arcos de 875–2100 m,
+largura principal 22–38 m e gargalos de 11–19 m (hoje o A* suavizado deixa curvas apertadas e o wash
+estreita até 16 m). Reduzir também os toques nas paredes (cortes) no mapa grande: 22 no seed 7 (6–26 m, um de 57 m no wash A).
+Outros ajustes vistos nas imagens: dunas com pouco relevo à vista (subir cristas e espaçamento, ex. 30–50 m a
+400–500 m), e tetos dos túneis com degraus vistos de cima (mais resolução na malha do teto).

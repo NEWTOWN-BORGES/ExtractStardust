@@ -24,7 +24,7 @@ for ob in bpy.data.objects:
     entry = {"name": ob.name, "type": ob.type, "dims": [round(d, 1) for d in ob.dimensions],
              "modifiers": [[m.type, m.name] for m in ob.modifiers],
              "materials": [s.material.name for s in ob.material_slots if s.material]}
-    if ob.type == "MESH":
+    if ob.type == "MESH" and not ob.name.startswith(("Prop_", "SM_Tunnel")):
         ev = ob.evaluated_get(dg)
         me = ev.to_mesh()
         nv, nf = len(me.vertices), len(me.polygons)
