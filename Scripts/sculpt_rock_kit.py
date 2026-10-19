@@ -285,10 +285,11 @@ for name, group in pieces.items():
 world = bpy.data.worlds.new("Sky")
 world.use_nodes = True
 sky = world.node_tree.nodes.new("ShaderNodeTexSky")
-sky.sky_type = "NISHITA"
+# Blender 5 renamed the Nishita sky to MULTIPLE_SCATTERING (and dust to aerosol).
+sky.sky_type = "NISHITA" if "NISHITA" in sky.bl_rna.properties["sky_type"].enum_items.keys() else "MULTIPLE_SCATTERING"
 sky.sun_elevation = math.radians(28)
 sky.sun_rotation = math.radians(-35) + math.pi
-sky.dust_density = 2.5
+setattr(sky, "dust_density" if hasattr(sky, "dust_density") else "aerosol_density", 2.5)
 sky.sun_disc = False
 world.node_tree.links.new(sky.outputs["Color"], world.node_tree.nodes["Background"].inputs[0])
 world.node_tree.nodes["Background"].inputs[1].default_value = 0.12

@@ -123,9 +123,12 @@ SUN_ELEV, SUN_AZ = math.radians(25), math.radians(-35)
 world = bpy.data.worlds.new("Sky")
 world.use_nodes = True
 sky = world.node_tree.nodes.new("ShaderNodeTexSky")
-sky.sky_type = "NISHITA"
+# Blender 5 renamed the Nishita sky to MULTIPLE_SCATTERING (and dust to aerosol).
+sky.sky_type = "NISHITA" if "NISHITA" in sky.bl_rna.properties["sky_type"].enum_items.keys() else "MULTIPLE_SCATTERING"
 sky.sun_elevation, sky.sun_rotation = SUN_ELEV, SUN_AZ + math.pi
-sky.air_density, sky.dust_density, sky.sun_disc = 1.4, 3.0, False
+sky.air_density = 1.4
+setattr(sky, "dust_density" if hasattr(sky, "dust_density") else "aerosol_density", 3.0)
+sky.sun_disc = False
 world.node_tree.links.new(sky.outputs["Color"], world.node_tree.nodes["Background"].inputs[0])
 world.node_tree.nodes["Background"].inputs[1].default_value = 0.12
 scene.world = world

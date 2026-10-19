@@ -836,11 +836,12 @@ world.use_nodes = True
 # Physical sky with a late-afternoon sun (25 deg up) from the same side as the sun lamp, plus a little dust haze.
 SUN_ELEV, SUN_AZ = math.radians(25), math.radians(-35)
 sky = world.node_tree.nodes.new("ShaderNodeTexSky")
-sky.sky_type = "NISHITA"
+# Blender 5 renamed the Nishita sky to MULTIPLE_SCATTERING (and dust to aerosol).
+sky.sky_type = "NISHITA" if "NISHITA" in sky.bl_rna.properties["sky_type"].enum_items.keys() else "MULTIPLE_SCATTERING"
 sky.sun_elevation = SUN_ELEV
 sky.sun_rotation = SUN_AZ + math.pi
 sky.air_density = 1.4
-sky.dust_density = 3.0
+setattr(sky, "dust_density" if hasattr(sky, "dust_density") else "aerosol_density", 3.0)
 sky.sun_disc = False
 world.node_tree.links.new(sky.outputs["Color"], world.node_tree.nodes["Background"].inputs[0])
 world.node_tree.nodes["Background"].inputs[1].default_value = 0.12
