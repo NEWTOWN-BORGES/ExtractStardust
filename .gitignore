@@ -11,3 +11,5 @@ DerivedDataCache/
 Build/Windows/FileOpenOrder/
 __pycache__/
 *.pyc
+# Poly Haven sources: Scripts/download_polyhaven.py fetches them again (CC0); Content has the imported textures
+SourceArt/PolyHaven/

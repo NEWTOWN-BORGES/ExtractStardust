@@ -3,6 +3,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/InputComponent.h"
+#include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
@@ -119,7 +120,35 @@ void AEXHoverCraft::BeginPlay()
 			break;
 		}
 	}
-	bTour = bDesertTest && FParse::Param(FCommandLine::Get(), TEXT("EXTour"));
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (USplineComponent* Spline = It->ActorHasTag(TEXT("EXRoute")) ? It->FindComponentByClass<USplineComponent>() : nullptr)
+		{
+			for (float Distance = 0.0f; Distance < Spline->GetSplineLength(); Distance += 5.0f * CmPerM)
+			{
+				const FVector Point = Spline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
+				MapRoute.Add(FVector2D(Point.X / CmPerM, Point.Y / CmPerM));
+			}
+			break;
+		}
+	}
+	FString Looks;
+	if (FParse::Value(FCommandLine::Get(), TEXT("EXLook="), Looks, false))
+	{
+		TArray<FString> Views;
+		Looks.TrimQuotes().ParseIntoArray(Views, TEXT(";"));
+		for (const FString& View : Views)
+		{
+			TArray<FString> V;
+			View.ParseIntoArray(V, TEXT(","));
+			if (V.Num() == 5)
+			{
+				LookViews.Add({ FVector(FCString::Atof(*V[0]), FCString::Atof(*V[1]), FCString::Atof(*V[2])) * CmPerM,
+					FRotator(FCString::Atof(*V[4]), FCString::Atof(*V[3]), 0.0f) });
+			}
+		}
+	}
+	bTour = bDesertTest && (FParse::Param(FCommandLine::Get(), TEXT("EXTour")) || LookViews.Num() > 0);
 	if (bTour)
 	{
 		bDesertTest = false;
@@ -610,7 +639,11 @@ void AEXHoverCraft::RunDesertTest(float Dt)
 	const bool bSafeRoute = FParse::Param(FCommandLine::Get(), TEXT("EXRouteSafe"));
 	float TestSpeed = 65.0f;
 	FParse::Value(FCommandLine::Get(), TEXT("EXTestSpeed="), TestSpeed);
-	const TArray<FVector2D>& Path = FEXDesertTerrain::RoutePath(bSafeRoute ? FEXDesertTerrain::ERoute::Safe : FEXDesertTerrain::ERoute::Racing);
+	const TArray<FVector2D>& Path = MapRoute.Num() > 0 ? MapRoute
+		: FEXDesertTerrain::RoutePath(bSafeRoute ? FEXDesertTerrain::ERoute::Safe : FEXDesertTerrain::ERoute::Racing);
+	// Long enough to finish the route at the test speed, with a screenshot spread over it (at most 30).
+	const float TimeLimit = FMath::Max(140.0f, Path.Num() * 5.0f / TestSpeed * 1.3f);
+	const float ShotEvery = FMath::Max(6.0f, TimeLimit / 30.0f);
 	const FVector Location = GetActorLocation();
 	const FVector2D Here(Location.X / CmPerM, Location.Y / CmPerM);
 	while (TestPathIndex < Path.Num() - 1 && FVector2D::Distance(Here, Path[TestPathIndex]) < 45.0f)
@@ -622,14 +655,40 @@ void AEXHoverCraft::RunDesertTest(float Dt)
 	const FVector Flat = Heading.GetSafeNormal2D();
 	const float AngleDeg = FMath::RadiansToDegrees(FMath::Atan2(FVector::CrossProduct(Flat, ToTarget).Z, FVector::DotProduct(Flat, ToTarget)));
 	SteerInput = FMath::Clamp(AngleDeg / 20.0f, -1.0f, 1.0f);
-	ThrottleInput = TestTime > 1.5f && ForwardSpeedMps < TestSpeed ? 1.0f : 0.0f;
-	BrakeInput = FMath::Abs(AngleDeg) > 50.0f && ForwardSpeedMps > 30.0f ? 1.0f : 0.0f;
+	// Like a driver: the tightest bend in the next ~200 m sets the speed (about 2.2 g of side grip).
+	float TightestM = 10000.0f;
+	for (int32 Look = TestPathIndex; Look + 10 < FMath::Min(TestPathIndex + 40, Path.Num()); Look += 2)
+	{
+		const FVector2D A = Path[Look];
+		const FVector2D B = Path[Look + 5];
+		const FVector2D C = Path[Look + 10];
+		const double Cross = FMath::Abs((B - A) ^ (C - B));
+		if (Cross > KINDA_SMALL_NUMBER)
+		{
+			TightestM = FMath::Min(TightestM, static_cast<float>(FVector2D::Distance(A, B) * FVector2D::Distance(B, C) * FVector2D::Distance(C, A) / (2.0 * Cross)));
+		}
+	}
+	const float TargetSpeed = FMath::Min(TestSpeed, FMath::Sqrt(22.0f * TightestM));
+	ThrottleInput = TestTime > 1.5f && ForwardSpeedMps < TargetSpeed ? 1.0f : 0.0f;
+	BrakeInput = (ForwardSpeedMps > TargetSpeed + 6.0f || (FMath::Abs(AngleDeg) > 50.0f && ForwardSpeedMps > 30.0f)) ? 1.0f : 0.0f;
 	bBoostHeld = false;
 	bDriftHeld = false;
 
 	TestStuckSeconds = TestTime > 4.0f && ForwardSpeedMps < 5.0f ? TestStuckSeconds + Dt : 0.0f;
-	const int32 ShotIndex = FMath::FloorToInt(TestTime / 6.0f);
-	if (TestTime > 2.0f && ShotIndex < 24 && !(TestShotMask & (1 << ShotIndex)))
+	if (TestStuckSeconds > 3.0f && TestPathIndex + 8 < Path.Num())
+	{
+		// Logged so the spot can be fixed, then the test carries on a little further along the route.
+		UE_LOG(LogTemp, Warning, TEXT("EXDESERT STUCK at (%.0f, %.0f) path=%d"), Here.X, Here.Y, TestPathIndex);
+		TestPathIndex += 8;
+		const FVector2D Next = Path[TestPathIndex];
+		const FVector2D Dir = (Path[FMath::Min(TestPathIndex + 2, Path.Num() - 1)] - Next).GetSafeNormal();
+		SetActorLocation(FVector(Next.X * CmPerM, Next.Y * CmPerM, Location.Z + 2000.0f), false, nullptr, ETeleportType::TeleportPhysics);
+		Heading = FVector(Dir.X, Dir.Y, 0.0f);
+		VelocityCmps = FVector::ZeroVector;
+		TestStuckSeconds = 0.0f;
+	}
+	const int32 ShotIndex = FMath::FloorToInt(TestTime / ShotEvery);
+	if (TestTime > 2.0f && ShotIndex < 30 && !(TestShotMask & (1 << ShotIndex)))
 	{
 		TestShotMask |= 1 << ShotIndex;
 		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("DesertTest"), FString::Printf(TEXT("desert_%02d.png"), ShotIndex)), true, false);
@@ -641,7 +700,7 @@ void AEXHoverCraft::RunDesertTest(float Dt)
 			TestTime, Here.X, Here.Y, Location.Z / CmPerM, TestPathIndex, Path.Num(), ForwardSpeedMps, HeightM, bGrounded ? 1 : 0, bLost ? 1 : 0,
 			TestStuckSeconds, Dt > 0.0f ? 1.0f / Dt : 0.0f);
 	}
-	if (TestTime > 140.0f || TestPathIndex >= Path.Num() - 1 || bLost)
+	if (TestTime > TimeLimit || TestPathIndex >= Path.Num() - 1 || bLost)
 	{
 		UE_LOG(LogTemp, Display, TEXT("EXDESERT DONE t=%.0f path=%d/%d lost=%d"), TestTime, TestPathIndex, Path.Num(), bLost ? 1 : 0);
 		FPlatformMisc::RequestExit(false);
@@ -677,17 +736,26 @@ void AEXHoverCraft::RunTour(float Dt)
 	constexpr float SecondsPerView = 3.5f;
 	TestTime += Dt;
 	const int32 Index = FMath::FloorToInt(TestTime / SecondsPerView);
-	if (Index >= UE_ARRAY_COUNT(Views))
+	const int32 ViewCount = LookViews.Num() > 0 ? LookViews.Num() : UE_ARRAY_COUNT(Views);
+	if (Index >= ViewCount)
 	{
 		UE_LOG(LogTemp, Display, TEXT("EXTOUR DONE"));
 		FPlatformMisc::RequestExit(false);
 		return;
 	}
-	const FView& View = Views[Index];
-	const FVector Eye(View.From.X * CmPerM, View.From.Y * CmPerM, (FEXDesertTerrain::HeightAt(View.From.X, View.From.Y) + View.EyeM) * CmPerM);
-	const FVector Target(View.To.X * CmPerM, View.To.Y * CmPerM, (FEXDesertTerrain::HeightAt(View.To.X, View.To.Y) + View.TargetM) * CmPerM);
-	TourCameraLocation = Eye;
-	TourCameraRotation = (Target - Eye).Rotation();
+	if (LookViews.Num() > 0)
+	{
+		TourCameraLocation = LookViews[Index].Key;
+		TourCameraRotation = LookViews[Index].Value;
+	}
+	else
+	{
+		const FView& View = Views[Index];
+		const FVector Eye(View.From.X * CmPerM, View.From.Y * CmPerM, (FEXDesertTerrain::HeightAt(View.From.X, View.From.Y) + View.EyeM) * CmPerM);
+		const FVector Target(View.To.X * CmPerM, View.To.Y * CmPerM, (FEXDesertTerrain::HeightAt(View.To.X, View.To.Y) + View.TargetM) * CmPerM);
+		TourCameraLocation = Eye;
+		TourCameraRotation = (Target - Eye).Rotation();
+	}
 	ThrottleInput = 0.0f;
 	if (TestTime - Index * SecondsPerView > 2.8f && !(TestShotMask & (1 << Index)))
 	{

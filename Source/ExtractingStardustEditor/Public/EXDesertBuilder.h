@@ -23,4 +23,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "ExtractingStardust")
 	static bool BuildDesertMap();
+
+	/**
+	 * Builds /Game/Maps/RedDustDivide from the generated 10 x 8 km world in WorldFolder (sculpt_expansion.py,
+	 * sculpt_grand_circuit.py and export_world_unreal.py outputs; Scripts/import_world.py must have run): landscape,
+	 * props as instanced meshes, tunnel roofs, the grand circuit as a spline tagged EXRoute, sky and start.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "ExtractingStardust")
+	static bool BuildWorldMap(const FString& WorldFolder);
 };

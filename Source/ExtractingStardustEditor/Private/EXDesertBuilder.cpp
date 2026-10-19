@@ -2,6 +2,11 @@
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Async/ParallelFor.h"
+#include "Components/SplineComponent.h"
+#include "Dom/JsonObject.h"
+#include "Misc/FileHelper.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
@@ -641,6 +646,67 @@ namespace
 		UE_LOG(LogTemp, Display, TEXT("EXBUILD vegetation total %d plants"), Total);
 	}
 
+	/** Sun, sky and dusty air. Movable lighting only: the project has no baked lighting. */
+	void AddSky(UWorld* World, float FogDensity)
+	{
+		ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(FVector(0.0f, 0.0f, 50000.0f), FRotator(-38.0f, -35.0f, 0.0f));
+		if (UDirectionalLightComponent* SunLight = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()))
+		{
+			SunLight->SetMobility(EComponentMobility::Movable);
+			SunLight->SetIntensity(10.0f);
+			SunLight->SetLightColor(FLinearColor(1.0f, 0.93f, 0.84f));
+			SunLight->SetAtmosphereSunLight(true);
+			SunLight->SetDynamicShadowDistanceMovableLight(25000.0f);
+		}
+		World->SpawnActor<ASkyAtmosphere>(FVector::ZeroVector, FRotator::ZeroRotator);
+		ASkyLight* Sky = World->SpawnActor<ASkyLight>(FVector(0.0f, 0.0f, 20000.0f), FRotator::ZeroRotator);
+		if (USkyLightComponent* SkyLight = Sky->GetLightComponent())
+		{
+			SkyLight->SetMobility(EComponentMobility::Movable);
+			SkyLight->SetRealTimeCapture(true);
+			SkyLight->SetIntensity(1.0f);
+		}
+		AExponentialHeightFog* Fog = World->SpawnActor<AExponentialHeightFog>(FVector(0.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+		if (UExponentialHeightFogComponent* FogComponent = Fog->GetComponent())
+		{
+			FogComponent->SetFogDensity(FogDensity);
+			FogComponent->SetFogHeightFalloff(0.12f);
+			FogComponent->SetFogInscatteringColor(FLinearColor(0.62f, 0.47f, 0.36f));
+			FogComponent->SetDirectionalInscatteringColor(FLinearColor(1.0f, 0.72f, 0.48f));
+			FogComponent->SetStartDistance(4000.0f);
+		}
+		APostProcessVolume* Post = World->SpawnActor<APostProcessVolume>(FVector::ZeroVector, FRotator::ZeroRotator);
+		Post->bUnbound = true;
+		Post->Settings.bOverride_BloomIntensity = true;
+		Post->Settings.BloomIntensity = 0.45f;
+		Post->Settings.bOverride_VignetteIntensity = true;
+		Post->Settings.VignetteIntensity = 0.3f;
+		Post->Settings.bOverride_WhiteTemp = true;
+		Post->Settings.WhiteTemp = 6100.0f;
+	}
+
+	/** Invisible walls around an area (cm), 1.2 km tall around CenterZ: the map edge can never be crossed. */
+	void AddEdgeWalls(UWorld* World, const FBox2D& Area, float CenterZ)
+	{
+		UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+		if (!Cube)
+		{
+			return;
+		}
+		const FVector2D Center = Area.GetCenter();
+		const FVector2D Size = Area.GetSize() + FVector2D(4000.0f, 4000.0f);
+		const FVector Centers[] = { FVector(Area.Max.X, Center.Y, CenterZ), FVector(Area.Min.X, Center.Y, CenterZ),
+			FVector(Center.X, Area.Max.Y, CenterZ), FVector(Center.X, Area.Min.Y, CenterZ) };
+		for (int32 Index = 0; Index < 4; ++Index)
+		{
+			const bool bAlongY = Index < 2;
+			AStaticMeshActor* Wall = World->SpawnActor<AStaticMeshActor>(Centers[Index], FRotator::ZeroRotator);
+			Wall->GetStaticMeshComponent()->SetStaticMesh(Cube);
+			Wall->SetActorScale3D(bAlongY ? FVector(10.0f, Size.Y / 100.0f, 1200.0f) : FVector(Size.X / 100.0f, 10.0f, 1200.0f));
+			Wall->SetActorHiddenInGame(true);
+		}
+	}
+
 	void PlaceS01(UWorld* World)
 	{
 		FPlacer Placer;
@@ -750,41 +816,7 @@ bool UEXDesertBuilder::BuildDesertMap()
 	Landscape->ForceLayersFullUpdate();
 	FlushRenderingCommands();
 
-	// Sun, sky and dusty air. Movable lighting only: the project has no baked lighting.
-	ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(FVector(0.0f, 0.0f, 50000.0f), FRotator(-38.0f, -35.0f, 0.0f));
-	if (UDirectionalLightComponent* SunLight = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()))
-	{
-		SunLight->SetMobility(EComponentMobility::Movable);
-		SunLight->SetIntensity(10.0f);
-		SunLight->SetLightColor(FLinearColor(1.0f, 0.93f, 0.84f));
-		SunLight->SetAtmosphereSunLight(true);
-		SunLight->SetDynamicShadowDistanceMovableLight(25000.0f);
-	}
-	World->SpawnActor<ASkyAtmosphere>(FVector::ZeroVector, FRotator::ZeroRotator);
-	ASkyLight* Sky = World->SpawnActor<ASkyLight>(FVector(0.0f, 0.0f, 20000.0f), FRotator::ZeroRotator);
-	if (USkyLightComponent* SkyLight = Sky->GetLightComponent())
-	{
-		SkyLight->SetMobility(EComponentMobility::Movable);
-		SkyLight->SetRealTimeCapture(true);
-		SkyLight->SetIntensity(1.0f);
-	}
-	AExponentialHeightFog* Fog = World->SpawnActor<AExponentialHeightFog>(FVector(0.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
-	if (UExponentialHeightFogComponent* FogComponent = Fog->GetComponent())
-	{
-		FogComponent->SetFogDensity(0.012f);
-		FogComponent->SetFogHeightFalloff(0.12f);
-		FogComponent->SetFogInscatteringColor(FLinearColor(0.62f, 0.47f, 0.36f));
-		FogComponent->SetDirectionalInscatteringColor(FLinearColor(1.0f, 0.72f, 0.48f));
-		FogComponent->SetStartDistance(4000.0f);
-	}
-	APostProcessVolume* Post = World->SpawnActor<APostProcessVolume>(FVector::ZeroVector, FRotator::ZeroRotator);
-	Post->bUnbound = true;
-	Post->Settings.bOverride_BloomIntensity = true;
-	Post->Settings.BloomIntensity = 0.45f;
-	Post->Settings.bOverride_VignetteIntensity = true;
-	Post->Settings.VignetteIntensity = 0.3f;
-	Post->Settings.bOverride_WhiteTemp = true;
-	Post->Settings.WhiteTemp = 6100.0f;
+	AddSky(World, 0.012f);
 
 	// Race start, tagged so the game mode knows this map brings its own world.
 	const FVector2D Start = FTerrain::StartPoint();
@@ -794,24 +826,265 @@ bool UEXDesertBuilder::BuildDesertMap()
 	PlayerStart->Tags.Add(TEXT("EXWorld"));
 
 	// Invisible walls just inside the landscape edge: the raised rim is the visible border, these make it absolute.
-	if (UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")))
-	{
-		const float Inner = (HalfSize - 10.0f) * CmPerM;
-		const float Length = (HalfSize * 2.0f + 40.0f) * CmPerM;
-		const FVector Centers[] = { FVector(Inner, 0, 0), FVector(-Inner, 0, 0), FVector(0, Inner, 0), FVector(0, -Inner, 0) };
-		for (int32 Index = 0; Index < 4; ++Index)
-		{
-			const bool bAlongY = Index < 2;
-			AStaticMeshActor* Wall = World->SpawnActor<AStaticMeshActor>(Centers[Index] + FVector(0.0f, 0.0f, 20000.0f), FRotator::ZeroRotator);
-			Wall->GetStaticMeshComponent()->SetStaticMesh(Cube);
-			Wall->SetActorScale3D(bAlongY ? FVector(10.0f, Length / 100.0f, 600.0f) : FVector(Length / 100.0f, 10.0f, 600.0f));
-			Wall->SetActorHiddenInGame(true);
-		}
-	}
+	const float Inner = (HalfSize - 10.0f) * CmPerM;
+	AddEdgeWalls(World, FBox2D(FVector2D(-Inner, -Inner), FVector2D(Inner, Inner)), 20000.0f);
 
 	PlaceS01(World);
 
 	const bool bSaved = UEditorLoadingAndSavingUtils::SaveMap(World, TEXT("/Game/Maps/DesertCanyon"));
 	UE_LOG(LogTemp, Display, TEXT("EXBUILD saved /Game/Maps/DesertCanyon: %s"), bSaved ? TEXT("OK") : TEXT("FAILED"));
+	return bSaved;
+}
+
+namespace
+{
+	TSharedPtr<FJsonObject> LoadJsonFile(const FString& Path)
+	{
+		FString Text;
+		TSharedPtr<FJsonObject> Root;
+		if (!FFileHelper::LoadFileToString(Text, *Path) || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root) || !Root.IsValid())
+		{
+			UE_LOG(LogTemp, Error, TEXT("EXWORLD could not read %s"), *Path);
+			return nullptr;
+		}
+		return Root;
+	}
+
+	/** World metres (from the world centre, y north) to Unreal centimetres: Y is mirrored, as the FBX import mirrors
+	 *  every mesh the world was built with. */
+	FVector WorldToUnreal(double X, double Y, double Z)
+	{
+		return FVector(X * CmPerM, -Y * CmPerM, Z * CmPerM);
+	}
+
+	UHierarchicalInstancedStaticMeshComponent* AddInstances(UWorld* World, UStaticMesh* Mesh, const TArray<FTransform>& Transforms, bool bCollide,
+		float CullM, const FName Folder)
+	{
+		AActor* Holder = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform::Identity);
+		UHierarchicalInstancedStaticMeshComponent* Component = NewObject<UHierarchicalInstancedStaticMeshComponent>(Holder, TEXT("Instances"));
+		Component->SetMobility(EComponentMobility::Static);
+		Component->SetStaticMesh(Mesh);
+		Component->SetCollisionProfileName(bCollide ? UCollisionProfile::BlockAll_ProfileName : UCollisionProfile::NoCollision_ProfileName);
+		if (CullM > 0.0f)
+		{
+			Component->SetCullDistances(FMath::RoundToInt(CullM * 0.75f * CmPerM), FMath::RoundToInt(CullM * CmPerM));
+		}
+		Holder->SetRootComponent(Component);
+		Holder->AddInstanceComponent(Component);
+		Component->RegisterComponent();
+		Component->AddInstances(Transforms, false, true);
+		Holder->SetActorLabel(FString::Printf(TEXT("Props_%s"), *Mesh->GetName()));
+		Holder->SetFolderPath(Folder);
+		return Component;
+	}
+
+	/** How far away each kind of plant stops being drawn (m); 0 keeps it at any distance. */
+	float PlantCullM(const FString& Mesh)
+	{
+		if (Mesh.Contains(TEXT("Grass")))
+		{
+			return 250.0f;
+		}
+		if (Mesh.Contains(TEXT("Sagebrush")) || Mesh.Contains(TEXT("DeadBrush")) || Mesh.Contains(TEXT("PricklyPear")) || Mesh.Contains(TEXT("Yucca")))
+		{
+			return 500.0f;
+		}
+		return Mesh.Contains(TEXT("Willow")) ? 900.0f : 0.0f;
+	}
+}
+
+bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder)
+{
+	const TSharedPtr<FJsonObject> Meta = LoadJsonFile(WorldFolder / TEXT("unreal/world_unreal.json"));
+	const TSharedPtr<FJsonObject> Field = LoadJsonFile(WorldFolder / TEXT("canyon_field.json"));
+	const TSharedPtr<FJsonObject> Props = LoadJsonFile(WorldFolder / TEXT("props.json"));
+	if (!Meta || !Field || !Props)
+	{
+		return false;
+	}
+	const TArray<TSharedPtr<FJsonValue>>& SizeField = Meta->GetArrayField(TEXT("size"));
+	const TArray<TSharedPtr<FJsonValue>>& OriginField = Meta->GetArrayField(TEXT("origin_cm"));
+	const int32 SizeX = static_cast<int32>(SizeField[0]->AsNumber());
+	const int32 SizeY = static_cast<int32>(SizeField[1]->AsNumber());
+	const double SpacingCm = Meta->GetNumberField(TEXT("spacing_m")) * CmPerM;
+	TArray<uint8> Raw;
+	if (!FFileHelper::LoadFileToArray(Raw, *(WorldFolder / TEXT("unreal/world.r16"))) || Raw.Num() != SizeX * SizeY * 2)
+	{
+		UE_LOG(LogTemp, Error, TEXT("EXWORLD world.r16 missing or not %d x %d"), SizeX, SizeY);
+		return false;
+	}
+	TArray<uint16> Heights;
+	Heights.SetNumUninitialized(SizeX * SizeY);
+	FMemory::Memcpy(Heights.GetData(), Raw.GetData(), Raw.Num());
+
+	UWorld* World = UEditorLoadingAndSavingUtils::NewBlankMap(false);
+	if (!World)
+	{
+		return false;
+	}
+	// Landscape: one vertex per height sample, 2 x 2 sections of 63 quads per component.
+	ALandscape* Landscape = World->SpawnActor<ALandscape>(FVector(OriginField[0]->AsNumber(), OriginField[1]->AsNumber(),
+		Meta->GetNumberField(TEXT("actor_z_cm"))), FRotator::ZeroRotator);
+	Landscape->SetActorRelativeScale3D(FVector(SpacingCm, SpacingCm, Meta->GetNumberField(TEXT("z_scale"))));
+	Landscape->LandscapeMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/World/M_World.M_World"));
+	TMap<FGuid, TArray<uint16>> HeightData;
+	HeightData.Add(FGuid(), MoveTemp(Heights));
+	TMap<FGuid, TArray<FLandscapeImportLayerInfo>> LayerData;
+	LayerData.Add(FGuid(), TArray<FLandscapeImportLayerInfo>());
+	Landscape->Import(FGuid::NewGuid(), 0, 0, SizeX - 1, SizeY - 1, 2, 63, HeightData, TEXT(""), LayerData,
+		ELandscapeImportAlphamapType::Additive, TArrayView<const FLandscapeLayer>());
+	if (ULandscapeInfo* Info = Landscape->GetLandscapeInfo())
+	{
+		Info->UpdateLayerInfoMap(Landscape);
+	}
+	Landscape->ForceLayersFullUpdate();
+	FlushRenderingCommands();
+	UE_LOG(LogTemp, Display, TEXT("EXWORLD landscape %d x %d at %.0f cm, material %s"), SizeX, SizeY, SpacingCm, *GetNameSafe(Landscape->LandscapeMaterial));
+
+	AddSky(World, 0.0025f);
+	const TArray<TSharedPtr<FJsonValue>>& WorldSize = Meta->GetArrayField(TEXT("world_size_m"));
+	const double HalfX = WorldSize[0]->AsNumber() * 0.5 * CmPerM;
+	const double HalfY = WorldSize[1]->AsNumber() * 0.5 * CmPerM;
+	AddEdgeWalls(World, FBox2D(FVector2D(-HalfX + 1000.0, -HalfY + 1000.0), FVector2D(HalfX - 1000.0, HalfY - 1000.0)), 20000.0f);
+
+	// Props: one instanced component per mesh. Rotation as the world placed them (Blender XYZ: tilt x, tilt y, yaw),
+	// mirrored with Y: roll keeps tilt x, pitch and yaw change sign.
+	TMap<FString, TArray<FTransform>> ByMesh;
+	for (const TSharedPtr<FJsonValue>& Value : Props->GetArrayField(TEXT("props")))
+	{
+		const TSharedPtr<FJsonObject> Prop = Value->AsObject();
+		double TiltX = 0.0;
+		double TiltY = 0.0;
+		const TArray<TSharedPtr<FJsonValue>>* Tilt = nullptr;
+		if (Prop->TryGetArrayField(TEXT("tilt"), Tilt) && Tilt->Num() == 2)
+		{
+			TiltX = (*Tilt)[0]->AsNumber();
+			TiltY = (*Tilt)[1]->AsNumber();
+		}
+		ByMesh.FindOrAdd(Prop->GetStringField(TEXT("mesh"))).Add(FTransform(
+			FRotator(-TiltY, -Prop->GetNumberField(TEXT("yaw")), TiltX),
+			WorldToUnreal(Prop->GetNumberField(TEXT("x")), Prop->GetNumberField(TEXT("y")), Prop->GetNumberField(TEXT("z"))),
+			FVector(Prop->GetNumberField(TEXT("scale")))));
+	}
+	int32 Placed = 0;
+	for (const TPair<FString, TArray<FTransform>>& Group : ByMesh)
+	{
+		const bool bKit = Group.Key.StartsWith(TEXT("SM_Kit_"));
+		const FString Path = FString::Printf(TEXT("%s/%s.%s"), bKit ? TEXT("/Game/World/Kit") : TEXT("/Game/Desert/Plants"), *Group.Key, *Group.Key);
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Path);
+		if (!Mesh)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("EXWORLD missing mesh %s (%d props)"), *Path, Group.Value.Num());
+			continue;
+		}
+		const bool bWood = Group.Key.Contains(TEXT("Dead"));
+		AddInstances(World, Mesh, Group.Value, bKit && !bWood, bKit ? 0.0f : PlantCullM(Group.Key), bKit ? TEXT("World/Rocks") : TEXT("World/Plants"));
+		Placed += Group.Value.Num();
+	}
+	UE_LOG(LogTemp, Display, TEXT("EXWORLD props placed %d in %d meshes"), Placed, ByMesh.Num());
+
+	// Tunnel roofs: the core's were exported in the core map's frame, the grand circuit's in the world's.
+	const TArray<TSharedPtr<FJsonValue>>& CoreOffset = Meta->GetArrayField(TEXT("core_tunnel_offset_m"));
+	const TSharedPtr<FJsonObject> Circuit = Field->GetObjectField(TEXT("grand_circuit"));
+	int32 Roofs = 0;
+	auto PlaceRoofs = [&](const TArray<TSharedPtr<FJsonValue>>& Tunnels, const FVector& Offset)
+	{
+		for (const TSharedPtr<FJsonValue>& Tunnel : Tunnels)
+		{
+			const FString Name = Tunnel->AsObject()->GetStringField(TEXT("name"));
+			UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/World/Tunnels/%s.%s"), *Name, *Name));
+			if (!Mesh)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("EXWORLD missing tunnel roof %s"), *Name);
+				continue;
+			}
+			AStaticMeshActor* Roof = World->SpawnActor<AStaticMeshActor>(Offset, FRotator::ZeroRotator);
+			Roof->GetStaticMeshComponent()->SetStaticMesh(Mesh);
+			Roof->SetActorLabel(Name);
+			Roof->SetFolderPath(TEXT("World/Tunnels"));
+			++Roofs;
+		}
+	};
+	PlaceRoofs(Field->GetArrayField(TEXT("tunnels")), WorldToUnreal(CoreOffset[0]->AsNumber(), CoreOffset[1]->AsNumber(), 0.0));
+	PlaceRoofs(Circuit->GetArrayField(TEXT("tunnels")), FVector::ZeroVector);
+	UE_LOG(LogTemp, Display, TEXT("EXWORLD tunnel roofs %d"), Roofs);
+
+	// The grand circuit as a spline (one point every 20 m) the autopilot and later the AI follow, and the start.
+	const TArray<TSharedPtr<FJsonValue>>& LapPoints = Circuit->GetObjectField(TEXT("lap"))->GetArrayField(TEXT("points"));
+	AActor* Route = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform::Identity);
+	USplineComponent* Spline = NewObject<USplineComponent>(Route, TEXT("Route"));
+	Route->SetRootComponent(Spline);
+	Route->AddInstanceComponent(Spline);
+	Spline->RegisterComponent();
+	Spline->ClearSplinePoints(false);
+	auto LapPoint = [&LapPoints](int32 Index)
+	{
+		const TArray<TSharedPtr<FJsonValue>>& P = LapPoints[Index]->AsArray();
+		return WorldToUnreal(P[0]->AsNumber(), P[1]->AsNumber(), P[2]->AsNumber());
+	};
+	for (int32 Index = 0; Index < LapPoints.Num(); Index += 5)
+	{
+		Spline->AddSplinePoint(LapPoint(Index) + FVector(0.0f, 0.0f, 50.0f), ESplineCoordinateSpace::World, false);
+	}
+	Spline->SetClosedLoop(true, false);
+	Spline->UpdateSpline();
+	Route->Tags.Add(TEXT("EXRoute"));
+	Route->SetActorLabel(TEXT("Route_GrandCircuit"));
+	// Guide beacons: glowing posts 3 m outside the floor's edge, on the outside of every bend tighter than 400 m
+	// (one every 60 m) and every 250 m on the straights, standing on the ground; they never collide.
+	const TArray<TSharedPtr<FJsonValue>>& LapWidths = Circuit->GetObjectField(TEXT("lap"))->GetArrayField(TEXT("width_m"));
+	TArray<FTransform> Beacons;
+	float SinceLast = 1000.0f;
+	double StraightSide = 1.0;
+	for (int32 Index = 10; Index + 10 < LapPoints.Num(); ++Index)
+	{
+		SinceLast += 4.0f;
+		const FVector A = LapPoint(Index - 10);
+		const FVector B = LapPoint(Index);
+		const FVector C = LapPoint(Index + 10);
+		const double Cross = FVector2D(B - A) ^ FVector2D(C - B);
+		const double RadiusM = FMath::Abs(Cross) > 1.0
+			? FVector2D::Distance(FVector2D(A), FVector2D(B)) * FVector2D::Distance(FVector2D(B), FVector2D(C)) * FVector2D::Distance(FVector2D(C), FVector2D(A)) / (2.0 * FMath::Abs(Cross)) / CmPerM
+			: 1.0e6;
+		const bool bBend = RadiusM < 400.0;
+		if (!((bBend && SinceLast >= 60.0f) || SinceLast >= 250.0f))
+		{
+			continue;
+		}
+		FHitResult Hit;
+		if (World->LineTraceSingleByChannel(Hit, B + FVector(0.0, 0.0, 200.0), B + FVector(0.0, 0.0, 6000.0), ECC_WorldStatic))
+		{
+			continue;  // under a tunnel roof: the tunnel itself shows the way
+		}
+		SinceLast = 0.0f;
+		const FVector2D Dir = FVector2D(C - A).GetSafeNormal();
+		const FVector2D Left(-Dir.Y, Dir.X);
+		const double Side = bBend ? (Cross > 0.0 ? -1.0 : 1.0) : (StraightSide = -StraightSide);
+		const double OffsetCm = (0.5 * LapWidths[Index]->AsNumber() + 3.0) * CmPerM;
+		const FVector2D Post = FVector2D(B) + Left * Side * OffsetCm;
+		double GroundZ = B.Z;
+		if (World->LineTraceSingleByChannel(Hit, FVector(Post, B.Z + 8000.0), FVector(Post, B.Z - 8000.0), ECC_WorldStatic))
+		{
+			GroundZ = Hit.ImpactPoint.Z;
+		}
+		Beacons.Add(FTransform(FRotator::ZeroRotator, FVector(Post, GroundZ + 160.0), FVector(0.35, 0.35, 3.5)));
+	}
+	if (UStaticMesh* Post = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")))
+	{
+		if (UHierarchicalInstancedStaticMeshComponent* Posts = AddInstances(World, Post, Beacons, false, 0.0f, TEXT("World/Beacons")))
+		{
+			Posts->SetMaterial(0, LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/World/M_Beacon.M_Beacon")));
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("EXWORLD beacons %d"), Beacons.Num());
+
+	const FVector Start = LapPoint(0);
+	const FVector Ahead = LapPoint(FMath::Min(10, LapPoints.Num() - 1));
+	APlayerStart* PlayerStart = World->SpawnActor<APlayerStart>(Start + FVector(0.0f, 0.0f, 300.0f), FRotator(0.0f, (Ahead - Start).Rotation().Yaw, 0.0f));
+	PlayerStart->Tags.Add(TEXT("EXWorld"));
+	UE_LOG(LogTemp, Display, TEXT("EXWORLD route %d points (%d m lap)"), Spline->GetNumberOfSplinePoints(), static_cast<int32>(Spline->GetSplineLength() / CmPerM));
+
+	const bool bSaved = UEditorLoadingAndSavingUtils::SaveMap(World, TEXT("/Game/Maps/RedDustDivide"));
+	UE_LOG(LogTemp, Display, TEXT("EXWORLD saved /Game/Maps/RedDustDivide: %s"), bSaved ? TEXT("OK") : TEXT("FAILED"));
 	return bSaved;
 }

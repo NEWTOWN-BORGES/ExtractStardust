@@ -11,6 +11,14 @@ eal = unreal.EditorAssetLibrary
 SRC = unreal.Paths.project_dir() + "SourceArt/Desert/"
 TEX = "/Game/Desert/Textures/"
 HALF_SIZE_CM = 302400.0  # FEXDesertTerrain::HalfSizeM in centimetres
+# Another landscape can reuse this material by exec'ing the script with MAT_CONFIG in its globals: material name and
+# folder, the surface texture and the world rectangle (cm) that texture covers.
+CFG = globals().get("MAT_CONFIG", {})
+MAT_DIR = CFG.get("dir", "/Game/Desert")
+MAT_NAME = CFG.get("name", "M_Desert")
+SURFACE = CFG.get("surface", TEX + "T_SurfaceMap")
+SURFACE_ORIGIN_CM = CFG.get("origin_cm", (-HALF_SIZE_CM, -HALF_SIZE_CM))
+SURFACE_SIZE_CM = CFG.get("size_cm", (2.0 * HALF_SIZE_CM, 2.0 * HALF_SIZE_CM))
 failures = []
 
 tasks = []
@@ -32,10 +40,10 @@ macro_texture = eal.load_asset(TEX + "T_Macro_D")
 macro_texture.set_editor_property("srgb", False)
 eal.save_loaded_asset(macro_texture)
 
-path = "/Game/Desert/M_Desert"
+path = MAT_DIR + "/" + MAT_NAME
 if eal.does_asset_exist(path):
     eal.delete_asset(path)
-mat = tools.create_asset("M_Desert", "/Game/Desert", unreal.Material, unreal.MaterialFactoryNew())
+mat = tools.create_asset(MAT_NAME, MAT_DIR, unreal.Material, unreal.MaterialFactoryNew())
 y_cursor = [0]
 
 
@@ -85,7 +93,8 @@ def mask(src, r=False, g=False, b=False, a=False):
 
 
 def sample(texture_name, uv, sampler=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR):
-    e = expr(unreal.MaterialExpressionTextureSample, texture=eal.load_asset(TEX + texture_name), sampler_type=sampler,
+    asset = texture_name if texture_name.startswith("/") else TEX + texture_name
+    e = expr(unreal.MaterialExpressionTextureSample, texture=eal.load_asset(asset), sampler_type=sampler,
              sampler_source=unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS)
     link(uv, e, "UVs")
     return e
@@ -118,7 +127,9 @@ normal_ws = expr(unreal.MaterialExpressionVertexNormalWS)
 xy = mask(world, r=True, g=True)
 
 # Where the geology says what the ground is (one texel per 2.95 m, blended).
-surface = sample("T_SurfaceMap", div(add(xy, HALF_SIZE_CM), 2.0 * HALF_SIZE_CM), LINEAR)
+surface_uv = div(sub(xy, expr(unreal.MaterialExpressionConstant2Vector, r=SURFACE_ORIGIN_CM[0], g=SURFACE_ORIGIN_CM[1])),
+                 expr(unreal.MaterialExpressionConstant2Vector, r=SURFACE_SIZE_CM[0], g=SURFACE_SIZE_CM[1]))
+surface = sample(SURFACE, surface_uv, LINEAR)
 slick_map = mask(surface, r=True)
 deep_map = mask(surface, g=True)
 gravel_map = mask(surface, b=True)

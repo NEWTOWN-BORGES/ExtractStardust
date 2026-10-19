@@ -182,12 +182,16 @@ private:
 	// Automated flight test (-EXFlightTest): scripted inputs, screenshots and telemetry log.
 	bool bFlightTest = false, bTestWallPlaced = false, bDesertTest = false;
 	int32 TestPathIndex = 0;
+	/** The map's own race line (a spline tagged EXRoute), sampled every 5 m, in metres; empty on maps without one. */
+	TArray<FVector2D> MapRoute;
 	float TestStuckSeconds = 0.0f;
 	float TestTime = 0.0f, NextTestLog = 0.0f, TestDriftStart = -1.0f;
 	int32 TestShotMask = 0;
 
 	// Camera tour of the sector (-EXFlightTest -EXTour): fixed viewpoints of the geology, one screenshot each.
 	bool bTour = false;
+	/** -EXLook="x,y,z,yaw,pitch;..." (Unreal metres, degrees): views that replace the S01 tour on any map. */
+	TArray<TPair<FVector, FRotator>> LookViews;
 	FVector TourCameraLocation = FVector::ZeroVector;
 	FRotator TourCameraRotation = FRotator::ZeroRotator;
 };
