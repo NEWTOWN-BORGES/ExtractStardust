@@ -110,3 +110,60 @@ O chão fica de propósito mais plano do que a referência: é onde se corre a 4
 Próximos passos: importar o heightmap no Unreal como Landscape e voar por ele; material do Unreal a ler a
 máscara (o detalhe fino de estratos e verniz vai para a textura, não para a cor por vértice); encaixar a rota
 do S01 (bacia de largada aberta, butte-ilha na bifurcação) definindo zonas obrigatórias no campo de rocha.
+
+## 6. Kit de rochas: `Scripts/sculpt_rock_kit.py`
+
+Inspirado em 9 modelos do BlendKit (7 grátis baixados e estudados; 2 pagos só como referência visual):
+Rocks, Big Flat Rock, Rock Cliff Overhang, Rugged Coastal Rock, Rock Rugged Arch Formation, Stylized Rough
+Landscape Rock, Drainage Ditch (CC0) e os pagos Desert Rugged Arch Rock / Desert Rugged Rock Formation.
+Nenhum é de canyon de arenito: recriamos as formas com a nossa geologia (camadas de arenito, juntas, cor do Utah).
+
+```
+blender -b -P Scripts/sculpt_rock_kit.py -- <pasta_fbx> <prefixo_preview>
+```
+
+14 peças, um FBX cada (pivot no chão), ~4 min no PC do trabalho:
+
+| Classe | Peças |
+|---|---|
+| Pequenas | `SM_Kit_Stone_1..4` (0,6–3,9 m, blocos partidos e gastos), `SM_Kit_FlatSlab` (laje em duas camadas) |
+| Gigantes | `SM_Kit_Overhang` (lasca com ressalto, 6 m), `SM_Kit_FracturedBlock` (bloco estratificado), `SM_Kit_Boulder_Giant` (8 m) |
+| Mega | `SM_Kit_Arch` (arco de 16 m), `SM_Kit_StackedTower` (13 m), `SM_Kit_TableRock` (rocha-mesa com chapéu), `SM_Kit_Fin` (lâmina de 14 m, como em Arches) |
+| Madeira seca | `SM_Kit_DeadLog` (tronco caído, 7,7 m), `SM_Kit_DeadSnag` (árvore morta de pé, 5,4 m) |
+
+Método: volumes simples → remesh voxel → fraturas por planos (`rock_lib.fracture`) → camadas de arenito
+irregulares (cada camada com o seu ressalto, trechos maciços sem camadas) → erosão, juntas e grão → decimate.
+Madeira: esqueleto + modificador Skin, veio esticado ao longo dos ramos. Detalhe fino fica para as texturas.
+
+## 7. Rede de drenagem, circuito e túneis (em `sculpt_canyon_field.py`)
+
+Regra do jogador: **a pista não destrói o mapa.** Os washes só escavam o chão aberto (3–4 m de fundo, margem
+íngreme com 2 ressaltos no lado de fora das curvas, margem suave no de dentro, como no "Drainage Ditch").
+Onde um wash atravessa uma mesa, passa num **túnel**: o terreno abre só o chão e uma peça à parte
+(`SM_Tunnel_*.fbx`) repõe o topo da mesa por cima, com abóbada natural (16 m livres no meio). Cortes em mesas
+só onde não há outra hipótese, estreitos (no seed 7: 4 toques de 6–17 m).
+
+- Traçado por A* sobre o chão (como a água): caro junto às paredes, por isso os washes ficam afastados das
+  mesas e atravessam-nas a direito; depois centram-se na passagem e estreitam (até 16 m) onde ela aperta.
+- Rede (seed 7): wash sul A e norte B, ligados a oeste pelo afluente C e a leste pela depressão D (fora da
+  drenagem, com rampa ao sair e ao voltar a entrar); braço E (rota alternativa à volta de uma ilha);
+  afluentes G e H a entrar pelas bordas. 8 túneis.
+- **Circuito: 4,5 km por volta** (A → D → B → C). Pontos a cada 8 m no `canyon_field.json` (`circuit`),
+  junto com a rede (`network`), túneis e cortes.
+- `Scripts/render_route_plan.py` desenha a planta dos trajetos por cima do terreno.
+
+## 8. Notas para o PC de casa (próximo passo, quando o terreno entrar no Unreal)
+
+1. **Material do Unreal com texturas**: estratos, fissuras e grão da rocha nas paredes, e ondulações na
+   areia, usando a máscara que o gerador já exporta (`canyon_field_mask.png`: R inclinação, G detritos,
+   B camada).
+2. **Rochas esculpidas por cima**: as rochas Nanite que já fizemos (e o kit novo), como cones de
+   pedregulhos e lascas nas paredes, colocadas pela máscara de detritos.
+3. Importar `canyon_field_height16.png` como Landscape (Z scale no `canyon_field.json`), os tetos dos
+   túneis como malhas estáticas e o circuito como spline de rota.
+
+## 9. A seguir: mapa de 6 km
+
+Pedido do jogador: alargar o canyon mais 3 km (5 km de canyon) e juntar 2 km de deserto de dunas: dunas
+longas para saltos e acrobacias e dunas pequenas (referências: Dunes by the lake, Desert Sandstone Dunes,
+Sand Dunes with Rocky Cliffs, Desert Procedural).
