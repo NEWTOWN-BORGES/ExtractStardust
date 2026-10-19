@@ -96,7 +96,27 @@ Mapa de depuração (rocha, chão dos canyons, fendas, dunas, grelha de 500 m) p
 blender -b -P Scripts/debug_world_fields.py -- C:/rdd/mundo/world_fields.npz C:/rdd/mundo/canyon_field.json C:/rdd/mundo/dbg.png
 ```
 
-## CONTINUAR AQUI — estado em 2026-10-19 (fim do dia no PC do trabalho)
+## CONTINUAR AQUI — estado em 2026-10-19 à noite (PC de casa)
+
+- PC de casa: 16 GB de RAM, por isso os passos 3 e 4 foram feitos a **3 m** (regra da secção 0). No Blender 5.2 o
+  céu `NISHITA` chama-se `MULTIPLE_SCATTERING` e `dust_density` chama-se `aerosol_density` (os scripts já tratam
+  as duas versões).
+- **Grande circuito: o modo completo já correu e grava tudo** (`GRAND CIRCUIT DONE`). A 3 m apareceram 6 toques na
+  rocha, todos corrigidos:
+  - o A_west passa a ser uma reta pelo eixo do canhão (y = 1500) até à partida do A (o roteador cortava pela mesa
+    ao lado, porque o chão do canhão é mais estreito que a faixa junto às paredes);
+  - a reta do arco gigante encurtou para ±40 m (o arco está no vértice de um meandro);
+  - pontos do slalom (9568, 2330) e do laço norte (4060, 7030) ligeiramente afastados;
+  - os 25 m à frente de cada portal (que o `carve` escava) já não contam como toque.
+  Resultado: volta de **31 307 m**, **0 toques**, curva mais apertada de 80 m (à saída do arco), 14 saltos.
+- Falta, mas é desenho e não erro:
+  - a B2 ainda vai por 3 túneis (deve ir por fendas abertas; a foto `gc_piloto_fendas_b2` sai preta por ficar
+    dentro de um túnel);
+  - a B1 tem 1 toque de 9 m em (988, 1541);
+  - a foto do slalom não enquadra as torres.
+- Próximo passo grande: secção 6 (levar o mundo para o Unreal).
+
+## Estado anterior — 2026-10-19 (fim do dia no PC do trabalho)
 
 Feito hoje no mundo 10 × 8 km (`sculpt_expansion.py`):
 - paredes gigantes em degraus (falésias, patamares, taludes);
