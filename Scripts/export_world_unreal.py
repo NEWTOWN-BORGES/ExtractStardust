@@ -61,9 +61,56 @@ def smoothstep(a, b, x):
     return t * t * (3.0 - 2.0 * t)
 
 
+def blur(a, r):
+    """Box blur of radius r cells, three passes (close to a gaussian), edges clamped."""
+    for _ in range(3):
+        for axis in (0, 1):
+            p = np.pad(a, [((r + 1, r) if ax == axis else (0, 0)) for ax in (0, 1)], mode="edge")
+            c = np.cumsum(p, axis=axis, dtype=np.float64)
+            hi = np.take(c, np.arange(2 * r + 1, c.shape[axis]), axis=axis)
+            lo = np.take(c, np.arange(0, c.shape[axis] - 2 * r - 1), axis=axis)
+            a = ((hi - lo) / (2 * r + 1)).astype(np.float32)
+    return a
+
+
+def route_mask(shape, px, routes, soft=0.25):
+    """1 inside the race lines' floors (at their widths), fading to 0 at the edges. Rows north first."""
+    h, w = shape
+    m = np.zeros(shape, np.float32)
+    for points, widths in routes:
+        for (x, y, _), wd in zip(points, widths):
+            c = (x + SX / 2.0) / px
+            r = ((NY - 1) * CELL - (y + SY / 2.0)) / px
+            half = 0.5 * wd / px
+            rad = int(half) + 2
+            r0, r1, c0, c1 = max(0, int(r) - rad), min(h, int(r) + rad + 1), max(0, int(c) - rad), min(w, int(c) + rad + 1)
+            if r0 >= r1 or c0 >= c1:
+                continue
+            yy, xx = np.mgrid[r0:r1, c0:c1]
+            d = np.hypot(yy - r, xx - c) / max(half, 1.0)
+            m[r0:r1, c0:c1] = np.maximum(m[r0:r1, c0:c1], np.clip((1.0 - d) / soft, 0.0, 1.0))
+    return m
+
+
 # ---- Heights: pad to whole landscape components (126 quads each) with the edge values.
 heights = read_png16(os.path.join(WD, "world_height16.png"))  # north row first
 NY, NX = heights.shape
+gc = world["grand_circuit"]
+routes = [(gc["lap"]["points"], gc["lap"]["width_m"])] + [(b["points"], b["width_m"]) for b in gc["branches"].values()]
+# Driving surface: inside the race lines' floors the small bumps and pits go (a blur weighted to the floor itself,
+# so walls beside it do not bleed in, and pits fill: never lower than before); jumps, ramps and the staircase are
+# tens of metres long and stay. Steep walls lose the lone sharp samples that render as jagged triangles.
+H = heights.astype(np.float32)
+floor_mask = route_mask((NY, NX), CELL, routes, soft=0.35)
+inner = (floor_mask > 0.5).astype(np.float32)
+smooth = blur(H * inner, 3) / np.maximum(blur(inner, 3), 1e-3)
+half_metre = 0.5 * 65535.0 / (ZHI - ZLO)  # bumps come down at most 0.5 m, so jump lips keep their shape
+H = H + np.maximum(smooth - H, -half_metre) * floor_mask * inner
+gy, gx = np.gradient(H * ((ZHI - ZLO) / 65535.0), CELL)
+steep = np.clip((np.hypot(gx, gy) - 1.2) / 1.5, 0.0, 1.0) * (1.0 - floor_mask)
+H = H + (blur(H, 1) - H) * steep * 0.8
+heights = np.clip(np.round(H), 0, 65535).astype(np.uint16)
+print("SMOOTH track cells", int(inner.sum()), "steep cells", int((steep > 0.5).sum()))
 QUADS = 126
 VX = int(np.ceil((NX - 1) / QUADS)) * QUADS + 1
 VY = int(np.ceil((NY - 1) / QUADS)) * QUADS + 1
@@ -90,22 +137,7 @@ write_png(os.path.join(OUT, "world_surface.png"), np.round(surface[ri][:, ci] * 
 # surface map, at 4096 px across (about 2.4 m per pixel).
 KW = 4096
 KH = int(round(KW * NY / NX))
-px = (NX - 1) * CELL / KW  # metres per pixel
-track = np.zeros((KH, KW), np.float32)
-gc = world["grand_circuit"]
-routes = [(gc["lap"]["points"], gc["lap"]["width_m"])] + [(b["points"], b["width_m"]) for b in gc["branches"].values()]
-for points, widths in routes:
-    for (x, y, _), wd in zip(points, widths):
-        c = (x + SX / 2.0) / px  # world-centre metres -> pixel column / row (north row first)
-        r = ((NY - 1) * CELL - (y + SY / 2.0)) / px
-        half = 0.5 * wd / px
-        rad = int(half) + 2
-        r0, r1, c0, c1 = max(0, int(r) - rad), min(KH, int(r) + rad + 1), max(0, int(c) - rad), min(KW, int(c) + rad + 1)
-        if r0 >= r1 or c0 >= c1:
-            continue
-        yy, xx = np.mgrid[r0:r1, c0:c1]
-        d = np.hypot(yy - r, xx - c) / max(half, 1.0)
-        track[r0:r1, c0:c1] = np.maximum(track[r0:r1, c0:c1], np.clip((1.0 - d) / 0.25, 0.0, 1.0))
+track = route_mask((KH, KW), (NX - 1) * CELL / KW, routes)
 grey = np.round(track * 255.0)[..., None]
 write_png(os.path.join(OUT, "world_track.png"), np.concatenate([grey, grey, grey, np.full_like(grey, 255.0)], -1))
 

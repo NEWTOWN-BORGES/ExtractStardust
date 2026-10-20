@@ -73,7 +73,7 @@ public:
 	/** Soft, long spring (natural frequency ~1 Hz) so landings settle instead of bouncing. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverHeightM = 1.5f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverStiffness = 40.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverDamping = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverDamping = 1.25f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float GravityMps2 = 22.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float SlopeGravityScale = 0.6f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float SurfaceAlignDegPerSec = 160.0f;
@@ -124,6 +124,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Ships") TArray<TObjectPtr<UStaticMesh>> ShipMeshes;
 	/** Yaw that turns the imported test models (long axis on Y) to face +X. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Ships") float ModelYawOffsetDeg = -90.0f;
+
+	/** For the HUD: the map's race line (metres, 5 m apart), the nearest point of it, the nose and the velocity. */
+	const TArray<FVector2D>& GetMapRoute() const { return MapRoute; }
+	int32 GetRouteIndex() const { return RouteIndex; }
+	FVector GetHeading() const { return Heading; }
+	FVector GetFlightVelocity() const { return VelocityCmps; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -184,6 +190,8 @@ private:
 	int32 TestPathIndex = 0;
 	/** The map's own race line (a spline tagged EXRoute), sampled every 5 m, in metres; empty on maps without one. */
 	TArray<FVector2D> MapRoute;
+	/** Nearest race line sample to the craft, followed every frame. */
+	int32 RouteIndex = 0;
 	float TestStuckSeconds = 0.0f;
 	float TestTime = 0.0f, NextTestLog = 0.0f, TestDriftStart = -1.0f;
 	int32 TestShotMask = 0;

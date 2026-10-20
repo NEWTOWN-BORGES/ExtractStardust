@@ -18,8 +18,9 @@ eal = unreal.EditorAssetLibrary
 PH = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()) + "SourceArt/PolyHaven/"
 TEXDIR = "/Game/World/Textures"
 WORLD = os.environ.get("EX_WORLD_DIR", "C:/rdd/mundo")
-SETS = ["red_sand", "aerial_sand", "sandstone_cracks", "cliff_side", "gravelly_sand", "red_laterite_soil_stones",
-        "aerial_grass_rock"]
+# The player chose textures made by code (bake_world_textures.py) over photo sets.
+WT = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()) + "SourceArt/WorldTex/"
+SETS = ["ex_sand", "ex_dunes", "ex_slick", "ex_cliff", "ex_gravel", "ex_green"]
 failures = []
 
 # ---- Textures: colour (sRGB), DirectX normal, ARM masks (linear).
@@ -27,7 +28,7 @@ tasks = []
 for name in SETS:
     for kind in ("diff", "nor_dx", "arm"):
         task = unreal.AssetImportTask()
-        task.filename = "%s%s/%s_%s_2k.jpg" % (PH, name, name, kind)
+        task.filename = "%sT_%s_%s.png" % (WT, name, kind)
         task.destination_path = TEXDIR
         task.destination_name = "T_%s_%s" % (name, kind)
         task.automated = True
@@ -173,12 +174,11 @@ macro = mask(sample("/Game/Desert/Textures/T_Macro_D", div(xy, 40000.0), LINEAR)
 patch = mask(sample("/Game/Desert/Textures/T_Macro_D", div(xy, 6000.0), LINEAR), r=True)
 
 # Layers (tiling in cm per repeat).
-sand = Layer("red_sand", div(xy, 450.0))
-dunes = Layer("aerial_sand", div(xy, 900.0), tint=(1.28, 0.86, 0.62))
-tops = Layer("sandstone_cracks", div(xy, 700.0), tint=(1.05, 0.88, 0.78))
-gravel = Layer.blend(Layer("gravelly_sand", div(xy, 350.0)), Layer("red_laterite_soil_stones", div(xy, 400.0)),
-                     saturate(mul(sub(patch, 0.45), 4.0)))
-green = Layer("aerial_grass_rock", div(xy, 600.0))
+sand = Layer("ex_sand", div(xy, 400.0))
+dunes = Layer("ex_dunes", div(xy, 700.0))
+tops = Layer("ex_slick", div(xy, 900.0))
+gravel = Layer("ex_gravel", div(xy, 300.0))
+green = Layer("ex_green", div(xy, 500.0))
 
 # Cliffs: projected along X and along Y, weighted by how much the slope faces each way.
 n_abs = expr(unreal.MaterialExpressionAbs)
@@ -188,8 +188,8 @@ link(mask(n_abs, r=True), wx, "Base")
 wy = expr(unreal.MaterialExpressionPower, const_exponent=8.0)
 link(mask(n_abs, g=True), wy, "Base")
 side = saturate(div(wy, add(add(wx, wy), 0.0001)))
-cliff = Layer.blend(Layer("cliff_side", div(mask(world, g=True, b=True), 1200.0), normal_strength=0.5),
-                    Layer("cliff_side", div(mask(world, r=True, b=True), 1200.0), normal_strength=0.5), side)
+cliff = Layer.blend(Layer("ex_cliff", div(mask(world, g=True, b=True), 1500.0), normal_strength=0.5),
+                    Layer("ex_cliff", div(mask(world, r=True, b=True), 1500.0), normal_strength=0.5), side)
 
 # Stack: sand -> dunes -> gravel -> green -> mesa tops -> cliffs on steep ground.
 ground = Layer.blend(sand, dunes, height_blend(deep_map, dunes.height))

@@ -13,3 +13,5 @@ __pycache__/
 *.pyc
 # Poly Haven sources: Scripts/download_polyhaven.py fetches them again (CC0); Content has the imported textures
 SourceArt/PolyHaven/
+# Code-baked textures: Scripts/bake_world_textures.py makes them again; Content has the imported ones
+SourceArt/WorldTex/

@@ -5,10 +5,12 @@
 #include "EngineUtils.h"
 #include "Flight/EXHoverCraft.h"
 #include "GameFramework/PlayerStart.h"
+#include "UI/EXHud.h"
 
 AEXGameMode::AEXGameMode()
 {
 	DefaultPawnClass = AEXHoverCraft::StaticClass();
+	HUDClass = AEXHud::StaticClass();
 }
 
 void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)

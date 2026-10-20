@@ -212,6 +212,37 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 			VelocityCmps = FVector::ZeroVector;
 		}
 	}
+	if (MapRoute.Num() > 0)
+	{
+		// Follow the nearest race line point: a short window around the last one, the whole line if lost.
+		const FVector2D Here(GetActorLocation().X / CmPerM, GetActorLocation().Y / CmPerM);
+		const int32 Count = MapRoute.Num();
+		int32 Best = RouteIndex;
+		double BestD = TNumericLimits<double>::Max();
+		for (int32 Offset = -40; Offset <= 80; ++Offset)
+		{
+			const int32 I = ((RouteIndex + Offset) % Count + Count) % Count;
+			const double D = FVector2D::DistSquared(Here, MapRoute[I]);
+			if (D < BestD)
+			{
+				BestD = D;
+				Best = I;
+			}
+		}
+		if (BestD > 150.0 * 150.0)
+		{
+			for (int32 I = 0; I < Count; ++I)
+			{
+				const double D = FVector2D::DistSquared(Here, MapRoute[I]);
+				if (D < BestD)
+				{
+					BestD = D;
+					Best = I;
+				}
+			}
+		}
+		RouteIndex = Best;
+	}
 	UpdateVisuals(DeltaSeconds);
 	UpdateCamera(DeltaSeconds);
 	if (bTour)
@@ -245,7 +276,33 @@ void AEXHoverCraft::StepFlight(float Dt)
 	const bool bHit = GetWorld()->SweepSingleByChannel(GroundHit, Location, Location - SurfaceUp * (HoverHeightM * CmPerM * 3.0f),
 		FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(ProbeRadiusCm), Params);
 	HeightM = bHit ? (GroundHit.bStartPenetrating ? 0.3f : (GroundHit.Distance + ProbeRadiusCm) / CmPerM) : 99.0f;
-	const FVector GroundNormal = bHit ? FVector(GroundHit.ImpactNormal) : FVector::UpVector;
+	FVector GroundNormal = bHit ? FVector(GroundHit.ImpactNormal) : FVector::UpVector;
+	// Four line probes under the hull (nose, tail, both sides): the height is their average and the ground is the
+	// plane they span, so single terrain triangles no longer shake the craft. The sphere above stays as the fallback.
+	{
+		const FVector Fwd = Heading.GetSafeNormal();
+		const FVector Side = FVector::CrossProduct(SurfaceUp, Fwd).GetSafeNormal();
+		const FVector Offsets[4] = { Fwd * 160.0f, -Fwd * 160.0f, Side * 90.0f, -Side * 90.0f };
+		FVector Points[4];
+		float HeightSum = 0.0f;
+		int32 Count = 0;
+		for (int32 Probe = 0; Probe < 4; ++Probe)
+		{
+			FHitResult ProbeHit;
+			const FVector Start = Location + Offsets[Probe];
+			if (GetWorld()->LineTraceSingleByChannel(ProbeHit, Start, Start - SurfaceUp * (HoverHeightM * CmPerM * 3.0f), ECC_Visibility, Params))
+			{
+				Points[Count++] = ProbeHit.ImpactPoint;
+				HeightSum += ProbeHit.Distance / CmPerM;
+			}
+		}
+		if (Count == 4 && !GroundHit.bStartPenetrating)
+		{
+			const FVector Plane = FVector::CrossProduct(Points[0] - Points[1], Points[2] - Points[3]).GetSafeNormal();
+			GroundNormal = FVector::DotProduct(Plane, SurfaceUp) < 0.0f ? -Plane : Plane;
+			HeightM = FMath::Min(HeightM, HeightSum / 4.0f + 0.25f);  // never above what the sphere sees (walls, lips)
+		}
+	}
 	GroundPointCm = bHit ? FVector(GroundHit.ImpactPoint) : Location - SurfaceUp * (HoverHeightM * CmPerM);
 	const bool bWasGrounded = bGrounded;
 	const float AirTimeBefore = AirTimeSeconds;
