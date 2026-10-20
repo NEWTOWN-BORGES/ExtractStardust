@@ -37,6 +37,20 @@ blender -b -P Scripts/sculpt_expedition_ab.py -- C:/rdd/ab 3 kit=C:/rdd/kit plan
 - A 3 m o mundo de 16 × 12 km tem 5333 × 4000 pontos (21 M). Se faltar memória nas fotos (malha do Blender), usar
   `noshots` a 3 m e fazer as fotos a 5 m.
 
+**Estado (2026-10-20, PC do trabalho):** gerada e validada a 5 m, com fotos de piloto de todos os setores (o
+jogador disse "estou a gostar do que vejo").
+- Pista de 59 km, 9:46 na linha ideal (média de 362 km/h), 19 saltos na principal e 7 ramificações.
+- Corrigido: lajes partidas em placas, borda do Shafer aberta, mesas só com 70 m de largura ou mais e filtro de picos
+  em 3 passagens (sem agulhas).
+
+**Próximo passo, em casa:**
+1. Gerar a 3 m.
+2. Levar para o Unreal: adaptar `export_world_unreal.py`, `import_world.py` e `EXDesertBuilder.build_world_map` aos
+   ficheiros `ab_height16.png`, `ab_mask.png`, `ab_route.json` (a rota como spline, com balizas nas curvas),
+   `ab_props.json` e `caves/*.fbx`.
+3. Material por inclinação e altura com Poly Haven/ambientCG.
+4. O jogador põe por cima os Megascans e o céu.
+
 Lições, para não repetir:
 - desenhar pela experiência do piloto e validar com **fotos de piloto**, não só com vistas aéreas;
 - paredes perto da pista, marcos ao fundo das retas, horizonte fechado;
