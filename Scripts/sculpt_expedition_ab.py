@@ -404,6 +404,7 @@ top_line = main[np.isin(kind, ["top"])][::8]
 d_top, _it = nearest(top_line, 700)
 dome_f = np.clip(fbm(XM + 1300, YM - 900, 300, 3) - 0.05, 0, 1)
 dome_near = smoothstep(700.0, 250.0, d_top) * smoothstep(55.0, 110.0, d_top)
+dome_near *= smoothstep(350.0, 650.0, np.hypot(XM - 11320.0, YM - 6700.0))  # the rim before Shafer Fall stays open
 dome_h = 1.0 - (1.0 - np.clip(dome_f / 0.32, 0, 1)) ** 2.2  # rounded crowns (Navajo domes), never points
 H += (68.0 * dome_h * dome_near).astype(np.float32)
 
@@ -466,9 +467,26 @@ H = np.where(dT < T_hw[np.maximum(iT, 0)] + gorge_w + 40, np.minimum(H, gorge(dT
 
 # Remnants: mesas and buttes left standing on the bench and in the basin (never on a line: 150 m clear).
 d_any, _i = nearest(main[::8], 400)
+def dilate(mask, r):
+    out = mask.copy()
+    for k in range(1, r + 1):
+        out |= np.roll(mask, k, 0) | np.roll(mask, -k, 0)
+    m2 = out.copy()
+    for k in range(1, r + 1):
+        out |= np.roll(m2, k, 1) | np.roll(m2, -k, 1)
+    return out
+
+
+def broad(mask, width_m):
+    """Keeps only the parts of a mask at least width_m across (morphological opening): no thin needles."""
+    r = max(1, int(round(width_m / 2.0 / CELL)))
+    return dilate(~dilate(~mask, r), r) & mask
+
+
 rem = np.clip(fbm(XM + 700, YM - 300, 650, 3) - 0.18, 0, 1) * (d_any > 150)
 on_bench = (H < benchz + 20) & (H > benchz - 20)
-H = np.where((rem > 0.02) & on_bench, np.maximum(H, benchz + (TOP - BENCH) * stepped(np.clip(rem / 0.12, 0, 1))), H)
+rem_ok = broad((rem > 0.02) & on_bench, 70.0)
+H = np.where(rem_ok, np.maximum(H, benchz + (TOP - BENCH) * stepped(np.clip(rem / 0.12, 0, 1))), H)
 
 # 5c. Slot canyons (fendas) cut into the bench and plateau beside the canyons: a branching network where a ridged
 # noise crosses zero, floors stepping down to the canyon floor (scenery; the slot branches are carved below).
@@ -492,7 +510,7 @@ H = np.where(d_basin < cliff_w * 1.2, np.minimum(H, basin_z + (H - basin_z) * st
 # Buttes in the basin (Monument Valley style blocks on talus cones), clear of the lines.
 in_basin = d_basin <= 0
 bm = np.clip(fbm(XM - 900, YM + 450, 520, 3) - 0.22, 0, 1) * (d_any > 160) * in_basin
-H = np.where(bm > 0.02, np.maximum(H, basin_z + 150.0 * stepped(np.clip(bm / 0.10, 0, 1))), H)
+H = np.where(broad(bm > 0.02, 70.0), np.maximum(H, basin_z + 150.0 * stepped(np.clip(bm / 0.10, 0, 1))), H)
 # Rim edge: south of the S10 route the bench drops at once (the rim is 45-70 m from the line).
 rim_drop = (d10 < 1300) & (lat10 < -45 - 25 * fbm(XM, YM, 300, 1))
 H = np.where(rim_drop, np.minimum(H, basin_z + (benchz - basin_z) * stepped(np.clip(1.0 - (-lat10 - 45) / 170.0, 0, 1))), H)
@@ -506,10 +524,38 @@ H -= 14.0 * smoothstep(650.0, 150.0, dA)
 # Broken Mesa (S2): tilted sandstone slabs, broken into blocks; along the SKILL branch they are a chain to jump.
 s2 = main[sec_of(1)]
 d2, i2 = nearest(s2[::8], 700)
-slab_n = fbm(XM * 1.0, YM * 1.0, 110, 2)
-slab_cells = (np.abs(fbm(XM + 13, YM - 7, 140, 1)) > 0.12) & (slab_n > 0.0) & (d2 > 45) & (d2 < 650)
-tilt = (fbm(XM - 400, YM, 260, 1) * 0.06 * (XM - 12000) + fbm(XM, YM + 400, 260, 1) * 0.06 * (YM - 6000)) % 9.0
-H = np.where(slab_cells, H + 4.0 + tilt, H)
+# Broken slabs: plates on a jittered 130 m grid (each the nearest seed's), each raised 3-9 m and tilted its own way
+# (3-9 %), split by 3 m cracks where two plates meet; none on the line itself, none at the rim before the drop.
+PL = 130.0
+gyp, gxp = np.floor(YM / PL).astype(np.int64), np.floor(XM / PL).astype(np.int64)
+prng_s = np.random.default_rng(31)
+ny_p, nx_p = int(SY / PL) + 3, int(SX / PL) + 3
+jit = prng_s.uniform(0.15, 0.85, (ny_p, nx_p, 2))
+lift = prng_s.uniform(3.0, 9.0, (ny_p, nx_p))
+ang = prng_s.uniform(0, 2 * np.pi, (ny_p, nx_p))
+grade = prng_s.uniform(0.03, 0.09, (ny_p, nx_p))
+d1 = np.full((NY, NX), np.inf, np.float32)
+d2s = np.full((NY, NX), np.inf, np.float32)
+own = np.zeros((NY, NX, 2), np.int64)
+for oy in (-1, 0, 1):
+    for ox in (-1, 0, 1):
+        cy_, cx_ = np.clip(gyp + oy, 0, ny_p - 1), np.clip(gxp + ox, 0, nx_p - 1)
+        sx_ = (cx_ + jit[cy_, cx_, 0]) * PL
+        sy_ = (cy_ + jit[cy_, cx_, 1]) * PL
+        dd = np.hypot(XM - sx_, YM - sy_)
+        closer = dd < d1
+        d2s = np.where(closer, d1, np.minimum(d2s, dd))
+        own[..., 0] = np.where(closer, cy_, own[..., 0])
+        own[..., 1] = np.where(closer, cx_, own[..., 1])
+        d1 = np.where(closer, dd, d1)
+oy_, ox_ = own[..., 0], own[..., 1]
+sxo, syo = (ox_ + jit[oy_, ox_, 0]) * PL, (oy_ + jit[oy_, ox_, 1]) * PL
+plate = lift[oy_, ox_] + grade[oy_, ox_] * ((XM - sxo) * np.cos(ang[oy_, ox_]) + (YM - syo) * np.sin(ang[oy_, ox_]))
+crack = (d2s - d1) < 4.0
+rim_clear = np.hypot(XM - main[sec_of(2)[0], 0], YM - main[sec_of(2)[0], 1]) > 450
+slab_zone = (d2 > 45) & (d2 < 650) & (fbm(XM + 13, YM - 7, 400, 2) > -0.15) & rim_clear
+H = np.where(slab_zone, H + np.where(crack, -3.0, np.maximum(plate, 1.0)), H)
+del d1, d2s, own
 sk = branches["S2 SKILL Lajes"]
 sp_ = sk["p"]
 blocks = []
@@ -686,11 +732,15 @@ carve(main, bed, half_w, kind, bank, curv, skip=skip)  # last, so no branch lift
 print("ROUTE CARVED", "lips", len(lips))
 
 # 5i. Lone spikes go (they render as sharp cones).
-nb = np.sort(np.stack([np.roll(np.roll(H, dy, 0), dx, 1) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx]), axis=0)
-spk = H - nb[-2] > 6.0
-H = np.where(spk, nb[-2] + 1.0, H)
-del nb
-print("TERRAIN DONE", round(float(H.min()), 1), round(float(H.max()), 1), "spikes", int(spk.sum()))
+# Three passes: a small cluster of spikes loses its outer cells first, then the rest.
+n_spk = 0
+for _ in range(3):
+    nb = np.sort(np.stack([np.roll(np.roll(H, dy, 0), dx, 1) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx]), axis=0)
+    spk = H - nb[-2] > 6.0
+    n_spk += int(spk.sum())
+    H = np.where(spk, nb[-2] + 1.0, H)
+    del nb
+print("TERRAIN DONE", round(float(H.min()), 1), round(float(H.max()), 1), "spikes", n_spk)
 
 # ---- 6. Jumps along every route (flight of a craft at ~400 km/h whose hover pulls it down at 20 m/s2).
 def find_jumps(p, speed=None, g=20.0, skip=None):
@@ -1157,7 +1207,7 @@ at = lambda k, f: int(sec_of(k)[int(f * (len(sec_of(k)) - 1))])
 # exposure for the dark places.
 for k_ in range(0, len(cv), 70):
     lp = bpy.data.objects.new(f"CaveLight{k_}", bpy.data.lights.new(f"CaveLight{k_}", "POINT"))
-    lp.data.energy, lp.data.color, lp.data.shadow_soft_size = 1.2e5, (1.0, 0.75, 0.5), 6.0
+    lp.data.energy, lp.data.color, lp.data.shadow_soft_size = 2.5e4, (1.0, 0.75, 0.5), 6.0
     i_ = cv[k_]
     lp.location = (main[i_, 0] - hx, main[i_, 1] - hy, float(bilinear(H, main[i_, 0], main[i_, 1])) + 12.0)
     scene.collection.objects.link(lp)
@@ -1171,7 +1221,7 @@ pilot("01_partida", 40, ahead=320, lens=24)
 pilot("02_broken_mesa", lips[3] - 160, ahead=220)
 s3_0 = sec_of(2)[0]
 # On the rim before the drop: the whole canyon country opens below, the Sentinels at the confluence far off.
-aerial("03_borda_shafer", tuple(main[s3_0 - 60]), 14.0, (J[0] + 300, J[1] - 120), lens=26, tgt_up=120.0)
+aerial("03_borda_shafer", tuple(main[s3_0 - 40]), 28.0, tuple(main[at(3, 0.45)]), lens=24, tgt_up=40.0)
 aerial("03b_ziguezague", (11600, 6300), 260, (10950, 7050), lens=30)
 pilot("04_red_wall", at(3, 0.62), ahead=240, lens=22, look_up=10)
 sk5 = branches["S5 SKILL Fenda Estreita"]["p"]
@@ -1180,12 +1230,24 @@ pilot("05_fenda_skill", len(sk5) // 3, p=sk5, up=3, ahead=120, lens=20, look_up=
 exposure(0.0)
 pilot("06_ferradura", at(5, 0.30), ahead=300, lens=22, look_up=30)
 pilot("07_wash", at(6, 0.42), ahead=220, lens=22)
-exposure(1.2)
+exposure(0.4)
 pilot("08_caverna", at(7, 0.22), up=4, ahead=110, lens=20)
 exposure(0.0)
 pilot("09_arcos", arch_at[0] - 160, ahead=170, lens=24, look_up=8)
 pilot("10_salto_heroi", i_hero - 230, up=5, ahead=330, lens=24)
-he = main[i_hero] + hero_n * 320.0 - hero_t * 120.0
-aerial("10b_salto_heroi_lado", tuple(he), 70.0, tuple(main[i_hero]), lens=26, tgt_up=-30.0)
+# From the landing side, looking back across the ravine at the lip, the craft in the air over the gap.
+if ship is not None:
+    ship.hide_render = False
+    ship.location = (main[i_hero, 0] - hx, main[i_hero, 1] - hy, float(bed[i_hero]) + 14.0)
+    ship.rotation_euler = Euler((math.radians(-8), 0, math.radians(heading(i_hero)) - math.pi / 2))
+he = main[i_hero + 170] + hero_n * 70.0
+eye = Vector((he[0] - hx, he[1] - hy, float(bilinear(H, he[0], he[1])) + 22.0))
+tgt = Vector((main[i_hero - 60, 0] - hx, main[i_hero - 60, 1] - hy, float(bed[i_hero - 60]) + 6.0))
+cam.data.lens = 24
+cam.location = eye
+cam.rotation_euler = (tgt - eye).to_track_quat("-Z", "Y").to_euler()
+scene.render.filepath = f"{OUT}/ab_10b_salto_heroi_lado.png"
+bpy.ops.render.render(write_still=True)
+print("SHOT", "10b_salto_heroi_lado")
 pilot("11_meta", N - 300, ahead=280, lens=24, look_up=12)
 print("EXPEDITION DONE")
