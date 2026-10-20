@@ -143,7 +143,7 @@ blender -b C:/rdd/mundo/world.blend -P Scripts/render_route_plan.py -- C:/rdd/mu
 blender -b C:/rdd/mapa/canyon_field.blend -P Scripts/render_ships.py -- C:/rdd/mapa <strix.fbx>
 ```
 
-O `strix.fbx` está no branch `main`: `ExtractStardustRDD/Assets/ExtractStardust/Vehicles/V2/Chassis/Resources/V2Chassis/strix.fbx`.
+A STRIX nova (um motor central, asas a descer) está em `SourceArt/TestShips/strix.fbx`, gerada por `Scripts/build_strix.py` (ver `Docs/STRIX_CATEGORIA.md`); a antiga continua no `main` em `ExtractStardustRDD/Assets/ExtractStardust/Vehicles/V2/Chassis/Resources/V2Chassis/strix.fbx`.
 Mostrar as imagens ao jogador (ele pede fotos com frequência: vista de cima, geral, piloto, naves).
 
 Vistas 3D do mundo inteiro (cores por altura, circuito a laranja; o jogador **gostou muito deste estilo**):

@@ -1,2 +1,4 @@
 Modelos copiados de: CONSULTA...\ExtractStardustRDD\Assets\ExtractStardust\Vehicles\V2\Chassis\Resources\V2Chassis
 Autorizado pelo utilizador em 2026-10-18 SO como modelos de teste para acertar o feeling de voo.
+strix.fbx (2026-10-20): substituído pela STRIX nova, gerada por Scripts/build_strix.py (ver Docs/STRIX_CATEGORIA.md);
+strix.blend e previews/ saem do mesmo script.
