@@ -98,6 +98,32 @@ O kit, as plantas e a nave vêm de `sculpt_rock_kit.py`, `sculpt_plants.py` e do
 | `expedition.blend` | A cena completa |
 | Imagens | `ab_relief.png` (planta) e `ab_NN_*.png` (fotos de piloto por setor, com a nave à escala) |
 
+## Vestir o mapa: rochas e plantas
+
+Usa todos os moldes que já temos, juntos numa pasta (`molds=`):
+- **O nosso kit:** 14 peças.
+- **As rochas esculpidas da Fase 2b:** falésias, mesas, butte, espigões e pedregulhos.
+- **As peças do S01:** ilha, mesa com arco e lajes.
+
+As plantas vêm do `sculpt_plants.py`, que já fazia zimbros, choupos, salgueiros, mato, yucas e figo-da-índia, e agora
+faz também saguaro, cacto-barril, cholla, árvore-de-josué e árvores mortas.
+
+Cada cópia leva tamanho, rumo, inclinação e escala ligeiramente desigual próprios, fica um pouco enterrada, e
+**nunca fica em cima de uma pista**.
+
+| Zona | O que leva |
+|---|---|
+| Paredes vistas da pista | Falésias (`SM_Cliff_*`) encaixadas no pé da parede, viradas para a pista e com a altura ajustada à parede, para as paredes deixarem de parecer lisas |
+| Taludes | Grupos com um bloco grande (pedregulho gigante, bloco fraturado, saliência, rocha-mesa) e 2-6 pedras à volta |
+| Chão | Pedras soltas |
+| Patamar e planalto | Lajes deitadas segundo o declive do terreno, torres empilhadas, rochas-mesa, zimbros e árvores mortas |
+| Deserto | Barbatanas em fila (como as juntas do arenito), saguaros, árvores-de-josué, cholla, cacto-barril, figo-da-índia, yucas, árvores mortas e troncos |
+| Fundo dos canyons | Choupos junto ao Wash, troncos, mato e figo-da-índia |
+| Ao longe | Mesas, buttes e espigões; os espigões vão alargados, sem agulhas |
+
+O `ab_props.json` leva a rotação XYZ em graus e a escala por eixo. O importador do Unreal tem de as aplicar
+(trocando o sinal do y, porque o Unreal usa outro sentido para esse eixo).
+
 ## No Unreal (o jogador veste)
 
 - **Terreno:** Landscape com o `ab_height16.png`. Material por inclinação e altura, calculado no shader (não pintado

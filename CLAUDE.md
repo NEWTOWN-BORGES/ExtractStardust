@@ -29,8 +29,15 @@ S1-S10, geologia, ramificações, saltos, saídas e o que o jogador veste no Unr
 **Compilar em casa a 3 m** (o jogador pediu que ficasse assinalado):
 
 ```
-blender -b -P Scripts/sculpt_expedition_ab.py -- C:/rdd/ab 3 kit=C:/rdd/kit plants=C:/rdd/plantas ship=C:/rdd/strix.fbx
+blender -b -P Scripts/sculpt_expedition_ab.py -- C:/rdd/ab 3 kit=C:/rdd/kit molds=C:/rdd/moldes plants=C:/rdd/plantas ship=C:/rdd/strix.fbx
 ```
+
+Antes de correr:
+- **`C:/rdd/moldes`:** juntar numa pasta todos os moldes de rocha, ou seja, os FBX do kit (passo 1), os de
+  `SourceArt/Rocks` e os de `SourceArt/S01`.
+- **Plantas:** voltar a correr o `sculpt_plants.py` (passo 2), que agora faz também saguaro, cacto-barril, cholla,
+  árvore-de-josué e árvores mortas.
+- **Escala:** o `ab_props.json` traz rotação XYZ e escala por eixo, e o importador do Unreal tem de as usar.
 
 - Com `plan` no fim só traça e mede tempos, em segundos.
 - Com `noshots` faz terreno, planta e ficheiros para o Unreal, sem fotos.

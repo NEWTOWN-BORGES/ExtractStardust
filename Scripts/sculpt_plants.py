@@ -4,7 +4,8 @@
 # colours, so a tree lights as a volume instead of a noise of flat cards. Vertex alpha marks leaves (1) for light
 # transmission in the material; bark and pads are 0. No textures, so they stay light.
 # Fremont cottonwood and coyote willow (wet washes), Utah juniper (slickrock), big sagebrush, dry and green grass,
-# prickly pear, narrowleaf yucca and dead brush. Exports one FBX per plant (pivot at ground level).
+# prickly pear, narrowleaf yucca and dead brush; for the desert: saguaro, barrel cactus, teddy-bear cholla, Joshua tree
+# and bleached dead trees. Exports one FBX per plant (pivot at ground level).
 # Usage: blender -b -P sculpt_plants.py -- <fbx_output_dir> <preview_prefix>
 import bpy
 import bmesh
@@ -201,10 +202,10 @@ class Plant:
         return obj
 
 
-def tree(name, seed, trunks, cfg):
+def tree(name, seed, trunks, cfg, dead=False):
     plant = Plant(name, seed)
     for direction, length, radius in trunks(plant.rng):
-        plant.grow(Vector((0.0, 0.0, -0.4)), direction, length, radius, 0, cfg)
+        plant.grow(Vector((0.0, 0.0, -0.4)), direction, length, radius, 0, cfg, dead)
     return plant.finish()
 
 
@@ -326,6 +327,115 @@ def willow(name, seed):
     return plant.finish()
 
 
+# Joshua tree: a shaggy trunk forking into a few thick arms, each ending in a tuft of stiff spiky leaves.
+JOSHUA = dict(levels=3, children=[2, 2, 2], angle=(28.0, 58.0), ratio=(0.6, 0.8), child_radius=0.72, taper=0.75,
+              gnarl=0.1, up=0.18, seg=0.35, sprout=0.75, sides=[9, 7, 6, 5], bark=(0.44, 0.38, 0.3), dead=0.0,
+              leaves=70, inner=0, cluster_r=0.32, squash=1.0, leaf_len=(0.22, 0.32), leaf_w=(0.02, 0.03), shape="narrow",
+              colours=[(0.42, 0.5, 0.3), (0.48, 0.54, 0.34), (0.38, 0.46, 0.28)])
+# Bleached dead tree: a big juniper or cottonwood long dead, silver-grey, broken limbs.
+DEADTREE = dict(levels=3, children=[3, 3, 2], angle=(25.0, 60.0), ratio=(0.55, 0.8), child_radius=0.6, taper=0.45,
+                gnarl=0.32, up=0.06, seg=0.4, sprout=0.4, sides=[9, 7, 5, 4], bark=DEAD_WOOD,
+                leaves=0, cluster_r=0.1, leaf_len=(0.1, 0.1), leaf_w=(0.1, 0.1), colours=[(0.5, 0.5, 0.4)])
+CACTUS_GREEN = (0.3, 0.42, 0.22)
+
+
+def ribbed(plant, points, radii, rgb, ribs=14, depth=0.09):
+    """A cactus column: rings with ribs (radius waving round the ring), grooves painted darker, a domed top."""
+    bm = plant.bm
+    sides = ribs * 2
+    rings, ref = [], Vector((1.0, 0.0, 0.0))
+    for i, p in enumerate(points):
+        d = (points[min(i + 1, len(points) - 1)] - points[max(i - 1, 0)]).normalized()
+        side = ref - d * ref.dot(d)
+        side = side if side.length > 1e-4 else d.orthogonal()
+        side.normalize()
+        ref = side
+        other = d.cross(side)
+        ring = []
+        for k in range(sides):
+            a = 2 * math.pi * k / sides
+            r = radii[i] * (1.0 + depth * math.cos(ribs * a))
+            ring.append(bm.verts.new(p + (side * math.cos(a) + other * math.sin(a)) * r))
+        rings.append(ring)
+    faces = []
+    for i in range(len(rings) - 1):
+        for k in range(sides):
+            n = (k + 1) % sides
+            f = bm.faces.new((rings[i][k], rings[i][n], rings[i + 1][n], rings[i + 1][k]))
+            f.smooth = True
+            groove = 0.8 if k % 2 else 1.0
+            plant.paint([f], (rgb[0] * groove, rgb[1] * groove, rgb[2] * groove), 0.25)
+            faces.append(f)
+    top = bm.verts.new(points[-1] + (points[-1] - points[-2]).normalized() * radii[-1] * 0.6)
+    for k in range(sides):
+        f = bm.faces.new((rings[-1][k], rings[-1][(k + 1) % sides], top))
+        f.smooth = True
+        plant.paint([f], rgb, 0.2)
+
+
+def saguaro(name, seed):
+    plant = Plant(name, seed)
+    rng = plant.rng
+    height = rng.uniform(7.0, 9.5)
+    trunk = [Vector((0, 0, -0.3)) + Vector((rng.uniform(-0.05, 0.05), rng.uniform(-0.05, 0.05), height * t)) for t in
+             [i / 12 for i in range(13)]]
+    ribbed(plant, trunk, [0.32 * (1.0 - 0.15 * (i / 12)) for i in range(13)], CACTUS_GREEN, 16)
+    for k in range(rng.randint(2, 4)):  # arms: out, then up
+        a = k * 2.2 + rng.uniform(-0.4, 0.4)
+        z0 = height * rng.uniform(0.35, 0.6)
+        out = Vector((math.cos(a), math.sin(a), 0.0))
+        reach, rise = rng.uniform(0.7, 1.1), height * rng.uniform(0.25, 0.4)
+        arm = [Vector((0, 0, z0)), Vector((0, 0, z0)) + out * reach * 0.6 + Vector((0, 0, 0.1)),
+               Vector((0, 0, z0)) + out * reach + Vector((0, 0, 0.45))]
+        arm += [arm[-1] + Vector((0, 0, rise * t)) for t in (0.33, 0.66, 1.0)]
+        ribbed(plant, arm, [0.22, 0.21, 0.2, 0.2, 0.19, 0.18], CACTUS_GREEN, 12)
+    return plant.finish()
+
+
+def barrel(name, seed):
+    plant = Plant(name, seed)
+    rng = plant.rng
+    for b in range(rng.randint(1, 3)):
+        c = Vector((rng.uniform(-0.4, 0.4), rng.uniform(-0.4, 0.4), -0.1)) if b else Vector((0, 0, -0.1))
+        h, r = rng.uniform(0.6, 1.2), rng.uniform(0.3, 0.42)
+        pts = [c + Vector((0, 0, h * t)) for t in (0.0, 0.25, 0.5, 0.75, 0.95)]
+        ribbed(plant, pts, [r * 0.85, r, r * 1.02, r * 0.92, r * 0.6], (0.42, 0.5, 0.26), 13, 0.12)
+        for k in range(8):  # red-yellow flowers and spines round the crown
+            a = 2 * math.pi * k / 8
+            plant.blob(pts[-1] + Vector((math.cos(a) * r * 0.45, math.sin(a) * r * 0.45, 0.05)), 0.05,
+                       (0.75, 0.32, 0.18) if k % 2 else (0.85, 0.7, 0.25), 1.0, 0.1, 1)
+    return plant.finish()
+
+
+def cholla(name, seed):
+    plant = Plant(name, seed)
+    rng = plant.rng
+    pale = (0.78, 0.74, 0.52)  # dense pale spines make teddy-bear cholla glow in the sun
+
+    def joint(p, d, n):
+        q = p + d * rng.uniform(0.22, 0.32)
+        plant.tube([p, p.lerp(q, 0.5), q], [0.07, 0.085, 0.06], jitter(pale, rng, 0.08), 7)
+        if n > 0:
+            for k in range(rng.randint(1, 2)):
+                joint(q, deviate(d, math.radians(rng.uniform(20, 55)), rng.uniform(0, 6.28)), n - 1)
+
+    trunk = [Vector((0, 0, -0.1)), Vector((0.02, 0, 0.5)), Vector((0.03, 0.02, 1.0))]
+    plant.tube(trunk, [0.09, 0.08, 0.07], (0.35, 0.3, 0.24), 7)  # dark old trunk
+    for k in range(5):
+        joint(trunk[-1], deviate(UP, math.radians(rng.uniform(20, 70)), k * 1.26), 3)
+    return plant.finish()
+
+
+desert = [
+    saguaro("SM_Saguaro_A", 91),
+    saguaro("SM_Saguaro_B", 92),
+    barrel("SM_BarrelCactus", 93),
+    cholla("SM_Cholla", 94),
+    tree("SM_JoshuaTree", 95, spread_trunks(1, (2, 8), (1.8, 2.2), (0.24, 0.28)), JOSHUA),
+    tree("SM_DeadTree_A", 96, spread_trunks(2, (8, 22), (2.6, 3.2), (0.3, 0.36)), DEADTREE, dead=True),
+    tree("SM_DeadTree_B", 97, spread_trunks(3, (15, 35), (1.6, 2.2), (0.18, 0.22)), DEADTREE, dead=True),
+]
+
 trees = [
     tree("SM_Cottonwood_A", 11, spread_trunks(1, (2, 6), (4.0, 4.4), (0.42, 0.46)), COTTONWOOD),
     tree("SM_Cottonwood_B", 12, spread_trunks(2, (8, 16), (3.2, 3.8), (0.32, 0.36)), COTTONWOOD),
@@ -342,7 +452,7 @@ small = [
     yucca("SM_Yucca", 81),
 ]
 
-for obj in trees + small:
+for obj in trees + small + desert:
     bpy.ops.object.select_all(action='DESELECT')
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
