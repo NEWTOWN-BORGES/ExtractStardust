@@ -893,7 +893,7 @@ namespace
 	}
 }
 
-bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder)
+bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& MapName)
 {
 	const TSharedPtr<FJsonObject> Meta = LoadJsonFile(WorldFolder / TEXT("unreal/world_unreal.json"));
 	const TSharedPtr<FJsonObject> Field = LoadJsonFile(WorldFolder / TEXT("canyon_field.json"));
@@ -953,30 +953,56 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder)
 	for (const TSharedPtr<FJsonValue>& Value : Props->GetArrayField(TEXT("props")))
 	{
 		const TSharedPtr<FJsonObject> Prop = Value->AsObject();
-		double TiltX = 0.0;
-		double TiltY = 0.0;
+		// Rotation: "rot" (Euler XYZ, expedition) or "tilt" (x, y) + "yaw" (world); scale: per axis or uniform.
+		double RotX = 0.0;
+		double RotY = 0.0;
+		double RotZ = Prop->GetNumberField(TEXT("yaw"));
+		const TArray<TSharedPtr<FJsonValue>>* Rot = nullptr;
 		const TArray<TSharedPtr<FJsonValue>>* Tilt = nullptr;
-		if (Prop->TryGetArrayField(TEXT("tilt"), Tilt) && Tilt->Num() == 2)
+		if (Prop->TryGetArrayField(TEXT("rot"), Rot) && Rot->Num() == 3)
 		{
-			TiltX = (*Tilt)[0]->AsNumber();
-			TiltY = (*Tilt)[1]->AsNumber();
+			RotX = (*Rot)[0]->AsNumber();
+			RotY = (*Rot)[1]->AsNumber();
+			RotZ = (*Rot)[2]->AsNumber();
 		}
-		ByMesh.FindOrAdd(Prop->GetStringField(TEXT("mesh"))).Add(FTransform(
-			FRotator(-TiltY, -Prop->GetNumberField(TEXT("yaw")), TiltX),
-			WorldToUnreal(Prop->GetNumberField(TEXT("x")), Prop->GetNumberField(TEXT("y")), Prop->GetNumberField(TEXT("z"))),
-			FVector(Prop->GetNumberField(TEXT("scale")))));
+		else if (Prop->TryGetArrayField(TEXT("tilt"), Tilt) && Tilt->Num() == 2)
+		{
+			RotX = (*Tilt)[0]->AsNumber();
+			RotY = (*Tilt)[1]->AsNumber();
+		}
+		FVector Scale(1.0);
+		const TArray<TSharedPtr<FJsonValue>>* Scales = nullptr;
+		if (Prop->TryGetArrayField(TEXT("scale"), Scales) && Scales->Num() == 3)
+		{
+			Scale = FVector((*Scales)[0]->AsNumber(), (*Scales)[1]->AsNumber(), (*Scales)[2]->AsNumber());
+		}
+		else
+		{
+			Scale = FVector(Prop->GetNumberField(TEXT("scale")));
+		}
+		ByMesh.FindOrAdd(Prop->GetStringField(TEXT("mesh"))).Add(FTransform(FRotator(-RotY, -RotZ, RotX),
+			WorldToUnreal(Prop->GetNumberField(TEXT("x")), Prop->GetNumberField(TEXT("y")), Prop->GetNumberField(TEXT("z"))), Scale));
 	}
 	int32 Placed = 0;
 	for (const TPair<FString, TArray<FTransform>>& Group : ByMesh)
 	{
-		const bool bKit = Group.Key.StartsWith(TEXT("SM_Kit_"));
-		const FString Path = FString::Printf(TEXT("%s/%s.%s"), bKit ? TEXT("/Game/World/Kit") : TEXT("/Game/Desert/Plants"), *Group.Key, *Group.Key);
-		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Path);
+		UStaticMesh* Mesh = nullptr;
+		FString Folder;
+		for (const TCHAR* Candidate : { TEXT("/Game/World/Kit"), TEXT("/Game/Desert/Rocks"), TEXT("/Game/Desert/S01"), TEXT("/Game/Desert/Plants") })
+		{
+			Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("%s/%s.%s"), Candidate, *Group.Key, *Group.Key), nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (Mesh)
+			{
+				Folder = Candidate;
+				break;
+			}
+		}
 		if (!Mesh)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("EXWORLD missing mesh %s (%d props)"), *Path, Group.Value.Num());
+			UE_LOG(LogTemp, Warning, TEXT("EXWORLD missing mesh %s (%d props)"), *Group.Key, Group.Value.Num());
 			continue;
 		}
+		const bool bKit = !Folder.EndsWith(TEXT("Plants"));  // rocks of any kind
 		const bool bWood = Group.Key.Contains(TEXT("Dead"));
 		AddInstances(World, Mesh, Group.Value, bKit && !bWood, bKit ? 0.0f : PlantCullM(Group.Key), bKit ? TEXT("World/Rocks") : TEXT("World/Plants"));
 		Placed += Group.Value.Num();
@@ -1026,7 +1052,9 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder)
 	{
 		Spline->AddSplinePoint(LapPoint(Index) + FVector(0.0f, 0.0f, 50.0f), ESplineCoordinateSpace::World, false);
 	}
-	Spline->SetClosedLoop(true, false);
+	bool bClosed = true;  // the world's grand circuit is a lap; the expedition runs from A to B
+	Circuit->TryGetBoolField(TEXT("closed"), bClosed);
+	Spline->SetClosedLoop(bClosed, false);
 	Spline->UpdateSpline();
 	Route->Tags.Add(TEXT("EXRoute"));
 	Route->SetActorLabel(TEXT("Route_GrandCircuit"));
@@ -1084,7 +1112,8 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder)
 	PlayerStart->Tags.Add(TEXT("EXWorld"));
 	UE_LOG(LogTemp, Display, TEXT("EXWORLD route %d points (%d m lap)"), Spline->GetNumberOfSplinePoints(), static_cast<int32>(Spline->GetSplineLength() / CmPerM));
 
-	const bool bSaved = UEditorLoadingAndSavingUtils::SaveMap(World, TEXT("/Game/Maps/RedDustDivide"));
-	UE_LOG(LogTemp, Display, TEXT("EXWORLD saved /Game/Maps/RedDustDivide: %s"), bSaved ? TEXT("OK") : TEXT("FAILED"));
+	const FString MapPath = TEXT("/Game/Maps/") + MapName;
+	const bool bSaved = UEditorLoadingAndSavingUtils::SaveMap(World, MapPath);
+	UE_LOG(LogTemp, Display, TEXT("EXWORLD saved %s: %s"), *MapPath, bSaved ? TEXT("OK") : TEXT("FAILED"));
 	return bSaved;
 }

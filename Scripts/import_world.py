@@ -69,6 +69,11 @@ kit = import_meshes(sorted(glob.glob(KIT + "/*.fbx")), "/Game/World/Kit")
 finish_meshes(kit, lambda p: dark if p.rsplit("/", 1)[1] in WOOD else wingate, lambda p: p.rsplit("/", 1)[1] not in WOOD)
 roofs = import_meshes(sorted(glob.glob(MAPDIR + "/tunnels/*.fbx")) + sorted(glob.glob(WORLD + "/tunnels_gc/*.fbx")), "/Game/World/Tunnels")
 finish_meshes(roofs, lambda p: wingate, lambda p: True)
+# Plants grown by sculpt_plants.py (desert species included): vertex colours, never collide.
+PLANTS = os.environ.get("EX_PLANT_DIR", "C:/rdd/plantas")
+plant_mat = eal.load_asset("/Game/Desert/M_Plant")
+plants = import_meshes(sorted(glob.glob(PLANTS + "/*.fbx")), "/Game/Desert/Plants")
+finish_meshes(plants, lambda p: plant_mat, lambda p: False)
 
 # Surface map and track map: data, not colour (linear, clamped at the world edge).
 for source, name in (("world_surface.png", "T_WorldSurface"), ("world_track.png", "T_WorldTrack")):

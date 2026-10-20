@@ -30,5 +30,5 @@ public:
 	 * props as instanced meshes, tunnel roofs, the grand circuit as a spline tagged EXRoute, sky and start.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "ExtractingStardust")
-	static bool BuildWorldMap(const FString& WorldFolder);
+	static bool BuildWorldMap(const FString& WorldFolder, const FString& MapName = TEXT("RedDustDivide"));
 };

@@ -930,6 +930,9 @@ write_png(f"{OUT}/ab_green.png", (np.clip(green, 0, 1) * 255)[::-1], 8, 1)  # gr
 print("UNREAL ab_height16.png ab_mask.png ab_route.json")
 if "noshots" in a:
     raise SystemExit
+# "forunreal": cave roofs, props and water for Unreal, without the huge preview mesh and the pictures (they are what
+# runs out of memory at 3 m on a 16 GB PC).
+FOR_UNREAL = "forunreal" in a
 
 # ---- 8. Into Blender: the terrain with colours, cave roofs, rocks and plants, the craft for scale, then pictures.
 import bmesh
@@ -976,19 +979,20 @@ col = col * (1 - gk * 0.9) + meadow_c * gk * 0.9
 col = np.clip(col, 0, 1)
 
 me = bpy.data.meshes.new("Expedition")
-me.vertices.add(NX * NY)
-me.vertices.foreach_set("co", np.stack([XM - hx, YM - hy, H], -1).astype(np.float32).ravel())
-idx_ = np.arange(NX * NY, dtype=np.int32).reshape(NY, NX)
-quads = np.stack([idx_[:-1, :-1], idx_[:-1, 1:], idx_[1:, 1:], idx_[1:, :-1]], -1).ravel()
-me.loops.add(len(quads))
-me.loops.foreach_set("vertex_index", quads)
-me.polygons.add((NX - 1) * (NY - 1))
-me.polygons.foreach_set("loop_start", np.arange(0, len(quads), 4, dtype=np.int32))
-me.update(calc_edges=True)
-me.polygons.foreach_set("use_smooth", np.ones((NX - 1) * (NY - 1), bool))
-del quads, idx_
-ca = me.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
-ca.data.foreach_set("color", np.concatenate([col.reshape(-1, 3), np.ones((NX * NY, 1), np.float32)], 1).ravel())
+if not FOR_UNREAL:
+    me.vertices.add(NX * NY)
+    me.vertices.foreach_set("co", np.stack([XM - hx, YM - hy, H], -1).astype(np.float32).ravel())
+    idx_ = np.arange(NX * NY, dtype=np.int32).reshape(NY, NX)
+    quads = np.stack([idx_[:-1, :-1], idx_[:-1, 1:], idx_[1:, 1:], idx_[1:, :-1]], -1).ravel()
+    me.loops.add(len(quads))
+    me.loops.foreach_set("vertex_index", quads)
+    me.polygons.add((NX - 1) * (NY - 1))
+    me.polygons.foreach_set("loop_start", np.arange(0, len(quads), 4, dtype=np.int32))
+    me.update(calc_edges=True)
+    me.polygons.foreach_set("use_smooth", np.ones((NX - 1) * (NY - 1), bool))
+    del quads, idx_
+    ca = me.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+    ca.data.foreach_set("color", np.concatenate([col.reshape(-1, 3), np.ones((NX * NY, 1), np.float32)], 1).ravel())
 mat = bpy.data.materials.new("M_Expedition")
 mat.use_nodes = True
 at_ = mat.node_tree.nodes.new("ShaderNodeAttribute")
@@ -1374,6 +1378,9 @@ if SHIP and os.path.exists(SHIP):
             o.parent = ship
 bpy.ops.wm.save_as_mainfile(filepath=f"{OUT}/expedition.blend")
 
+if FOR_UNREAL:
+    print("FOR UNREAL DONE")
+    raise SystemExit
 # ---- 9. Pictures: the pilot's view along the line (craft 24 m ahead), from the start to the finish.
 w_ = bpy.data.worlds.new("Sky")
 w_.use_nodes = True
