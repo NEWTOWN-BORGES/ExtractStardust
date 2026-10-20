@@ -6,6 +6,47 @@ Jogo de corrida de naves antigravidade (Unreal Engine, `ExtractingStardust.uproj
 
 O jogador fala português (PT). Responder em português.
 
+## PRIORIDADE ATUAL (2026-10-20): EXPEDIÇÃO DE A A B — `Scripts/sculpt_expedition_ab.py`
+
+O jogador experimentou no Unreal o mundo de 10 × 8 km com o grande circuito e não gostou:
+- "enorme mas vazio": não sabia onde estava nem para onde ir;
+- a pista eram "tapetes";
+- horizonte infinito, sem um "uau, é ali";
+- parecia plano;
+- as texturas ficaram como "adesivos quadrados".
+
+Pediu uma **pista de mundo fechado de A a B, de 10-12 minutos** ("o chute final"):
+- 450-550 km/h nas zonas rápidas e curvas apertadas a 200 km/h;
+- bifurcações por cima, por baixo e subterrâneas;
+- túneis, saltos gigantes e pequenos;
+- mistura de canyon e deserto;
+- os canyons gigantes com fendas de que ele gostou.
+
+O desenho segue o GDD do jogador (`EXTRACT_STARDUST_Pacote_Completo_3_Documentos_v1_0/01_Mapas_Pistas_Expedicoes`,
+nas Transferências do PC do trabalho: secções 16-19). Está todo em **`Docs/PISTA_AB_RED_DUST_DIVIDE.md`**: setores
+S1-S10, geologia, ramificações, saltos, saídas e o que o jogador veste no Unreal.
+
+**Compilar em casa a 3 m** (o jogador pediu que ficasse assinalado):
+
+```
+blender -b -P Scripts/sculpt_expedition_ab.py -- C:/rdd/ab 3 kit=C:/rdd/kit plants=C:/rdd/plantas ship=C:/rdd/strix.fbx
+```
+
+- Com `plan` no fim só traça e mede tempos, em segundos.
+- Com `noshots` faz terreno, planta e ficheiros para o Unreal, sem fotos.
+- A 3 m o mundo de 16 × 12 km tem 5333 × 4000 pontos (21 M). Se faltar memória nas fotos (malha do Blender), usar
+  `noshots` a 3 m e fazer as fotos a 5 m.
+
+Lições, para não repetir:
+- desenhar pela experiência do piloto e validar com **fotos de piloto**, não só com vistas aéreas;
+- paredes perto da pista, marcos ao fundo das retas, horizonte fechado;
+- material do Unreal por inclinação e altura no shader, com a máscara `ab_mask.png`, e não camadas pintadas aos
+  blocos.
+
+**Assets do Fab (Megascans, Elite Desert III):** a licença deles diz "Permite uso com IA: Não". O jogador usa-os no
+jogo, mas a IA não abre, não lê e não transforma esses ficheiros. Pode escrever scripts que os referem pelo nome e
+caminho no projeto. Para o que a IA trata diretamente, usar CC0 (Poly Haven, ambientCG) ou o nosso kit.
+
 ## TAREFA AO ABRIR NO PC DE CASA: gerar tudo a 2 m (mais detalhe)
 
 No PC do trabalho tudo foi gerado a **4 m por ponto** (PC fraco). No PC de casa (mais potente) gerar o mundo
