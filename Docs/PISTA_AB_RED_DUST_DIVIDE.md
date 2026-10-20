@@ -121,6 +121,21 @@ Cada cópia leva tamanho, rumo, inclinação e escala ligeiramente desigual pró
 | Fundo dos canyons | Choupos junto ao Wash, troncos, mato e figo-da-índia |
 | Ao longe | Mesas, buttes e espigões; os espigões vão alargados, sem agulhas |
 
+### Zonas verdes
+
+- **Prados no fundo dos canyons** (ao estilo do Canyon de Chelly): no canyon principal (Fendas, Ferradura, Wash e a
+  montante) e no fundo da garganta da Red Wall, até ~16 m acima do chão, aos retalhos. Têm relva, salgueiros e
+  choupos.
+- **Enseadas:** a cada ~1,5 km o fundo do canyon principal alarga 60-130 m durante umas centenas de metros, e são as
+  enseadas que levam os prados maiores, dos dois lados da pista. Depois o canyon volta a apertar, alternando
+  espaços gigantes com passagens apertadas, como pede o GDD (18.1).
+- **Oásis no deserto:** uma nascente com lago ao lado da pista, antes do slalom das torres, mais duas nascentes
+  pequenas no pé das falésias da bacia, cada uma com o seu lago, relva, choupos e salgueiros.
+- **Na pista:** nenhuma; o leito fica de areia e cascalho.
+- **Para o Unreal:**
+  - `ab_green.png`: máscara de 8 bits (255 = prado), para a camada de relva e a densidade de folhagem;
+  - `water` no `ab_route.json`: os lagos, com centro, altura e raio, para pôr Water Bodies.
+
 O `ab_props.json` leva a rotação XYZ em graus e a escala por eixo. O importador do Unreal tem de as aplicar
 (trocando o sinal do y, porque o Unreal usa outro sentido para esse eixo).
 

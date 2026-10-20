@@ -420,6 +420,11 @@ zdown = zmain[sec_of(4)[0]:sec_of(6)[-1] + 1][::8]
 M_pts = np.vstack([up, down[1:]])
 M_z = np.concatenate([zup, zdown[1:]])
 M_hw = np.concatenate([np.full(len(up), 60.0), np.maximum(half_w[sec_of(4)[0]:sec_of(6)[-1] + 1][::8][1:] + 18.0, 42.0)])
+# Bays: every ~1.5 km the main canyon floor opens 60-130 m wider for a few hundred metres (green meadows round the
+# line), then closes again: the canyon alternates between giant spaces and tight passages (GDD 18.1).
+s_M = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(M_pts, axis=0).T))])
+bay = np.clip(1.5 * np.sin(2 * np.pi * s_M / 1500.0 + 0.7) * (0.65 + 0.35 * np.sin(2 * np.pi * s_M / 3700.0)) - 0.35, 0.0, 1.0)
+M_hw = M_hw + 130.0 * bay ** 0.7
 T_pts = main[sec_of(3)][::8]
 T_z = zmain[sec_of(3)][::8]
 T_hw = np.full(len(T_pts), 34.0)
@@ -743,6 +748,41 @@ for _ in range(3):
     del nb
 print("TERRAIN DONE", round(float(H.min()), 1), round(float(H.max()), 1), "spikes", n_spk)
 
+# 5j. Green zones: meadows on the main canyon floor (Canyon de Chelly: green floors under red walls, wetter upstream),
+# patches on the banks of the Wash, and an oasis in the desert basin round a spring pond. Never on a line's floor.
+gy_g, gx_g = np.gradient(H, CELL)
+slope_g = np.degrees(np.arctan(np.hypot(gx_g, gy_g)))
+d_ln, i_ln = nearest(main[::4], 120)
+off_line = (i_ln < 0) | (d_ln > half_w[np.clip(np.maximum(i_ln, 0) * 4, 0, N - 1)] + 4.0)
+patch = smoothstep(-0.35, 0.15, fbm(XM + 222, YM - 111, 160, 3))
+# Height above the nearest canyon floor (main canyon and the Red Wall gorge): the meadow covers the floor and the
+# foot of the walls up to ~16 m, in patches.
+rel = np.minimum(np.where(dM < 500, H - fM, 999.0), np.where(dT < 500, H - fT, 999.0))
+canyon_green = (rel < 16.0) & (slope_g < 22)
+green = canyon_green * smoothstep(-0.55, 0.0, fbm(XM + 222, YM - 111, 160, 3)) * smoothstep(16.0, 6.0, rel)
+# Springs in the desert basin: the oasis beside the line before the hoodoo slalom (a pond, cottonwoods, willows,
+# grass), and two seeps at the foot of the basin cliffs.
+io = sec_of(8)[int(0.08 * len(sec_of(8)))]
+to_ = np.gradient(main, axis=0)[io]
+no_ = np.array([-to_[1], to_[0]]) / (np.linalg.norm(to_) + 1e-9)
+OASIS = main[io] + no_ * 170.0
+SPRINGS = [(OASIS, 300.0, 48.0)]
+for frac, side in ((0.55, -1.0), (0.82, 1.0)):
+    i_s = sec_of(8)[int(frac * len(sec_of(8)))]
+    t_s = np.gradient(main, axis=0)[i_s]
+    n_s = np.array([-t_s[1], t_s[0]]) / (np.linalg.norm(t_s) + 1e-9)
+    SPRINGS.append((main[i_s] + n_s * side * 140.0, 130.0, 18.0))
+WATER = []
+for k_, (c_, r_, pr_) in enumerate(SPRINGS):
+    d_s = np.hypot(XM - c_[0], YM - c_[1]) + 25.0 * fbm(XM + k_ * 70, YM, 60, 2)
+    green = np.maximum(green, smoothstep(r_, r_ * 0.55, d_s))
+    pf = float(bilinear(H, c_[0], c_[1])) - 3.0
+    H = np.where((d_s < pr_ + 12.0) & off_line, np.minimum(H, pf + 3.0 * smoothstep(pr_ - 12.0, pr_ + 12.0, d_s)), H)
+    WATER.append({"name": "Oasis" if k_ == 0 else f"Spring{k_}", "x": round(float(c_[0] - SX / 2), 1), "y": round(float(c_[1] - SY / 2), 1),
+                  "z": round(pf + 1.6, 2), "radius_m": pr_})
+green = np.where(off_line, green, 0.0).astype(np.float32)
+print("GREEN", round(float((green > 0.5).mean() * 100), 2), "% of the map; oasis at", [int(v_) for v_ in OASIS])
+
 # ---- 6. Jumps along every route (flight of a craft at ~400 km/h whose hover pulls it down at 20 m/s2).
 def find_jumps(p, speed=None, g=20.0, skip=None):
     """Where the ground falls away from under the craft at its race speed (speed model; 110 m/s if none): it flies
@@ -873,7 +913,7 @@ route_json = {
              "speed_kmh": [int(v_ * 3.6) for v_ in vel[::4]]},
     "branches": {nm: {"kind": b["kind"], "half_width_m": b["w"], "leaves_main_at_m": int(b["leave"]), "rejoins_main_at_m": int(b["rejoin"]),
                       "points": pts4(b["p"], bilinear(H, b["p"][:, 0], b["p"][:, 1])), "jumps": b["jumps"]} for nm, b in branches.items()},
-    "jumps": jumps, "lips_m": [int(c) for c in lips], "hero_jump_m": int(i_hero), "landmarks": LANDMARKS,
+    "jumps": jumps, "lips_m": [int(c) for c in lips], "hero_jump_m": int(i_hero), "landmarks": LANDMARKS, "water": WATER,
     "start_grid": {"at": [round(float(main[0, 0] - SX / 2), 1), round(float(main[0, 1] - SY / 2), 1)], "rows": 4, "per_row": 5},
 }
 with open(f"{OUT}/ab_route.json", "w") as f_:
@@ -886,6 +926,7 @@ layer = np.where(H < 160, 64, np.where(H < 330, 128, 192))
 layer = np.where(slope_m > 40, 255, layer)
 mask = np.stack([np.clip(slope_m / 90 * 255, 0, 255), line_m * 255, layer], -1)
 write_png(f"{OUT}/ab_mask.png", mask[::-1], 8, 3)
+write_png(f"{OUT}/ab_green.png", (np.clip(green, 0, 1) * 255)[::-1], 8, 1)  # grass / meadow layer and foliage density
 print("UNREAL ab_height16.png ab_mask.png ab_route.json")
 if "noshots" in a:
     raise SystemExit
@@ -929,6 +970,9 @@ wall_col = wall_col + (varnish - wall_col) * streak * 0.45
 col = ground_c * (1 - steep) + wall_col * steep
 col = np.where(on_track[..., None] & (steep < 0.5), col * 0.6 + track_c * 0.4, col)
 col *= (0.92 + 0.08 * fbm(XM, YM, 20, 2))[..., None]
+meadow_c = punch((0.34, 0.45, 0.17)) * (0.85 + 0.3 * fbm(XM, YM, 35, 2))[..., None]
+gk = (np.clip(green, 0, 1) * (1 - steep[..., 0]))[..., None]
+col = col * (1 - gk * 0.9) + meadow_c * gk * 0.9
 col = np.clip(col, 0, 1)
 
 me = bpy.data.meshes.new("Expedition")
@@ -1286,9 +1330,11 @@ PLANTS_G = [
     ("yucca", ["SM_Yucca"], (slope < 14) & (free_d > 4) & (d_main < 350), 900, 14, (0.9, 1.6)),
     ("deadtree", ["SM_DeadTree_A", "SM_DeadTree_B"], (slope < 12) & (free_d > 10) & (d_main < 500), 380, 60, (0.8, 1.5)),
     ("juniper", ["SM_Juniper_A", "SM_Juniper_B"], high_ & (slope < 12) & (free_d > 8) & (d_main < 400), 1100, 26, (0.8, 1.6)),
-    ("scrub", ["SM_Sagebrush", "SM_DryGrass", "SM_DeadBrush"], (slope < 14) & (free_d > 4) & (d_main < 250), 2600, 9, (0.8, 1.6)),
+    ("scrub", ["SM_Sagebrush", "SM_DryGrass", "SM_DeadBrush"], (slope < 14) & (free_d > 4) & (d_main < 250) & (green < 0.35), 2600, 9, (0.8, 1.6)),
     ("deadwood", ["SM_Kit_DeadSnag", "SM_Kit_DeadLog"], (slope < 10) & (free_d > 6) & (d_main < 300), 420, 35, (0.8, 1.5)),
-    ("cottonwood", ["SM_Cottonwood_A", "SM_Cottonwood_B"], low_ & (slope < 8) & (H < 40) & (free_d > 10) & (d_main < 120), 140, 30, (0.9, 1.4)),
+    ("cottonwood", ["SM_Cottonwood_A", "SM_Cottonwood_B"], (green > 0.5) & (slope < 10) & (free_d > 10), 420, 28, (0.9, 1.5)),
+    ("willow", ["SM_Willow"], (green > 0.6) & (slope < 10) & (free_d > 6), 500, 14, (0.8, 1.4)),
+    ("grass", ["SM_GreenGrass"], (green > 0.35) & (slope < 16) & (free_d > 3), 7000, 4, (1.2, 2.6)),
 ]
 for group, names, mask_, count, gap_m, (s0, s1) in PLANTS_G:
     for x, y in scatter(mask_, gap_m, count):
@@ -1305,6 +1351,16 @@ with open(f"{OUT}/ab_props.json", "w") as f_:
     json.dump({"units": "metres from the world centre; rot = Euler XYZ in degrees (Unreal: roll = x, pitch = -y, yaw = -z for a "
                "left-handed swap of y); scale per axis; yaw kept for older importers", "props": props}, f_)
 
+for wt in WATER:
+    bpy.ops.mesh.primitive_circle_add(vertices=48, radius=wt["radius_m"] + 6.0, fill_type="NGON", location=(wt["x"], wt["y"], wt["z"]))
+    wob = bpy.context.active_object
+    wob.name = "Water_" + wt["name"]
+    wm = bpy.data.materials.new("M_Water")
+    wm.use_nodes = True
+    wb = wm.node_tree.nodes["Principled BSDF"]
+    wb.inputs["Base Color"].default_value = (0.06, 0.16, 0.18, 1)
+    wb.inputs["Roughness"].default_value = 0.05
+    wob.data.materials.append(wm)
 # The craft (STRIX, 6.4 m) for scale in the pilot shots.
 ship = None
 if SHIP and os.path.exists(SHIP):
@@ -1441,4 +1497,13 @@ bpy.ops.render.render(write_still=True)
 print("SHOT", "10b_salto_heroi_lado")
 pilot("11_meta", N - 300, ahead=280, lens=24, look_up=12)
 pilot("12_deserto", at(8, 0.2), ahead=220, lens=24, look_up=6)
+aerial("13_oasis", tuple(OASIS - no_ * 330.0 + to_ / (np.linalg.norm(to_) + 1e-9) * -120.0), 45.0, tuple(OASIS), lens=28, tgt_up=-5.0)
+# The greenest bay beside the line in the canyon sectors.
+gbest, ibest = -1.0, at(4, 0.55)
+for i in range(sec_of(4)[0] + 200, sec_of(6)[-1] - 200, 20):
+    nv = np.array([-tg[i, 1], tg[i, 0]])
+    gsum = sum(float(bilinear(green, *(main[i] + nv * l))) for l in (-110, -80, -55, 55, 80, 110))
+    if gsum > gbest:
+        gbest, ibest = gsum, i
+pilot("14_prado_canyon", ibest - 160, ahead=280, lens=22, look_up=10)
 print("EXPEDITION DONE")
