@@ -131,6 +131,12 @@ class Part:
                               v * math.sin(phase + 2 * math.pi * i / segs)) * r for i in range(segs)])
         return self.loft(rows, lambda i, j: m_fn(i), closed_u=True, closed_v=closed, cap0=cap0, cap1=cap1)
 
+    def sweep(self, c, y0, y1, prof, sec, m_fn, closed=False, cap0=None, cap1=None):
+        """Like lathe, along +Y at c = (x, z), round any closed section sec [(x, z)] scaled by s for each (f, s)."""
+        x, z = c
+        rows = [[Vector((x + px * sc, y0 + (y1 - y0) * f, z + pz * sc)) for px, pz in sec] for f, sc in prof]
+        return self.loft(rows, lambda i, j: m_fn(i), closed_u=True, closed_v=closed, cap0=cap0, cap1=cap1)
+
     def cyl(self, p0, p1, r, m, segs=16, r1=None):
         self.lathe(p0, p1, [(0, r), (1, r if r1 is None else r1)], lambda k: m, segs, cap0=m, cap1=m)
 
@@ -362,38 +368,87 @@ def split_out(ob, c, size, name, normal_axis):
 
 
 # ---------------------------------------------------------------- spacecraft engine, tail cone, shark fin
-def space_engine(part, c, y0, y1, r, coil_len=0.14, bell_len=0.16, glow="Emit_Plasma"):
-    """Plasma thruster along +Y at c = (x, z): chamber casing y0..y1 (radius r) with an injector dome at the front,
-    three magnetic coil rings with the plasma glowing between them, then a flared bell with a bright core.
-    Returns the exit plane y."""
+def circle_loop(r, n=32):
+    """Round section, counter-clockwise from the bottom centre."""
+    return [(r * math.cos(-math.pi / 2 + 2 * math.pi * k / n), r * math.sin(-math.pi / 2 + 2 * math.pi * k / n))
+            for k in range(n)]
+
+
+def shape_loop(hw_bottom, hw_top, hh, r=0.0, n=48):
+    """Engine or duct section round (0, 0), counter-clockwise from the bottom centre: a four-sided shape with its own
+    bottom and top half widths and half height (a rectangle when they match, narrowing upwards when the top is
+    narrower), corners rounded by r; resampled to n points evenly along its length."""
+    P = [Vector((hw_bottom, -hh)), Vector((hw_top, hh)), Vector((-hw_top, hh)), Vector((-hw_bottom, -hh))]
+    pts = [Vector((0, -hh))]
+    for i, p in enumerate(P):
+        a, b = P[i - 1] if i else Vector((0, -hh)), P[(i + 1) % 4]
+        u1, u2 = (a - p).normalized(), (b - p).normalized()
+        th = math.acos(max(-1.0, min(1.0, u1.dot(u2))))
+        if r <= 0 or th < 1e-3:
+            pts.append(p)
+            continue
+        d = r / math.tan(th / 2)
+        t1, t2 = p + u1 * d, p + u2 * d
+        cen = p + (u1 + u2).normalized() * (r / math.sin(th / 2))
+        a1, a2 = math.atan2(t1.y - cen.y, t1.x - cen.x), math.atan2(t2.y - cen.y, t2.x - cen.x)
+        while a2 < a1:
+            a2 += 2 * math.pi
+        pts += [cen + Vector((math.cos(a1 + (a2 - a1) * k / 8), math.sin(a1 + (a2 - a1) * k / 8))) * r for k in range(9)]
+    L = [0.0]
+    for i in range(1, len(pts) + 1):
+        L.append(L[-1] + (pts[i % len(pts)] - pts[i - 1]).length)
+    out = []
+    for k in range(n):
+        q = L[-1] * k / n
+        i = max(j for j in range(len(pts)) if L[j] <= q)
+        seg = L[i + 1] - L[i]
+        out.append(tuple(pts[i].lerp(pts[(i + 1) % len(pts)], (q - L[i]) / seg if seg else 0)))
+    return out
+
+
+def loop_at(loop, q):
+    """Point at fraction q (0..1) of the length of a closed loop."""
+    P = [Vector(p) for p in loop]
+    L = [0.0]
+    for i in range(1, len(P) + 1):
+        L.append(L[-1] + (P[i % len(P)] - P[i - 1]).length)
+    t = (q % 1.0) * L[-1]
+    i = max(j for j in range(len(P)) if L[j] <= t)
+    seg = L[i + 1] - L[i]
+    return P[i].lerp(P[(i + 1) % len(P)], (t - L[i]) / seg if seg else 0)
+
+
+def space_engine(part, c, y0, y1, sec, coil_len=0.14, bell_len=0.16, glow="Emit_Plasma"):
+    """Plasma thruster along +Y at c = (x, z) with any closed section sec (round, rectangular, narrowing...): chamber
+    casing y0..y1 with an injector dome at the front, three magnetic coils with the plasma glowing between them, then
+    a flared bell with a bright core. Returns the exit plane y."""
     x, z = c
-    part.lathe((x, y0, z), (x, y1, z), [(0, r), (0.55, r), (0.55, r + 0.008), (0.6, r + 0.008), (0.6, r), (1, r)],
-               lambda k: "Metal", 32, cap0="Graphite", cap1="Graphite")
-    part.lathe((x, y0 - 0.06, z), (x, y0, z), [(0, 0.0), (0.5, 0.5 * r), (1, 0.8 * r)], lambda k: "Metal_Bright", 24)
+    part.sweep(c, y0, y1, [(0, 1), (0.55, 1), (0.55, 1.035), (0.6, 1.035), (0.6, 1), (1, 1)], sec,
+               lambda k: "Metal", cap0="Graphite", cap1="Graphite")
+    part.sweep(c, y0 - 0.06, y0, [(0, 0.0), (0.5, 0.5), (1, 0.8)], sec, lambda k: "Metal_Bright")
     yb = y1 + coil_len
-    part.lathe((x, y1, z), (x, yb, z), [(0, 0.76 * r), (1, 0.76 * r)], lambda k: glow, 32)          # plasma sleeve
-    for k in range(3):                                                                                  # coils
+    part.sweep(c, y1, yb, [(0, 0.76), (1, 0.76)], sec, lambda k: glow)                                # plasma sleeve
+    for k in range(3):                                                                                 # coils
         ya = y1 + coil_len * (0.04 + 0.33 * k)
-        part.lathe((x, ya, z), (x, ya + coil_len * 0.22, z), [(0, 0.80 * r), (0, 1.02 * r), (1, 1.02 * r),
-                   (1, 0.80 * r)], lambda k_: "Metal_Bright", 32, closed=True)
-    for k in range(4):                                                                                  # tie rods
-        a = math.pi / 4 + k * math.pi / 2
-        part.box((x + 0.97 * r * math.cos(a), y1 + coil_len / 2, z + 0.97 * r * math.sin(a)),
-                 (0.022, coil_len + 0.01, 0.022), "Metal", Matrix.Rotation(-a, 3, 'Y'))
+        part.sweep(c, ya, ya + coil_len * 0.22, [(0, 0.80), (0, 1.02), (1, 1.02), (1, 0.80)], sec,
+                   lambda k_: "Metal_Bright", closed=True)
+    for k in range(4):                                                                                 # tie rods
+        px, pz = loop_at(sec, 0.125 + 0.25 * k) * 0.97
+        part.box((x + px, y1 + coil_len / 2, z + pz), (0.022, coil_len + 0.01, 0.022), "Metal")
     ye = yb + bell_len
-    part.lathe((x, yb, z), (x, ye, z), [(0, 0.86 * r), (0.5, 0.96 * r), (1, 1.08 * r), (1, 1.0 * r), (0.5, 0.80 * r),
-               (0, 0.62 * r)], lambda k: "Ceramic" if k < 2 else "Metal_Bright" if k == 2 else "Graphite", 32,
-               closed=True)                                                                             # bell
-    part.lathe((x, yb + 0.01, z), (x, yb + 0.011, z), [(0, 0.0), (1, 0.63 * r)], lambda k: glow, 32)   # core
-    part.lathe((x, yb + 0.01, z), (x, yb + 0.6 * bell_len, z), [(0, 0.35 * r), (1, 0.04 * r)], lambda k: glow, 16)
+    part.sweep(c, yb, ye, [(0, 0.86), (0.5, 0.96), (1, 1.08), (1, 1.0), (0.5, 0.80), (0, 0.62)], sec,
+               lambda k: "Ceramic" if k < 2 else "Metal_Bright" if k == 2 else "Graphite", closed=True)    # bell
+    part.sweep(c, yb + 0.01, yb + 0.011, [(0, 0.0), (1, 0.63)], sec, lambda k: glow)                    # core
+    part.sweep(c, yb + 0.01, yb + 0.6 * bell_len, [(0, 0.35), (1, 0.04)], sec, lambda k: glow)
     return ye
 
 
-def tail_loop(outline, centre, r_end, y0, y1, per_m=30, power=2.0):
+def tail_loop(outline, centre, end, y0, y1, per_m=30, power=2.0):
     """Section loop of a tail cone that runs from a body outline (closed 2D polygon starting at the bottom centre,
-    going round counter-clockwise) at y0 to a ring of radius r_end round centre at y1. Edges are split in proportion
-    to their length so the corners stay, the ring angles follow the arc length, and the blend starts slowly so the
-    cone leaves the body without a crease. Returns (loop function of y, loop index of each outline corner)."""
+    going round counter-clockwise) at y0 to the end section at y1 (a closed loop round centre, from its bottom centre,
+    or a radius for a ring). Edges are split in proportion to their length so the corners stay, points meet the end at
+    the same fraction of the length, and the blend starts slowly so the cone leaves the body without a crease.
+    Returns (loop function of y, loop index of each outline corner)."""
     P = [Vector(p) for p in outline]
     pts, idx = [], []
     for i in range(len(P)):
@@ -404,9 +459,9 @@ def tail_loop(outline, centre, r_end, y0, y1, per_m=30, power=2.0):
     L = [0.0]
     for i in range(1, len(pts) + 1):
         L.append(L[-1] + (pts[i % len(pts)] - pts[i - 1]).length)
+    end = circle_loop(end, 64) if isinstance(end, (int, float)) else end
     c = Vector(centre)
-    ring = [c + Vector((math.cos(-math.pi / 2 + 2 * math.pi * L[i] / L[-1]),
-                        math.sin(-math.pi / 2 + 2 * math.pi * L[i] / L[-1]))) * r_end for i in range(len(pts))]
+    ring = [c + loop_at(end, L[i] / L[-1]) for i in range(len(pts))]
 
     def f(y):
         e = min(max((y - y0) / (y1 - y0), 0.0), 1.0) ** power

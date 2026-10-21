@@ -187,15 +187,16 @@ core.finish(G["Reactor"])
 
 # ================================================================ 2. SYSTEMS
 # ---- one large plasma engine at the centre rear, inside the spine; the side intakes cool its coils
-ENG_Z, ENG_R = 0.98, 0.235
+ENG_Z, ENG_HH = 0.975, 0.235
+ENG_SEC = shape_loop(0.22, 0.13, ENG_HH, 0.05)   # standing engine: wider at the base, narrowing upwards
 EY0, EY1 = 1.72, Y_CONE1           # plasma chamber, end of the casing at the tail ring
 INTAKE = (1.28, 1.66)               # y range of the side intakes
 GE = G["Propulsion"]
 eng = Part("Engine_Core")
-EXIT = space_engine(eng, (0, ENG_Z), EY0, EY1, ENG_R)
+EXIT = space_engine(eng, (0, ENG_Z), EY0, EY1, ENG_SEC)
 for y in (1.95, 2.25):                                                                # saddles on the frames
     zd = hull(y)["zt"]
-    eng.box((0, y, (zd + ENG_Z - ENG_R + 0.012) / 2), (0.30, 0.10, ENG_Z - ENG_R + 0.012 - zd), "Metal")
+    eng.box((0, y, (zd + ENG_Z - ENG_HH + 0.012) / 2), (0.30, 0.10, ENG_Z - ENG_HH + 0.012 - zd), "Metal")
 eng.finish(GE, bevel=0.0)
 
 # side intakes: lip, dust grille and a duct recess going in towards the compressor face
@@ -462,8 +463,8 @@ def tail_outline(y):
     return [(0, h["zb"])] + right + [(0, p["htop"])] + [(-x, z) for x, z in reversed(right)]
 
 
-CONE_R = ENG_R + 0.037
-cone, ci = tail_loop(tail_outline(Y_CONE), (0, ENG_Z), CONE_R, Y_CONE, Y_CONE1)
+CONE_END = shape_loop(0.22 + 0.037, 0.13 + 0.037, ENG_HH + 0.037, 0.08)   # the engine's shape, with room round it
+cone, ci = tail_loop(tail_outline(Y_CONE), (0, ENG_Z), CONE_END, Y_CONE, Y_CONE1)
 CONE_Y = [Y_CONE + k * (Y_CONE1 - Y_CONE) / 6 for k in range(7)]
 nc = len(cone(Y_CONE))
 for name, t0, t1, m_fn in (("Tail_Belly", ci[14], nc + ci[2], lambda c, n: "Graphite"),
@@ -477,10 +478,10 @@ for name, t0, t1, m_fn in (("Tail_Belly", ci[14], nc + ci[2], lambda c, n: "Grap
     shell(p, B, slots if "Side" in name else ())
 drop(slots)
 tr = Part("Tail_Ring")                                         # trim between the cone and the engine casing
-tr.lathe((0, Y_CONE1 - 0.012, ENG_Z), (0, Y_CONE1 + 0.004, ENG_Z),
-         [(0, ENG_R + 0.008), (0, CONE_R + 0.004), (1, CONE_R + 0.004), (1, ENG_R + 0.008)],
-         lambda k: "Metal_Bright", 48, closed=True)
-tr.box((0, Y_CONE1 - 0.004, ENG_Z - CONE_R - 0.008), (0.14, 0.02, 0.012), "Emit_Red")    # tail light
+tr.loft([[Vector((x * sc, y, ENG_Z + z * sc)) for x, z in sec] for y, sec, sc in
+         ((Y_CONE1 - 0.012, ENG_SEC, 1.04), (Y_CONE1 - 0.012, CONE_END, 1.0), (Y_CONE1 + 0.004, CONE_END, 1.0),
+          (Y_CONE1 + 0.004, ENG_SEC, 1.04))], lambda i, j: "Metal_Bright", closed_u=True, closed_v=True)
+tr.box((0, Y_CONE1 - 0.004, ENG_Z - ENG_HH - 0.045), (0.14, 0.02, 0.012), "Emit_Red")    # tail light
 tr.finish(B)
 
 # ---- the spine over the reactor: yellow top with the reactor cover, sides with service hatch, end caps
@@ -635,7 +636,7 @@ dec.finish(G["Decals"], recalc=False, smooth_angle=10)
 for name, loc in (("Socket_Engine", (0, 2.20, ENG_Z)), ("Socket_Reactor", (0, 1.06, 0.90)),
                   ("Socket_Propulsion", (0, EXIT, ENG_Z)),
                   ("Socket_Wing_L", (-0.40, 0.94, wing_at(0.40)[2])), ("Socket_Wing_R", (0.40, 0.94, wing_at(0.40)[2])),
-                  ("Socket_Tail", (0, Y_CONE1, ENG_Z - CONE_R)), ("Socket_Armor_L", (-0.56, 0.30, 0.45)),
+                  ("Socket_Tail", (0, Y_CONE1, ENG_Z - ENG_HH - 0.037)), ("Socket_Armor_L", (-0.56, 0.30, 0.45)),
                   ("Socket_Armor_R", (0.56, 0.30, 0.45)), ("Socket_Cooling", (0, 0.85, 0.52)),
                   ("Socket_Utility", (0, -2.40, 0.30))):
     group(name, G["Sockets"], loc)

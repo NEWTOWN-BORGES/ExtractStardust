@@ -1,10 +1,10 @@
 # WRAITH hover racer (light, for skilled pilots), built from the inside out like the STRIX: structure first (frames
 # and longerons in each arm, bridge frames, the cross beam in the fork and the braces that hold the cockpit pod), then
-# the systems (cockpit and pilot, reactor, two plasma engines at the rear whose coils are cooled through ducts from
-# intakes at the arm tips, radiators, hover emitters), then the 12 mm bodywork panels with 5 mm gaps.
+# the systems (cockpit and pilot, reactor, three round plasma engines at the rear inside a shroud, the side ones
+# cooled through ducts from intakes at the arm tips, radiators, hover emitters), then the 12 mm bodywork panels.
 # Look: fork (U) plan - two long faceted arms forward with open space between them, the cockpit pod at the base of the
-# U nearly level with the arms and its glass flush with the body, a rear that tapers to a semi-pointed tail between the
-# two engines, two long shark fins over the engines, short wings going down; light steel blue with orange trim
+# U nearly level with the arms and its glass flush with the body, a rear that tapers into a lying rounded box (the
+# shroud) holding three engines, two long shark fins over it, short wings going down; light steel blue with orange trim
 # (Docs/WRAITH_CATEGORIA.md).
 # Front is -Y, up is +Z, metres (the layout of the old SourceArt/TestShips/wraith.fbx; the game centres the bounds).
 # Usage: python3 Scripts/build_wraith.py <out_dir> [--no-render]
@@ -50,7 +50,7 @@ ARM = [(-3.25, .645, .095, .320, .025, .440, .040, .500),
 BODY = [(0.40, .840, .260, .050, .740, .090, .840),
         (1.40, .860, .270, .050, .760, .120, .860),
         (2.20, .840, .300, .050, .760, .140, .860),
-        (2.70, .670, .370, .030, .730, .100, .780)]
+        (2.70, .685, .335, .100, .685, .110, .785)]
 #        y      w     zb    cb    zs    ct    zt         (cockpit pod; from 0.40 back it is the spine on the bridge)
 POD = [(-1.40, .080, .560, .030, .640, .030, .680),
        (-0.90, .200, .470, .060, .740, .080, .840),
@@ -211,14 +211,15 @@ fork.finish(G["Structural_Core"], bevel=0.002)
 
 # ================================================================ 2. SYSTEMS
 # ---- two plasma engines at the rear; the intakes at the arm tips duct cooling air to their coils
-ENG_X, ENG_Z, ENG_R = 0.48, 0.56, 0.17
+ENG_X, ENG_Z, ENG_R = 0.45, 0.56, 0.17
+ENG_SEC = circle_loop(ENG_R)
 EY0, EY1 = 1.30, Y_TAIL             # plasma chamber, end of the casing at the tail
 GE = G["Propulsion"]
-for s in (-1, 1):
-    x = s * ENG_X
-    eng = Part("Engine_" + ("R" if s > 0 else "L"))
-    EXIT = space_engine(eng, (x, ENG_Z), EY0, EY1, ENG_R)
-    for y in (1.62, 2.02):                                                                # saddles on the belly
+for x, side, y0, saddles in ((-ENG_X, "L", EY0, (1.62, 2.02)), (0.0, "C", 1.62, (1.80, 2.40)),
+                             (ENG_X, "R", EY0, (1.62, 2.02))):
+    eng = Part("Engine_" + side)
+    EXIT = space_engine(eng, (x, ENG_Z), y0, EY1, ENG_SEC)
+    for y in saddles:                                                                     # saddles on the belly
         zb = body(y)["zb"] + SKIN + CLEAR
         eng.box((x, y, (zb + ENG_Z - ENG_R + 0.01) / 2), (0.14, 0.08, ENG_Z - ENG_R + 0.01 - zb), "Metal")
     eng.finish(GE, bevel=0.0)
@@ -266,8 +267,9 @@ rc.lathe((0, 0.55, 0.815), (0, 1.08, 0.815),
 for y in (0.65, 0.98):
     rc.box((0, y, 0.695), (0.22, 0.05, 0.04), "Metal")                                     # saddles
 for s in (-1, 1):
-    rc.tube([(s * 0.04, 1.10, 0.815), (s * 0.20, 1.25, 0.74), (s * 0.36, 1.50, 0.74), (s * 0.44, 1.60, 0.715)],
+    rc.tube([(s * 0.04, 1.10, 0.815), (s * 0.20, 1.25, 0.74), (s * 0.34, 1.50, 0.74), (s * 0.42, 1.60, 0.715)],
             0.013, "Metal", 10)
+rc.tube([(0, 1.075, 0.78), (0, 1.30, 0.70), (0, 1.50, 0.64), (0, 1.60, 0.60)], 0.013, "Metal", 10)  # centre engine
 rc.finish(G["Reactor"])
 
 # ---- cooling: radiators behind slot vents in the rear body sides, above the wings
@@ -487,32 +489,28 @@ tail.loft([ring, [p + Vector((0, SKIN, 0)) for p in ring]], lambda i, j: "Cerami
           cap1="Ceramic")
 ob = tail.finish(B, skin=True)
 holes = []
-for s in (-1, 1):
+for x in (-ENG_X, 0.0, ENG_X):
     c = Part("cut")
-    c.cyl((s * ENG_X, Y_TAIL - 0.05, ENG_Z), (s * ENG_X, Y_TAIL + 0.05, ENG_Z), ENG_R + 0.012, "Black", 32)
+    c.cyl((x, Y_TAIL - 0.05, ENG_Z), (x, Y_TAIL + 0.05, ENG_Z), ENG_R + 0.012, "Black", 32)
     holes.append(cutter(c))
 boolean(ob, holes)
 drop(holes)
 shade(ob, 0.002)
 
-# semi-pointed tail between the engines
-bt = Part("Tail_Fairing")
+# shroud: plates round the three engines, a lying box with rounded corners that carries the body on and holds the
+# engines inside (outer skin tapers a little; orange band and bright lip at the exit)
+sh = Part("Engine_Shroud")
 b1 = body(Y_TAIL)
-z0, z1 = b1["zb"] + b1["cb"], b1["zt"] - 0.03
-xm = ENG_X - ENG_R - 0.025
-base = [(-0.7 * xm, z0), (0.7 * xm, z0), (xm, z0 + 0.3 * (z1 - z0)), (xm, z1 - 0.2 * (z1 - z0)), (0.7 * xm, z1),
-        (-0.7 * xm, z1), (-xm, z1 - 0.2 * (z1 - z0)), (-xm, z0 + 0.3 * (z1 - z0))]
-zc = (z0 + z1) / 2
+hw0, hh0, zc = b1["w"], (b1["zt"] - b1["zb"]) / 2, (b1["zt"] + b1["zb"]) / 2
 rows = []
-for k in range(5):
-    f = k / 4
-    sc = 1 - 0.9 * f ** 1.4
-    rows.append([Vector((x * sc, Y_TAIL + GAP / 2 + f * (3.02 - Y_TAIL), zc + (z - zc) * sc)) for x, z in base])
-bt.loft(rows, lambda i, j: "Paint_Steel", closed_u=True, cap0="Paint_Steel", cap1="Paint_Steel")
-bmesh.ops.recalc_face_normals(bt.bm, faces=bt.bm.faces[:])
-paint(bt, trim())
-bt.box((0, 3.021, zc), (0.04, 0.004, 0.04), "Emit_Red")                                  # tail light
-bt.finish(B, bevel=0.002, skin=True)
+for y, hw, hh, r in ((Y_TAIL + GAP / 2, hw0, hh0, 0.10), (2.98, hw0 - 0.010, hh0 - 0.006, 0.098),
+                     (3.06, hw0 - 0.015, hh0 - 0.009, 0.096), (3.06, hw0 - 0.03, hh0 - 0.03, 0.07),
+                     (Y_TAIL + GAP / 2, hw0 - 0.03, hh0 - 0.03, 0.07)):
+    rows.append([Vector((x, y, zc + z)) for x, z in shape_loop(hw, hw, hh, r)])
+sh.loft(rows, lambda i, j: ("Paint_Steel", "Paint_Orange", "Metal_Bright", "Graphite", "Graphite")[i], closed_u=True,
+        closed_v=True)
+sh.box((0, 3.062, zc - hh0 + 0.02), (0.12, 0.004, 0.012), "Emit_Red")                    # tail light
+sh.finish(B, bevel=0.002, skin=True)
 
 # two long shark fins on the deck, over the engines, leaning out
 fin = Part("Shark_Fins")
@@ -618,8 +616,8 @@ dec.finish(G["Decals"], recalc=False, smooth_angle=10)
 
 # ================================================================ sockets
 for name, loc in (("Socket_Reactor", (0, 0.91, 0.815)), ("Socket_Propulsion_L", (-ENG_X, EXIT, ENG_Z)),
-                  ("Socket_Propulsion_R", (ENG_X, EXIT, ENG_Z)), ("Socket_Wing_L", (-0.74, 1.40, wing_at(0.74)[2])),
-                  ("Socket_Wing_R", (0.74, 1.40, wing_at(0.74)[2])), ("Socket_Tail", (0, 3.02, zc)),
+                  ("Socket_Propulsion_R", (ENG_X, EXIT, ENG_Z)), ("Socket_Propulsion_C", (0, EXIT, ENG_Z)), ("Socket_Wing_L", (-0.74, 1.40, wing_at(0.74)[2])),
+                  ("Socket_Wing_R", (0.74, 1.40, wing_at(0.74)[2])), ("Socket_Tail", (0, 3.06, zc - hh0)),
                   ("Socket_Armor_L", (-0.83, -0.80, 0.42)), ("Socket_Armor_R", (0.83, -0.80, 0.42)),
                   ("Socket_Cooling", (0, 1.40, 0.58)), ("Socket_Utility", (0, -1.40, 0.62))):
     group(name, G["Sockets"], loc)

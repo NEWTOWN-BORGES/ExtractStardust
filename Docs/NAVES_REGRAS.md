@@ -8,6 +8,10 @@ Valem para todas as naves (STRIX, WRAITH e as seguintes). O código comum está 
 2. **Motores de nave espacial, não de jato** (2026-10-21): câmara de plasma com cúpula injetora, três bobinas
    magnéticas com o plasma a brilhar entre elas, tubeira de cerâmica com núcleo azul-branco (`space_engine`). Nada de
    pétalas, compressores, ventoinhas ou cones de escape de avião.
+   **Forma livre** (2026-10-21): a secção do motor não tem de ser redonda. Pode ser retangular, com ou sem cantos
+   arredondados, mais larga em baixo do que em cima, ou com lados de medidas diferentes, conforme couber no chassis
+   (`shape_loop`, `circle_loop`). Vários motores podem ficar juntos dentro de uma **capa** de chapas à volta
+   (uma caixa deitada de cantos arredondados), com os motores lá dentro.
 3. **A traseira nunca acaba num corte plano** (2026-10-21): a carroçaria afunila à volta dos motores até um remate
    semi-pontiagudo (`tail_loop`), com **barbatanas de tubarão compridas** por cima (`shark_fin`).
 4. **Sem lâminas, espetos nem barbatanas soltas** fora das barbatanas de tubarão da traseira.
