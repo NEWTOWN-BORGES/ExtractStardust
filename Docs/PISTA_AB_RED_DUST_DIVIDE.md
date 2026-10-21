@@ -74,6 +74,14 @@ Valley), fechada por falésias. À volta do mundo, cordilheiras mais altas fecha
 
 O total ideal é 58,6 km em 9:42 (média de 362 km/h). Com saltos, travagens e pilotos reais deve dar 10:30-11:30.
 
+## Estradas largas para 16-20 naves (2026-10-21)
+
+O jogador quer 15 a 20 naves lado a lado, 6 ou 7 de frente. A linha principal passou a 56-64 m de largura (semi-largura
+28-32 m, antes 10-28), a partir de S1 até S10: S3 Shafer Fall (os 4 lances em zigue-zague) fica com 40 m, por causa
+dos cotovelos de 43 m de raio. O túnel The Hollow tem 56 m de chão. As bifurcações RACING e SAFE ficam com 48 e 52 m;
+**os atalhos SKILL ficam estreitos de propósito** (12-18 m). A grelha de partida passa a 3 filas de 6 (18 lugares)
+em vez de 4 de 5. O traçado e os tempos não mudam (59,0 km, 9:44).
+
 ## Túnel e paredes lisas (2026-10-21)
 
 O jogador achou o túnel "horrível, impossível conduzir": as paredes tinham placas e triângulos salientes. Corrigido em

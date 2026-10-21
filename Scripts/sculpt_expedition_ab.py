@@ -108,41 +108,42 @@ def relax(p, rmin, fixed=None, iters=300, reach=30):
 # ---- 1. The main route, sector by sector. Control points (x, y, ground height m) in world metres (origin south-west,
 # x east, y north) give the valley axis; a meander (amplitude m, wavelength m) then makes the rhythmic bends, and the
 # line is relaxed to the sector's tightest radius (GDD: tight 60-120 m, medium 120-250, fast 250-500, mega arc 500+).
-# Per sector: name, surface kind, floor half width m (GDD widths: open 24-35 m, main 14-24, technical 10-16),
+# Per sector: name, surface kind, floor half width m (player, 2026-10-21: 16-20 ships, 6-7 abreast: 56-64 m wide on the
+# racing line, 40 m on the switchbacks; the SKILL shortcuts stay narrow on purpose),
 # tightest radius m, meander (amplitude, wavelength), control points.
 SECTORS = [
-    ("S1 The Basin", "top", 17.0, 180.0, (70.0, 1000.0),
+    ("S1 The Basin", "top", 30.0, 180.0, (70.0, 1000.0),
      [(15300, 11300, 452), (14400, 10700, 446), (13300, 10900, 444), (12400, 10300, 448), (12600, 9300, 452),
       (13600, 9000, 455), (14400, 8300, 458), (13900, 7600, 462)]),
-    ("S2 Broken Mesa", "top", 12.0, 120.0, (130.0, 650.0),
+    ("S2 Broken Mesa", "top", 28.0, 120.0, (130.0, 650.0),
      [(13000, 7200, 466), (12600, 6300, 470), (13300, 5500, 474), (12700, 4800, 476), (11900, 5000, 478), (11450, 5650, 480),
       (11380, 6450, 478)]),
     # Switchbacks down the outer cliff to the bench: four legs 200 m apart, hairpins of ~100 m radius.
-    ("S3 Shafer Fall", "switchback", 10.0, 1.0, (0.0, 1.0),
+    ("S3 Shafer Fall", "switchback", 20.0, 1.0, (0.0, 1.0),
      [(11300, 6800, 470), (11300, 7500, 440), (11200, 7720, 432), (11100, 7500, 424), (11100, 6500, 382), (11000, 6280, 374),
       (10900, 6500, 366), (10900, 7500, 324), (10800, 7720, 316), (10700, 7500, 308), (10700, 6700, 274), (10550, 6350, 255)]),
     # A tributary born on the bench cuts down to the floor in one long left-hand sweep (radius ~700 -> ~250 m): the
     # Red Wall is its outer bank, steepening from a soft bank to a wall as the gorge deepens.
-    ("S4 The Red Wall", "gorge", 20.0, 250.0, (0.0, 1.0),
+    ("S4 The Red Wall", "gorge", 30.0, 250.0, (0.0, 1.0),
      [(10300, 5950, 240), (9800, 5450, 230), (9100, 5150, 212), (8400, 5300, 185), (7900, 5900, 150), (7650, 6700, 112),
       (7800, 7500, 78), (8150, 8150, 50), (8000, 8800, 42)]),
     # Down the main canyon past the slot canyons (fendas): the SAFE line; RACING and SKILL take the slots.
-    ("S5 Fendas", "floor", 16.0, 140.0, (110.0, 700.0),
+    ("S5 Fendas", "floor", 26.0, 140.0, (110.0, 700.0),
      [(7550, 9300, 40), (7400, 9950, 39), (6800, 10350, 39), (6050, 10200, 38), (5650, 9750, 37), (5250, 9300, 36)]),
     # Horseshoe: in heading south, 270 degrees round the rock spur, out heading north; SKILL jumps the neck.
-    ("S6 Horseshoe", "floor", 22.0, 1.0, (0.0, 1.0),
+    ("S6 Horseshoe", "floor", 30.0, 1.0, (0.0, 1.0),
      [(5150, 8750, 35), (5150, 8150, 34), (5050, 7650, 33), (4750, 7400, 33), (4400, 7550, 32), (4300, 7950, 31),
       (4450, 8450, 30), (4500, 8800, 30), (4300, 9350, 29), (4000, 9750, 29)]),
-    ("S7 The Wash", "wash", 28.0, 200.0, (140.0, 1100.0),
+    ("S7 The Wash", "wash", 32.0, 200.0, (140.0, 1100.0),
      [(3500, 10000, 28), (2900, 9800, 27), (2250, 9150, 26), (1850, 8250, 25), (1800, 7250, 24), (2100, 6350, 22),
       (2400, 5650, 20)]),
-    ("S8 The Hollow", "cave", 22.0, 100.0, (60.0, 450.0),
+    ("S8 The Hollow", "cave", 28.0, 100.0, (60.0, 450.0),
      [(2650, 5150, 16), (2400, 4800, 12), (2900, 4500, 8), (2600, 4100, 4), (2950, 3700, 8), (2500, 3450, 40),
       (2150, 3350, 70)]),
-    ("S9 Arches Run", "desert", 18.0, 160.0, (100.0, 800.0),
+    ("S9 Arches Run", "desert", 30.0, 160.0, (100.0, 800.0),
      [(1700, 2950, 45), (1150, 2450, 50), (850, 1550, 55), (1450, 750, 60), (2550, 550, 62), (3400, 1250, 64),
       (4350, 1000, 66), (5250, 1450, 64), (5900, 1150, 60)]),
-    ("S10 White Rim", "rim", 18.0, 300.0, (40.0, 1200.0),
+    ("S10 White Rim", "rim", 30.0, 300.0, (40.0, 1200.0),
      [(6500, 1650, 62), (7250, 2150, 150), (7900, 2450, 238), (8650, 2650, 240), (9500, 2450, 238), (10300, 2650, 240),
       (10900, 2700, 241), (11400, 2650, 242)]),
 ]
@@ -265,12 +266,12 @@ if PLAN:
 # arm), "surface" (the ground as it is). Bed heights run linearly between the two junctions unless given.
 BRANCHES = [
     ("S2 SKILL Lajes", "slabs", 9.0, 90.0, [("@", 12650, 6100), (12950, 5700), (12950, 5250), ("@", 12500, 4850)]),
-    ("S5 RACING Fenda Larga", "slot", 14.0, 160.0, [("@", 7450, 9600), (6900, 9600), (6300, 9700), ("@", 5800, 9850)]),
+    ("S5 RACING Fenda Larga", "slot", 24.0, 160.0, [("@", 7450, 9600), (6900, 9600), (6300, 9700), ("@", 5800, 9850)]),
     ("S5 SKILL Fenda Estreita", "slot", 6.0, 60.0, [("@", 7520, 9420), (7000, 9250), (6400, 9200), (5900, 9300), ("@", 5450, 9500)]),
     ("S6 SKILL Istmo", "slot", 7.0, 50.0, [("@", 5150, 8400), (4850, 8500), ("@", 4500, 8600)]),
-    ("S8 Braço da Caverna", "cave", 16.0, 80.0, [("@", 2420, 4780), (2150, 4350), (2350, 3900), ("@", 2700, 3600)]),
+    ("S8 Braço da Caverna", "cave", 22.0, 80.0, [("@", 2420, 4780), (2150, 4350), (2350, 3900), ("@", 2700, 3600)]),
     ("S9 SKILL Arcos", "surface", 9.0, 90.0, [("@", 2500, 560), (3000, 300), (3700, 650), ("@", 4300, 980)]),
-    ("S10 SAFE Contorno", "surface", 16.0, 200.0, [("@", 8350, 2560), (8700, 3050), (9200, 2950), ("@", 9450, 2480)]),
+    ("S10 SAFE Contorno", "surface", 26.0, 200.0, [("@", 8350, 2560), (8700, 3050), (9200, 2950), ("@", 9450, 2480)]),
 ]
 
 
@@ -936,7 +937,7 @@ route_json = {
     "branches": {nm: {"kind": b["kind"], "half_width_m": b["w"], "leaves_main_at_m": int(b["leave"]), "rejoins_main_at_m": int(b["rejoin"]),
                       "points": pts4(b["p"], bilinear(H, b["p"][:, 0], b["p"][:, 1])), "jumps": b["jumps"]} for nm, b in branches.items()},
     "jumps": jumps, "lips_m": [int(c) for c in lips], "hero_jump_m": int(i_hero), "landmarks": LANDMARKS, "water": WATER,
-    "start_grid": {"at": [round(float(main[0, 0] - SX / 2), 1), round(float(main[0, 1] - SY / 2), 1)], "rows": 4, "per_row": 5},
+    "start_grid": {"at": [round(float(main[0, 0] - SX / 2), 1), round(float(main[0, 1] - SY / 2), 1)], "rows": 3, "per_row": 6},
 }
 with open(f"{OUT}/ab_route.json", "w") as f_:
     json.dump(route_json, f_, default=float)
