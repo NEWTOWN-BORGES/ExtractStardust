@@ -4,7 +4,8 @@
 # one under it: panels are 12 mm shells with 5 mm gaps, the wings go through slots in the side panels onto root
 # clamps, the emitters sit in cut-outs of the belly, the side intakes are ducted to the engine.
 # Look: long faceted nose that is narrow and low at the front, cockpit set back, a raised spine over the reactor,
-# one large engine at the centre rear, swept wings on the last third going down (Docs/STRIX_CATEGORIA.md).
+# a plasma engine at the centre rear in a tail cone that closes round it semi-pointed, a long dorsal shark fin,
+# swept wings on the last third going down (Docs/STRIX_CATEGORIA.md).
 # Front is -Y, up is +Z, metres (the layout of the old SourceArt/TestShips/strix.fbx; the game centres the bounds).
 # Usage: python3 Scripts/build_strix.py <out_dir> [--no-render]
 #    or: blender -b -P Scripts/build_strix.py -- <out_dir> [--no-render]
@@ -30,6 +31,7 @@ material("Glass", "#9FC6DA", rough=0.03, alpha=0.25)
 material("Emit_Hover", "#5FE3FF", emit=3.0, rough=0.3)
 material("Emit_Hot", "#FF7A2E", emit=6.0, rough=0.3)
 material("Emit_Red", "#FF2A2A", emit=4.0, rough=0.3)
+material("Emit_Plasma", "#8FDFFF", emit=10.0, rough=0.3)
 
 
 ROOT = group("ShipRoot")
@@ -55,6 +57,7 @@ HUMP = [(0.30, .270, .930, .180, .990),
         (1.70, .340, 1.090, .240, 1.245),
         (2.75, .340, 1.090, .240, 1.245)]
 HUMP_Y = [r[0] for r in HUMP]
+Y_CONE, Y_CONE1 = 2.30, 2.80   # tail cone: from the body outline to the ring round the engine
 
 
 def hull(y):
@@ -127,7 +130,7 @@ def octagon(y):
 
 
 struct = Part("Frames")
-FRAME_Y = [-2.40, -1.60, -0.73, 0.29, 1.20, 2.00, 2.72]
+FRAME_Y = [-2.40, -1.60, -0.73, 0.29, 1.20, 2.00, 2.25]
 for y in FRAME_Y:
     oc = octagon(y)
     o, i_ = inset(oc, SKIN + CLEAR), inset(oc, SKIN + CLEAR + 0.035)
@@ -145,7 +148,7 @@ for k in (1, 2, 3, 4, 5, 6):
     lon.tube(path, 0.012, "Metal", square=True)
 # twin spine rails along the floor, from the crash box to the rear frame
 for s in (-1, 1):
-    path = [(s * 0.17, y, hull(y)["zb"] + SKIN + CLEAR + 0.03) for y in (-2.45, -0.75, 0.30, 1.20, 2.72)]
+    path = [(s * 0.17, y, hull(y)["zb"] + SKIN + CLEAR + 0.03) for y in (-2.45, -0.75, 0.30, 1.20, 2.25)]
     lon.tube(path, 0.03, "Metal", square=True)
 lon.finish(G["Structural_Core"], bevel=0.002)
 
@@ -183,39 +186,14 @@ core.lathe((0, 0.72, 0.90), (0, 1.40, 0.90),
 core.finish(G["Reactor"])
 
 # ================================================================ 2. SYSTEMS
-# ---- one large engine at the centre rear, inside the spine, fed by two side intakes
+# ---- one large plasma engine at the centre rear, inside the spine; the side intakes cool its coils
 ENG_Z, ENG_R = 0.98, 0.235
-EY0, EY1 = 1.72, 2.74               # compressor face, rear flange
+EY0, EY1 = 1.72, Y_CONE1           # plasma chamber, end of the casing at the tail ring
 INTAKE = (1.28, 1.66)               # y range of the side intakes
 GE = G["Propulsion"]
 eng = Part("Engine_Core")
-eng.lathe((0, EY0, ENG_Z), (0, EY1, ENG_Z),
-          [(0, ENG_R), (0.22, ENG_R), (0.22, ENG_R + 0.01), (0.26, ENG_R + 0.01), (0.26, ENG_R), (0.66, ENG_R),
-           (0.66, ENG_R + 0.01), (0.70, ENG_R + 0.01), (0.70, ENG_R), (1, ENG_R)],
-          lambda k: "Metal", 40, cap0="Graphite", cap1="Graphite")
-eng.lathe((0, EY0 - 0.17, ENG_Z), (0, EY0, ENG_Z), [(0, 0.0), (0.4, 0.05), (1, 0.08)], lambda k: "Metal_Bright",
-          20, cap1="Metal_Bright")                                                     # spinner
-for k in range(20):                                                                   # compressor blades
-    ang = 2 * math.pi * k / 20
-    R = Matrix.Rotation(ang, 3, 'Y') @ Matrix.Rotation(math.radians(35), 3, 'Z')
-    eng.box(Vector((0, EY0 - 0.03, ENG_Z)) + Matrix.Rotation(ang, 3, 'Y') @ Vector((0.152, 0, 0)),
-            (0.145, 0.06, 0.005), "Metal_Bright", R)
-eng.lathe((0, EY1 - 0.01, ENG_Z), (0, EY1 + 0.07, ENG_Z), [(0, ENG_R + 0.003), (0, ENG_R + 0.02),
-          (1, ENG_R + 0.02), (1, ENG_R + 0.003)], lambda k: "Metal", 40, closed=True)   # vectoring joint ring
-for k in range(16):                                                                   # nozzle petals
-    a0_, a1_ = 2 * math.pi * (k + 0.05) / 16, 2 * math.pi * (k + 0.95) / 16
-    ring = [Vector((r * math.cos(a), y, ENG_Z + r * math.sin(a))) for y, r in ((EY1 + 0.07, .246), (3.21, .212))
-            for a in (a0_, a1_)]
-    inner = [p + (Vector((0, p.y, ENG_Z)) - p).normalized() * 0.009 for p in ring]
-    q = [ring[0], ring[1], ring[3], ring[2], inner[0], inner[1], inner[3], inner[2]]
-    vs = [eng.bm.verts.new(v) for v in q]
-    for f in ((0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)):
-        eng.bm.faces.new([vs[i] for i in f]).material_index = eng.mi("Metal_Bright")
-eng.lathe((0, EY1, ENG_Z), (0, 3.17, ENG_Z), [(0, .226), (1, .200)], lambda k: "Black", 40)    # liner
-eng.lathe((0, EY1 + 0.06, ENG_Z), (0, EY1 + 0.061, ENG_Z), [(0, .0), (1, .225)], lambda k: "Emit_Hot", 40)
-eng.lathe((0, EY1 + 0.04, ENG_Z), (0, 3.14, ENG_Z), [(0, .10), (0.6, .075), (1, .02)], lambda k: "Metal_Bright",
-          24, cap1="Metal_Bright")                                                     # exhaust plug
-for y in (2.00, 2.55):                                                                # saddles on the frames
+EXIT = space_engine(eng, (0, ENG_Z), EY0, EY1, ENG_R)
+for y in (1.95, 2.25):                                                                # saddles on the frames
     zd = hull(y)["zt"]
     eng.box((0, y, (zd + ENG_Z - ENG_R + 0.012) / 2), (0.30, 0.10, ENG_Z - ENG_R + 0.012 - zd), "Metal")
 eng.finish(GE, bevel=0.0)
@@ -284,7 +262,7 @@ for y, x, sx, sy in mods:
         hover.box((x, y - sy / 2 + k * sy / (4 if sx > 0.3 else 3), zbot + 0.003), (sx - 0.05, 0.008, 0.006),
                   "Metal")
     emit_cuts.append(box_cutter((x, y, zb), (sx + GAP, sy + GAP, 0.08)))
-for y, x in ((-2.85, 0.10), (2.62, 0.40)):                                             # surface sensors
+for y, x in ((-2.85, 0.10), (2.22, 0.40)):                                             # surface sensors
     for s in (-1, 1):
         zb = hull(y)["zb"]
         hover.cyl((s * x, y, zb + 0.01), (s * x, y, zb - 0.012), 0.022, "Graphite", 12)
@@ -455,7 +433,7 @@ lens.finish(G["Nose"])
 hull_panel("Nose_Top", 3, 7, -2.75, -0.75, B, hull_paint())
 hull_panel("Belly_Front", 9, 11, -2.75, -0.75, B, lambda c, n: "Graphite", holes=emit_cuts)
 hull_panel("Belly_Mid", 9, 11, -0.75, 1.20, B, lambda c, n: "Graphite", holes=emit_cuts)
-hull_panel("Belly_Rear", 9, 11, 1.20, 2.75, B, lambda c, n: "Graphite", holes=emit_cuts)
+hull_panel("Belly_Rear", 9, 11, 1.20, Y_CONE, B, lambda c, n: "Graphite", holes=emit_cuts)
 vent_cuts = []
 for s in (-1, 1):
     y0, y1, z0, z1 = VENT
@@ -468,21 +446,42 @@ for side, s in (("R", 1), ("L", -1)):
     def span(a, b):
         return (T(a), T(b)) if s > 0 else (T(b), T(a))
     hull_panel("Nose_Side_" + side, *span(2, 3), -2.75, -0.75, B, nose_side_paint, cuts=BAND)
-    hull_panel("Chine_" + side, *span(1, 2), -2.75, 2.75, B, lambda c, n: "Metal")
+    hull_panel("Chine_" + side, *span(1, 2), -2.75, Y_CONE, B, lambda c, n: "Metal")
     hull_panel("Cockpit_Side_" + side, *span(2, 3), -0.75, 0.30, B, hull_paint(), holes=slots)
     hull_panel("Cowl_" + side, *span(3, lambda y: tx(y, 0.26)), -0.75, 0.30, B, hull_paint())
-    hull_panel("Side_" + side, *span(2, 3), 0.30, 2.75, B, hull_paint(), holes=slots + vent_cuts)
-    hull_panel("Deck_" + side, *span(3, lambda y: tx(y, hump(min(y, 2.75))["hb"] + 0.005)), 0.30, 2.75, B,
+    hull_panel("Side_" + side, *span(2, 3), 0.30, Y_CONE, B, hull_paint(), holes=slots + vent_cuts)
+    hull_panel("Deck_" + side, *span(3, lambda y: tx(y, hump(min(y, 2.75))["hb"] + 0.005)), 0.30, Y_CONE, B,
                hull_paint())
-drop(slots + vent_cuts + emit_cuts)
+drop(vent_cuts + emit_cuts)
 
-tail = Part("Tail_Cap")
-L = hull_loop(2.75)
-ring = [Vector((x, 2.75 - GAP / 2, z)) for x, z in L]
-tail.loft([ring, [p + Vector((0, SKIN, 0)) for p in ring]], lambda i, j: "Ceramic", closed_u=True,
-          cap0="Ceramic", cap1="Ceramic")
-tail.box((0, 2.7495 + SKIN, 0.47), (0.56, 0.008, 0.03), "Emit_Red")
-tail.finish(B, bevel=0.002, skin=True)
+# ---- tail cone: the hull and the spine close round the engine in a semi-pointed tail
+def tail_outline(y):
+    h, p = hull(y), hump(y)
+    right = [(h["w"] - h["cb"], h["zb"]), (h["w"], h["zb"] + h["cb"]), (h["w"], h["zs"]), (h["wt"], h["zt"]),
+             (p["hb"], h["zt"]), (p["hb"], p["hs"]), (p["ht"], p["htop"])]
+    return [(0, h["zb"])] + right + [(0, p["htop"])] + [(-x, z) for x, z in reversed(right)]
+
+
+CONE_R = ENG_R + 0.037
+cone, ci = tail_loop(tail_outline(Y_CONE), (0, ENG_Z), CONE_R, Y_CONE, Y_CONE1)
+CONE_Y = [Y_CONE + k * (Y_CONE1 - Y_CONE) / 6 for k in range(7)]
+nc = len(cone(Y_CONE))
+for name, t0, t1, m_fn in (("Tail_Belly", ci[14], nc + ci[2], lambda c, n: "Graphite"),
+                           ("Tail_Side_R", ci[2], ci[6], hull_paint()),
+                           ("Tail_Top", ci[6], ci[10], lambda c, n: "Paint_Yellow"),
+                           ("Tail_Side_L", ci[10], ci[14], hull_paint())):
+    p = Part(name)
+    surface(p, cone, t0, t1, Y_CONE, Y_CONE1, CONE_Y, hull3d, (True, False))
+    orient_out(p, lambda c: Vector((0, c.y, ENG_Z)))
+    paint(p, m_fn)
+    shell(p, B, slots if "Side" in name else ())
+drop(slots)
+tr = Part("Tail_Ring")                                         # trim between the cone and the engine casing
+tr.lathe((0, Y_CONE1 - 0.012, ENG_Z), (0, Y_CONE1 + 0.004, ENG_Z),
+         [(0, ENG_R + 0.008), (0, CONE_R + 0.004), (1, CONE_R + 0.004), (1, ENG_R + 0.008)],
+         lambda k: "Metal_Bright", 48, closed=True)
+tr.box((0, Y_CONE1 - 0.004, ENG_Z - CONE_R - 0.008), (0.14, 0.02, 0.012), "Emit_Red")    # tail light
+tr.finish(B)
 
 # ---- the spine over the reactor: yellow top with the reactor cover, sides with service hatch, end caps
 H = G["Reactor"]
@@ -490,7 +489,7 @@ H = G["Reactor"]
 
 def hump_panel(name, t0, t1, m_fn, holes=()):
     p = Part(name)
-    surface(p, hump_loop, t0, t1, 0.30, 2.75, HUMP_Y, hull3d)
+    surface(p, hump_loop, t0, t1, 0.30, Y_CONE, HUMP_Y, hull3d)
     orient_out(p, hump_centre)
     paint(p, m_fn)
     return shell(p, B, holes)
@@ -524,19 +523,18 @@ for side, s in (("R", 1), ("L", -1)):
     hl.finish(H)
 
 drop(intake_cuts)
-for name, y, d, m in (("Spine_Front", 0.30 + GAP / 2, -1, "Graphite"), ("Spine_Rear", 2.75 - GAP / 2, 1, "Ceramic")):
-    L = hump_loop(y)
-    cap = Part(name)
-    ring = [Vector((x, y, z)) for x, z in L]
-    cap.loft([ring, [p + Vector((0, -d * SKIN, 0)) for p in ring]], lambda i, j: m, closed_u=True, cap0=m, cap1=m)
-    ob = cap.finish(B, skin=True)
-    if d > 0:                                                  # the rear cap is the heat shield round the nozzle
-        c = Part("cut")
-        c.cyl((0, y - 0.05, ENG_Z), (0, y + 0.05, ENG_Z), ENG_R + 0.022, "Black", 40)
-        cc = cutter(c)
-        boolean(ob, [cc])
-        drop([cc])
-    shade(ob, 0.002)
+L = hump_loop(0.30 + GAP / 2)
+cap = Part("Spine_Front")
+ring = [Vector((x, 0.30 + GAP / 2, z)) for x, z in L]
+cap.loft([ring, [p + Vector((0, SKIN, 0)) for p in ring]], lambda i, j: "Graphite", closed_u=True, cap0="Graphite",
+         cap1="Graphite")
+cap.finish(B, bevel=0.002, skin=True)
+
+# ---- long dorsal shark fin on the spine and the tail cone, its tip over the engine coils
+fin = Part("Dorsal_Fin")
+shark_fin(fin, lambda y: hump(y)["htop"] if y <= Y_CONE else cone(y)[ci[8]][1], 0.0, (1.62, Y_CONE1), (2.42, 2.96),
+          0.24, 0.036, "Paint_Yellow", "Paint_DarkBlue")
+fin.finish(B, bevel=0.0015, smooth_angle=60, skin=True)
 
 # ---- canopy: glass on a sill frame, middle bow, roll hoop behind the pilot
 CAN = [(-0.745, .020), (-0.60, .090), (-0.45, .150), (-0.25, .180), (0.0, .185), (0.15, .170), (0.265, .140)]
@@ -635,9 +633,9 @@ dec.finish(G["Decals"], recalc=False, smooth_angle=10)
 
 # ================================================================ sockets (where modules bolt on)
 for name, loc in (("Socket_Engine", (0, 2.20, ENG_Z)), ("Socket_Reactor", (0, 1.06, 0.90)),
-                  ("Socket_Propulsion", (0, EY1 + 0.04, ENG_Z)),
+                  ("Socket_Propulsion", (0, EXIT, ENG_Z)),
                   ("Socket_Wing_L", (-0.40, 0.94, wing_at(0.40)[2])), ("Socket_Wing_R", (0.40, 0.94, wing_at(0.40)[2])),
-                  ("Socket_Tail", (0, 2.76, 0.47)), ("Socket_Armor_L", (-0.56, 0.30, 0.45)),
+                  ("Socket_Tail", (0, Y_CONE1, ENG_Z - CONE_R)), ("Socket_Armor_L", (-0.56, 0.30, 0.45)),
                   ("Socket_Armor_R", (0.56, 0.30, 0.45)), ("Socket_Cooling", (0, 0.85, 0.52)),
                   ("Socket_Utility", (0, -2.40, 0.30))):
     group(name, G["Sockets"], loc)

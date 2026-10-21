@@ -361,6 +361,81 @@ def split_out(ob, c, size, name, normal_axis):
     return cover
 
 
+# ---------------------------------------------------------------- spacecraft engine, tail cone, shark fin
+def space_engine(part, c, y0, y1, r, coil_len=0.14, bell_len=0.16, glow="Emit_Plasma"):
+    """Plasma thruster along +Y at c = (x, z): chamber casing y0..y1 (radius r) with an injector dome at the front,
+    three magnetic coil rings with the plasma glowing between them, then a flared bell with a bright core.
+    Returns the exit plane y."""
+    x, z = c
+    part.lathe((x, y0, z), (x, y1, z), [(0, r), (0.55, r), (0.55, r + 0.008), (0.6, r + 0.008), (0.6, r), (1, r)],
+               lambda k: "Metal", 32, cap0="Graphite", cap1="Graphite")
+    part.lathe((x, y0 - 0.06, z), (x, y0, z), [(0, 0.0), (0.5, 0.5 * r), (1, 0.8 * r)], lambda k: "Metal_Bright", 24)
+    yb = y1 + coil_len
+    part.lathe((x, y1, z), (x, yb, z), [(0, 0.76 * r), (1, 0.76 * r)], lambda k: glow, 32)          # plasma sleeve
+    for k in range(3):                                                                                  # coils
+        ya = y1 + coil_len * (0.04 + 0.33 * k)
+        part.lathe((x, ya, z), (x, ya + coil_len * 0.22, z), [(0, 0.80 * r), (0, 1.02 * r), (1, 1.02 * r),
+                   (1, 0.80 * r)], lambda k_: "Metal_Bright", 32, closed=True)
+    for k in range(4):                                                                                  # tie rods
+        a = math.pi / 4 + k * math.pi / 2
+        part.box((x + 0.97 * r * math.cos(a), y1 + coil_len / 2, z + 0.97 * r * math.sin(a)),
+                 (0.022, coil_len + 0.01, 0.022), "Metal", Matrix.Rotation(-a, 3, 'Y'))
+    ye = yb + bell_len
+    part.lathe((x, yb, z), (x, ye, z), [(0, 0.86 * r), (0.5, 0.96 * r), (1, 1.08 * r), (1, 1.0 * r), (0.5, 0.80 * r),
+               (0, 0.62 * r)], lambda k: "Ceramic" if k < 2 else "Metal_Bright" if k == 2 else "Graphite", 32,
+               closed=True)                                                                             # bell
+    part.lathe((x, yb + 0.01, z), (x, yb + 0.011, z), [(0, 0.0), (1, 0.63 * r)], lambda k: glow, 32)   # core
+    part.lathe((x, yb + 0.01, z), (x, yb + 0.6 * bell_len, z), [(0, 0.35 * r), (1, 0.04 * r)], lambda k: glow, 16)
+    return ye
+
+
+def tail_loop(outline, centre, r_end, y0, y1, per_m=30, power=2.0):
+    """Section loop of a tail cone that runs from a body outline (closed 2D polygon starting at the bottom centre,
+    going round counter-clockwise) at y0 to a ring of radius r_end round centre at y1. Edges are split in proportion
+    to their length so the corners stay, the ring angles follow the arc length, and the blend starts slowly so the
+    cone leaves the body without a crease. Returns (loop function of y, loop index of each outline corner)."""
+    P = [Vector(p) for p in outline]
+    pts, idx = [], []
+    for i in range(len(P)):
+        a, b = P[i], P[(i + 1) % len(P)]
+        idx.append(len(pts))
+        k = max(1, round((b - a).length * per_m))
+        pts += [a.lerp(b, j / k) for j in range(k)]
+    L = [0.0]
+    for i in range(1, len(pts) + 1):
+        L.append(L[-1] + (pts[i % len(pts)] - pts[i - 1]).length)
+    c = Vector(centre)
+    ring = [c + Vector((math.cos(-math.pi / 2 + 2 * math.pi * L[i] / L[-1]),
+                        math.sin(-math.pi / 2 + 2 * math.pi * L[i] / L[-1]))) * r_end for i in range(len(pts))]
+
+    def f(y):
+        e = min(max((y - y0) / (y1 - y0), 0.0), 1.0) ** power
+        return [tuple(p.lerp(q, e)) for p, q in zip(pts, ring)]
+    return f, idx
+
+
+def shark_fin(part, base_fn, x0, root, tip, height, thick, m_skin, m_edge, cant=0.0, side=1, rows=7):
+    """Long swept fin standing on the surface z = base_fn(y) at x = x0: root and tip are (y_le, y_te). Lens section
+    thinning to the top, convex leading edge, concave trailing edge, small semi-pointed tip; canted outwards."""
+    up = Vector((side * math.sin(cant), 0, math.cos(cant)))
+    across = Vector((math.cos(cant), 0, -side * math.sin(cant)))
+    secs = []
+    for j in range(rows):
+        f = j / (rows - 1)
+        le = root[0] + (tip[0] - root[0]) * f ** 0.8
+        te = root[1] + (tip[1] - root[1]) * f ** 1.5
+        if j == rows - 1:
+            le, te = le + 0.4 * (te - le), te - 0.35 * (te - le)
+        c, t = te - le, thick * (1 - 0.65 * f)
+        sec = [(le, 0), (le + .06 * c, .3 * t), (le + .35 * c, .5 * t), (te - .15 * c, .15 * t), (te, 0),
+               (te - .15 * c, -.15 * t), (le + .35 * c, -.5 * t), (le + .06 * c, -.3 * t)]
+        secs.append([Vector((x0, y, base_fn(y) - 0.01)) + up * (height * f) + across * v for y, v in sec])
+    part.loft(secs, lambda i, j: m_edge if j in (0, 7) else m_skin, closed_u=True, cap0=m_skin, cap1=m_edge)
+    sp = (root[0] + 0.4 * (root[1] - root[0]), tip[0] + 0.4 * (tip[1] - tip[0]))                     # spar
+    part.tube([Vector((x0, sp[0], base_fn(sp[0]) - 0.05)), Vector((x0, sp[1], base_fn(sp[1]))) + up * height * 0.8],
+              thick * 0.18, "Metal", 8)
+
+
 # ---------------------------------------------------------------- decals
 _font = []
 
