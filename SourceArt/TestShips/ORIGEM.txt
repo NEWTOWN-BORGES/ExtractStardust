@@ -3,3 +3,4 @@ Autorizado pelo utilizador em 2026-10-18 SO como modelos de teste para acertar o
 strix.fbx (2026-10-20): substituído pela STRIX nova, gerada por Scripts/build_strix.py (ver Docs/STRIX_CATEGORIA.md);
 strix.blend e previews/ saem do mesmo script.
 wraith.fbx (2026-10-21): substituído pela WRAITH nova, gerada por Scripts/build_wraith.py (ver Docs/WRAITH_CATEGORIA.md).
+nomad.fbx (2026-10-21): substituído pela NOMAD nova, gerada por Scripts/build_nomad.py (ver Docs/NOMAD_CATEGORIA.md).

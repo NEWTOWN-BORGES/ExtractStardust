@@ -63,11 +63,6 @@ ARM_Y, BODY_Y, POD_Y = [r[0] for r in ARM], [r[0] for r in BODY], [r[0] for r in
 Y_JOIN, Y_SPINE, Y_TAIL = 0.40, 2.00, 2.70
 
 
-def loop10(xc, w, zb, cb, zs, ct, zt):
-    r = [(0, zb), (w - cb, zb), (w, zb + cb), (w, zs), (w - ct, zt), (0, zt)]
-    return [(xc + x, z) for x, z in r] + [(xc - x, z) for x, z in reversed(r[1:-1])]
-
-
 def arm(y):
     return dict(zip(("xc", "w", "zb", "cb", "zs", "ct", "zt"), table(ARM, y)))
 
@@ -98,9 +93,8 @@ def pod_loop(y):
 
 
 def spine_loop(y):    # the pod behind the cockpit, standing on the bridge deck: open at the base, t 0..6
-    p, zd = pod(y), body(y)["zt"]
-    r = [(p["w"], zd), (p["w"], p["zs"]), (p["w"] - p["ct"], p["zt"]), (0, p["zt"])]
-    return r + [(-x, z) for x, z in reversed(r[:-1])]
+    p = pod(y)
+    return block_loop(p["w"], body(y)["zt"], p["zs"], p["w"] - p["ct"], p["zt"])
 
 
 def xyz(y, x, z):

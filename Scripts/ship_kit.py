@@ -276,6 +276,20 @@ def shift(L, t, d):
     return t + d / max((b - a).length, 1e-6)
 
 
+def loop10(xc, w, zb, cb, zs, ct, zt):
+    """Faceted body section round x = xc (bottom chamfer cb, top chamfer ct), counter-clockwise from the bottom centre:
+    10 points, t 0..10 (t 2..3 the right side, 3..7 the top with its chamfers, 9..11 the belly)."""
+    r = [(0, zb), (w - cb, zb), (w, zb + cb), (w, zs), (w - ct, zt), (0, zt)]
+    return [(xc + x, z) for x, z in r] + [(xc - x, z) for x, z in reversed(r[1:-1])]
+
+
+def block_loop(hb, zd, hs, ht, htop):
+    """Raised block standing on a deck at zd (open at the base) - a spine, a cabin, a boom: from the right base round
+    the top to the left base, 7 points, t 0..6 (t 0..1 the right side, 1..5 the top with its chamfers)."""
+    r = [(hb, zd), (hb, hs), (ht, htop), (0, htop)]
+    return r + [(-x, z) for x, z in reversed(r[:-1])]
+
+
 def surface(part, loop_fn, t0, t1, s0, s1, stations, to3d, gap_s=(True, True), wrap=False):
     """Rows of points over the station range, each the stretch t0..t1 of the section loop (gaps at the ends)."""
     ss = [s0 + (GAP / 2 if gap_s[0] else 0)] + [s for s in stations if s0 + GAP < s < s1 - GAP] + \
@@ -530,7 +544,7 @@ def disc2d(r, n=40):
 
 
 # ---------------------------------------------------------------- report, save, export, renders
-def finish_ship(decals=None, cockpit=((-1.6, -2.2, 1.7), (0, -0.1, 0.80))):
+def finish_ship(decals=None, cockpit=((-1.6, -2.2, 1.7), (0, -0.1, 0.80)), scale=1.0):
     """Print the size, save <name>.blend, export <name>.fbx and (unless --no-render) the preview renders."""
     stem = NAME.lower()
     dg = bpy.context.evaluated_depsgraph_get()
@@ -598,6 +612,9 @@ def finish_ship(decals=None, cockpit=((-1.6, -2.2, 1.7), (0, -0.1, 0.80))):
     scene.camera = cam
 
     def shot(name, loc, target=None, lens=50, ortho=None, rot=None):
+        loc = Vector(loc) * scale
+        target = Vector(target) * scale if target else None
+        ortho = ortho * scale if ortho else None
         cam.location = loc
         cam.rotation_euler = rot or (Vector(target) - Vector(loc)).to_track_quat('-Z', 'Y').to_euler()
         cam_d.type = 'ORTHO' if ortho else 'PERSP'
