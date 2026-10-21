@@ -1,8 +1,47 @@
 # Modos de jogo, vidas e kit médico (pedido do jogador, 2026-10-21)
 
-**Estado: especificação pronta, nada disto está no código ainda.** Está escrita para a pista nova, a expedição de A a B
-(`Docs/PISTA_AB_RED_DUST_DIVIDE.md`, dados em `ab_route.json`). Quem a implementar (no PC com o Unreal) segue a secção
-"Implementação" e pergunta ao jogador o que está em "Por decidir".
+**Estado: código escrito na sessão da nuvem (sem Unreal), por compilar e testar em casa.** Pensado para a pista
+nova, a expedição de A a B (`Docs/PISTA_AB_RED_DUST_DIVIDE.md`, mapa `/Game/Maps/Expedition`).
+
+## Como correr em casa (poucos passos, quase sem IA)
+
+1. `git pull` do ramo `ccr-6888126d-pxbtcg` (PR #3), ou do `extracting-stardust` depois de fundido.
+2. `powershell -ExecutionPolicy Bypass -File Scripts\casa_tudo.ps1`: compila o C++, gera a pista a 3 m, exporta-a,
+   importa as peças e as naves novas e monta o mapa Expedition. Com `-SemPista` só compila e importa as naves.
+   Se um passo falhar, o script para e diz qual: é essa mensagem que se mostra à IA.
+3. Jogar: `powershell -ExecutionPolicy Bypass -File Scripts\jogar.ps1 -Modo Bots` (ou `Solo`, `Livre`).
+4. Teste sem mãos: `jogar.ps1 -Modo Teste`. As 16 naves correm sozinhas e o jogo fecha no fim. O log
+   (`Saved\Logs\ExtractingStardust.log`) tem as linhas `EXRACE`: partida, vidas perdidas, eliminações, chegadas e
+   classificação.
+
+Também se escolhe o modo no URL do mapa (`/Game/Maps/Expedition?Mode=Bots`) ou na linha de comandos
+(`-EXMode=Solo` / `-EXMode=Bots`, `-EXBots=<n>`). Sem modo, o jogo fica em voo livre como antes.
+
+**Controlos novos:** kit médico `H` ou Quadrado. Em corrida, `R`/Triângulo põe a nave de volta na linha onde está,
+e não na partida. Não se troca de nave depois da partida: escolhe-se durante a contagem (`1-5` ou setas).
+
+## O que está no código
+
+- `Source/.../Race/EXRaceDirector.h/.cpp` (novo):
+  - grelha de 3 filas de 6 a 80 m de A; o jogador fica na última fila no modo Bots e na primeira no Solo;
+  - contagem 3-2-1-VAI;
+  - 15 bots;
+  - eliminações e chegada a B (25 m antes do fim da rota);
+  - classificação: primeiro as que chegaram, por tempo; depois as que ficaram pelo caminho, pela distância;
+  - fim: no Solo quando o jogador acaba; no modo Bots quando todas acabam ou 60 s depois do jogador.
+- `AEXHoverCraft`:
+  - vidas, perda de vida e kit médico (só o jogador tem cargas);
+  - condução dos bots (`DriveBot`) e regresso à linha;
+  - as naves atravessam-se umas às outras;
+  - a tabela de cada nave fica no topo de `EXHoverCraft.cpp` (`ShipRaceStats`).
+- `AEXHud`: tempo, posição, vidas (quadrados verdes), kit médico, contagem, clarão vermelho "-1 VIDA",
+  mensagens, os outros no minimapa (quadrados vermelhos) e o quadro de resultados.
+- `AEXGameMode` cria o diretor quando há modo; `Config/DefaultInput.ini` tem a ação `MedKit`.
+
+**Afinar (os números estão todos num sítio):**
+- `ShipRaceStats`, em `EXHoverCraft.cpp`: vidas, velocidade, embate e aterragem de cada nave;
+- `BotSkills`, em `EXRaceDirector.cpp`: o ritmo de cada bot. Pedido do jogador: "nem burros, nem inteligentes
+  demais", por isso vai de 95 % a 82 % do ritmo ideal, e os mais fracos erram mais as curvas.
 
 ## 1. O que o jogador pediu
 
@@ -86,28 +125,17 @@ Os limiares de embate e de aterragem também mudam por nave (a VORTEX parte com 
 - Aviso quando uma nave é eliminada ("VORTEX #7 eliminada no S6").
 - No fim, o quadro de resultados: quem chegou (tempos) e quem ficou pelo caminho (setor onde caiu).
 
-## 8. Implementação (por onde pegar no código)
+## 8. Diferenças entre a especificação e o código (para a próxima volta)
 
-O que já existe (`Source/ExtractingStardust`):
-- `AEXHoverCraft` (voo, hover, colisão em `Tick`, com o embate numa parede perto de `WallBounce`/`WallScrapeLoss`; a
-  spline `EXRoute` é procurada pela etiqueta do ator) e `UEXCraftFx`.
-- `AEXHud` (HUD de corrida em mapas com a spline `EXRoute`), `AEXGameMode` (modo de teste de voo).
-- A pista é carregada por `EXDesertBuilder.build_world_map` / `Scripts/export_ab_unreal.py` (rota em spline, balizas).
-
-O que falta, por esta ordem:
-1. **`FEXShipStats`** (tabela de dados por nave): nome, vidas, velocidade máxima, limiar de embate, limiar de
-   aterragem. O `AEXHoverCraft` lê-a ao escolher a nave.
-2. **`UEXLifeComponent`** na nave: vidas, `ApplyHit(causa, intensidade)`, evento de eliminação. O embate chama-o no
-   sítio onde já trata a parede; a aterragem, onde já trata o contacto com o chão após um salto.
-3. **`UEXMedKitComponent`** só no jogador: 3 cargas, `Use()`, tempo de espera.
-4. **`AEXRoute`** (ou componente na spline): portões por setor e por bifurcação, a partir do `ab_route.json`;
-   `DistanceAlongRoute(ator)`.
-5. **`AEXRaceGameMode`**: modo `Solo` e modo `Bots` (`?Mode=Solo` / `?Mode=Bots`), grelha de partida, portões,
-   eliminações, classificação, fim da corrida.
-6. **`AEXBotController`** (AIController): segue a spline, travagem pelas curvas, escolha de bifurcação por perícia.
-7. **HUD** (secção 7) em `AEXHud`.
-8. **Teste automático**, na linha do `-EXFlightTest`: `-EXRaceTest -EXBots=15` corre a corrida sem jogador, escreve
-   no log as eliminações e a classificação, e falha se um bot não chegar a avançar nos primeiros 60 s.
+- **Progresso:** o código não usa portões. Mede a distância do ponto da rota principal mais perto da nave e só a
+  deixa avançar (no máximo 600 m de cada vez, para não haver cortes por cima da rocha). Os atalhos contam porque a
+  nave volta à rota mais à frente. Portões por setor e por bifurcação ficam para uma próxima volta.
+- **Colisões entre naves:** desligadas.
+- **Solo com 0 vidas:** a tentativa acaba (o quadro de resultados mostra até onde se chegou).
+- **Jogador eliminado no modo Bots:** a câmara fica parada e a corrida continua até ao fim (60 s depois, no máximo).
+- **Bots e saltos:** os bots usam o piloto automático do teste do deserto, que escorregava nas dunas e ficava preso
+  em sítios apertados. Quando ficam presos mais de 3 s, voltam à linha. Ver no `-Modo Teste` quantos ficam pelo
+  caminho e afinar `BotSkills` e `ShipRaceStats`.
 
 ## 9. Por decidir (perguntar ao jogador)
 

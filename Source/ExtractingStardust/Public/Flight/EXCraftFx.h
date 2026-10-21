@@ -26,6 +26,8 @@ struct FEXCraftFxInput
 	bool bGrounded = false;
 	bool bBoosting = false;
 	bool bDrifting = false;
+	/** The craft whose camera is on screen: only it draws the speed streaks (bots don't). */
+	bool bViewer = true;
 };
 
 /**

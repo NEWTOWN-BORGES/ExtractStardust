@@ -127,6 +127,31 @@ public:
 
 	/** For the HUD: the map's race line (metres, 5 m apart), the nearest point of it, the nose and the velocity. */
 	const TArray<FVector2D>& GetMapRoute() const { return MapRoute; }
+
+	// ---- Race rules (Docs/MODOS_DE_JOGO.md), switched on by AEXRaceDirector; off in free flight and the tests.
+	/** Lives by ship, damage from hard wall hits and hard landings, the medical kit (charges: 3 for the player, 0 for bots). */
+	void SetRaceRules(int32 InMedKits);
+	/** Makes this craft a bot that drives itself along the race line (skill 0.8-1.0, lane offset from the line in m). */
+	void SetBot(int32 InShipIndex, float InSkill, float InLaneM);
+	/** Holds the craft on the grid (countdown, after the finish). */
+	void SetRaceHold(bool bHold) { bRaceHold = bHold; }
+	/** No more ship changes once the race is on. */
+	void LockShip() { bShipLocked = true; }
+	/** Puts the craft at a place and heading, at rest (grid slots, respawns). */
+	void PlaceAt(const FVector& Location, float YawDeg);
+	void Eliminate();
+	bool IsBot() const { return bBot; }
+	bool IsEliminated() const { return bEliminated; }
+	int32 GetLives() const { return Lives; }
+	int32 GetMaxLives() const { return MaxLives; }
+	int32 GetMedKits() const { return MedKits; }
+	/** World time of the last life lost (the HUD flashes it), -1 if none. */
+	float GetLastHitTime() const { return LastHitTime; }
+	FString GetShipName() const;
+	int32 GetShipIndex() const { return ShipIndex; }
+	float GetSpeedKmh() const { return FMath::Abs(ForwardSpeedMps) * 3.6f; }
+	/** Furthest point reached along the race line, in metres (never jumps more than 600 m at once). */
+	float GetRaceProgressM() const { return RaceProgressM; }
 	int32 GetRouteIndex() const { return RouteIndex; }
 	FVector GetHeading() const { return Heading; }
 	FVector GetFlightVelocity() const { return VelocityCmps; }
@@ -163,6 +188,11 @@ private:
 	void Ship4() { SelectShip(3); }
 	void Ship5() { SelectShip(4); }
 	void CycleCamera() { CameraMode = (CameraMode + 1) % 4; bCamInitialized = false; }
+	void UseMedKit();
+	void DriveBot(float Dt);
+	void LoseLife();
+	void RespawnOnRoute();
+	void ApplyShipStats();
 
 	FVector VelocityCmps = FVector::ZeroVector;
 	FVector Heading = FVector::ForwardVector;
@@ -202,4 +232,12 @@ private:
 	TArray<TPair<FVector, FRotator>> LookViews;
 	FVector TourCameraLocation = FVector::ZeroVector;
 	FRotator TourCameraRotation = FRotator::ZeroRotator;
+
+	// Race rules state.
+	bool bRaceRules = false, bBot = false, bRaceHold = false, bShipLocked = false, bEliminated = false;
+	int32 Lives = 0, MaxLives = 0, MedKits = 0;
+	float BaseMaxSpeedMps = 0.0f, WallHitMps = 1.0e6f, LandingHitMps = 1.0e6f;
+	float HitCooldown = 0.0f, MedKitCooldown = 0.0f, LastHitTime = -1.0f, RaceProgressM = 0.0f;
+	float LastGroundZCm = 0.0f;
+	float BotSkill = 1.0f, BotLaneM = 0.0f, BotPhase = 0.0f, BotStuckSeconds = 0.0f, BotTime = 0.0f;
 };

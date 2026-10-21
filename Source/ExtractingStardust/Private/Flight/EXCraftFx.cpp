@@ -319,6 +319,14 @@ void UEXCraftFx::UpdateDust(float Dt, const FEXCraftFxInput& Input)
 
 void UEXCraftFx::UpdateStreaks(float Dt, const FEXCraftFxInput& Input)
 {
+	if (!Input.bViewer)
+	{
+		for (UStaticMeshComponent* Streak : StreakMeshes)
+		{
+			Streak->SetVisibility(false);
+		}
+		return;
+	}
 	const float Speed = Input.Velocity.Size() / 100.0f;
 	const float Strength = FMath::SmoothStep(35.0f, 110.0f, Speed) * (Input.bBoosting ? 1.4f : 1.0f);
 	StreakMaterial->SetScalarParameterValue(IntensityParam, 0.6f * Strength);

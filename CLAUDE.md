@@ -23,6 +23,11 @@ PR estiver fundido):
 
 ## PARA FAZER EM CASA / NO PC COM O UNREAL (lista da sessão da nuvem, 2026-10-21)
 
+**Atalho (poucos tokens):** `powershell -ExecutionPolicy Bypass -File Scripts\casa_tudo.ps1`. Compila o C++ dos modos
+de jogo, gera a pista a 3 m, exporta-a, importa as peças e as naves novas e monta o mapa Expedition. Depois corre-se
+`Scripts\jogar.ps1 -Modo Bots` (ou `Solo`, ou `Teste`, que joga sozinho e escreve `EXRACE` no log). Os modos de jogo
+estão em `Docs/MODOS_DE_JOGO.md`. Foram escritos sem Unreal à mão, por isso o primeiro passo é ver se compilam.
+
 Feito na nuvem (sem Unreal), em `Scripts/sculpt_expedition_ab.py`, testado só a 10 m: túnel The Hollow em arco liso e
 largo, rochas a 30 m ou mais da pista, estradas de 56-64 m (6-7 naves lado a lado, grelha 3 × 6), variável
 `AB_ONLY=08_caverna,07_wash` para tirar só algumas fotos. Detalhes em `Docs/PISTA_AB_RED_DUST_DIVIDE.md`.
