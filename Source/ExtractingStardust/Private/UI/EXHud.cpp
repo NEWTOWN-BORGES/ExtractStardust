@@ -33,6 +33,11 @@ void AEXHud::DrawHUD()
 		Race = *It;
 		break;
 	}
+	if (Race && Race->IsInMenu())
+	{
+		DrawMenu(Race, Craft);
+		return;
+	}
 	if (Race && Race->IsReady())
 	{
 		DrawRace(Race, Craft);
@@ -234,4 +239,35 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 			TY += Row;
 		}
 	}
+}
+
+void AEXHud::DrawMenu(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
+{
+	const float Scale = Canvas->ClipY / 720.0f;
+	const float Mid = Canvas->ClipX * 0.5f;
+	const float W = 520.0f * Scale;
+	float Y = Canvas->ClipY * 0.22f;
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.6f), Mid - W * 0.5f, Y - 20.0f * Scale, W, 400.0f * Scale);
+	DrawText(TEXT("EXTRACTING STARDUST"), FLinearColor(1.0f, 0.85f, 0.2f), Mid - 150.0f * Scale, Y, nullptr, 1.8f * Scale);
+	Y += 40.0f * Scale;
+	DrawText(TEXT("Red Dust Divide - de A a B"), FLinearColor(0.85f, 0.85f, 0.85f), Mid - 110.0f * Scale, Y, nullptr, 1.1f * Scale);
+	Y += 50.0f * Scale;
+	static const TCHAR* Lines[3] = { TEXT("SOLO  (contra o relogio)"), TEXT("CONTRA 15 BOTS"), TEXT("VOO LIVRE") };
+	for (int32 Line = 0; Line < 3; ++Line)
+	{
+		const bool bOn = Race->GetMenuChoice() == Line;
+		if (bOn)
+		{
+			DrawRect(FLinearColor(0.3f, 1.0f, 0.4f, 0.25f), Mid - W * 0.5f + 30.0f * Scale, Y - 4.0f * Scale, W - 60.0f * Scale, 36.0f * Scale);
+		}
+		DrawText(FString::Printf(TEXT("%s%s"), bOn ? TEXT("> ") : TEXT("  "), Lines[Line]), bOn ? FLinearColor(0.3f, 1.0f, 0.4f) : FLinearColor::White,
+			Mid - W * 0.5f + 50.0f * Scale, Y, nullptr, 1.5f * Scale);
+		Y += 46.0f * Scale;
+	}
+	Y += 16.0f * Scale;
+	DrawText(FString::Printf(TEXT("NAVE:  < %s >"), *Craft->GetShipName()), FLinearColor(1.0f, 0.9f, 0.6f), Mid - W * 0.5f + 50.0f * Scale, Y, nullptr,
+		1.4f * Scale);
+	Y += 50.0f * Scale;
+	DrawText(TEXT("Cima/baixo (W-S, setas, cruzeta): modo    Tab, 1-5 ou cruzeta esq./dir.: nave    Enter / X: comecar"),
+		FLinearColor(0.75f, 0.75f, 0.75f), Mid - W * 0.5f + 20.0f * Scale, Y, nullptr, 0.85f * Scale);
 }

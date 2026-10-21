@@ -51,6 +51,13 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	void Configure(EEXRaceMode InMode, int32 InBots) { Mode = InMode; BotCount = InBots; }
+	/** Start on the menu (the game opened without a mode): SOLO / CONTRA BOTS / VOO LIVRE. */
+	void OpenMenu() { bMenu = true; }
+	bool IsInMenu() const { return bMenu; }
+	/** The highlighted menu line: 0 solo, 1 bots, 2 free flight. */
+	int32 GetMenuChoice() const { return MenuChoice; }
+	/** From the player's craft: -1 up, +1 down, 0 confirm. */
+	void MenuInput(int32 Step);
 
 	EEXRaceMode GetMode() const { return Mode; }
 	bool IsReady() const { return bReady; }
@@ -75,7 +82,8 @@ private:
 
 	EEXRaceMode Mode = EEXRaceMode::Solo;
 	int32 BotCount = 15;
-	bool bReady = false, bStarted = false, bOver = false, bTest = false;
+	bool bReady = false, bStarted = false, bOver = false, bTest = false, bMenu = false;
+	int32 MenuChoice = 1;
 	float Countdown = 4.0f, RaceTime = 0.0f, RouteLengthM = 0.0f, PlayerDoneTime = -1.0f, OverTime = 0.0f;
 	int32 PlayerPlace = 1;
 	TArray<FVector2D> Route;

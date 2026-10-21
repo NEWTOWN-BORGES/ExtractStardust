@@ -3,9 +3,9 @@
 #   powershell -ExecutionPolicy Bypass -File Scripts\jogar.ps1 -Modo Bots
 #   powershell -ExecutionPolicy Bypass -File Scripts\jogar.ps1 -Modo Teste   (16 naves sozinhas, sai no fim; o log
 #                                                                             Saved\Logs tem as linhas EXRACE)
-#   -Modo Livre: voo livre, sem vidas nem corrida (como antes).
+#   -Modo Livre: voo livre, sem vidas nem corrida (como antes). Sem -Modo: o menu do jogo (Solo / Bots / Livre).
 param(
-    [ValidateSet("Solo", "Bots", "Teste", "Livre")][string]$Modo = "Bots",
+    [ValidateSet("Menu", "Solo", "Bots", "Teste", "Livre")][string]$Modo = "Menu",
     [string]$UE = "C:\Program Files\Epic Games\UE_5.8"
 )
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -16,5 +16,6 @@ switch ($Modo) {
     "Solo" { $Arguments += "-EXMode=Solo" }
     "Bots" { $Arguments += "-EXMode=Bots" }
     "Teste" { $Arguments += @("-EXMode=Bots", "-EXRaceTest") }
+    "Livre" { $Arguments += "-EXNoMenu" }
 }
 & $Editor @Arguments

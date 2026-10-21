@@ -37,6 +37,15 @@ AEXRaceDirector::AEXRaceDirector()
 void AEXRaceDirector::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bMenu)
+	{
+		// The craft waits on the start while the player chooses (the ship can be changed from the menu too).
+		if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0)))
+		{
+			Player->SetRaceHold(true);
+		}
+		return;
+	}
 	if (!bReady)
 	{
 		Setup();
@@ -112,6 +121,31 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 	{
 		Finish();
 	}
+}
+
+void AEXRaceDirector::MenuInput(int32 Step)
+{
+	if (!bMenu)
+	{
+		return;
+	}
+	if (Step != 0)
+	{
+		MenuChoice = (MenuChoice + Step + 3) % 3;
+		return;
+	}
+	bMenu = false;
+	if (MenuChoice == 2)
+	{
+		// Free flight: no race, no lives; the director goes away.
+		if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0)))
+		{
+			Player->SetRaceHold(false);
+		}
+		Destroy();
+		return;
+	}
+	Mode = MenuChoice == 0 ? EEXRaceMode::Solo : EEXRaceMode::Bots;
 }
 
 void AEXRaceDirector::Setup()

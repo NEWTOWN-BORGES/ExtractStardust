@@ -26,5 +26,7 @@ private:
 		const TArray<FVector2D>& Others);
 	/** Game modes: time, place, lives, medical kit, countdown, messages, the results at the end. */
 	void DrawRace(const class AEXRaceDirector* Race, const class AEXHoverCraft* Craft);
+	/** The start menu: mode and ship. */
+	void DrawMenu(const class AEXRaceDirector* Race, const class AEXHoverCraft* Craft);
 	void DrawArrow(const FVector2D& Center, float AngleDeg, float Size, const FLinearColor& Colour);
 };

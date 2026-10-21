@@ -19,6 +19,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "Race/EXRaceDirector.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
 
@@ -201,6 +202,9 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction(TEXT("Ship5"), IE_Pressed, this, &AEXHoverCraft::Ship5);
 	PlayerInputComponent->BindAction(TEXT("ToggleCamera"), IE_Pressed, this, &AEXHoverCraft::CycleCamera);
 	PlayerInputComponent->BindAction(TEXT("MedKit"), IE_Pressed, this, &AEXHoverCraft::UseMedKit);
+	PlayerInputComponent->BindAction(TEXT("MenuUp"), IE_Pressed, this, &AEXHoverCraft::MenuUp);
+	PlayerInputComponent->BindAction(TEXT("MenuDown"), IE_Pressed, this, &AEXHoverCraft::MenuDown);
+	PlayerInputComponent->BindAction(TEXT("MenuConfirm"), IE_Pressed, this, &AEXHoverCraft::MenuConfirm);
 }
 
 void AEXHoverCraft::Tick(float DeltaSeconds)
@@ -828,6 +832,15 @@ void AEXHoverCraft::Eliminate()
 	ThrottleInput = 0.0f;
 	SetActorHiddenInGame(true);
 	SetActorEnableCollision(false);
+}
+
+void AEXHoverCraft::SendMenu(int32 Step)
+{
+	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
+	{
+		It->MenuInput(Step);
+		break;
+	}
 }
 
 void AEXHoverCraft::UseMedKit()

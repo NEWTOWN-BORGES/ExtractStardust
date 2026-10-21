@@ -9,12 +9,17 @@ nova, a expedição de A a B (`Docs/PISTA_AB_RED_DUST_DIVIDE.md`, mapa `/Game/Ma
 2. `powershell -ExecutionPolicy Bypass -File Scripts\casa_tudo.ps1`: compila o C++, gera a pista a 3 m, exporta-a,
    importa as peças e as naves novas e monta o mapa Expedition. Com `-SemPista` só compila e importa as naves.
    Se um passo falhar, o script para e diz qual: é essa mensagem que se mostra à IA.
-3. Jogar: `powershell -ExecutionPolicy Bypass -File Scripts\jogar.ps1 -Modo Bots` (ou `Solo`, `Livre`).
+3. Jogar: `powershell -ExecutionPolicy Bypass -File Scripts\jogar.ps1 -Modo Bots` (ou `Solo`, `Livre`; sem `-Modo` abre o menu).
 4. Teste sem mãos: `jogar.ps1 -Modo Teste`. As 16 naves correm sozinhas e o jogo fecha no fim. O log
    (`Saved\Logs\ExtractingStardust.log`) tem as linhas `EXRACE`: partida, vidas perdidas, eliminações, chegadas e
    classificação.
 
-Também se escolhe o modo no URL do mapa (`/Game/Maps/Expedition?Mode=Bots`) ou na linha de comandos
+**Menu ao abrir o jogo** (sem `-EXMode`): SOLO / CONTRA 15 BOTS / VOO LIVRE.
+- Modo: W/S, setas ou cruzeta para cima e para baixo.
+- Nave: Tab, 1-5 ou cruzeta para a esquerda e a direita.
+- Começar: Enter ou X.
+
+`jogar.ps1` sem `-Modo` abre o menu. Também se escolhe o modo no URL do mapa (`/Game/Maps/Expedition?Mode=Bots`) ou na linha de comandos
 (`-EXMode=Solo` / `-EXMode=Bots`, `-EXBots=<n>`). Sem modo, o jogo fica em voo livre como antes.
 
 **Controlos novos:** kit médico `H` ou Quadrado. Em corrida, `R`/Triângulo põe a nave de volta na linha onde está,

@@ -189,6 +189,10 @@ private:
 	void Ship5() { SelectShip(4); }
 	void CycleCamera() { CameraMode = (CameraMode + 1) % 4; bCamInitialized = false; }
 	void UseMedKit();
+	void MenuUp() { SendMenu(-1); }
+	void MenuDown() { SendMenu(1); }
+	void MenuConfirm() { SendMenu(0); }
+	void SendMenu(int32 Step);
 	void DriveBot(float Dt);
 	void LoseLife();
 	void RespawnOnRoute();

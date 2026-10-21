@@ -42,10 +42,22 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 		ArenaPlayerStart = World->SpawnActor<APlayerStart>(FVector(0.0f, 0.0f, 300.0f), FRotator::ZeroRotator, Params);
 	}
 	// Game modes (Docs/MODOS_DE_JOGO.md): ?Mode=Solo or ?Mode=Bots on the map URL, or -EXMode=Solo / Bots on the
-	// command line. Without one the game stays in free flight (no lives, no race).
+	// command line. Without one the game opens on the menu (the tests stay in free flight).
 	FString ModeName = UGameplayStatics::ParseOption(Options, TEXT("Mode"));
 	FParse::Value(FCommandLine::Get(), TEXT("EXMode="), ModeName);
-	if (!ModeName.IsEmpty())
+	const TCHAR* Line = FCommandLine::Get();
+	const bool bAutomated = FParse::Param(Line, TEXT("EXFlightTest")) || FParse::Param(Line, TEXT("EXTour"))
+		|| FParse::Param(Line, TEXT("EXNoMenu")) || FCString::Strifind(Line, TEXT("EXLook=")) != nullptr;
+	if (ModeName.IsEmpty() && !bAutomated)
+	{
+		// Opened without a mode: the menu chooses (SOLO / CONTRA BOTS / VOO LIVRE).
+		if (AEXRaceDirector* Race = World->SpawnActor<AEXRaceDirector>(FVector::ZeroVector, FRotator::ZeroRotator, Params))
+		{
+			Race->Configure(EEXRaceMode::Bots, 15);
+			Race->OpenMenu();
+		}
+	}
+	else if (!ModeName.IsEmpty())
 	{
 		if (AEXRaceDirector* Race = World->SpawnActor<AEXRaceDirector>(FVector::ZeroVector, FRotator::ZeroRotator, Params))
 		{
