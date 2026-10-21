@@ -1,10 +1,11 @@
 # VORTEX hover racer (small and fast, burns a lot of fuel and runs hot), built from the inside out like the others:
 # structure (truss frames and longerons in the body, cockpit cell, engine saddles, wing spars and clamps), systems
-# (cockpit and pilot, reactor and its line, one big round plasma engine, heat radiators, round hover emitters), then
+# (cockpit and pilot, reactor and its line, one big plasma engine in the tail, heat radiators, round hover emitters), then
 # the 12 mm bodywork panels with 5 mm gaps.
 # Look: the body is a long pointed delta (an A seen from above) with a faceted ridge and the cockpit glass flush in
-# it, one big round engine at the rear inside an angular housing of dark plates, big swept wings from the rear sides
-# with their tips folded up; red-orange and white (Docs/VORTEX_CATEGORIA.md, Docs/NAVES_REGRAS.md).
+# it; behind the cockpit the ridge goes down and the body narrows into a tail with one big wide plasma engine lying
+# inside it (its section follows the facets), out through a nozzle collar; big swept wings from the rear sides with
+# their tips folded up; red-orange and white (Docs/VORTEX_CATEGORIA.md, Docs/NAVES_REGRAS.md).
 # Front is -Y, up is +Z, metres (the layout of the old SourceArt/TestShips/vortex.fbx; the game centres the bounds).
 # Usage: python3 Scripts/build_vortex.py <out_dir> [--no-render]
 #    or: blender -b -P Scripts/build_vortex.py -- <out_dir> [--no-render]
@@ -43,13 +44,14 @@ BODY = [(-3.20, .050, .400, .010, .430, .030, .460),
         (-0.80, .660, .300, .030, .370, .440, .860),
         (0.00, .800, .300, .030, .370, .560, .960),
         (0.80, .920, .300, .030, .370, .680, .900),
-        (1.60, .950, .320, .030, .380, .700, .700)]
+        (1.60, .950, .310, .030, .380, .650, .720),
+        (2.10, .740, .305, .028, .390, .430, .680),
+        (2.62, .520, .300, .025, .400, .200, .655)]   # the tail: down and narrower, round the engine
 BODY_Y = [r[0] for r in BODY]
-Y_TIP, Y_CAP, Y_BACK, Y_END = -3.20, -2.90, 1.60, 2.65
+Y_TIP, Y_CAP, Y_BACK, Y_RING, Y_END = -3.20, -2.90, 1.60, 2.52, 2.62
 CAN = (-1.20, 0.40)               # canopy (flush glass in the ridge)
-ENG_Z, ENG_R = 0.62, 0.28
-COWL_OUT = shape_loop(0.40, 0.34, 0.36, 0.05)        # angular housing round the engine
-COWL_IN = shape_loop(0.37, 0.31, 0.33, 0.03)
+ENG_Z = 0.475
+SEC = shape_loop(0.40, 0.28, 0.13, 0.065)            # wide engine section lying in the tail (follows the facets)
 
 
 def body(y):
@@ -75,6 +77,36 @@ def body_centre(c):
     return Vector((0, c.y, (body(c.y)["zb"] + body(c.y)["zt"]) / 2))
 
 
+def resample(L, counts):      # each edge of a closed loop split into counts[i] pieces
+    out = []
+    for i, k in enumerate(counts):
+        a, b = Vector(L[i]), Vector(L[(i + 1) % len(L)])
+        out += [a.lerp(b, j / k) for j in range(k)]
+    return out
+
+
+_E = body_loop(Y_END)
+COUNTS = [max(1, round((Vector(_E[(i + 1) % 10]) - Vector(_E[i])).length * 40)) for i in range(10)]
+
+
+def body_ring(y, d=0.0):       # the body section with a fixed point count (inset by d)
+    R = resample(body_loop(y), COUNTS)
+    return inset(R, d) if d else R
+
+
+def engine_ring(B, scale):     # the engine section at the same fractions of length as the body ring B
+    L = [0.0]
+    for i in range(1, len(B)):
+        L.append(L[-1] + (B[i] - B[i - 1]).length)
+    L.append(L[-1] + (B[0] - B[-1]).length)
+    return [loop_at(SEC, L[i] / L[-1]) * scale + Vector((0, ENG_Z)) for i in range(len(B))]
+
+
+def ring_band(part, y, outer, inner, half, m_fn):
+    part.loft([[Vector((p.x, y + dy, p.y)) for p in ring] for ring, dy in
+               ((outer, -half), (outer, half), (inner, half), (inner, -half))], m_fn, closed_u=True, closed_v=True)
+
+
 CUTS = [((0, CAN[0], 0), (0, 1, 0)), ((0, CAN[1], 0), (0, 1, 0)), ((0, 0, 0.70), (0, 0, 1)), ((0, 0, 0.45), (0, 0, 1))]
 
 
@@ -98,7 +130,7 @@ def panel(name, t0, t1, y0, y1, parent, m_fn, cuts=(), holes=(), gap_s=(True, Tr
 
 # ================================================================ 1. STRUCTURE
 fr = Part("Frames")
-for y in (-2.40, -1.50, -0.95, 0.45, 1.30):
+for y in (-2.40, -1.50, -0.95, 0.45, 1.30, 1.66):
     o, i_ = inset(truss(y), 0.016), inset(truss(y), 0.046)
     fr.loft([[Vector((p.x, y + dy, p.y)) for p in ring] for ring, dy in
              ((o, -0.012), (o, 0.012), (i_, 0.012), (i_, -0.012))], lambda i, j: "Metal", closed_u=True, closed_v=True)
@@ -106,34 +138,32 @@ fr.finish(G["Structural_Core"], bevel=0.002)
 lon = Part("Longerons")
 for k in range(4):
     lon.tube([(inset(truss(y), 0.03)[k].x, y, inset(truss(y), 0.03)[k].y)
-              for y in [-2.60] + [s for s in BODY_Y if -2.60 < s < 1.50] + [1.50]], 0.012, "Metal", square=True)
+              for y in [-2.60] + [s for s in BODY_Y if -2.60 < s < 2.30] + [2.30]], 0.012, "Metal", square=True)
 lon.finish(G["Structural_Core"], bevel=0.002)
+mnt = Part("Engine_Mounts")                       # ring frames in the tail that hold the engine
+for y in (1.92, 2.16):
+    R = body_ring(y, 0.016)
+    ring_band(mnt, y, R, engine_ring(R, 1.045), 0.012, lambda i, j: "Metal")
+mnt.finish(G["Structural_Core"], bevel=0.002)
 
 # ================================================================ 2. SYSTEMS
-# ---- one big round plasma engine in an angular housing at the rear
+# ---- one big plasma engine lying in the tail (held by the ring frames), out through a collar at the end
 GE = G["Propulsion"]
 eng = Part("Engine")
-EXIT = space_engine(eng, (0, ENG_Z), 1.68, 2.30, circle_loop(ENG_R, 40))
-for y in (1.85, 2.20):                                                                 # saddles on the housing floor
-    eng.box((0, y, (ENG_Z - 0.33 + ENG_Z - ENG_R + 0.01) / 2), (0.30, 0.08, 0.33 - ENG_R + 0.01), "Metal")
+EXIT = space_engine(eng, (0, ENG_Z), 1.78, 2.22, SEC, coil_len=0.16, bell_len=0.22)
 eng.finish(GE)
-cw = Part("Engine_Housing")
-cw.loft([[Vector((x, y, ENG_Z + z)) for x, z in sec] for y, sec in
-         ((Y_BACK + SKIN, COWL_OUT), (Y_END, COWL_OUT), (Y_END, COWL_IN), (Y_BACK + SKIN, COWL_IN))],
-        lambda i, j: "Paint_DarkGrey", closed_u=True, closed_v=True)
-bmesh.ops.recalc_face_normals(cw.bm, faces=cw.bm.faces[:])
-paint(cw, lambda c, n: ("Metal_Bright" if c.y > Y_END - 0.004 and abs(n.y) > 0.9 else
+cl = Part("Tail_Collar")                          # the end of the body round the nozzle (no flat cut: a lip)
+ya = Y_RING + GAP / 2
+cl.loft([[Vector((p.x, y, p.y)) for p in ring] for ring, y in
+         ((body_ring(ya), ya), (body_ring(Y_END), Y_END), (engine_ring(body_ring(Y_END), 1.12), Y_END - 0.012),
+          (engine_ring(body_ring(ya), 1.12), ya))], lambda i, j: "Paint_DarkGrey", closed_u=True, closed_v=True)
+bmesh.ops.recalc_face_normals(cl.bm, faces=cl.bm.faces[:])
+paint(cl, lambda c, n: ("Metal_Bright" if n.y > 0.7 else
                         "Graphite" if (c - Vector((0, c.y, ENG_Z))).dot(n) < 0 else "Paint_DarkGrey"))
-cw.box((0, Y_END - 0.002, ENG_Z - 0.345), (0.16, 0.004, 0.012), "Emit_Red")              # tail light
-cw.finish(GE, bevel=0.002, recalc=False, skin=True)
-sm = Part("Housing_Seams")                                                              # bands between the plates
-for y in (2.00, 2.42):
-    sm.loft([[Vector((x * sc, y + dy, ENG_Z + z * sc)) for x, z in COWL_OUT] for sc, dy in
-             ((1.012, -0.012), (1.012, 0.012), (1.0, 0.012), (1.0, -0.012))], lambda i, j: "Metal", closed_u=True,
-            closed_v=True)
-sm.finish(GE, skin=True)
+cl.box((0, Y_END - 0.002, 0.317), (0.16, 0.004, 0.010), "Emit_Red")                    # tail light
+cl.finish(GE, bevel=0.002, recalc=False, skin=True)
 
-# ---- reactor behind the cockpit and its line into the engine (through a grommet in the body's rear wall)
+# ---- reactor behind the cockpit and its line into the engine
 rc = Part("Reactor_Core")
 rc.lathe((0, 0.50, 0.52), (0, 1.20, 0.52),
          [(0, 0.0), (0.03, 0.08), (0.08, 0.125), (0.18, 0.13), (0.24, 0.12), (0.30, 0.13), (0.70, 0.13),
@@ -141,9 +171,7 @@ rc.lathe((0, 0.50, 0.52), (0, 1.20, 0.52),
          lambda k: "Emit_Hot" if k in (3, 4, 7, 8) else "Metal_Bright", 24)
 for y in (0.62, 1.08):
     rc.box((0, y, 0.355), (0.24, 0.05, 0.06), "Metal")                                  # saddles
-rc.tube([(0, 1.20, 0.52), (0, 1.45, 0.55), (0, 1.59, 0.55), (0, 1.66, 0.58)], 0.016, "Metal", 10)
-rc.lathe((0, Y_BACK - 0.005, 0.55), (0, Y_BACK + SKIN + 0.005, 0.55), [(0, 0.02), (0, 0.03), (1, 0.03), (1, 0.02)],
-         lambda k: "Graphite", 12, closed=True)
+rc.tube([(0, 1.20, 0.52), (0, 1.42, 0.50), (0, 1.60, ENG_Z), (0, 1.73, ENG_Z)], 0.016, "Metal", 10)
 rc.finish(G["Reactor"])
 
 # ---- heat: radiators under louvred vents in the upper facets behind the cockpit
@@ -162,7 +190,8 @@ cool.finish(G["Cooling"])
 hover = Part("Hover_Emitters")
 emit_cuts = []
 for y, x, r in [(-2.00, 0.0, 0.12)] + [(y, s * x, r) for y, x, r in ((-0.70, 0.32, 0.14), (0.70, 0.45, 0.15))
-                                       for s in (-1, 1)] + [(1.45, 0.0, 0.12)]:
+                                       for s in (-1, 1)] + [(1.45, 0.0, 0.12), (2.15, -0.52, 0.10),
+                                                            (2.15, 0.52, 0.10)]:
     zb = body(y)["zb"]
     hover.lathe((x, y, zb + 0.03), (x, y, zb - 0.035), [(0, r), (1, r), (1, r - 0.025), (0, r - 0.025)],
                 lambda k: "Graphite", 32, closed=True)                                   # housing ring
@@ -283,24 +312,16 @@ cap.poly(rows[0][::-1], "Paint_White")
 orient_out(cap, lambda c: Vector((0, -2.80, 0.45)))
 paint(cap, lambda c, n: "Paint_Grey" if n.z < -0.6 else "Paint_White")
 shell(cap, G["Nose"])
-panel("Body_Top", 4, 6, Y_CAP, Y_BACK, B, body_paint, CUTS)
-for side, s in (("R", 1), ("L", -1)):
-    def span(a, b):
-        return (a, b) if s > 0 else (10 - b, 10 - a)
-    panel("Body_Facet_" + side, *span(3, 4), Y_CAP, Y_BACK, B, body_paint, CUTS, slots + vent_cuts)
-    panel("Body_Edge_" + side, *span(2, 3), Y_CAP, Y_BACK, B, body_paint, (), slots)
-    panel("Body_Chine_" + side, *span(1, 2), Y_CAP, Y_BACK, B, lambda c, n: "Paint_Grey", (), slots)
-panel("Body_Belly", 9, 11, Y_CAP, Y_BACK, B, lambda c, n: "Paint_Grey", (), emit_cuts)
-c = Part("cut")
-c.cyl((0, Y_BACK - 0.05, 0.55), (0, Y_BACK + 0.05, 0.55), 0.03, "Black", 12)
-gc = cutter(c)
-rear = Part("Body_Rear")
-rear.loft([[Vector((x, y, z)) for x, z in body_loop(Y_BACK)] for y in (Y_BACK, Y_BACK + SKIN)],
-          lambda i, j: "Paint_DarkGrey", closed_u=True, cap0="Paint_DarkGrey", cap1="Paint_DarkGrey")
-ob = rear.finish(B, skin=True)
-boolean(ob, [gc])
-shade(ob, 0.002)
-drop(slots + vent_cuts + emit_cuts + [gc])
+for pre, y0, y1, vents in (("Body", Y_CAP, Y_BACK, vent_cuts), ("Tail", Y_BACK, Y_RING, [])):
+    panel(pre + "_Top", 4, 6, y0, y1, B, body_paint, CUTS)
+    for side, s in (("R", 1), ("L", -1)):
+        def span(a, b):
+            return (a, b) if s > 0 else (10 - b, 10 - a)
+        panel(pre + "_Facet_" + side, *span(3, 4), y0, y1, B, body_paint, CUTS, slots + vents)
+        panel(pre + "_Edge_" + side, *span(2, 3), y0, y1, B, body_paint, (), slots)
+        panel(pre + "_Chine_" + side, *span(1, 2), y0, y1, B, lambda c, n: "Paint_Grey", (), slots)
+    panel(pre + "_Belly", 9, 11, y0, y1, B, lambda c, n: "Paint_Grey", (), emit_cuts)
+drop(slots + vent_cuts + emit_cuts)
 
 frame = Part("Canopy_Frame")                                                            # frame round the flush glass
 ys = [CAN[0]] + [y for y in BODY_Y if CAN[0] < y < CAN[1]] + [CAN[1]]
@@ -323,14 +344,26 @@ frame.finish(G["Cockpit_Cell"])
 
 # ================================================================ 5. DECALS (our own marks)
 dec = Part("Decals")
+
+
+def facet(y, s, f=0.5):       # point at fraction f up the facet, on side s
+    b = body(y)
+    return Vector((s * (b["w"] - f * b["ct"]), y, b["zs"] + f * (b["zt"] - b["zs"])))
+
+
+yn = 2.22                                                                               # number on the tail deck
+M = frame_on((0, yn, body(yn)["zt"]), (-1, 0, 0), (0, -1, (body(yn - 0.05)["zt"] - body(yn + 0.05)["zt"]) / 0.1),
+             0.002)
+dec.flat(disc2d(0.11), M, "Paint_White")
+dec.add_mesh(text_mesh("11", 0.13), frame_on((0, yn, body(yn)["zt"]), (-1, 0, 0),
+                                             (0, -1, (body(yn - 0.05)["zt"] - body(yn + 0.05)["zt"]) / 0.1), 0.005),
+             "Black")
 for s in (-1, 1):
     rd = 1 if s > 0 else -1
-    u = Vector((0, rd, 0))
-    v = Vector((-s * 0.06, 0, 0.72))
-    xs = s * 0.372
-    dec.flat(disc2d(0.10), frame_on((xs, 1.82, ENG_Z), u, v, 0.006), "Paint_White")
-    dec.add_mesh(text_mesh("11", 0.12), frame_on((xs, 1.82, ENG_Z), u, v, 0.009), "Black")
-    dec.add_mesh(text_mesh("VORTEX", 0.09), frame_on((xs, 2.32, ENG_Z), u, v, 0.006), "Paint_White")
+    yt = 1.80
+    u = (facet(yt + 0.05, s) - facet(yt - 0.05, s)) * rd
+    v = facet(yt, s, 1.0) - facet(yt, s, 0.0)
+    dec.add_mesh(text_mesh("VORTEX", 0.09), frame_on(facet(yt, s), u, v, 0.004), "Paint_White")
     xc, yc = 1.18, 1.62
     d = (wing_top(xc + 0.05) - wing_top(xc - 0.05)) / 0.1
     M = frame_on((s * xc, yc, wing_top(xc) + 0.0005), (s, 0, d), (0, s, 0))
@@ -344,7 +377,7 @@ dec.finish(G["Decals"], recalc=False, smooth_angle=10)
 # ================================================================ sockets
 for name, loc in (("Socket_Reactor", (0, 0.85, 0.52)), ("Socket_Propulsion", (0, EXIT, ENG_Z)),
                   ("Socket_Wing_L", (-0.70, 1.00, 0.36)), ("Socket_Wing_R", (0.70, 1.00, 0.36)),
-                  ("Socket_Tail", (0, Y_END, ENG_Z - 0.36)), ("Socket_Armor_L", (-0.66, -0.80, 0.50)),
+                  ("Socket_Tail", (0, Y_END, 0.317)), ("Socket_Armor_L", (-0.66, -0.80, 0.50)),
                   ("Socket_Armor_R", (0.66, -0.80, 0.50)), ("Socket_Cooling", (0, 0.85, 0.62)),
                   ("Socket_Utility", (0, -3.20, 0.43))):
     group(name, G["Sockets"], loc)
