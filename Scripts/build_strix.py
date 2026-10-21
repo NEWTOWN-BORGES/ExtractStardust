@@ -1,5 +1,5 @@
 # STRIX hover racer, built from the inside out: structure first (frames, longerons, spine rails, crash box, reactor
-# cradle, engine and wing mounts), then the systems on it (cockpit cell and pilot, reactor, two engines, cooling,
+# cradle, engine and wing mounts), then the systems on it (cockpit cell and pilot, reactor, the engine, cooling,
 # hover emitters, sensors), then the bodywork panels that close over them. Every part is its own object and fits the
 # one under it: panels are 12 mm shells with 5 mm gaps, the wings go through slots in the side panels onto root
 # clamps, the emitters sit in cut-outs of the belly, the side intakes are ducted to the engine.
@@ -8,58 +8,14 @@
 # Front is -Y, up is +Z, metres (the layout of the old SourceArt/TestShips/strix.fbx; the game centres the bounds).
 # Usage: python3 Scripts/build_strix.py <out_dir> [--no-render]
 #    or: blender -b -P Scripts/build_strix.py -- <out_dir> [--no-render]
-# Writes <out_dir>/strix.blend, strix.fbx and the preview renders.
-import bpy
-import bmesh
-import math
+# Writes <out_dir>/strix.blend, strix.fbx and the preview renders. Shared parts: Scripts/ship_kit.py.
 import os
 import sys
-from mathutils import Matrix, Vector
 
-argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
-OUT = os.path.abspath(argv[0] if argv and not argv[0].startswith("--") else ".")
-RENDER = "--no-render" not in argv
-HERE = os.path.dirname(os.path.abspath(__file__))
-FONT_PATH = os.path.join(HERE, "..", "SourceArt", "Fonts", "Orbitron-Black.ttf")
-os.makedirs(OUT, exist_ok=True)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ship_kit import *  # noqa: E402,F401,F403  (bpy, bmesh, math, Matrix, Vector and the helpers)
 
-bpy.ops.wm.read_factory_settings(use_empty=True)
-scene = bpy.context.scene
-SHIP = bpy.data.collections.new("STRIX")
-scene.collection.children.link(SHIP)
-GAP = 0.005     # panel gap
-SKIN = 0.012    # panel thickness
-CLEAR = 0.006   # air between the inner face of a panel and the structure under it
-
-
-# ---------------------------------------------------------------- materials
-def lin(h):
-    c = [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
-    return [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in c] + [1.0]
-
-
-MAT = {}
-
-
-def material(name, col, metal=0.0, rough=0.45, emit=0.0, alpha=1.0, coat=0.0):
-    m = bpy.data.materials.new("STRIX_" + name)
-    m.use_nodes = True
-    b = m.node_tree.nodes["Principled BSDF"]
-    b.inputs["Base Color"].default_value = lin(col)
-    b.inputs["Metallic"].default_value = metal
-    b.inputs["Roughness"].default_value = rough
-    if coat:
-        b.inputs["Coat Weight"].default_value = coat
-    if emit:
-        b.inputs["Emission Color"].default_value = lin(col)
-        b.inputs["Emission Strength"].default_value = emit
-    if alpha < 1:
-        b.inputs["Alpha"].default_value = alpha
-        b.inputs["Transmission Weight"].default_value = 1.0
-    m.diffuse_color = lin(col)
-    MAT[name] = m
-
-
+start("STRIX")
 material("Paint_Blue", "#3A9BDC", rough=0.3, coat=0.6)
 material("Paint_DarkBlue", "#1D5FA6", rough=0.32, coat=0.6)
 material("Paint_Yellow", "#F5C200", rough=0.3, coat=0.6)
@@ -76,206 +32,12 @@ material("Emit_Hot", "#FF7A2E", emit=6.0, rough=0.3)
 material("Emit_Red", "#FF2A2A", emit=4.0, rough=0.3)
 
 
-# ---------------------------------------------------------------- objects and groups
-def group(name, parent=None, loc=(0, 0, 0)):
-    e = bpy.data.objects.new(name, None)
-    e.empty_display_size = 0.15
-    e.location = loc
-    SHIP.objects.link(e)
-    e.parent = parent
-    return e
-
-
 ROOT = group("ShipRoot")
 G = {n: group(n, ROOT) for n in ("Structural_Core", "Nose", "Cockpit_Cell", "Body", "Reactor", "Propulsion",
                                  "Wing_L", "Wing_R", "Hover", "Cooling", "Decals", "Sockets")}
-SKINS = []   # bodywork objects, hidden in the cut-away render
-
-
-def basis(axis):
-    a = axis.normalized()
-    t = Vector((0, 0, 1)) if abs(a.z) < 0.9 else Vector((1, 0, 0))
-    u = a.cross(t).normalized()
-    return a, u, a.cross(u)
-
-
-class Part:
-    """bmesh being built for one object, with its own material list."""
-
-    def __init__(self, name):
-        self.name, self.bm, self.mats = name, bmesh.new(), []
-
-    def mi(self, m):
-        if m not in self.mats:
-            self.mats.append(m)
-        return self.mats.index(m)
-
-    def poly(self, pts, m):
-        f = self.bm.faces.new([self.bm.verts.new(p) for p in pts])
-        f.material_index = self.mi(m)
-        return f
-
-    def loft(self, rows, m_fn, closed_u=False, closed_v=False, cap0=None, cap1=None):
-        """Quads between rows of points (all rows the same length); m_fn(i, j) names each face's material."""
-        V = [[self.bm.verts.new(p) for p in row] for row in rows]
-        nu, nv = len(rows[0]), len(rows)
-        for i in range(nv if closed_v else nv - 1):
-            for j in range(nu if closed_u else nu - 1):
-                i2, j2 = (i + 1) % nv, (j + 1) % nu
-                f = self.bm.faces.new([V[i][j], V[i][j2], V[i2][j2], V[i2][j]])
-                f.material_index = self.mi(m_fn(i, j))
-        if cap0:
-            self.bm.faces.new(V[0][::-1]).material_index = self.mi(cap0)
-        if cap1:
-            self.bm.faces.new(V[-1]).material_index = self.mi(cap1)
-        return V
-
-    def box(self, c, s, m, rot=None):
-        vs = bmesh.ops.create_cube(self.bm, size=1.0)["verts"]
-        M = Matrix.Translation(Vector(c)) @ (rot.to_4x4() if rot else Matrix()) @ Matrix.Diagonal((*s, 1))
-        bmesh.ops.transform(self.bm, matrix=M, verts=vs)
-        for f in {f for v in vs for f in v.link_faces}:
-            f.material_index = self.mi(m)
-
-    def sphere(self, c, r, m, scale=(1, 1, 1), segs=16, rings=10):
-        vs = bmesh.ops.create_uvsphere(self.bm, u_segments=segs, v_segments=rings, radius=1.0)["verts"]
-        bmesh.ops.transform(self.bm, matrix=Matrix.Translation(Vector(c)) @ Matrix.Diagonal(
-            (r * scale[0], r * scale[1], r * scale[2], 1)), verts=vs)
-        for f in {f for v in vs for f in v.link_faces}:
-            f.material_index = self.mi(m)
-
-    def lathe(self, p0, p1, prof, m_fn, segs=32, closed=False, cap0=None, cap1=None, phase=0.0):
-        """Surface of revolution about p0->p1; prof is [(f along the axis, radius)], m_fn(k) per band."""
-        p0, p1 = Vector(p0), Vector(p1)
-        ax, u, v = basis(p1 - p0)
-        rows = []
-        for f, r in prof:
-            c = p0.lerp(p1, f)
-            rows.append([c + (u * math.cos(phase + 2 * math.pi * i / segs) +
-                              v * math.sin(phase + 2 * math.pi * i / segs)) * r for i in range(segs)])
-        return self.loft(rows, lambda i, j: m_fn(i), closed_u=True, closed_v=closed, cap0=cap0, cap1=cap1)
-
-    def cyl(self, p0, p1, r, m, segs=16, r1=None):
-        self.lathe(p0, p1, [(0, r), (1, r if r1 is None else r1)], lambda k: m, segs, cap0=m, cap1=m)
-
-    def tube(self, pts, r, m, segs=10, square=False):
-        """Swept round (or square) tube through pts, with parallel-transport frames."""
-        pts = [Vector(p) for p in pts]
-        n = len(pts)
-        tans = [(pts[min(i + 1, n - 1)] - pts[max(i - 1, 0)]).normalized() for i in range(n)]
-        _, nrm, _ = basis(tans[0])
-        rows = []
-        for i in range(n):
-            nrm = (nrm - tans[i] * nrm.dot(tans[i])).normalized()
-            bi = tans[i].cross(nrm)
-            k = 4 if square else segs
-            ph = math.pi / 4 if square else 0.0
-            rr = r * (math.sqrt(2) if square else 1.0)
-            rows.append([pts[i] + (nrm * math.cos(ph + 2 * math.pi * j / k) +
-                                   bi * math.sin(ph + 2 * math.pi * j / k)) * rr for j in range(k)])
-        self.loft(rows, lambda i, j: m, closed_u=True, cap0=m, cap1=m)
-
-    def flat(self, outline_2d, M, m, holes=()):
-        """Planar shape (2D outline, optional same-length hole rings) placed by matrix M."""
-        if not holes:
-            return self.poly([M @ Vector((x, y, 0)) for x, y in outline_2d], m)
-        for h in holes:   # ring between outline and hole (both with the same point count)
-            o = [M @ Vector((x, y, 0)) for x, y in outline_2d]
-            i_ = [M @ Vector((x, y, 0)) for x, y in h]
-            self.loft([o, i_], lambda i, j: m, closed_u=True)
-
-    def add_mesh(self, me, M, m):
-        tmp = bmesh.new()
-        tmp.from_mesh(me)
-        bmesh.ops.transform(tmp, matrix=M, verts=tmp.verts[:])
-        vmap = [self.bm.verts.new(v.co) for v in tmp.verts]
-        for f in tmp.faces:
-            try:
-                self.bm.faces.new([vmap[v.index] for v in f.verts]).material_index = self.mi(m)
-            except ValueError:
-                pass
-        tmp.free()
-
-    def finish(self, parent, bevel=0.0, recalc=True, smooth_angle=32, skin=False):
-        if recalc:
-            bmesh.ops.recalc_face_normals(self.bm, faces=self.bm.faces[:])
-        me = bpy.data.meshes.new(self.name)
-        self.bm.to_mesh(me)
-        self.bm.free()
-        for m in self.mats:
-            me.materials.append(MAT[m])
-        ob = bpy.data.objects.new(self.name, me)
-        SHIP.objects.link(ob)
-        ob.parent = parent
-        shade(ob, bevel, smooth_angle)
-        if skin:
-            SKINS.append(ob)
-        return ob
-
-
-def shade(ob, bevel=0.0, angle=32):
-    ob.data.shade_smooth()
-    ob.data.set_sharp_from_angle(angle=math.radians(angle))
-    if bevel:
-        b = ob.modifiers.new("Bevel", 'BEVEL')
-        b.width, b.segments, b.limit_method = bevel, 2, 'ANGLE'
-        b.angle_limit = math.radians(angle)
-        b.harden_normals = True
-        b.use_clamp_overlap = True
-
-
-def bake(ob):
-    """Apply the modifier stack (kept materials)."""
-    dg = bpy.context.evaluated_depsgraph_get()
-    me = bpy.data.meshes.new_from_object(ob.evaluated_get(dg))
-    old = ob.data
-    if not me.materials:
-        for m in old.materials:
-            me.materials.append(m)
-    ob.modifiers.clear()
-    ob.data = me
-    bpy.data.meshes.remove(old)
-
-
-def cutter(part):
-    ob = part.finish(None)
-    ob.hide_render = True
-    return ob
-
-
-def boolean(ob, cutters, op='DIFFERENCE'):
-    for c in cutters:
-        b = ob.modifiers.new("Bool", 'BOOLEAN')
-        b.operation, b.object = op, c
-        try:
-            b.solver = 'EXACT'
-        except TypeError:
-            pass
-    bake(ob)
-
-
-def box_cutter(c, s, rot=None):
-    p = Part("cut")
-    p.box(c, s, "Black", rot)
-    return cutter(p)
-
-
-def drop(obs):
-    for o in obs:
-        me = o.data
-        bpy.data.objects.remove(o)
-        bpy.data.meshes.remove(me)
 
 
 # ---------------------------------------------------------------- hull lines
-def table(T, s):
-    if s <= T[0][0]:
-        return list(T[0][1:])
-    for a, b in zip(T, T[1:]):
-        if s <= b[0]:
-            f = (s - a[0]) / (b[0] - a[0])
-            return [p + (q - p) * f for p, q in zip(a[1:], b[1:])]
-    return list(T[-1][1:])
 
 
 #        y      w     zb    cb    zs    wt    zt        (half widths; zb belly, zs top of side, zt deck)
@@ -316,74 +78,9 @@ def hump_loop(y):
     return r + [(-x, z) for x, z in reversed(r[:-1])]          # 7 points, t 0..6 (open at the base)
 
 
-def pt(L, t):
-    n = len(L)
-    i = math.floor(t + 1e-9)
-    f = t - i
-    a, b = L[i % n], L[(i + 1) % n]
-    return a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f
-
-
-def shift(L, t, d):
-    i = math.floor(t + (1e-9 if d > 0 else -1e-9))
-    a, b = Vector(L[i % len(L)]), Vector(L[(i + 1) % len(L)])
-    return t + d / max((b - a).length, 1e-6)
-
-
 def tx(y, x):   # t on the hull deck (segment 4-5, right side) where the deck is at half width x
     wt = hull(y)["wt"]
     return 4 + (wt - x) / wt
-
-
-def surface(part, loop_fn, t0, t1, s0, s1, stations, to3d, gap_s=(True, True), wrap=False):
-    """Rows of points over the station range, each the stretch t0..t1 of the section loop (gaps at the ends)."""
-    ss = [s0 + (GAP / 2 if gap_s[0] else 0)] + [s for s in stations if s0 + GAP < s < s1 - GAP] + \
-         [s1 - (GAP / 2 if gap_s[1] else 0)]
-    rows = []
-    for s in ss:
-        L = loop_fn(s)
-        if wrap:
-            ts = list(range(len(L)))
-        else:
-            a = t0(s) if callable(t0) else t0
-            b = t1(s) if callable(t1) else t1
-            ts = [shift(L, a, GAP / 2)] + list(range(math.floor(a) + 1, math.ceil(b))) + [shift(L, b, -GAP / 2)]
-        rows.append([to3d(s, *pt(L, t)) for t in ts])
-    part.loft(rows, lambda i, j: "Paint_Blue", closed_u=wrap)
-    return rows
-
-
-def orient_out(part, centre_fn):
-    bm = part.bm
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    bm.normal_update()
-    score = sum((f.calc_center_median() - centre_fn(f.calc_center_median())).dot(f.normal) for f in bm.faces)
-    if score < 0:
-        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
-    bm.normal_update()
-
-
-def paint(part, m_fn, cuts=()):
-    bm = part.bm
-    for co, no in cuts:
-        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=co, plane_no=no)
-    bm.normal_update()
-    for f in bm.faces:
-        f.material_index = part.mi(m_fn(f.calc_center_median(), f.normal))
-
-
-def shell(part, parent, holes=(), thick=SKIN, bevel=0.0025):
-    """Panel surface -> 12 mm shell (inwards), then the cut-outs, then the edge bevel."""
-    ob = part.finish(parent, recalc=False)
-    ob.modifiers.clear()
-    s = ob.modifiers.new("Skin", 'SOLIDIFY')
-    s.thickness, s.offset, s.use_even_offset = thick, -1.0, True
-    bake(ob)
-    if holes:
-        boolean(ob, holes)
-    shade(ob, bevel)
-    SKINS.append(ob)
-    return ob
 
 
 def hull3d(y, x, z):
@@ -422,23 +119,6 @@ def mirror_t(t, n=10):
 
 
 # ================================================================ 1. STRUCTURE
-def inset(P, d):
-    """Offset a closed 2D polygon inwards by d (handles either winding)."""
-    area = sum(P[i - 1][0] * P[i][1] - P[i][0] * P[i - 1][1] for i in range(len(P)))
-    s = 1 if area > 0 else -1
-    out = []
-    for i in range(len(P)):
-        a, b, c = Vector(P[i - 1]), Vector(P[i]), Vector(P[(i + 1) % len(P)])
-        e1, e2 = (b - a).normalized(), (c - b).normalized()
-        n1, n2 = Vector((-e1.y, e1.x)) * s, Vector((-e2.y, e2.x)) * s
-        p1, p2 = b + n1 * d, b + n2 * d
-        den = e1.x * e2.y - e1.y * e2.x
-        if abs(den) < 1e-9:
-            out.append(p1)
-            continue
-        t = ((p2.x - p1.x) * e2.y - (p2.y - p1.y) * e2.x) / den
-        out.append(p1 + e1 * t)
-    return out
 
 
 def octagon(y):
@@ -816,27 +496,6 @@ def hump_panel(name, t0, t1, m_fn, holes=()):
     return shell(p, B, holes)
 
 
-def split_out(ob, c, size, name, normal_axis):
-    """Cut a fitted access cover out of a panel: the cover keeps a gap all round."""
-    big = box_cutter(c, size)
-    small_size = [v - (0 if i == normal_axis else 2 * GAP) for i, v in enumerate(size)]
-    small = box_cutter(c, small_size)
-    cover = ob.copy()
-    cover.data = ob.data.copy()
-    cover.modifiers.clear()
-    cover.name = name
-    SHIP.objects.link(cover)
-    cover.parent = ob.parent
-    boolean(cover, [small], 'INTERSECT')
-    ob.modifiers.clear()
-    boolean(ob, [big])
-    for o in (ob, cover):
-        shade(o, 0.0025)
-    SKINS.append(cover)
-    drop([big, small])
-    return cover
-
-
 top = hump_panel("Spine_Top", 1, 5, lambda c, n: "Paint_Yellow")
 slit_cut = box_cutter((0, 1.48, hump(1.48)["htop"]), (0.20, 0.07, 0.10))
 cover = split_out(top, (0, 1.08, hump(1.08)["htop"]), (0.26, 0.60, 0.30), "Reactor_Cover", 2)
@@ -910,38 +569,6 @@ hoop.tube(hp, 0.022, "Metal", 12)
 hoop.finish(G["Cockpit_Cell"])
 
 # ================================================================ 5. DECALS (our own marks; no third-party logos)
-font = bpy.data.fonts.load(FONT_PATH) if os.path.exists(FONT_PATH) else None
-
-
-def text_mesh(body, size):
-    cu = bpy.data.curves.new("txt", 'FONT')
-    cu.body, cu.size, cu.align_x, cu.align_y = body, size, 'CENTER', 'CENTER'
-    if font:
-        cu.font = font
-    ob = bpy.data.objects.new("txt", cu)
-    SHIP.objects.link(ob)
-    me = bpy.data.meshes.new_from_object(ob.evaluated_get(bpy.context.evaluated_depsgraph_get()))
-    bpy.data.objects.remove(ob)
-    bpy.data.curves.remove(cu)
-    return me
-
-
-def frame_on(origin, u, v, lift=0.0025):
-    u, v = Vector(u).normalized(), Vector(v).normalized()
-    n = u.cross(v).normalized()
-    v = n.cross(u)
-    M = Matrix((u, v, n)).transposed().to_4x4()
-    M.translation = Vector(origin) + n * lift
-    return M
-
-
-def ring2d(r0, r1, n=40):
-    return ([(r1 * math.cos(2 * math.pi * k / n), r1 * math.sin(2 * math.pi * k / n)) for k in range(n)],
-            [(r0 * math.cos(2 * math.pi * k / n), r0 * math.sin(2 * math.pi * k / n)) for k in range(n)])
-
-
-def disc2d(r, n=40):
-    return [(r * math.cos(2 * math.pi * k / n), r * math.sin(2 * math.pi * k / n)) for k in range(n)]
 
 
 dec = Part("Decals")
@@ -1015,100 +642,4 @@ for name, loc in (("Socket_Engine", (0, 2.20, ENG_Z)), ("Socket_Reactor", (0, 1.
                   ("Socket_Utility", (0, -2.40, 0.30))):
     group(name, G["Sockets"], loc)
 
-# ================================================================ report, save, export
-dg = bpy.context.evaluated_depsgraph_get()
-tris, lo, hi = 0, Vector((1e9,) * 3), Vector((-1e9,) * 3)
-for o in SHIP.objects:
-    if o.type == 'MESH' and not o.hide_render:
-        me = o.evaluated_get(dg).to_mesh()
-        tris += sum(len(p.vertices) - 2 for p in me.polygons)
-        for v in me.vertices:
-            w = o.matrix_world @ v.co
-            lo = Vector(map(min, lo, w))
-            hi = Vector(map(max, hi, w))
-        o.evaluated_get(dg).to_mesh_clear()
-print("STRIX objects %d  tris %d  size %.2f x %.2f x %.2f m  z %.2f..%.2f" % (
-    sum(1 for o in SHIP.objects if o.type == 'MESH'), tris, *(hi - lo), lo.z, hi.z))
-
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "strix.blend"), compress=True)
-lc = bpy.context.view_layer.layer_collection.children["STRIX"]
-bpy.context.view_layer.active_layer_collection = lc
-bpy.ops.export_scene.fbx(filepath=os.path.join(OUT, "strix.fbx"), use_active_collection=True,
-                         object_types={'EMPTY', 'MESH'}, use_mesh_modifiers=True, mesh_smooth_type='FACE',
-                         add_leaf_bones=False, apply_unit_scale=True, use_custom_props=False)
-
-if not RENDER:
-    sys.exit(0)
-
-# ================================================================ preview renders (studio, not exported)
-studio = bpy.data.collections.new("Studio")
-scene.collection.children.link(studio)
-r = scene.render
-r.engine = 'CYCLES'
-scene.cycles.device = 'CPU'
-scene.cycles.samples = 64
-scene.cycles.use_denoising = True
-r.resolution_x, r.resolution_y = 1400, 800
-r.image_settings.file_format = 'JPEG'
-r.image_settings.quality = 90
-scene.view_settings.view_transform = 'Standard'
-scene.view_settings.exposure = -1.1
-world = bpy.data.worlds.new("W")
-world.use_nodes = True
-world.node_tree.nodes["Background"].inputs[0].default_value = (0.62, 0.64, 0.67, 1)
-world.node_tree.nodes["Background"].inputs[1].default_value = 0.9
-scene.world = world
-gm = bpy.data.materials.new("Floor")
-gm.use_nodes = True
-gm.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.30, 0.31, 0.33, 1)
-gm.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.7
-fl = Part("Floor")
-fl.poly([(-40, -40, 0), (40, -40, 0), (40, 40, 0), (-40, 40, 0)], "Black")
-floor = fl.finish(None)
-floor.data.materials[0] = gm
-SHIP.objects.unlink(floor)
-studio.objects.link(floor)
-
-
-def light(name, loc, power, size):
-    ld = bpy.data.lights.new(name, 'AREA')
-    ld.energy, ld.size = power, size
-    lo_ = bpy.data.objects.new(name, ld)
-    lo_.location = loc
-    lo_.rotation_euler = (Vector((0, 0, 0.5)) - Vector(loc)).to_track_quat('-Z', 'Y').to_euler()
-    studio.objects.link(lo_)
-
-
-light("Key", (-5, -6, 7), 2600, 5)
-light("Fill", (6, -3, 3), 900, 6)
-light("Rim", (2, 8, 5), 1600, 4)
-cam_d = bpy.data.cameras.new("Cam")
-cam = bpy.data.objects.new("Cam", cam_d)
-studio.objects.link(cam)
-scene.camera = cam
-
-
-def shot(name, loc, target, lens=50, ortho=None):
-    cam.location = loc
-    cam.rotation_euler = (Vector(target) - Vector(loc)).to_track_quat('-Z', 'Y').to_euler()
-    cam_d.type = 'ORTHO' if ortho else 'PERSP'
-    if ortho:
-        cam_d.ortho_scale = ortho
-    cam_d.lens = lens
-    r.filepath = os.path.join(OUT, "strix_" + name + ".jpg")
-    bpy.ops.render.render(write_still=True)
-
-
-shot("34_front", (-6.2, -7.4, 4.0), (0, -0.2, 0.55), 55)
-shot("34_rear", (5.8, 6.8, 3.2), (0, 0.4, 0.6), 55)
-shot("side", (-12, 0, 0.62), (0, 0, 0.62), ortho=7.0)
-cam_d.type = 'ORTHO'
-cam_d.ortho_scale = 7.0
-cam.location, cam.rotation_euler = (0, 0, 12), (0, 0, math.radians(90))
-r.filepath = os.path.join(OUT, "strix_top.jpg")
-bpy.ops.render.render(write_still=True)
-shot("front", (0, -12, 0.65), (0, 0, 0.65), ortho=3.6)
-shot("cockpit", (-1.6, -2.2, 1.7), (0, -0.1, 0.80), 45)
-for o in SKINS + [o for o in SHIP.objects if o.parent == G["Decals"]]:
-    o.hide_render = True
-shot("inside", (-6.2, -7.4, 4.0), (0, -0.2, 0.55), 55)
+finish_ship(G["Decals"])
