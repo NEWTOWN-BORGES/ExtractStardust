@@ -16,8 +16,8 @@ correr `Scripts/import_test_ships.py` no editor (reimporta `SM_NOMAD`).
 - **Três motores de plasma**: duas cápsulas retangulares no alto dos lados e a viga de cima a acabar num motor
   retangular grande atrás.
 - As cápsulas ficam **penduradas por cima**, de braços em forma de **asa "A"** que saem da viga (perna reta à
-  frente, perna inclinada para trás), **todos laranja**; à frente, um par de **asas pequenas em "A"** (canards),
-  também laranja, para dar ar de estabilidade.
+  frente, perna inclinada para trás), **todos laranja**; à frente, um par de **asas pequenas em "A" com as duas
+  pernas inclinadas** (canards), também laranja, para dar ar de estabilidade.
 - **Módulo de tanques e carga** por baixo da traseira.
 - **~1,7 m de altura**; pintura **branca, preta e laranja** com riscas de perigo.
 - Pernas de aterragem da referência trocadas por emissores hover e patins.

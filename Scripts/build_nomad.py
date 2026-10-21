@@ -390,8 +390,9 @@ def a_wing(name, s, x0, x1, root, tip, z0, z1, th0, th1, parent, m="Paint_Orange
     return cutter(c)
 
 
-# small A-shaped canards on the nose sides, and the A-shaped orange arms the pods hang from (off the boom sides)
-canard_cuts = [a_wing("Canard_" + side, s, 0.63, 1.10, (-3.10, -2.50), (-3.10, -2.85), 0.66, 0.62, 0.06, 0.03,
+# small canards on the nose sides shaped like an A with both legs swept to the tip, and the orange arms the pods
+# hang from (off the boom sides), shaped like an uneven A: straight leading edge, swept trailing edge
+canard_cuts = [a_wing("Canard_" + side, s, 0.63, 1.10, (-3.10, -2.50), (-2.88, -2.72), 0.66, 0.62, 0.06, 0.03,
                       G["Nose"]) for s, side in ((-1, "L"), (1, "R"))]
 arm_cuts = [a_wing("Pod_Arm_" + side, s, 0.29, 1.16, (-0.30, 1.60), (-0.30, 0.60), 1.52, 1.60, 0.09, 0.06,
                    G["Pod_" + side]) for s, side in ((-1, "L"), (1, "R"))]
