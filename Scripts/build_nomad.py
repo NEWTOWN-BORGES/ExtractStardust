@@ -3,8 +3,9 @@
 # (cockpit and pilot, reactor and its lines, three plasma engines, radiators, tanks, hover emitters), then the 12 mm
 # bodywork panels with 5 mm gaps.
 # Look: long boxy faceted hull with a blunt armoured nose (grille face, lights, bumper), a raised cabin at the front
-# with flush windows, a long boom on top that runs past the tail and ends in a rectangular engine, two rectangular
-# engine pods high on the sides on pylons, a cargo and tank module under the rear, long low stabilizers; white, black
+# with flush windows and small A-shaped canards, a long boom on top that runs past the tail and ends in a rectangular
+# engine, two rectangular engine pods hung from orange A-shaped arms off the boom, a cargo and tank module under the
+# rear, long low stabilizers; white, black
 # and orange with hazard stripes (Docs/NOMAD_CATEGORIA.md, Docs/NAVES_REGRAS.md).
 # Front is -Y, up is +Z, metres (the layout of the old SourceArt/TestShips/nomad.fbx; the game centres the bounds).
 # Usage: python3 Scripts/build_nomad.py <out_dir> [--no-render]
@@ -219,8 +220,8 @@ for y in (-0.45, -0.10):
     rc.box((0, y, 0.43), (0.30, 0.05, 0.26), "Metal")                                   # saddles
 rc.tube([(0, 0.22, 0.80), (0, 1.00, 0.95), (0, 1.80, 1.22), (0, 2.12, 1.32)], 0.016, "Metal", 10)
 for s in (-1, 1):
-    rc.tube([(s * 0.12, 0.10, 0.80), (s * 0.40, 0.14, 0.96), (s * 0.66, 0.15, 1.08), (s * 0.92, 0.15, 1.24)],
-            0.014, "Metal", 10)
+    rc.tube([(s * 0.12, 0.20, 0.80), (s * 0.12, 0.22, 1.20), (s * 0.22, 0.25, 1.50), (s * 0.60, 0.25, 1.53),
+             (s * 0.92, 0.25, 1.45)], 0.014, "Metal", 10)                         # through the arms to the pods
 rc.finish(G["Reactor"])
 
 # ---- cooling: big radiators behind louvred grilles in the hull sides and behind the grille in the nose
@@ -365,6 +366,36 @@ for s in (-1, 1):
            closed_u=True, cap0="Black", cap1="Black")
     slots.append(cutter(p))
 
+
+def a_wing(name, s, x0, x1, root, tip, z0, z1, th0, th1, parent, m="Paint_Orange"):
+    """Small wing shaped like an uneven A seen from above: the leading edge straight out from the body, the trailing
+    edge swept back to it. Spar inside; returns the cutter for its slot in the body panel at x0."""
+    def sec(x, grow=0.0):
+        f = (x - x0) / (x1 - x0)
+        le = root[0] + (tip[0] - root[0]) * f - grow
+        te = root[1] + (tip[1] - root[1]) * f + grow
+        mid, th = z0 + (z1 - z0) * f, th0 + (th1 - th0) * f + 2 * grow
+        e = min(0.06, 0.15 * (te - le))
+        return [(le, mid - th / 6), (le, mid + th / 6), (le + e, mid + th / 2), (te - 0.02, mid + th / 2),
+                (te, mid + th / 6), (te, mid - th / 6), (te - 0.02, mid - th / 2), (le + e, mid - th / 2)]
+    p = Part(name)
+    p.loft([[Vector((s * x, a, b)) for a, b in sec(x)] for x in (x0, x1)], lambda i, j: m, closed_u=True, cap0=m,
+           cap1=m)
+    p.tube([(s * x0, root[0] + 0.35 * (root[1] - root[0]), z0),
+            (s * (x1 - 0.03), tip[0] + 0.35 * (tip[1] - tip[0]), z1)], min(th0, th1) * 0.25, "Metal", 8)
+    p.finish(parent, bevel=0.002, skin=True)
+    c = Part("cut")
+    c.loft([[Vector((s * x, a, b)) for a, b in sec(x, GAP / 2)] for x in (x0 - 0.02, x0 + 0.12)],
+           lambda i, j: "Black", closed_u=True, cap0="Black", cap1="Black")
+    return cutter(c)
+
+
+# small A-shaped canards on the nose sides, and the A-shaped orange arms the pods hang from (off the boom sides)
+canard_cuts = [a_wing("Canard_" + side, s, 0.63, 1.10, (-3.10, -2.50), (-3.10, -2.85), 0.66, 0.62, 0.06, 0.03,
+                      G["Nose"]) for s, side in ((-1, "L"), (1, "R"))]
+arm_cuts = [a_wing("Pod_Arm_" + side, s, 0.29, 1.16, (-0.30, 1.60), (-0.30, 0.60), 1.52, 1.60, 0.09, 0.06,
+                   G["Pod_" + side]) for s, side in ((-1, "L"), (1, "R"))]
+
 # ================================================================ 4. BODYWORK
 # ---- hull: nose face with the grille, top, sides (grilles, stabilizer slots, black lower band), chines, belly, decks
 slab("Nose_Front", hull_loop(Y_NOSE), Y_NOSE - SKIN, Y_NOSE, "Paint_Black", G["Nose"], [grille_cut])
@@ -380,7 +411,7 @@ for side, s in (("R", 1), ("L", -1)):
         return (a, b) if s > 0 else ((lambda y: 10 - b(y)) if callable(b) else 10 - b,
                                      (lambda y: 10 - a(y)) if callable(a) else 10 - a)
     panel("Side_Front_" + side, hull_loop, *span(2, 3), Y_NOSE, -1.00, HULL_Y, B, hull_paint, hull_centre, LOW_BAND,
-          gap_s=(False, True))
+          canard_cuts, gap_s=(False, True))
     panel("Side_Mid_" + side, hull_loop, *span(2, 3), -1.00, 1.00, HULL_Y, B, hull_paint, hull_centre, LOW_BAND,
           slots + vent_cuts)
     panel("Side_Rear_" + side, hull_loop, *span(2, 3), 1.00, Y_HULL, HULL_Y, B, hull_paint, hull_centre, LOW_BAND,
@@ -396,7 +427,7 @@ panel("Belly_Front", hull_loop, 9, 11, Y_NOSE, Y_STEP0, HULL_Y, B, lambda c, n: 
       holes=front_cuts, gap_s=(False, True))
 panel("Belly_Rear", hull_loop, 9, 11, Y_STEP1, Y_HULL, HULL_Y, B, lambda c, n: "Graphite", hull_centre)
 slab("Hull_Rear", hull_loop(Y_HULL), Y_HULL, Y_HULL + SKIN, "Ceramic", B)
-drop(slots + vent_cuts + front_cuts + [grille_cut])
+drop(slots + vent_cuts + front_cuts + canard_cuts + [grille_cut])
 
 # ---- cabin with flush windows; boom with the hazard-striped tail, its engine inside, shark fin on top
 C = G["Cockpit_Cell"]
@@ -415,10 +446,11 @@ M = G["Boom"]
 slab("Boom_Front", boom_loop(Y_BOOM0), Y_BOOM0 - SKIN, Y_BOOM0, "Paint_Black", M)
 panel("Boom_Top", boom_loop, 1, 5, Y_BOOM0, Y_END, BOOM_ST, M, boom_paint, block_centre, BOOM_STRIPES,
       gap_s=(True, False))
-panel("Boom_Side_R", boom_loop, 0, 1, Y_BOOM0, Y_END, BOOM_ST, M, boom_paint, block_centre, BOOM_STRIPES,
+panel("Boom_Side_R", boom_loop, 0, 1, Y_BOOM0, Y_END, BOOM_ST, M, boom_paint, block_centre, BOOM_STRIPES, arm_cuts,
       gap_s=(True, False))
-panel("Boom_Side_L", boom_loop, 5, 6, Y_BOOM0, Y_END, BOOM_ST, M, boom_paint, block_centre, BOOM_STRIPES,
+panel("Boom_Side_L", boom_loop, 5, 6, Y_BOOM0, Y_END, BOOM_ST, M, boom_paint, block_centre, BOOM_STRIPES, arm_cuts,
       gap_s=(True, False))
+drop(arm_cuts)
 bb = Part("Boom_Belly")
 bb.box((0, (Y_HULL + Y_END) / 2 + GAP / 2, boom_z0(Y_END) + SKIN / 2), (0.59, Y_END - Y_HULL - GAP, SKIN), "Graphite")
 bb.box((0, Y_END - 0.004, boom_z0(Y_END) + SKIN + 0.01), (0.16, 0.008, 0.012), "Emit_Red")   # tail light
@@ -465,11 +497,12 @@ for s, side in ((-1, "L"), (1, "R")):
         gr.box((x0, -0.43, POD_Z - 0.20 + k * 0.066), (0.38, 0.03, 0.006), "Graphite",
                Matrix.Rotation(math.radians(30), 3, 'X'))
     gr.finish(gp)
-    py = Part("Pylons_" + side)
-    for y in (0.15, 1.05):
-        py.box((s * 0.745, y, 1.10), (0.24, 0.24, 0.12), "Paint_Black")
-        py.box((s * 0.80, y, 1.165), (0.06, 0.30, 0.012), "Metal")                         # clamp on the pod
-    py.finish(gp, bevel=0.003)
+    cl = Part("Pod_Clamp_" + side)                                                     # the pod hangs from the arm
+    cl.box((x0, 0.10, POD_Z + 0.265), (0.26, 0.70, 0.012), "Metal")
+    for y in (-0.15, 0.35):
+        for dx in (-0.09, 0.09):
+            cl.cyl((x0 + dx, y, POD_Z + 0.271), (x0 + dx, y, POD_Z + 0.279), 0.012, "Metal_Bright", 8)
+    cl.finish(gp)
 
 # ---- cargo and tank module under the rear: grey box with straps, latches, tanks inside, mounted on rails
 CG = G["Cargo"]
