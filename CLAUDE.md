@@ -21,6 +21,29 @@ PR estiver fundido):
 2. No log, ver as linhas `SHIPBOUNDS`: nariz em −Y, comprimentos de ~5,8 a 7,3 m.
 3. Testar no jogo (trocar de nave) e fazer commit dos `.uasset` de `Content/TestShips`.
 
+## PARA FAZER EM CASA / NO PC COM O UNREAL (lista da sessão da nuvem, 2026-10-21)
+
+Feito na nuvem (sem Unreal), em `Scripts/sculpt_expedition_ab.py`, testado só a 10 m: túnel The Hollow em arco liso e
+largo, rochas a 30 m ou mais da pista, estradas de 56-64 m (6-7 naves lado a lado, grelha 3 × 6), variável
+`AB_ONLY=08_caverna,07_wash` para tirar só algumas fotos. Detalhes em `Docs/PISTA_AB_RED_DUST_DIVIDE.md`.
+
+1. **Juntar o trabalho do PC do trabalho.** A outra sessão (a de 21 de outubro, ~50 %) mexeu em
+   `sculpt_expedition_ab.py`, `EXDesertBuilder.cpp` (luzes do túnel nas balizas), `make_ground_material.py`,
+   `make_rock_material.py` e neste `CLAUDE.md`, e **não fez push**. Fazer push dela, fundir com o ramo `ccr-6888126d-pxbtcg`
+   (PR #3) e resolver os conflitos no script: manter o arco liso do túnel (`tunnel_walls`, `CAVE_EDGE`, `cave_roof`),
+   `TRACK_CLEAR` e as larguras da lista `SECTORS`; do resto aceitar o que ela fez.
+2. **Gerar a 3 m** (`blender -b -P Scripts/sculpt_expedition_ab.py -- C:/rdd/ab 3 kit=... molds=... plants=... ship=...`),
+   ver as fotos de piloto, sobretudo `ab_08_caverna` e `ab_01_partida`, e exportar/importar/montar o mapa
+   (`export_ab_unreal.py`, `import_world.py`, `EXDesertBuilder.build_world_map`).
+3. **Ver o túnel dentro do Unreal:** o teto `caves/*.fbx` faz agora também as paredes (arco de meia elipse); o chão do
+   túnel é só chão. Confirmar colisão (complexa) do teto, luz e claraboias (são aberturas na malha), e que a nave passa
+   a ~500 km/h sem raspar. Se a malha der trabalho, aumentar `CAVE_EDGE` ou o número de pontos laterais do `cave_roof`.
+4. **Naves:** correr `Scripts/import_test_ships.py` (ver acima). Falta a BASTION (o jogador manda as imagens).
+5. **Modos de jogo:** implementar `Docs/MODOS_DE_JOGO.md` (solo, 15 bots, vidas por nave, kit médico de 3 usos só
+   para o jogador), depois de perguntar o que está na secção 9 desse documento.
+6. **Mar de dunas** (pedido anterior, por fazer): ampliar o deserto e deixar estruturas de canyon soterradas na areia;
+   precisa do núcleo do mundo (`C:/rdd/mapa`), que só existe nos PCs do jogador.
+
 ## MODOS DE JOGO PEDIDOS (ainda por fazer): ver `Docs/MODOS_DE_JOGO.md`
 
 Modo solo, e modo contra 15 bots em que só contam na meta as naves que sobrevivem. As naves têm vidas consoante as
