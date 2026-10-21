@@ -6,6 +6,27 @@ Jogo de corrida de naves antigravidade (Unreal Engine, `ExtractingStardust.uproj
 
 O jogador fala português (PT). Responder em português.
 
+## NAVES NOVAS: falta pô-las no Unreal (2026-10-21)
+
+As naves STRIX, WRAITH, NOMAD e VORTEX foram refeitas de dentro para fora (PR #3, ramo `ccr-6888126d-pxbtcg`) e
+substituem as antigas. Os FBX novos estão em `SourceArt/TestShips/<nave>.fbx`; as regras e cada nave estão em
+`Docs/NAVES_REGRAS.md` e `Docs/<NAVE>_CATEGORIA.md`. **Falta a BASTION**: será o contrário da VORTEX (a VORTEX tem
+tudo embutido numa asa; a BASTION terá tudo embutido num motor grande). O jogador manda as imagens de referência.
+
+Para aparecerem no jogo (no PC com o Unreal, depois do `git pull` desse ramo, ou do `extracting-stardust` quando o
+PR estiver fundido):
+1. Abrir o projeto no editor e correr `Scripts/import_test_ships.py` (Tools → Execute Python Script), ou na linha
+   de comandos: `UnrealEditor.exe <caminho>/ExtractingStardust.uproject -ExecutePythonScript=<caminho>/Scripts/import_test_ships.py`.
+   Reimporta `/Game/TestShips/SM_*`, que o `EXHoverCraft` já usa.
+2. No log, ver as linhas `SHIPBOUNDS`: nariz em −Y, comprimentos de ~5,8 a 7,3 m.
+3. Testar no jogo (trocar de nave) e fazer commit dos `.uasset` de `Content/TestShips`.
+
+## MODOS DE JOGO PEDIDOS (ainda por fazer): ver `Docs/MODOS_DE_JOGO.md`
+
+Modo solo, e modo contra 15 bots em que só contam na meta as naves que sobrevivem. As naves têm vidas consoante as
+características (a VORTEX é a mais rápida e a mais frágil), e o jogador tem um kit médico de 3 usos que os bots não
+têm.
+
 ## PRIORIDADE ATUAL (2026-10-20): EXPEDIÇÃO DE A A B — `Scripts/sculpt_expedition_ab.py`
 
 O jogador experimentou no Unreal o mundo de 10 × 8 km com o grande circuito e não gostou:
