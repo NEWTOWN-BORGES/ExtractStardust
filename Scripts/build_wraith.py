@@ -42,14 +42,15 @@ G = {n: group(n, ROOT) for n in ("Structural_Core", "Arm_L", "Arm_R", "Cockpit_C
 B = G["Body"]
 
 # ---------------------------------------------------------------- lines
-#        y      xi    xo    zb    zt      (arms lying: inner flat wall at xi, rounded outer side reaching xo; high off the
-#                                         ground like wings, the tops level with the cockpit pod at the root)
+#        y      xi    xo    zb    zt      (arms: inner flat wall at xi, rounded outer side reaching xo; seen from the side
+#                                         as thick as the chassis at the root, tapering to the tip with the belly
+#                                         rising - the tip is thin and high, lying like a wing)
 ARM = [(-3.25, .520, .760, .500, .660),
-       (-2.60, .470, .800, .510, .720),
-       (-1.20, .420, .830, .520, .790),
-       (0.40, .400, .840, .540, .840)]
+       (-2.60, .470, .800, .460, .720),
+       (-1.20, .420, .830, .360, .800),
+       (0.40, .400, .840, .260, .840)]
 ARM_C = 0.02                        # chamfer of the inner wall's edges
-ARM_ROUND = 1.1                     # outer side: half ellipse, horizontal radius = 1.1 x half the height
+ARM_ROUND = 1.1                     # outer side: half ellipse, horizontal radius = 1.1 x half the height (max 0.22 m)
 #         y     w     zb    cb    zs    ct    zt         (the bridge at the base of the U and the rear body)
 BODY = [(0.40, .840, .260, .050, .740, .090, .840),
         (1.40, .860, .270, .050, .760, .120, .860),
@@ -69,7 +70,7 @@ Y_JOIN, Y_SPINE, Y_TAIL = 0.40, 2.00, 2.70
 
 def arm(y):
     xi, xo, zb, zt = table(ARM, y)
-    rx = ARM_ROUND * (zt - zb) / 2
+    rx = min(ARM_ROUND * (zt - zb) / 2, 0.22)
     return {"xi": xi, "xo": xo, "zb": zb, "zt": zt, "xc": (xi + xo) / 2, "w": (xo - xi) / 2, "zm": (zb + zt) / 2,
             "rx": rx, "xb": (xi + ARM_C + xo - rx) / 2, "wb": (xo - rx - xi - ARM_C) / 2}
 
@@ -83,16 +84,16 @@ def pod(y):
 
 
 def arm_loop(s):
-    """Lying arm section, from the bottom under the arm centre round the outer side (counter-clockwise for the right arm;
+    """Arm section, from the middle of the flat belly round the outer side (counter-clockwise for the right arm;
     the left arm is its mirror): t 0..1 belly, 1..9 the rounded outer side, 9..11 top, 11..14 the flat inner wall with
     its chamfers, 14..15 belly."""
     def f(y):
         a = arm(y)
         xr, rz = a["xo"] - a["rx"], (a["zt"] - a["zb"]) / 2
-        L = [(a["xc"], a["zb"]), (xr, a["zb"])]
+        L = [(a["xb"], a["zb"]), (xr, a["zb"])]
         L += [(xr + a["rx"] * math.cos(th), a["zm"] + rz * math.sin(th))
               for th in (math.radians(-90 + 22.5 * k) for k in range(1, 8))]
-        L += [(xr, a["zt"]), (a["xc"], a["zt"]), (a["xi"] + ARM_C, a["zt"]), (a["xi"], a["zt"] - ARM_C),
+        L += [(xr, a["zt"]), (a["xb"], a["zt"]), (a["xi"] + ARM_C, a["zt"]), (a["xi"], a["zt"] - ARM_C),
               (a["xi"], a["zb"] + ARM_C), (a["xi"] + ARM_C, a["zb"])]
         return [(s * x, z) for x, z in L]
     return f

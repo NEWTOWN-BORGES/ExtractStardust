@@ -21,16 +21,17 @@ Unreal, correr `Scripts/import_test_ships.py` no editor (reimporta `SM_WRAITH`).
   motores e **duas barbatanas de tubarão** compridas (ver `Docs/NAVES_REGRAS.md`).
 - Pintura **verde com branco** e faixas amarelas (2026-10-21: "já temos laranjas a mais"), decalques próprios
   (WRAITH, 13, emblema da liga).
-- **Braços deitados** (2026-10-21): mais largos do que altos e altos em relação ao chão, como asas; o lado **liso
-  para dentro** (para o cockpit) e o lado **redondo para fora**, o esquerdo espelho do direito. As asas e as
+- **Braços deitados** (2026-10-21): o lado **liso para dentro** (para o cockpit) e o lado **redondo para fora**, o
+  esquerdo espelho do direito. Vistos de lado têm na raiz **a grossura do chassi** e vão afunilando até à ponta,
+  com a barriga a subir: a ponta fica fina e alta, deitada como uma asa. As asas e as
   barbatanas ficaram iguais.
 - Sem lâminas nem espetos (as "lâminas" do PDF são os próprios braços); barbatanas só as de tubarão na traseira.
 
 ## Padrão da categoria WRAITH
 
 1. Planta em forquilha (U): dois braços compridos e baixos para a frente, espaço vazio entre eles.
-2. Braços deitados (secção em D: parede lisa por dentro, meia elipse por fora), com o topo ao nível do cockpit na
-   raiz, a afinar e a baixar para a frente; boca na ponta, com grelha.
+2. Braços em D (parede lisa por dentro, meia elipse por fora), da grossura do chassi na raiz, a afunilar para a
+   ponta com a barriga a subir; boca na ponta, com grelha.
 3. Cápsula do cockpit estreita ao centro, na base do U, com o vidro embutido no topo e o piloto sentado baixo.
 4. Traseira que afunila para a capa dos motores (caixa deitada de cantos arredondados, com os três motores de
    plasma lá dentro); barbatanas de tubarão por cima.
