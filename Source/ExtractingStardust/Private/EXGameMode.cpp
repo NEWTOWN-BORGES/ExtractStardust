@@ -61,10 +61,21 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 	{
 		if (AEXRaceDirector* Race = World->SpawnActor<AEXRaceDirector>(FVector::ZeroVector, FRotator::ZeroRotator, Params))
 		{
-			int32 Bots = 15;
-			FParse::Value(FCommandLine::Get(), TEXT("EXBots="), Bots);
-			Race->Configure(ModeName.Equals(TEXT("Bots"), ESearchCase::IgnoreCase) ? EEXRaceMode::Bots : EEXRaceMode::Solo,
-				FMath::Clamp(Bots, 0, 17));
+			if (ModeName.Equals(TEXT("Hangar"), ESearchCase::IgnoreCase))
+			{
+				Race->Configure(EEXRaceMode::Hangar, 0);
+				if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(World, 0)))
+				{
+					Player->EnterHangar();
+				}
+			}
+			else
+			{
+				int32 Bots = 15;
+				FParse::Value(FCommandLine::Get(), TEXT("EXBots="), Bots);
+				Race->Configure(ModeName.Equals(TEXT("Bots"), ESearchCase::IgnoreCase) ? EEXRaceMode::Bots : EEXRaceMode::Solo,
+					FMath::Clamp(Bots, 0, 17));
+			}
 		}
 	}
 }

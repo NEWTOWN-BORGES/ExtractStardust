@@ -205,6 +205,11 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction(TEXT("MenuUp"), IE_Pressed, this, &AEXHoverCraft::MenuUp);
 	PlayerInputComponent->BindAction(TEXT("MenuDown"), IE_Pressed, this, &AEXHoverCraft::MenuDown);
 	PlayerInputComponent->BindAction(TEXT("MenuConfirm"), IE_Pressed, this, &AEXHoverCraft::MenuConfirm);
+	PlayerInputComponent->BindAxis(TEXT("HangarPitch"), this, &AEXHoverCraft::InputHangarPitch);
+	PlayerInputComponent->BindAction(TEXT("HangarZoomIn"), IE_Pressed, this, &AEXHoverCraft::HangarZoomIn);
+	PlayerInputComponent->BindAction(TEXT("HangarZoomOut"), IE_Pressed, this, &AEXHoverCraft::HangarZoomOut);
+	PlayerInputComponent->BindAction(TEXT("HangarToggleAuto"), IE_Pressed, this, &AEXHoverCraft::HangarToggleAutoRotate);
+	PlayerInputComponent->BindAction(TEXT("HangarBack"), IE_Pressed, this, &AEXHoverCraft::HangarBack);
 }
 
 void AEXHoverCraft::Tick(float DeltaSeconds)
@@ -212,6 +217,11 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (bEliminated)
 	{
+		return;
+	}
+	if (bInHangar)
+	{
+		UpdateHangar(DeltaSeconds);
 		return;
 	}
 	HitCooldown = FMath::Max(0.0f, HitCooldown - DeltaSeconds);
@@ -836,6 +846,14 @@ void AEXHoverCraft::Eliminate()
 
 void AEXHoverCraft::SendMenu(int32 Step)
 {
+	if (bInHangar)
+	{
+		if (Step == 0)
+		{
+			HangarConfirm();
+		}
+		return;
+	}
 	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
 	{
 		It->MenuInput(Step);
@@ -930,6 +948,11 @@ void AEXHoverCraft::DriveBot(float Dt)
 
 void AEXHoverCraft::QuitPressed()
 {
+	if (bInHangar)
+	{
+		HangarBack();
+		return;
+	}
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
 		PlayerController->ConsoleCommand(TEXT("quit"));
@@ -1180,5 +1203,135 @@ void AEXHoverCraft::RunFlightTest(float Dt)
 	{
 		UE_LOG(LogTemp, Display, TEXT("EXFLIGHT DONE"));
 		FPlatformMisc::RequestExit(false);
+	}
+}
+
+
+void AEXHoverCraft::EnterHangar()
+{
+	bInHangar = true;
+	bRaceHold = true;
+	bShipLocked = false;
+	VelocityCmps = FVector::ZeroVector;
+	ForwardSpeedMps = 0.0f;
+	LateralSpeedMps = 0.0f;
+	HangarOrbitYaw = 40.0f;
+	HangarOrbitPitch = 14.0f;
+	HangarOrbitDist = 680.0f;
+	bHangarAutoRotate = true;
+	HangarIdleTime = 0.0f;
+	HoverBobTime = 0.0f;
+	if (Camera)
+	{
+		Camera->SetUsingAbsoluteLocation(true);
+		Camera->SetUsingAbsoluteRotation(true);
+	}
+}
+
+void AEXHoverCraft::ExitHangar()
+{
+	bInHangar = false;
+	bCamInitialized = false;
+	if (VisualPivot)
+	{
+		VisualPivot->SetRelativeLocation(FVector::ZeroVector);
+		VisualPivot->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+}
+
+void AEXHoverCraft::UpdateHangar(float Dt)
+{
+	const float YawDelta = SteerInput * 90.0f + LookYawInput * 120.0f;
+	const float PitchDelta = (ThrottleInput - BrakeInput + HangarPitchInput) * 50.0f;
+	if (!FMath::IsNearlyZero(YawDelta) || !FMath::IsNearlyZero(PitchDelta))
+	{
+		bHangarAutoRotate = false;
+		HangarIdleTime = 0.0f;
+		HangarOrbitYaw += YawDelta * Dt;
+		HangarOrbitPitch = FMath::Clamp(HangarOrbitPitch + PitchDelta * Dt, -10.0f, 75.0f);
+	}
+	else
+	{
+		HangarIdleTime += Dt;
+		if (HangarIdleTime > 4.0f)
+		{
+			bHangarAutoRotate = true;
+		}
+	}
+
+	if (bHangarAutoRotate)
+	{
+		HangarOrbitYaw += 16.0f * Dt;
+	}
+	HangarOrbitYaw = FMath::Fmod(HangarOrbitYaw, 360.0f);
+
+	HoverBobTime += Dt;
+	const float BobZ = FMath::Sin(HoverBobTime * 1.6f) * 4.0f;
+	VisualRoll = FMath::FInterpTo(VisualRoll, 0.0f, Dt, 6.0f);
+	VisualPitch = FMath::FInterpTo(VisualPitch, 0.0f, Dt, 6.0f);
+	VisualYaw = FMath::FInterpTo(VisualYaw, 0.0f, Dt, 6.0f);
+	if (VisualPivot)
+	{
+		VisualPivot->SetRelativeLocation(FVector(0.0f, 0.0f, BobZ));
+		VisualPivot->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+
+	const FRotator OrbitRot(HangarOrbitPitch, HangarOrbitYaw, 0.0f);
+	const FVector TargetFocus = GetActorLocation() + FVector(0.0f, 0.0f, 35.0f);
+	const FVector CamLoc = TargetFocus - OrbitRot.Vector() * HangarOrbitDist;
+	Camera->SetWorldLocationAndRotation(CamLoc, OrbitRot);
+	Camera->SetFieldOfView(58.0f);
+}
+
+void AEXHoverCraft::HangarZoomIn()
+{
+	if (bInHangar)
+	{
+		HangarOrbitDist = FMath::Clamp(HangarOrbitDist - 40.0f, 320.0f, 1400.0f);
+	}
+}
+
+void AEXHoverCraft::HangarZoomOut()
+{
+	if (bInHangar)
+	{
+		HangarOrbitDist = FMath::Clamp(HangarOrbitDist + 40.0f, 320.0f, 1400.0f);
+	}
+}
+
+void AEXHoverCraft::HangarToggleAutoRotate()
+{
+	if (bInHangar)
+	{
+		bHangarAutoRotate = !bHangarAutoRotate;
+		HangarIdleTime = 0.0f;
+	}
+}
+
+void AEXHoverCraft::HangarBack()
+{
+	if (!bInHangar)
+	{
+		return;
+	}
+	ExitHangar();
+	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
+	{
+		It->OpenMenu();
+		break;
+	}
+}
+
+void AEXHoverCraft::HangarConfirm()
+{
+	if (!bInHangar)
+	{
+		return;
+	}
+	ExitHangar();
+	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
+	{
+		It->OpenMenu();
+		break;
 	}
 }

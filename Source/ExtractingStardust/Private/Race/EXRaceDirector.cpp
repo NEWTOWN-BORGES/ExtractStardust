@@ -37,7 +37,7 @@ AEXRaceDirector::AEXRaceDirector()
 void AEXRaceDirector::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (bMenu)
+	if (bMenu || Mode == EEXRaceMode::Hangar)
 	{
 		// The craft waits on the start while the player chooses (the ship can be changed from the menu too).
 		if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0)))
@@ -131,10 +131,20 @@ void AEXRaceDirector::MenuInput(int32 Step)
 	}
 	if (Step != 0)
 	{
-		MenuChoice = (MenuChoice + Step + 3) % 3;
+		MenuChoice = (MenuChoice + Step + 4) % 4;
 		return;
 	}
 	bMenu = false;
+	if (MenuChoice == 3)
+	{
+		// Hangar showroom: 360 orbital camera, tech specs card, ship switching
+		Mode = EEXRaceMode::Hangar;
+		if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0)))
+		{
+			Player->EnterHangar();
+		}
+		return;
+	}
 	if (MenuChoice == 2)
 	{
 		// Free flight: no race, no lives; the director goes away.
@@ -290,3 +300,4 @@ void AEXRaceDirector::Finish()
 		UE_LOG(LogTemp, Display, TEXT("EXRACE RESULT %2d %s %s"), Place + 1, *Racer.Name, *Result);
 	}
 }
+

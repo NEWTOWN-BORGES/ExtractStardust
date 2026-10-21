@@ -151,3 +151,23 @@ Os limiares de embate e de aterragem também mudam por nave (a VORTEX parte com 
 - Se as naves se tocam ou se atravessam.
 - Se os bots escolhem nave ao acaso ou de forma equilibrada.
 - Se há tempo limite por portão (nada disso foi pedido: a eliminação é só pelas vidas).
+
+## 10. Hangar / Showroom 3D de Naves
+
+Modo dedicado para inspeção visual detalhada e especificações de engenharia de cada modelo:
+
+- **Acesso:**
+  - Opção **HANGAR (visualizar naves)** no Menu Inicial ao abrir o jogo;
+  - Ou via comando: `powershell -ExecutionPolicy Bypass -File Scripts\jogar.ps1 -Modo Hangar`.
+
+- **Controlos da Câmara Orbital 360°:**
+  - **Girar 360°:** Rato, `A`/`D` ou analógico direito do comando.
+  - **Inclinar (Pitch):** `W`/`S` ou analógico vertical (-10° a +75°).
+  - **Zoom In/Out:** Roda do rato, `PageUp`/`PageDown` ou gatilhos/ombros do comando (distância de 3.2m a 14.0m).
+  - **Auto-Rotação (Turntable):** Rotação suave contínua a 16°/s quando inativo (ativa/desativa com `Espaço`).
+  - **Trocar de Nave:** `Tab`, setas `←`/`→`, cruzeta ou teclas numéricas `1` a `5`.
+  - **Ações:** `Enter` ou `X` confirma e regressa ao menu/corrida; `Esc` ou botão direito/círculo volta ao menu.
+
+- **Ficha Técnica Integrada no HUD:**
+  - Mostra classe, motor de plasma, blindagem e dimensões reais de cada nave (STRIX, WRAITH, NOMAD, VORTEX, BASTION).
+  - Barras visuais comparativas de Velocidade Máxima, Aceleração, Vidas/Blindagem e Agilidade/Drift.

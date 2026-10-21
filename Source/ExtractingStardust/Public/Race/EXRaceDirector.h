@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -6,12 +6,13 @@
 
 class AEXHoverCraft;
 
-/** The two game modes (Docs/MODOS_DE_JOGO.md): alone against the clock, or against 15 bots. */
+/** The game modes (Docs/MODOS_DE_JOGO.md): alone against the clock, against 15 bots, or the hangar showroom. */
 UENUM()
 enum class EEXRaceMode : uint8
 {
 	Solo,
-	Bots
+	Bots,
+	Hangar
 };
 
 /** One craft in the race, for the standings and the HUD. */
@@ -36,9 +37,7 @@ struct FEXRacer
  * Runs a race from A to B on a map with a race line (spline tagged EXRoute): the grid (3 rows of 6 at the start of
  * the line), the countdown, lives and the medical kit on every craft (the kit only for the player), the 15 bots in the
  * Bots mode, eliminations, the finish at the end of the line and the standings: the survivors by finishing time, then
- * the ones left on the way by how far they got.
- * Spawned by AEXGameMode when the map URL has ?Mode=Solo or ?Mode=Bots (or the command line -EXMode=Solo / Bots).
- * With -EXRaceTest the player's craft drives itself too and the game quits after the results (log lines EXRACE).
+ * the ones left on the way by how far they got. Also manages the start menu and the Hangar showroom mode.
  */
 UCLASS()
 class EXTRACTINGSTARDUST_API AEXRaceDirector : public AActor
@@ -51,10 +50,10 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	void Configure(EEXRaceMode InMode, int32 InBots) { Mode = InMode; BotCount = InBots; }
-	/** Start on the menu (the game opened without a mode): SOLO / CONTRA BOTS / VOO LIVRE. */
+	/** Start on the menu (the game opened without a mode): SOLO / CONTRA BOTS / VOO LIVRE / HANGAR. */
 	void OpenMenu() { bMenu = true; }
 	bool IsInMenu() const { return bMenu; }
-	/** The highlighted menu line: 0 solo, 1 bots, 2 free flight. */
+	/** The highlighted menu line: 0 solo, 1 bots, 2 free flight, 3 hangar. */
 	int32 GetMenuChoice() const { return MenuChoice; }
 	/** From the player's craft: -1 up, +1 down, 0 confirm. */
 	void MenuInput(int32 Step);

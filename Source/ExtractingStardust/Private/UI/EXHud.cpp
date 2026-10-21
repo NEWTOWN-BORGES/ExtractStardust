@@ -33,6 +33,11 @@ void AEXHud::DrawHUD()
 		Race = *It;
 		break;
 	}
+	if (Craft->IsInHangar())
+	{
+		DrawHangar(Race, Craft);
+		return;
+	}
 	if (Race && Race->IsInMenu())
 	{
 		DrawMenu(Race, Craft);
@@ -245,15 +250,20 @@ void AEXHud::DrawMenu(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 {
 	const float Scale = Canvas->ClipY / 720.0f;
 	const float Mid = Canvas->ClipX * 0.5f;
-	const float W = 520.0f * Scale;
-	float Y = Canvas->ClipY * 0.22f;
-	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.6f), Mid - W * 0.5f, Y - 20.0f * Scale, W, 400.0f * Scale);
+	const float W = 540.0f * Scale;
+	float Y = Canvas->ClipY * 0.20f;
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.65f), Mid - W * 0.5f, Y - 20.0f * Scale, W, 450.0f * Scale);
 	DrawText(TEXT("EXTRACTING STARDUST"), FLinearColor(1.0f, 0.85f, 0.2f), Mid - 150.0f * Scale, Y, nullptr, 1.8f * Scale);
 	Y += 40.0f * Scale;
 	DrawText(TEXT("Red Dust Divide - de A a B"), FLinearColor(0.85f, 0.85f, 0.85f), Mid - 110.0f * Scale, Y, nullptr, 1.1f * Scale);
-	Y += 50.0f * Scale;
-	static const TCHAR* Lines[3] = { TEXT("SOLO  (contra o relogio)"), TEXT("CONTRA 15 BOTS"), TEXT("VOO LIVRE") };
-	for (int32 Line = 0; Line < 3; ++Line)
+	Y += 46.0f * Scale;
+	static const TCHAR* Lines[4] = {
+		TEXT("SOLO  (contra o relogio)"),
+		TEXT("CONTRA 15 BOTS"),
+		TEXT("VOO LIVRE"),
+		TEXT("HANGAR  (visualizar naves)")
+	};
+	for (int32 Line = 0; Line < 4; ++Line)
 	{
 		const bool bOn = Race->GetMenuChoice() == Line;
 		if (bOn)
@@ -261,13 +271,134 @@ void AEXHud::DrawMenu(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 			DrawRect(FLinearColor(0.3f, 1.0f, 0.4f, 0.25f), Mid - W * 0.5f + 30.0f * Scale, Y - 4.0f * Scale, W - 60.0f * Scale, 36.0f * Scale);
 		}
 		DrawText(FString::Printf(TEXT("%s%s"), bOn ? TEXT("> ") : TEXT("  "), Lines[Line]), bOn ? FLinearColor(0.3f, 1.0f, 0.4f) : FLinearColor::White,
-			Mid - W * 0.5f + 50.0f * Scale, Y, nullptr, 1.5f * Scale);
-		Y += 46.0f * Scale;
+			Mid - W * 0.5f + 50.0f * Scale, Y, nullptr, 1.45f * Scale);
+		Y += 44.0f * Scale;
 	}
-	Y += 16.0f * Scale;
+	Y += 14.0f * Scale;
 	DrawText(FString::Printf(TEXT("NAVE:  < %s >"), *Craft->GetShipName()), FLinearColor(1.0f, 0.9f, 0.6f), Mid - W * 0.5f + 50.0f * Scale, Y, nullptr,
 		1.4f * Scale);
-	Y += 50.0f * Scale;
-	DrawText(TEXT("Cima/baixo (W-S, setas, cruzeta): modo    Tab, 1-5 ou cruzeta esq./dir.: nave    Enter / X: comecar"),
-		FLinearColor(0.75f, 0.75f, 0.75f), Mid - W * 0.5f + 20.0f * Scale, Y, nullptr, 0.85f * Scale);
+	Y += 48.0f * Scale;
+	DrawText(TEXT("Cima/baixo (W-S, setas, cruzeta): modo    Tab, 1-5: nave    Enter / X: comecar"),
+		FLinearColor(0.75f, 0.75f, 0.75f), Mid - W * 0.5f + 20.0f * Scale, Y, nullptr, 0.82f * Scale);
+}
+
+void AEXHud::DrawStatBar(float X, float Y, float Width, float Height, float Percent, const FLinearColor& BarColor, const FString& Label, const FString& ValueStr)
+{
+	const float Scale = Canvas->ClipY / 720.0f;
+	DrawText(Label, FLinearColor(0.85f, 0.85f, 0.9f), X, Y - 18.0f * Scale, nullptr, 0.9f * Scale);
+	DrawText(ValueStr, FLinearColor(1.0f, 0.9f, 0.5f), X + Width - 75.0f * Scale, Y - 18.0f * Scale, nullptr, 0.9f * Scale);
+	DrawRect(FLinearColor(0.08f, 0.1f, 0.14f, 0.9f), X, Y, Width, Height);
+	const float ClampedPct = FMath::Clamp(Percent, 0.0f, 1.0f);
+	DrawRect(BarColor, X + 2.0f * Scale, Y + 2.0f * Scale, (Width - 4.0f * Scale) * ClampedPct, Height - 4.0f * Scale);
+}
+
+void AEXHud::DrawHangar(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
+{
+	const float Scale = Canvas->ClipY / 720.0f;
+	const FString ShipName = Craft->GetShipName().ToUpper();
+
+	// Top Title Bar
+	DrawRect(FLinearColor(0.015f, 0.02f, 0.035f, 0.85f), 0.0f, 0.0f, Canvas->ClipX, 56.0f * Scale);
+	DrawRect(FLinearColor(1.0f, 0.82f, 0.2f, 0.9f), 0.0f, 54.0f * Scale, Canvas->ClipX, 2.0f * Scale);
+	DrawText(TEXT("EXTRACTING STARDUST"), FLinearColor(1.0f, 0.85f, 0.2f), 30.0f * Scale, 12.0f * Scale, nullptr, 1.6f * Scale);
+	DrawText(TEXT("HANGAR SHOWROOM - INSPECAO TECNICA 360"), FLinearColor(0.85f, 0.85f, 0.85f), 280.0f * Scale, 18.0f * Scale, nullptr, 1.05f * Scale);
+
+	// Right Tech Sheet Card
+	const float CardW = 360.0f * Scale;
+	const float CardX = Canvas->ClipX - CardW - 30.0f * Scale;
+	const float CardY = 76.0f * Scale;
+	const float CardH = 570.0f * Scale;
+	DrawRect(FLinearColor(0.02f, 0.03f, 0.05f, 0.82f), CardX, CardY, CardW, CardH);
+	DrawRect(FLinearColor(0.25f, 0.45f, 0.7f, 0.6f), CardX, CardY, CardW, 2.0f * Scale);
+
+	float Y = CardY + 16.0f * Scale;
+	DrawText(TEXT("FICHA TECNICA DA NAVE"), FLinearColor(0.4f, 0.8f, 1.0f), CardX + 20.0f * Scale, Y, nullptr, 1.0f * Scale);
+	Y += 28.0f * Scale;
+	DrawText(ShipName, FLinearColor(1.0f, 0.9f, 0.3f), CardX + 20.0f * Scale, Y, nullptr, 1.9f * Scale);
+	Y += 36.0f * Scale;
+
+	FString RoleStr, EngineStr, SizeStr, ArmorStr;
+	float TopSpeedPct = 0.85f, AccelPct = 0.80f, ArmorPct = 0.70f, AgilityPct = 0.85f;
+	FString SpeedVal = TEXT("440 km/h"), AccelVal = TEXT("4.6 G"), ArmorVal = TEXT("3 VIDAS"), AgilityVal = TEXT("85%");
+
+	if (ShipName.Contains(TEXT("STRIX")))
+	{
+		RoleStr = TEXT("Interceptor de Linha - Equilibrado");
+		EngineStr = TEXT("2x Plasma Vectorial sobrepostos");
+		SizeStr = TEXT("6.31 m x 3.00 m x 1.39 m");
+		ArmorStr = TEXT("Carrocaria 12mm / Juntas 5mm");
+		TopSpeedPct = 0.88f; AccelPct = 0.85f; ArmorPct = 0.70f; AgilityPct = 0.88f;
+		SpeedVal = TEXT("450 km/h"); AccelVal = TEXT("4.8 G"); ArmorVal = TEXT("3 VIDAS"); AgilityVal = TEXT("88%");
+	}
+	else if (ShipName.Contains(TEXT("WRAITH")))
+	{
+		RoleStr = TEXT("Caca Pesado em U - Rapido");
+		EngineStr = TEXT("3x Plasma em capa transversal");
+		SizeStr = TEXT("6.45 m x 3.20 m x 1.42 m");
+		ArmorStr = TEXT("Quilhas de tubarao reforcadas");
+		TopSpeedPct = 0.92f; AccelPct = 0.82f; ArmorPct = 0.70f; AgilityPct = 0.80f;
+		SpeedVal = TEXT("470 km/h"); AccelVal = TEXT("4.5 G"); ArmorVal = TEXT("3 VIDAS"); AgilityVal = TEXT("80%");
+	}
+	else if (ShipName.Contains(TEXT("NOMAD")))
+	{
+		RoleStr = TEXT("Dropship Pesado - Alta Robustez");
+		EngineStr = TEXT("4x Capsulas plasma em bracos A");
+		SizeStr = TEXT("7.10 m x 3.80 m x 1.65 m");
+		ArmorStr = TEXT("Modulo de carga blindado");
+		TopSpeedPct = 0.78f; AccelPct = 0.72f; ArmorPct = 0.88f; AgilityPct = 0.72f;
+		SpeedVal = TEXT("390 km/h"); AccelVal = TEXT("4.0 G"); ArmorVal = TEXT("4 VIDAS"); AgilityVal = TEXT("72%");
+	}
+	else if (ShipName.Contains(TEXT("VORTEX")))
+	{
+		RoleStr = TEXT("Delta Ultra-Leve - Aceleracao Maxima");
+		EngineStr = TEXT("1x Plasma macico embutido na cauda");
+		SizeStr = TEXT("5.86 m x 3.32 m x 0.73 m");
+		ArmorStr = TEXT("Asa fina ultraleve (fragil)");
+		TopSpeedPct = 0.98f; AccelPct = 0.98f; ArmorPct = 0.45f; AgilityPct = 0.96f;
+		SpeedVal = TEXT("500 km/h"); AccelVal = TEXT("5.4 G"); ArmorVal = TEXT("2 VIDAS"); AgilityVal = TEXT("96%");
+	}
+	else // BASTION
+	{
+		RoleStr = TEXT("Blindado de Choque - Inquebravel");
+		EngineStr = TEXT("1x Motor Colossal de Fusao");
+		SizeStr = TEXT("6.80 m x 3.60 m x 1.80 m");
+		ArmorStr = TEXT("Placas de aco militar reforcado");
+		TopSpeedPct = 0.74f; AccelPct = 0.65f; ArmorPct = 1.0f; AgilityPct = 0.62f;
+		SpeedVal = TEXT("370 km/h"); AccelVal = TEXT("3.6 G"); ArmorVal = TEXT("5 VIDAS"); AgilityVal = TEXT("62%");
+	}
+
+	DrawText(RoleStr, FLinearColor(0.85f, 0.85f, 0.85f), CardX + 20.0f * Scale, Y, nullptr, 0.95f * Scale);
+	Y += 34.0f * Scale;
+
+	const float BarW = CardW - 40.0f * Scale;
+	const float BarH = 12.0f * Scale;
+	DrawStatBar(CardX + 20.0f * Scale, Y, BarW, BarH, TopSpeedPct, FLinearColor(0.2f, 0.7f, 1.0f), TEXT("VELOCIDADE DE PONTA"), SpeedVal);
+	Y += 46.0f * Scale;
+	DrawStatBar(CardX + 20.0f * Scale, Y, BarW, BarH, AccelPct, FLinearColor(0.3f, 1.0f, 0.5f), TEXT("ACELERACAO"), AccelVal);
+	Y += 46.0f * Scale;
+	DrawStatBar(CardX + 20.0f * Scale, Y, BarW, BarH, ArmorPct, FLinearColor(1.0f, 0.4f, 0.3f), TEXT("BLINDAGEM / VIDAS"), ArmorVal);
+	Y += 46.0f * Scale;
+	DrawStatBar(CardX + 20.0f * Scale, Y, BarW, BarH, AgilityPct, FLinearColor(1.0f, 0.8f, 0.2f), TEXT("MANOBRABILIDADE / DRIFT"), AgilityVal);
+	Y += 56.0f * Scale;
+
+	// Technical Details Box
+	DrawRect(FLinearColor(0.06f, 0.08f, 0.12f, 0.7f), CardX + 16.0f * Scale, Y, CardW - 32.0f * Scale, 140.0f * Scale);
+	DrawText(TEXT("ESPECIFICACOES DE ENGENHARIA"), FLinearColor(0.5f, 0.75f, 0.95f), CardX + 26.0f * Scale, Y + 10.0f * Scale, nullptr, 0.85f * Scale);
+	DrawText(FString::Printf(TEXT("Propulsao:  %s"), *EngineStr), FLinearColor(0.85f, 0.85f, 0.85f), CardX + 26.0f * Scale, Y + 34.0f * Scale, nullptr, 0.85f * Scale);
+	DrawText(FString::Printf(TEXT("Dimensoes:  %s"), *SizeStr), FLinearColor(0.85f, 0.85f, 0.85f), CardX + 26.0f * Scale, Y + 60.0f * Scale, nullptr, 0.85f * Scale);
+	DrawText(FString::Printf(TEXT("Blindagem:  %s"), *ArmorStr), FLinearColor(0.85f, 0.85f, 0.85f), CardX + 26.0f * Scale, Y + 86.0f * Scale, nullptr, 0.85f * Scale);
+	DrawText(TEXT("Suspensao:  Emissores Hover + Placa Gravitica"), FLinearColor(0.85f, 0.85f, 0.85f), CardX + 26.0f * Scale, Y + 112.0f * Scale, nullptr, 0.85f * Scale);
+
+	// Center Selector Bar
+	const float SelW = 340.0f * Scale;
+	const float SelX = (Canvas->ClipX - SelW) * 0.5f;
+	const float SelY = Canvas->ClipY - 110.0f * Scale;
+	DrawRect(FLinearColor(0.02f, 0.03f, 0.05f, 0.75f), SelX, SelY, SelW, 44.0f * Scale);
+	DrawText(FString::Printf(TEXT("<   %s   >"), *ShipName), FLinearColor(1.0f, 0.9f, 0.3f), SelX + 40.0f * Scale, SelY + 10.0f * Scale, nullptr, 1.4f * Scale);
+
+	// Bottom Controls Bar
+	DrawRect(FLinearColor(0.015f, 0.02f, 0.035f, 0.92f), 0.0f, Canvas->ClipY - 48.0f * Scale, Canvas->ClipX, 48.0f * Scale);
+	DrawRect(FLinearColor(0.2f, 0.5f, 0.8f, 0.7f), 0.0f, Canvas->ClipY - 48.0f * Scale, Canvas->ClipX, 1.5f * Scale);
+	DrawText(TEXT("A/D ou Rato: Girar 360    W/S: Inclinar    Roda: Zoom    Espaco: Auto-Rotacao    Tab / 1-5: Nave    Enter / X: Menu Principal    Esc: Voltar"),
+		FLinearColor(0.85f, 0.85f, 0.85f), 30.0f * Scale, Canvas->ClipY - 32.0f * Scale, nullptr, 0.88f * Scale);
 }

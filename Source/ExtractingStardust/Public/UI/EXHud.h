@@ -28,5 +28,8 @@ private:
 	void DrawRace(const class AEXRaceDirector* Race, const class AEXHoverCraft* Craft);
 	/** The start menu: mode and ship. */
 	void DrawMenu(const class AEXRaceDirector* Race, const class AEXHoverCraft* Craft);
+	/** The hangar showroom: 360 viewer, technical specs and ship inspection. */
+	void DrawHangar(const class AEXRaceDirector* Race, const class AEXHoverCraft* Craft);
+	void DrawStatBar(float X, float Y, float Width, float Height, float Percent, const FLinearColor& BarColor, const FString& Label, const FString& ValueStr);
 	void DrawArrow(const FVector2D& Center, float AngleDeg, float Size, const FLinearColor& Colour);
 };

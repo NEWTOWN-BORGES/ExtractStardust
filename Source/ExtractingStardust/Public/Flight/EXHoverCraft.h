@@ -135,6 +135,10 @@ public:
 	void SetBot(int32 InShipIndex, float InSkill, float InLaneM);
 	/** Holds the craft on the grid (countdown, after the finish). */
 	void SetRaceHold(bool bHold) { bRaceHold = bHold; }
+	/** Hangar showroom mode: 360 orbit camera, stats and ship visualizer. */
+	void EnterHangar();
+	void ExitHangar();
+	bool IsInHangar() const { return bInHangar; }
 	/** No more ship changes once the race is on. */
 	void LockShip() { bShipLocked = true; }
 	/** Puts the craft at a place and heading, at rest (grid slots, respawns). */
@@ -192,6 +196,13 @@ private:
 	void MenuUp() { SendMenu(-1); }
 	void MenuDown() { SendMenu(1); }
 	void MenuConfirm() { SendMenu(0); }
+	void UpdateHangar(float Dt);
+	void HangarZoomIn();
+	void HangarZoomOut();
+	void HangarToggleAutoRotate();
+	void HangarBack();
+	void HangarConfirm();
+	void InputHangarPitch(float Value) { HangarPitchInput = FMath::Clamp(Value, -1.0f, 1.0f); }
 	void SendMenu(int32 Step);
 	void DriveBot(float Dt);
 	void LoseLife();
@@ -244,4 +255,9 @@ private:
 	float HitCooldown = 0.0f, MedKitCooldown = 0.0f, LastHitTime = -1.0f, RaceProgressM = 0.0f;
 	float LastGroundZCm = 0.0f;
 	float BotSkill = 1.0f, BotLaneM = 0.0f, BotPhase = 0.0f, BotStuckSeconds = 0.0f, BotTime = 0.0f;
+
+	// Hangar mode state.
+	bool bInHangar = false, bHangarAutoRotate = true;
+	float HangarOrbitYaw = 40.0f, HangarOrbitPitch = 14.0f, HangarOrbitDist = 680.0f;
+	float HangarIdleTime = 0.0f, HangarPitchInput = 0.0f;
 };
