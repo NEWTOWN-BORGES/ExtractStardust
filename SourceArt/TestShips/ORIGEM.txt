@@ -4,3 +4,4 @@ strix.fbx (2026-10-20): substituído pela STRIX nova, gerada por Scripts/build_s
 strix.blend e previews/ saem do mesmo script.
 wraith.fbx (2026-10-21): substituído pela WRAITH nova, gerada por Scripts/build_wraith.py (ver Docs/WRAITH_CATEGORIA.md).
 nomad.fbx (2026-10-21): substituído pela NOMAD nova, gerada por Scripts/build_nomad.py (ver Docs/NOMAD_CATEGORIA.md).
+vortex.fbx (2026-10-21): substituído pela VORTEX nova, gerada por Scripts/build_vortex.py (ver Docs/VORTEX_CATEGORIA.md).
