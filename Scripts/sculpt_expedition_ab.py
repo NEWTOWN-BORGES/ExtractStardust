@@ -27,6 +27,7 @@ import bpy
 
 a = sys.argv[sys.argv.index("--") + 1:]
 OUT = a[0]
+ONLY = [o for o in os.environ.get("AB_ONLY", "").split(",") if o]  # only take the pictures whose name has one of these
 PLAN = "plan" in a
 CELL = float(next((v for v in a[1:] if v.replace(".", "", 1).isdigit()), 5.0))
 os.makedirs(OUT, exist_ok=True)
@@ -135,7 +136,7 @@ SECTORS = [
     ("S7 The Wash", "wash", 28.0, 200.0, (140.0, 1100.0),
      [(3500, 10000, 28), (2900, 9800, 27), (2250, 9150, 26), (1850, 8250, 25), (1800, 7250, 24), (2100, 6350, 22),
       (2400, 5650, 20)]),
-    ("S8 The Hollow", "cave", 14.0, 100.0, (60.0, 450.0),
+    ("S8 The Hollow", "cave", 22.0, 100.0, (60.0, 450.0),
      [(2650, 5150, 16), (2400, 4800, 12), (2900, 4500, 8), (2600, 4100, 4), (2950, 3700, 8), (2500, 3450, 40),
       (2150, 3350, 70)]),
     ("S9 Arches Run", "desert", 18.0, 160.0, (100.0, 800.0),
@@ -267,7 +268,7 @@ BRANCHES = [
     ("S5 RACING Fenda Larga", "slot", 14.0, 160.0, [("@", 7450, 9600), (6900, 9600), (6300, 9700), ("@", 5800, 9850)]),
     ("S5 SKILL Fenda Estreita", "slot", 6.0, 60.0, [("@", 7520, 9420), (7000, 9250), (6400, 9200), (5900, 9300), ("@", 5450, 9500)]),
     ("S6 SKILL Istmo", "slot", 7.0, 50.0, [("@", 5150, 8400), (4850, 8500), ("@", 4500, 8600)]),
-    ("S8 Braço da Caverna", "cave", 10.0, 80.0, [("@", 2420, 4780), (2150, 4350), (2350, 3900), ("@", 2700, 3600)]),
+    ("S8 Braço da Caverna", "cave", 16.0, 80.0, [("@", 2420, 4780), (2150, 4350), (2350, 3900), ("@", 2700, 3600)]),
     ("S9 SKILL Arcos", "surface", 9.0, 90.0, [("@", 2500, 560), (3000, 300), (3700, 650), ("@", 4300, 980)]),
     ("S10 SAFE Contorno", "surface", 16.0, 200.0, [("@", 8350, 2560), (8700, 3050), (9200, 2950), ("@", 9450, 2480)]),
 ]
@@ -735,6 +736,27 @@ for name, b in branches.items():
         wall = b["z"][np.clip(np.maximum(idx, 0) * 2, 0, n_ - 1)] + (d - b["w"]) * math.tan(math.radians(80.0))
         H = np.where((idx >= 0) & (d > b["w"]) & (d < b["w"] + 40), np.minimum(H, wall), H)
 carve(main, bed, half_w, kind, bank, curv, skip=skip)  # last, so no branch lifts the main line at a junction
+
+
+# Tunnel walls (The Hollow and its arm): the walls and the vault are one smooth arch made by cave_roof (a half ellipse
+# 22-28 m tall that meets the floor `CAVE_EDGE` m outside the floor edge). A heightfield cannot make a clean steep wall
+# (its triangles show as wedges), so the ground inside the arch is just the floor, level with the floor edge, and the
+# arch alone makes the walls: no stepped cliff, slab or wedge stands in the tunnel.
+def tunnel_walls(pts, z_, w_):
+    global H
+    d, idx = nearest(pts[::2], float(np.max(w_)) + CAVE_EDGE + 2 * CELL + 4)
+    i = np.clip(np.maximum(idx, 0) * 2, 0, len(pts) - 1)
+    wv = w_[i]
+    shelf = z_[i] + 4.0  # the floor's half-pipe edge
+    H = np.where((idx >= 0) & (d > wv) & (d < wv + CAVE_EDGE + 2 * CELL), shelf, H)
+
+
+CAVE_EDGE = 6.0  # the roof's arch starts this far outside the floor edge
+cv_ = np.flatnonzero(kind == "cave")
+tunnel_walls(main[cv_], bed[cv_], half_w[cv_])
+for name, b in branches.items():
+    if b["kind"] == "cave":
+        tunnel_walls(b["p"], b["z"], np.full(len(b["p"]), b["w"]))
 print("ROUTE CARVED", "lips", len(lips))
 
 # 5i. Lone spikes go (they render as sharp cones).
@@ -1017,12 +1039,12 @@ def cave_roof(name, p, w, bedv):
     nx_, ny_ = -t[:, 1], t[:, 0]
     q = np.arange(0, len(p), 3)
     L = np.linspace(-1.0, 1.0, 41)
-    ww = w[q][:, None] + 4.0
+    ww = w[q][:, None] + CAVE_EDGE
     x2 = p[q, None, 0] + L[None, :] * ww * nx_[q, None]
     y2 = p[q, None, 1] + L[None, :] * ww * ny_[q, None]
-    rough = 6.0 * fbm(x2.astype(np.float32), y2.astype(np.float32), 30, 2)
-    vault = 14.0 + 8.0 * np.clip(w[q] / 30.0, 0, 1)[:, None] + rough
-    under = bedv[q, None] + np.where(np.abs(L)[None, :] < 0.95, vault * np.sqrt(np.maximum(0.0, 1.0 - L[None, :] ** 2)) + 2.0, -1.0)
+    rough = 0.8 * fbm(x2.astype(np.float32), y2.astype(np.float32), 90, 1)  # a gentle swell, no ragged vault
+    vault = 22.0 + 6.0 * np.clip(w[q] / 30.0, 0, 1)[:, None] + rough  # clear height 22-28 m at the middle
+    under = bedv[q, None] + vault * np.sqrt(np.maximum(0.0, 1.0 - L[None, :] ** 2))
     top = np.maximum(bilinear(H_rock, x2, y2) + 0.15, under + 4.0)
     ns, nl = top.shape
     verts = np.concatenate([np.stack([x2 - hx, y2 - hy, top], -1).reshape(-1, 3), np.stack([x2 - hx, y2 - hy, under], -1).reshape(-1, 3)])
@@ -1182,6 +1204,14 @@ free_d = d_main - w_main
 for b in branches.values():
     d_b, i_b = nearest(b["p"][::4], 120)
     free_d = np.minimum(free_d, np.where(i_b >= 0, d_b - b["w"], 1e6))
+# Nothing at all in or beside the tunnels (the roof covers them; a prop there would stand inside the tunnel).
+d_cv, _i = nearest(main[cv_][::4], 200)
+free_d = np.where(d_cv < 120.0, -1.0, free_d)
+for b in branches.values():
+    if b["kind"] == "cave":
+        d_cb, _i = nearest(b["p"][::4], 200)
+        free_d = np.where(d_cb < 120.0, -1.0, free_d)
+TRACK_CLEAR = 30.0  # rocks, cliff faces and fins keep this far from the track edge (the track and its walls stay smooth)
 
 
 def clear_at(x, y, need):
@@ -1218,7 +1248,7 @@ for i in range(60, N - 60, step_i):
         if prng.random() < 0.25:
             continue
         foot = None
-        for l in np.arange(half_w[i] + 12.0, 320.0, 5.0):
+        for l in np.arange(half_w[i] + TRACK_CLEAR + 12.0, 320.0, 5.0):
             q = main[i] + nrm2 * side * l
             if not (0 < q[0] < SX and 0 < q[1] < SY):
                 break
@@ -1240,7 +1270,7 @@ for i in range(60, N - 60, step_i):
         sxy = float(prng.uniform(0.75, 1.35))
         yaw = math.degrees(math.atan2(tg[i, 1], tg[i, 0])) + (0.0 if side > 0 else 180.0) + float(prng.normal(0, 8))
         c = q + nrm2 * side * (10.0 * sxy)  # into the wall: its face stands at the foot
-        if not clear_at(c[0], c[1], 18.0):
+        if not clear_at(c[0], c[1], TRACK_CLEAR + 12.0):
             continue
         place(name, c[0], c[1], zf - 6.0 * sz, (float(prng.normal(0, 3)), float(prng.normal(0, 3)), yaw), (sxy, sxy * prng.uniform(0.8, 1.1), sz), "cliff")
         n_cliff += 1
@@ -1264,40 +1294,40 @@ def scatter(mask_, gap_m, count):
 
 BIG = ["SM_Kit_Boulder_Giant", "SM_Boulder_A", "SM_Boulder_B", "SM_Kit_FracturedBlock", "SM_Kit_Overhang", "SM_Kit_TableRock"]
 SMALL = ["SM_Kit_Stone_1", "SM_Kit_Stone_2", "SM_Kit_Stone_3", "SM_Kit_Stone_4", "SM_Boulder_C", "SM_Kit_FlatSlab"]
-talus_mask = (slope > 16) & (slope < 38) & (free_d > 10) & (d_main < 420)
+talus_mask = (slope > 16) & (slope < 38) & (free_d > TRACK_CLEAR) & (d_main < 420)
 for x, y in scatter(talus_mask, 34.0, 1800):
     big = BIG[int(prng.integers(len(BIG)))]
     s = float(prng.uniform(0.8, 2.6)) * (0.6 if big == "SM_Boulder_B" else 1.0)
     jit = prng.uniform(0.85, 1.18, 3)
-    if clear_at(x, y, 8.0 + 4.0 * s):
+    if clear_at(x, y, TRACK_CLEAR + 4.0 * s):
         place(big, x, y, float(bilinear(H, x, y)) - 0.25 * s, ground_tilt(x, y, prng.uniform(0, 360), 0.6, 10.0), tuple(s * jit), "talus")
     for _k in range(int(prng.integers(2, 7))):
         a_, r_ = prng.uniform(0, 2 * np.pi), prng.uniform(4.0, 16.0)
         x2, y2 = x + r_ * math.cos(a_), y + r_ * math.sin(a_)
-        if not clear_at(x2, y2, 4.0):
+        if not clear_at(x2, y2, TRACK_CLEAR - 4.0):
             continue
         s2 = float(prng.uniform(0.6, 2.2))
         place(SMALL[int(prng.integers(len(SMALL)))], x2, y2, float(bilinear(H, x2, y2)) - 0.15 * s2,
               ground_tilt(x2, y2, prng.uniform(0, 360), 0.8, 14.0), tuple(s2 * prng.uniform(0.85, 1.2, 3)), "talus")
 
 # 4. Loose stones on the floors near the line.
-floor_mask = (slope < 12) & (free_d > 6) & (d_main < 260) & (H < 300)
+floor_mask = (slope < 12) & (free_d > TRACK_CLEAR - 4.0) & (d_main < 260) & (H < 300)
 for x, y in scatter(floor_mask, 22.0, 2600):
     s = float(prng.uniform(0.5, 2.0))
     place(SMALL[int(prng.integers(4))], x, y, float(bilinear(H, x, y)) - 0.15 * s, ground_tilt(x, y, prng.uniform(0, 360), 0.9, 10.0),
           tuple(s * prng.uniform(0.85, 1.2, 3)), "stone")
 
 # 5. Slickrock slabs lying with the ground on the bench and the plateau.
-slab_mask = (slope < 10) & (H > 200) & (free_d > 12) & (d_main < 600)
+slab_mask = (slope < 10) & (H > 200) & (free_d > TRACK_CLEAR - 4.0) & (d_main < 600)
 for x, y in scatter(slab_mask, 60.0, 650):
     name = ["SM_Slab_A", "SM_Slab_B", "SM_Kit_FlatSlab"][int(prng.integers(3))]
     s = float(prng.uniform(0.4, 1.1)) if name != "SM_Kit_FlatSlab" else float(prng.uniform(2.0, 5.0))
-    if clear_at(x, y, 6.0 + 18.0 * s * (name != "SM_Kit_FlatSlab")):
+    if clear_at(x, y, TRACK_CLEAR - 4.0 + 18.0 * s * (name != "SM_Kit_FlatSlab")):
         place(name, x, y, float(bilinear(H, x, y)) - 0.6, ground_tilt(x, y, prng.uniform(0, 360), 1.0, 3.0),
               (s, s * prng.uniform(0.8, 1.2), s * prng.uniform(0.6, 1.4)), "slab")
 
 # 6. Fins and towers: rows of fins in the desert (Arches), towers on the bench.
-fin_mask = (d_basin <= 0) & (slope < 14) & (free_d > 25) & (d_main < 500)
+fin_mask = (d_basin <= 0) & (slope < 14) & (free_d > 2 * TRACK_CLEAR) & (d_main < 500)
 for x, y in scatter(fin_mask, 90.0, 160):
     yaw = 35.0 + float(prng.normal(0, 12))  # fins run in rows, as the joints in the sandstone do
     s = float(prng.uniform(1.6, 3.6))
@@ -1423,6 +1453,8 @@ def zline(p, i):
 
 
 def pilot(name, i, p=main, up=4.0, ahead=200, lens=22, look_up=0.0, craft=True):
+    if ONLY and not any(o in name for o in ONLY):
+        return
     i = int(np.clip(i, 0, len(p) - 2))
     j = int(min(len(p) - 1, i + ahead))
     eye = Vector((p[i, 0] - hx, p[i, 1] - hy, zline(p, i) + up))
@@ -1441,6 +1473,8 @@ def pilot(name, i, p=main, up=4.0, ahead=200, lens=22, look_up=0.0, craft=True):
 
 
 def aerial(name, eye_xy, up, tgt_xy, lens=28, tgt_up=0.0):
+    if ONLY and not any(o in name for o in ONLY):
+        return
     if ship is not None:
         ship.hide_render = True
     ex, ey = eye_xy

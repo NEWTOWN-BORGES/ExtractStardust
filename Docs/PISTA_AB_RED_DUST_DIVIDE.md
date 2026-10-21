@@ -74,6 +74,22 @@ Valley), fechada por falésias. À volta do mundo, cordilheiras mais altas fecha
 
 O total ideal é 58,6 km em 9:42 (média de 362 km/h). Com saltos, travagens e pilotos reais deve dar 10:30-11:30.
 
+## Túnel e paredes lisas (2026-10-21)
+
+O jogador achou o túnel "horrível, impossível conduzir": as paredes tinham placas e triângulos salientes. Corrigido em
+`Scripts/sculpt_expedition_ab.py`:
+- **The Hollow é um arco liso**, de meia elipse, com 22-28 m de altura livre no meio. O semi-largura do chão passou de
+  14 para 22 m (braço da caverna de 10 para 16 m). As paredes e a abóbada são a malha do teto (`caves/*.fbx`), de uma
+  só peça; o chão do túnel é só chão, ao nível da borda da pista. Um heightfield não faz uma parede íngreme limpa (os
+  triângulos veem-se como cunhas), por isso o arco é que faz as paredes.
+- **Nada de rochas no túnel nem ao lado dele** (120 m): os adereços ficam de fora.
+- **Rochas afastadas da pista:** faces de falésia, blocos de talude, pedras, lajes e barbatanas ficam pelo menos 30 m
+  (`TRACK_CLEAR`) para lá da borda da pista, por isso as paredes junto à linha ficam lisas.
+- `AB_ONLY=08_caverna,07_wash` (variável de ambiente) tira só essas fotos de piloto, para testar sem esperar pelas
+  doze.
+
+Falta, no PC com o Unreal: ver o túnel dentro do jogo (as claraboias da caverna são aberturas na malha do teto).
+
 ## Gerar
 
 ```
