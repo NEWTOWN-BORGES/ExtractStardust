@@ -2,9 +2,10 @@
 # and longerons in each arm, bridge frames, the cross beam in the fork and the braces that hold the cockpit pod), then
 # the systems (cockpit and pilot, reactor, three round plasma engines at the rear inside a shroud, the side ones
 # cooled through ducts from intakes at the arm tips, radiators, hover emitters), then the 12 mm bodywork panels.
-# Look: fork (U) plan - two long faceted arms forward with open space between them, the cockpit pod at the base of the
-# U nearly level with the arms and its glass flush with the body, a rear that tapers into a lying rounded box (the
-# shroud) holding three engines, two long shark fins over it, short wings going down; light steel blue with orange trim
+# Look: fork (U) plan - two long arms forward with open space between them, lying (wider than tall, high off the
+# ground like wings): flat side towards the cockpit, rounded side out; the cockpit pod at the base of the U with its
+# top level with the arms and its glass flush with the body, a rear that tapers into a lying rounded box (the shroud)
+# holding three engines, two long shark fins over it, short wings going down; green with white trim and yellow bands
 # (Docs/WRAITH_CATEGORIA.md).
 # Front is -Y, up is +Z, metres (the layout of the old SourceArt/TestShips/wraith.fbx; the game centres the bounds).
 # Usage: python3 Scripts/build_wraith.py <out_dir> [--no-render]
@@ -17,9 +18,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ship_kit import *  # noqa: E402,F401,F403  (bpy, bmesh, math, Matrix, Vector and the helpers)
 
 start("WRAITH")
-material("Paint_Steel", "#AEC2D2", rough=0.32, coat=0.5)
-material("Paint_Dark", "#4A5866", rough=0.35, coat=0.5)
-material("Paint_Orange", "#E86A2C", rough=0.3, coat=0.6)
+material("Paint_Green", "#2E8F52", rough=0.32, coat=0.5)
+material("Paint_Dark", "#33403A", rough=0.35, coat=0.5)
+material("Paint_Accent", "#E4EBE6", rough=0.3, coat=0.6)
 material("Paint_White", "#EEF1F3", rough=0.32, coat=0.5)
 material("Paint_Yellow", "#F2C230", rough=0.3, coat=0.5)
 material("Paint_Red", "#D7262B", rough=0.4)
@@ -41,11 +42,14 @@ G = {n: group(n, ROOT) for n in ("Structural_Core", "Arm_L", "Arm_R", "Cockpit_C
 B = G["Body"]
 
 # ---------------------------------------------------------------- lines
-#        y      xc    w     zb    cb    zs    ct    zt      (arm centre x and half width; low and high chamfers)
-ARM = [(-3.25, .645, .095, .320, .025, .440, .040, .500),
-       (-2.60, .635, .140, .300, .035, .560, .060, .640),
-       (-1.20, .625, .190, .280, .045, .680, .080, .780),
-       (0.40, .620, .220, .260, .050, .740, .090, .840)]
+#        y      xi    xo    zb    zt      (arms lying: inner flat wall at xi, rounded outer side reaching xo; high off the
+#                                         ground like wings, the tops level with the cockpit pod at the root)
+ARM = [(-3.25, .520, .760, .500, .660),
+       (-2.60, .470, .800, .510, .720),
+       (-1.20, .420, .830, .520, .790),
+       (0.40, .400, .840, .540, .840)]
+ARM_C = 0.02                        # chamfer of the inner wall's edges
+ARM_ROUND = 1.1                     # outer side: half ellipse, horizontal radius = 1.1 x half the height
 #         y     w     zb    cb    zs    ct    zt         (the bridge at the base of the U and the rear body)
 BODY = [(0.40, .840, .260, .050, .740, .090, .840),
         (1.40, .860, .270, .050, .760, .120, .860),
@@ -64,7 +68,10 @@ Y_JOIN, Y_SPINE, Y_TAIL = 0.40, 2.00, 2.70
 
 
 def arm(y):
-    return dict(zip(("xc", "w", "zb", "cb", "zs", "ct", "zt"), table(ARM, y)))
+    xi, xo, zb, zt = table(ARM, y)
+    rx = ARM_ROUND * (zt - zb) / 2
+    return {"xi": xi, "xo": xo, "zb": zb, "zt": zt, "xc": (xi + xo) / 2, "w": (xo - xi) / 2, "zm": (zb + zt) / 2,
+            "rx": rx, "xb": (xi + ARM_C + xo - rx) / 2, "wb": (xo - rx - xi - ARM_C) / 2}
 
 
 def body(y):
@@ -75,10 +82,19 @@ def pod(y):
     return dict(zip(("w", "zb", "cb", "zs", "ct", "zt"), table(POD, y)))
 
 
-def arm_loop(s):      # t 0..5 is the outer half of either arm (the left arm is the mirror of the right)
+def arm_loop(s):
+    """Lying arm section, from the bottom under the arm centre round the outer side (counter-clockwise for the right arm;
+    the left arm is its mirror): t 0..1 belly, 1..9 the rounded outer side, 9..11 top, 11..14 the flat inner wall with
+    its chamfers, 14..15 belly."""
     def f(y):
         a = arm(y)
-        return [(s * x, z) for x, z in loop10(a["xc"], a["w"], a["zb"], a["cb"], a["zs"], a["ct"], a["zt"])]
+        xr, rz = a["xo"] - a["rx"], (a["zt"] - a["zb"]) / 2
+        L = [(a["xc"], a["zb"]), (xr, a["zb"])]
+        L += [(xr + a["rx"] * math.cos(th), a["zm"] + rz * math.sin(th))
+              for th in (math.radians(-90 + 22.5 * k) for k in range(1, 8))]
+        L += [(xr, a["zt"]), (a["xc"], a["zt"]), (a["xi"] + ARM_C, a["zt"]), (a["xi"], a["zt"] - ARM_C),
+              (a["xi"], a["zb"] + ARM_C), (a["xi"] + ARM_C, a["zb"])]
+        return [(s * x, z) for x, z in L]
     return f
 
 
@@ -102,7 +118,7 @@ def xyz(y, x, z):
 
 
 def arm_centre(s):
-    return lambda c: Vector((s * arm(c.y)["xc"], c.y, (arm(c.y)["zb"] + arm(c.y)["zt"]) / 2))
+    return lambda c: Vector((s * arm(c.y)["xc"], c.y, arm(c.y)["zm"]))
 
 
 def body_centre(c):
@@ -117,7 +133,7 @@ def spine_centre(c):
     return Vector((0, c.y, body(c.y)["zt"] - 0.05))
 
 
-def trim(base="Paint_Steel", chamfer="Paint_Orange"):
+def trim(base="Paint_Green", chamfer="Paint_Accent"):
     def f(c, n):
         if n.z < -0.6:
             return "Graphite"
@@ -158,46 +174,43 @@ def octa(L):
     return [L[i] for i in (1, 2, 3, 4, 6, 7, 8, 9)]
 
 
-def ring_frames(part, loop_fn, ys):
+def ring_frames(part, loop_fn, ys, pick=octa):
     for y in ys:
-        oc = octa(loop_fn(y))
+        oc = pick(loop_fn(y))
         o, i_ = inset(oc, SKIN + CLEAR), inset(oc, SKIN + CLEAR + 0.03)
         rows = [[Vector((p.x, y + dy, p.y)) for p in ring] for ring, dy in
                 ((o, -0.012), (o, 0.012), (i_, 0.012), (i_, -0.012))]
         part.loft(rows, lambda i, j: "Metal", closed_u=True, closed_v=True)
 
 
-def longerons(part, loop_fn, y0, y1, stations, corners, r=0.010):
+def longerons(part, loop_fn, y0, y1, stations, corners, r=0.010, pick=octa):
     for k in corners:
         path = []
         for y in [y0] + [s for s in stations if y0 < s < y1] + [y1]:
-            p = inset(octa(loop_fn(y)), SKIN + CLEAR + r + 0.004)[k]
+            p = inset(pick(loop_fn(y)), SKIN + CLEAR + r + 0.004)[k]
             path.append((p.x, y, p.y))
         part.tube(path, r, "Metal", square=True)
 
 
 fr = Part("Frames")
 for s in (-1, 1):
-    ring_frames(fr, arm_loop(s), (-2.90, -2.00, -1.10, -0.20))
+    ring_frames(fr, arm_loop(s), (-2.90, -2.00, -1.10, -0.20), list)
 ring_frames(fr, body_loop, (0.46, 1.15, 2.14))
 ring_frames(fr, pod_loop, (-1.00, -0.55))
 fr.finish(G["Structural_Core"], bevel=0.002)
 
 lon = Part("Longerons")
 for s in (-1, 1):
-    longerons(lon, arm_loop(s), -3.00, Y_JOIN, ARM_Y, (1, 2, 5, 6))
+    longerons(lon, arm_loop(s), -3.00, Y_JOIN, ARM_Y, (1, 9, 11, 14), pick=list)
 longerons(lon, body_loop, 0.46, 2.14, BODY_Y, (0, 1, 2, 5, 6, 7))
 lon.finish(G["Structural_Core"], bevel=0.002)
 
-# the beam across the fork and the braces that hold the front of the cockpit pod (open structure, seen from outside)
+# the braces that hold the front of the cockpit pod to the arms' inner walls (open structure, seen from outside)
 fork = Part("Fork_Structure")
-xi = arm(0.34)["xc"] - arm(0.34)["w"]
-fork.box((0, 0.34, 0.33), (2 * xi, 0.07, 0.07), "Metal")
 for s in (-1, 1):
-    fork.box((s * (xi - 0.012), 0.34, 0.33), (0.024, 0.12, 0.12), "Metal")             # end plates
     a = arm(-0.85)
     top = Vector((s * 0.12, -0.62, pod(-0.62)["zb"] - 0.006))
-    foot = Vector((s * (a["xc"] - a["w"] + 0.006), -0.85, 0.44))
+    foot = Vector((s * (a["xi"] + 0.006), -0.85, a["zm"]))
     fork.tube([top, foot], 0.017, "Metal", 10)
     fork.box(top + Vector((0, 0, -0.006)), (0.06, 0.08, 0.012), "Metal")              # brackets
     fork.box(foot + Vector((s * 0.006, 0, 0)), (0.012, 0.08, 0.07), "Metal")
@@ -224,20 +237,21 @@ duct = Part("Intake_Ducts")
 lip = Part("Intakes")
 for s in (-1, 1):
     a = arm(-3.25)
-    mouth = inset(octa(arm_loop(s)(-3.25)), SKIN + 0.004)
-    zc = (a["zb"] + a["zt"]) / 2
+    mouth = inset(arm_loop(s)(-3.25), SKIN + 0.004)
+    nm = len(mouth)
+    zc = a["zm"]
     c0 = Vector((s * a["xc"], -3.00, zc))
-    circ = [c0 + Vector((math.cos(2 * math.pi * k / 8 + math.pi / 8) * DUCT_R * s, 0,
-                         math.sin(2 * math.pi * k / 8 + math.pi / 8) * DUCT_R)) for k in range(8)]
+    circ = [c0 + Vector((math.cos(2 * math.pi * k / nm + math.pi / nm) * DUCT_R * s, 0,
+                         math.sin(2 * math.pi * k / nm + math.pi / nm) * DUCT_R)) for k in range(nm)]
     ring3 = [Vector((p.x, -3.24, p.y)) for p in mouth]
     ang = [math.atan2(p.z - zc, (p.x - s * a["xc"]) * s) for p in ring3]
-    order = sorted(range(8), key=lambda k: ang[k] % (2 * math.pi))
+    order = sorted(range(nm), key=lambda k: ang[k] % (2 * math.pi))
     circ_sorted = sorted(circ, key=lambda p: math.atan2(p.z - zc, (p.x - s * a["xc"]) * s) % (2 * math.pi))
     duct.loft([[ring3[k] for k in order], circ_sorted], lambda i, j: "Black", closed_u=True)
     path = [(s * a["xc"], -3.00, zc)]
     for y in (-2.60, -1.20, Y_JOIN):
         q = arm(y)
-        path.append((s * q["xc"], y, (q["zb"] + q["zt"]) / 2))
+        path.append((s * q["xc"], y, q["zm"]))
     path += [(s * 0.53, 1.00, 0.53), (s * ENG_X, 1.12, ENG_Z)]
     duct.tube(path, DUCT_R, "Black", 12)
     duct.lathe((s * ENG_X, 1.12, ENG_Z), (s * ENG_X, EY0 - 0.005, ENG_Z), [(0, DUCT_R), (1, ENG_R - 0.004)],
@@ -279,11 +293,11 @@ for s in (-1, 1):
         cool.box((s * (w - 0.02), (y0 + y1) / 2, z), (0.03, y1 - y0 - 0.01, 0.004), "Graphite",
                  Matrix.Rotation(math.radians(-35 * s), 3, 'Y'))
     vent_cuts.append(box_cutter((s * w, (y0 + y1) / 2, (z0 + z1) / 2), (0.10, y1 - y0, z1 - z0)))
-ARM_VENT = (-0.70, -0.20, 0.40, 0.62)
 for s in (-1, 1):
-    y0, y1, z0, z1 = ARM_VENT
+    y0, y1 = -0.70, -0.20
     a = arm((y0 + y1) / 2)
-    xo = a["xc"] + a["w"]
+    z0, z1 = a["zm"] - 0.055, a["zm"] + 0.055
+    xo = a["xo"]
     cool.box((s * (xo - 0.05), (y0 + y1) / 2, (z0 + z1) / 2), (0.03, y1 - y0 + 0.02, z1 - z0 + 0.02), "Black")
     for k in range(5):
         z = z0 + (k + 0.5) * (z1 - z0) / 5
@@ -299,7 +313,9 @@ arm_cuts, body_cuts = [], []
 mods = []
 for y, where, sx, sy in EMIT:
     for s in (-1, 1):
-        x = s * (arm(y)["xc"] if where == "arm" else where)
+        x = s * (arm(y)["xb"] if where == "arm" else where)
+        if where == "arm":
+            sx = min(sx, 2 * arm(y)["wb"] - 0.04)
         mods.append((y, x, sx, sy, arm(y)["zb"] if where == "arm" else body(y)["zb"], where == "arm"))
 mods.append((1.45, 0.0, 0.36, 0.50, body(1.45)["zb"], False))
 for y, x, sx, sy, zb, on_arm in mods:
@@ -314,7 +330,7 @@ for y, x, sx, sy, zb, on_arm in mods:
     for k in range(1, 4 if plate else 3):
         hover.box((x, y - sy / 2 + k * sy / (4 if plate else 3), zbot + 0.003), (sx - 0.05, 0.008, 0.006), "Metal")
     (arm_cuts if on_arm else body_cuts).append(box_cutter((x, y, zb), (sx + GAP, sy + GAP, 0.08)))
-for y, x, zb in ((-3.05, arm(-3.05)["xc"], arm(-3.05)["zb"]), (2.10, 0.74, body(2.10)["zb"])):   # sensors
+for y, x, zb in ((-3.05, arm(-3.05)["xb"], arm(-3.05)["zb"]), (2.10, 0.74, body(2.10)["zb"])):   # sensors
     for s in (-1, 1):
         hover.cyl((s * x, y, zb + 0.01), (s * x, y, zb - 0.012), 0.02, "Graphite", 12)
         hover.cyl((s * x, y, zb - 0.012), (s * x, y, zb - 0.014), 0.013, "Black", 12)
@@ -339,7 +355,7 @@ ck.finish(G["Cockpit_Cell"], bevel=0.003)
 pilot = Part("Pilot")
 pilot.tube([(0, 0.11, 0.53), (0, 0.19, 0.64), (0, 0.26, 0.74)], 0.10, "Paint_White", 12)   # torso
 pilot.sphere((0, 0.25, 0.76), 0.068, "Paint_White", (1.6, 1.0, 0.7))                     # shoulders
-pilot.sphere((0, 0.29, 0.83), 0.095, "Paint_Orange")                                      # helmet
+pilot.sphere((0, 0.29, 0.83), 0.095, "Paint_Accent")                                      # helmet
 pilot.sphere((0, 0.22, 0.835), 0.052, "Black", (1.3, 0.7, 0.85))                          # visor
 for s in (-1, 1):
     pilot.tube([(s * 0.12, 0.25, 0.74), (s * 0.15, 0.05, 0.63), (s * 0.12, -0.19, 0.70)], 0.032, "Paint_White")
@@ -409,7 +425,7 @@ for s, side in ((1, "R"), (-1, "L")):
         return shell(p, gw, thick=0.006, bevel=0.0015)
 
     def top_paint(c, n, s=s):
-        return "Paint_Orange" if (c - Vector((s * 0.8, 1.95, 0))).dot(Vector((s * 0.1, 1, 0))) > 0 else "Paint_Steel"
+        return "Paint_Accent" if (c - Vector((s * 0.8, 1.95, 0))).dot(Vector((s * 0.1, 1, 0))) > 0 else "Paint_Green"
 
     skin("Wing_Top", 2, 3, top_paint, [((s * 0.8, 1.95, 0.4), (s * 0.1, 1, 0))])
     skin("Wing_Bottom", 6, 7, lambda c, n: "Graphite")
@@ -429,21 +445,20 @@ for s in (-1, 1):
     slots.append(cutter(p))
 
 # ================================================================ 4. BODYWORK
-# ---- the arms: open intake at the tip, top with the orange edges, outer and inner sides, chines, belly
+# ---- the arms: open intake at the tip, flat top, rounded outer side (white along its upper half), flat inner wall,
+# belly
 for s, side in ((1, "R"), (-1, "L")):
     ga, L_ = G["Arm_" + side], arm_loop(s)
     cap = Part("Arm_Tip_" + side)
-    surface(cap, L_, 0, 10, -3.25, -2.95, ARM_Y, xyz, (False, True), wrap=True)
+    surface(cap, L_, 0, 15, -3.25, -2.95, ARM_Y, xyz, (False, True), wrap=True)
     orient_out(cap, arm_centre(s))
     paint(cap, trim())
     shell(cap, ga)
-    panel("Arm_Top_" + side, L_, 3, 7, -2.95, Y_JOIN, ARM_Y, ga, arm_paint, arm_centre(s), cuts=STRIPES)
-    panel("Arm_Outer_" + side, L_, 2, 3, -2.95, Y_JOIN, ARM_Y, ga, arm_paint, arm_centre(s), cuts=STRIPES,
+    panel("Arm_Top_" + side, L_, 9, 11, -2.95, Y_JOIN, ARM_Y, ga, arm_paint, arm_centre(s), cuts=STRIPES)
+    panel("Arm_Outer_" + side, L_, 1, 9, -2.95, Y_JOIN, ARM_Y, ga, arm_paint, arm_centre(s), cuts=STRIPES,
           holes=vent_cuts)
-    panel("Arm_Inner_" + side, L_, 7, 8, -2.95, Y_JOIN, ARM_Y, ga, trim(), arm_centre(s))
-    panel("Arm_Chine_Out_" + side, L_, 1, 2, -2.95, Y_JOIN, ARM_Y, ga, lambda c, n: "Metal", arm_centre(s))
-    panel("Arm_Chine_In_" + side, L_, 8, 9, -2.95, Y_JOIN, ARM_Y, ga, lambda c, n: "Metal", arm_centre(s))
-    panel("Arm_Belly_" + side, L_, 9, 11, -2.95, Y_JOIN, ARM_Y, ga, lambda c, n: "Graphite", arm_centre(s),
+    panel("Arm_Inner_" + side, L_, 11, 14, -2.95, Y_JOIN, ARM_Y, ga, lambda c, n: "Paint_Dark", arm_centre(s))
+    panel("Arm_Belly_" + side, L_, 14, 16, -2.95, Y_JOIN, ARM_Y, ga, lambda c, n: "Graphite", arm_centre(s),
           holes=arm_cuts)
 
 # ---- the bridge and rear body: sides with the wing slots and vents, chines, belly, deck strips beside the spine
@@ -459,21 +474,24 @@ panel("Deck_Rear", body_loop, 3, 7, Y_SPINE, Y_TAIL, BODY_Y, B, trim(), body_cen
 panel("Body_Belly", body_loop, 9, 11, Y_JOIN, Y_TAIL, BODY_Y, B, lambda c, n: "Graphite", body_centre, holes=body_cuts)
 drop(slots + vent_cuts + arm_cuts + body_cuts)
 
-# front of the bridge between the arms, with the opening where the pod goes in
-xi = arm(Y_JOIN)["xc"] - arm(Y_JOIN)["w"]
-b0 = body(Y_JOIN)
+# front of the bridge: its whole section (the arms sit high on it), with the opening where the pod goes in and the
+# holes for the intake ducts
 crotch = Part("Bridge_Front")
-pts = [(-xi + GAP / 2, b0["zb"]), (xi - GAP / 2, b0["zb"]), (xi - GAP / 2, b0["zt"]), (-xi + GAP / 2, b0["zt"])]
-ring = [Vector((x, Y_JOIN, z)) for x, z in pts]
+ring = [Vector((x, Y_JOIN, z)) for x, z in inset(body_loop(Y_JOIN), GAP / 2)]
 crotch.loft([ring, [p + Vector((0, SKIN, 0)) for p in ring]], lambda i, j: "Paint_Dark", closed_u=True,
             cap0="Paint_Dark", cap1="Paint_Dark")
 ob = crotch.finish(B, skin=True)
 c = Part("cut")
 pl = [Vector((x, Y_JOIN - 0.05, z)) for x, z in inset(octa(pod_loop(Y_JOIN)), -GAP / 2)]
 c.loft([pl, [p + Vector((0, 0.10, 0)) for p in pl]], lambda i, j: "Black", closed_u=True, cap0="Black", cap1="Black")
-cc = cutter(c)
-boolean(ob, [cc])
-drop([cc])
+cc = [cutter(c)]
+for s in (-1, 1):
+    c = Part("cut")
+    a = arm(Y_JOIN)
+    c.cyl((s * a["xc"], Y_JOIN - 0.05, a["zm"]), (s * a["xc"], Y_JOIN + 0.05, a["zm"]), DUCT_R + 0.006, "Black", 16)
+    cc.append(cutter(c))
+boolean(ob, cc)
+drop(cc)
 shade(ob, 0.002)
 
 # tail: heat shield across the rear body with the two engines through it
@@ -501,7 +519,7 @@ for y, hw, hh, r in ((Y_TAIL + GAP / 2, hw0, hh0, 0.10), (2.98, hw0 - 0.010, hh0
                      (3.06, hw0 - 0.015, hh0 - 0.009, 0.096), (3.06, hw0 - 0.03, hh0 - 0.03, 0.07),
                      (Y_TAIL + GAP / 2, hw0 - 0.03, hh0 - 0.03, 0.07)):
     rows.append([Vector((x, y, zc + z)) for x, z in shape_loop(hw, hw, hh, r)])
-sh.loft(rows, lambda i, j: ("Paint_Steel", "Paint_Orange", "Metal_Bright", "Graphite", "Graphite")[i], closed_u=True,
+sh.loft(rows, lambda i, j: ("Paint_Green", "Paint_Accent", "Metal_Bright", "Graphite", "Graphite")[i], closed_u=True,
         closed_v=True)
 sh.box((0, 3.062, zc - hh0 + 0.02), (0.12, 0.004, 0.012), "Emit_Red")                    # tail light
 sh.finish(B, bevel=0.002, skin=True)
@@ -509,7 +527,7 @@ sh.finish(B, bevel=0.002, skin=True)
 # two long shark fins on the deck, over the engines, leaning out
 fin = Part("Shark_Fins")
 for s in (-1, 1):
-    shark_fin(fin, lambda y: body(y)["zt"], s * ENG_X, (1.55, 2.68), (2.30, 2.92), 0.22, 0.03, "Paint_Orange",
+    shark_fin(fin, lambda y: body(y)["zt"], s * ENG_X, (1.55, 2.68), (2.30, 2.92), 0.22, 0.03, "Paint_Accent",
               "Paint_Dark", math.radians(12), s)
 fin.finish(B, bevel=0.0015, smooth_angle=60, skin=True)
 
@@ -527,15 +545,15 @@ lens.cyl((0, -1.415, 0.62), (0, -1.418, 0.62), 0.015, "Black", 16)
 lens.finish(P)
 for side, s in (("R", 1), ("L", -1)):
     a, b = (2, 3) if s > 0 else (7, 8)
-    panel("Pod_Side_" + side, pod_loop, a, b, -0.90, Y_JOIN, POD_Y, P, trim("Paint_Orange"), pod_centre)
+    panel("Pod_Side_" + side, pod_loop, a, b, -0.90, Y_JOIN, POD_Y, P, trim("Paint_Accent"), pod_centre)
     a, b = (1, 2) if s > 0 else (8, 9)
     panel("Pod_Chine_" + side, pod_loop, a, b, -0.90, Y_JOIN, POD_Y, P, lambda c, n: "Paint_Dark", pod_centre)
 panel("Pod_Belly", pod_loop, 9, 11, -0.90, Y_JOIN, POD_Y, P, lambda c, n: "Graphite", pod_centre)
 
-spine_top = panel("Spine_Top", spine_loop, 1, 5, Y_JOIN, Y_SPINE, POD_Y, B, lambda c, n: "Paint_Steel", spine_centre)
+spine_top = panel("Spine_Top", spine_loop, 1, 5, Y_JOIN, Y_SPINE, POD_Y, B, lambda c, n: "Paint_Green", spine_centre)
 split_out(spine_top, (0, 0.82, pod(0.82)["zt"]), (0.20, 0.44, 0.30), "Reactor_Cover", 2)
 for side, (a, b) in (("R", (0, 1)), ("L", (5, 6))):
-    panel("Spine_Side_" + side, spine_loop, a, b, Y_JOIN, Y_SPINE, POD_Y, B, lambda c, n: "Paint_Orange",
+    panel("Spine_Side_" + side, spine_loop, a, b, Y_JOIN, Y_SPINE, POD_Y, B, lambda c, n: "Paint_Accent",
           spine_centre)
 L = spine_loop(Y_SPINE - GAP / 2)
 cap = Part("Spine_Rear")
@@ -571,23 +589,17 @@ dec = Part("Decals")
 for s in (-1, 1):
     rd = 1 if s > 0 else -1                 # text reads from the front to the back on both sides
 
-    def outer(y, s=s):
-        a = arm(y)
-        return s * (a["xc"] + a["w"])
+    def top_frame(y, lift=0.0025, s=s):      # on the flat arm top, reading from that side of the ship
+        def P(y_):
+            a = arm(y_)
+            return Vector((s * (a["xi"] + ARM_C + a["xo"] - a["rx"]) / 2, y_, a["zt"]))
+        return frame_on(P(y), (P(y + 0.05) - P(y - 0.05)) * -s, (s, 0, 0), lift)
 
-    def side_frame(y, z, y0, y1, lift=0.0025, s=s):
-        slope = (outer(y1) - outer(y0)) / (y1 - y0)
-        return frame_on((outer(y), y, z), Vector((slope, 1.0, 0)) * rd, (0, 0, 1), lift)
-
-    a = arm(-1.80)
-    zc = (a["zb"] + a["cb"] + a["zs"]) / 2
-    dec.add_mesh(text_mesh("WRAITH", 0.14), side_frame(-1.80, zc, -2.60, -1.20), "Paint_White")
-    a = arm(-2.80)
-    zt_ = (a["zb"] + a["cb"] + a["zs"]) / 2
+    dec.add_mesh(text_mesh("WRAITH", 0.12), top_frame(-1.80), "Paint_White")
     for dy in (-0.07, 0.07):                                                                # warning triangles
-        M = side_frame(-2.80 + dy * rd, zt_, -3.25, -2.60)
+        M = top_frame(-2.80 + dy)
         dec.poly([M @ Vector(p) for p in ((0, 0.035, 0), (-0.03, -0.018, 0), (0.03, -0.018, 0))], "Paint_Red")
-    M = side_frame(0.10, zc + 0.02, -1.20, Y_JOIN)                                          # status light
+    M = top_frame(0.10)                                                                     # status light
     dec.poly([M @ Vector(p) for p in ((-0.06, -0.008, 0), (0.06, -0.008, 0), (0.06, 0.008, 0), (-0.06, 0.008, 0))],
              "Emit_Green")
     # race number on a white roundel on the pod sides
@@ -612,7 +624,8 @@ dec.finish(G["Decals"], recalc=False, smooth_angle=10)
 for name, loc in (("Socket_Reactor", (0, 0.91, 0.815)), ("Socket_Propulsion_L", (-ENG_X, EXIT, ENG_Z)),
                   ("Socket_Propulsion_R", (ENG_X, EXIT, ENG_Z)), ("Socket_Propulsion_C", (0, EXIT, ENG_Z)), ("Socket_Wing_L", (-0.74, 1.40, wing_at(0.74)[2])),
                   ("Socket_Wing_R", (0.74, 1.40, wing_at(0.74)[2])), ("Socket_Tail", (0, 3.06, zc - hh0)),
-                  ("Socket_Armor_L", (-0.83, -0.80, 0.42)), ("Socket_Armor_R", (0.83, -0.80, 0.42)),
+                  ("Socket_Armor_L", (-arm(-0.80)["xo"], -0.80, arm(-0.80)["zm"])),
+                  ("Socket_Armor_R", (arm(-0.80)["xo"], -0.80, arm(-0.80)["zm"])),
                   ("Socket_Cooling", (0, 1.40, 0.58)), ("Socket_Utility", (0, -1.40, 0.62))):
     group(name, G["Sockets"], loc)
 
