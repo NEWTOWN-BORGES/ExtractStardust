@@ -6,6 +6,8 @@
 #include "EngineUtils.h"
 #include "Flight/EXHoverCraft.h"
 #include "Race/EXRaceDirector.h"
+#include "UI/EXMainMenuWidget.h"
+#include "GameFramework/PlayerController.h"
 
 namespace
 {
@@ -27,7 +29,7 @@ void AEXHud::DrawHUD()
 	{
 		return;
 	}
-	const AEXRaceDirector* Race = nullptr;
+	AEXRaceDirector* Race = nullptr;
 	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
 	{
 		Race = *It;
@@ -40,8 +42,48 @@ void AEXHud::DrawHUD()
 	}
 	if (Race && Race->IsInMenu())
 	{
-		DrawMenu(Race, Craft);
+		APlayerController* PlayerController = GetOwningPlayerController();
+		if (PlayerController && !IsValid(MainMenuWidget))
+		{
+			MainMenuWidget = CreateWidget<UEXMainMenuWidget>(PlayerController);
+			if (MainMenuWidget)
+			{
+				MainMenuWidget->InitializeMenu(Race);
+				MainMenuWidget->AddToViewport(100);
+			}
+		}
+		if (MainMenuWidget)
+		{
+			MainMenuWidget->SetSelectedChoice(Race->GetMenuChoice());
+		}
+		if (PlayerController && !bMenuInputActive)
+		{
+			PlayerController->bShowMouseCursor = true;
+			FInputModeGameAndUI InputMode;
+			InputMode.SetHideCursorDuringCapture(false);
+			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			PlayerController->SetInputMode(InputMode);
+			if (MainMenuWidget)
+			{
+				MainMenuWidget->SetKeyboardFocus();
+			}
+			bMenuInputActive = true;
+		}
 		return;
+	}
+	if (MainMenuWidget)
+	{
+		MainMenuWidget->RemoveFromParent();
+		MainMenuWidget = nullptr;
+	}
+	if (bMenuInputActive)
+	{
+		if (APlayerController* PlayerController = GetOwningPlayerController())
+		{
+			PlayerController->bShowMouseCursor = false;
+			PlayerController->SetInputMode(FInputModeGameOnly());
+		}
+		bMenuInputActive = false;
 	}
 	if (Race && Race->IsReady())
 	{
@@ -170,7 +212,7 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 	const float X = 24.0f * Scale;
 	float Y = 20.0f * Scale;
 	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.45f), X - 10.0f * Scale, Y - 6.0f * Scale, 330.0f * Scale, (bBots ? 122.0f : 98.0f) * Scale);
-	DrawText(FString::Printf(TEXT("%s   %s"), bBots ? TEXT("CONTRA BOTS") : TEXT("SOLO"), *HudRaceClock(Race->GetRaceTime())), White, X, Y,
+	DrawText(FString::Printf(TEXT("%s   %s"), bBots ? TEXT("SOBREVIVÊNCIA") : TEXT("CONTRA O CRONÓMETRO"), *HudRaceClock(Race->GetRaceTime())), White, X, Y,
 		nullptr, 1.3f * Scale);
 	Y += 26.0f * Scale;
 	if (bBots)
@@ -244,42 +286,6 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 			TY += Row;
 		}
 	}
-}
-
-void AEXHud::DrawMenu(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
-{
-	const float Scale = Canvas->ClipY / 720.0f;
-	const float Mid = Canvas->ClipX * 0.5f;
-	const float W = 540.0f * Scale;
-	float Y = Canvas->ClipY * 0.20f;
-	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.65f), Mid - W * 0.5f, Y - 20.0f * Scale, W, 450.0f * Scale);
-	DrawText(TEXT("EXTRACTING STARDUST"), FLinearColor(1.0f, 0.85f, 0.2f), Mid - 150.0f * Scale, Y, nullptr, 1.8f * Scale);
-	Y += 40.0f * Scale;
-	DrawText(TEXT("Red Dust Divide - de A a B"), FLinearColor(0.85f, 0.85f, 0.85f), Mid - 110.0f * Scale, Y, nullptr, 1.1f * Scale);
-	Y += 46.0f * Scale;
-	static const TCHAR* Lines[4] = {
-		TEXT("SOLO  (contra o relogio)"),
-		TEXT("CONTRA 15 BOTS"),
-		TEXT("VOO LIVRE"),
-		TEXT("HANGAR  (visualizar naves)")
-	};
-	for (int32 Line = 0; Line < 4; ++Line)
-	{
-		const bool bOn = Race->GetMenuChoice() == Line;
-		if (bOn)
-		{
-			DrawRect(FLinearColor(0.3f, 1.0f, 0.4f, 0.25f), Mid - W * 0.5f + 30.0f * Scale, Y - 4.0f * Scale, W - 60.0f * Scale, 36.0f * Scale);
-		}
-		DrawText(FString::Printf(TEXT("%s%s"), bOn ? TEXT("> ") : TEXT("  "), Lines[Line]), bOn ? FLinearColor(0.3f, 1.0f, 0.4f) : FLinearColor::White,
-			Mid - W * 0.5f + 50.0f * Scale, Y, nullptr, 1.45f * Scale);
-		Y += 44.0f * Scale;
-	}
-	Y += 14.0f * Scale;
-	DrawText(FString::Printf(TEXT("NAVE:  < %s >"), *Craft->GetShipName()), FLinearColor(1.0f, 0.9f, 0.6f), Mid - W * 0.5f + 50.0f * Scale, Y, nullptr,
-		1.4f * Scale);
-	Y += 48.0f * Scale;
-	DrawText(TEXT("Cima/baixo (W-S, setas, cruzeta): modo    Tab, 1-5: nave    Enter / X: comecar"),
-		FLinearColor(0.75f, 0.75f, 0.75f), Mid - W * 0.5f + 20.0f * Scale, Y, nullptr, 0.82f * Scale);
 }
 
 void AEXHud::DrawStatBar(float X, float Y, float Width, float Height, float Percent, const FLinearColor& BarColor, const FString& Label, const FString& ValueStr)

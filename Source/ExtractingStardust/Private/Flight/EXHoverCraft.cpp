@@ -570,7 +570,9 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 			continue;
 		}
 		const FVector Normal = Hit.Normal;
-		const float IntoSpeed = FVector::DotProduct(VelocityCmps, Normal);
+		const AEXHoverCraft* OtherCraft = Cast<AEXHoverCraft>(Hit.GetActor());
+		const FVector OtherVelocity = IsValid(OtherCraft) ? OtherCraft->VelocityCmps : FVector::ZeroVector;
+		const float IntoSpeed = FVector::DotProduct(VelocityCmps - OtherVelocity, Normal);
 		if (IntoSpeed < 0.0f)
 		{
 			// Steep surfaces are walls: bounce a little and lose speed. Gentle ones just redirect the craft.
@@ -581,12 +583,16 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 				VelocityCmps *= 1.0f - FMath::Clamp(WallScrapeLoss * (-IntoSpeed / CmPerM) / 20.0f, 0.0f, 0.5f);
 			}
 			ImpactShake = FMath::Max(ImpactShake, FMath::Clamp(-IntoSpeed / CmPerM / 25.0f, 0.0f, 1.0f));
+			if (bWall || IsValid(OtherCraft))
+			{
+				const float DamageThresholdMps = IsValid(OtherCraft) ? WallHitMps * 0.6f : WallHitMps;
+				if (-IntoSpeed / CmPerM > DamageThresholdMps)
+				{
+					LoseLife();
+				}
+			}
 			if (bWall)
 			{
-				if (-IntoSpeed / CmPerM > WallHitMps)
-				{
-					LoseLife();   // a hard hit into the rock (race rules only); scraping along a wall costs only speed
-				}
 				CamJolt = FMath::Max(CamJolt, FMath::Clamp(-IntoSpeed / CmPerM / 20.0f, 0.0f, 1.0f));
 				if (SparkCooldown <= 0.0f)
 				{
@@ -783,9 +789,7 @@ void AEXHoverCraft::SetRaceRules(int32 InMedKits)
 {
 	bRaceRules = true;
 	MedKits = InMedKits;
-	// Racers pass through each other, so bots don't knock each other out by chance, and the hover probes of one craft
-	// never stand on another.
-	Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+	Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 	Collision->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
 	ApplyShipStats();
 }

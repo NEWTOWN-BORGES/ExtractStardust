@@ -52,6 +52,7 @@ public:
 	void Configure(EEXRaceMode InMode, int32 InBots) { Mode = InMode; BotCount = InBots; }
 	/** Start on the menu (the game opened without a mode): SOLO / CONTRA BOTS / VOO LIVRE / HANGAR. */
 	void OpenMenu() { bMenu = true; }
+	void StartMenuChoice(int32 Choice);
 	bool IsInMenu() const { return bMenu; }
 	/** The highlighted menu line: 0 solo, 1 bots, 2 free flight, 3 hangar. */
 	int32 GetMenuChoice() const { return MenuChoice; }

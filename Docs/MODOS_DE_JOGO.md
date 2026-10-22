@@ -14,7 +14,7 @@ nova, a expedição de A a B (`Docs/PISTA_AB_RED_DUST_DIVIDE.md`, mapa `/Game/Ma
    (`Saved\Logs\ExtractingStardust.log`) tem as linhas `EXRACE`: partida, vidas perdidas, eliminações, chegadas e
    classificação.
 
-**Menu ao abrir o jogo** (sem `-EXMode`): SOLO / CONTRA 15 BOTS / VOO LIVRE.
+**Menu ao abrir o jogo** (sem `-EXMode`): interface nativa com CONTRA O CRONÓMETRO / SOBREVIVÊNCIA (15 rivais) / VOO LIVRE, seletor de nave e acesso ao Hangar.
 - Modo: W/S, setas ou cruzeta para cima e para baixo.
 - Nave: Tab, 1-5 ou cruzeta para a esquerda e a direita.
 - Começar: Enter ou X.
@@ -37,7 +37,7 @@ e não na partida. Não se troca de nave depois da partida: escolhe-se durante a
 - `AEXHoverCraft`:
   - vidas, perda de vida e kit médico (só o jogador tem cargas);
   - condução dos bots (`DriveBot`) e regresso à linha;
-  - as naves atravessam-se umas às outras;
+  - colisões entre naves, paredes e obstáculos; impactos fortes retiram vidas;
   - a tabela de cada nave fica no topo de `EXHoverCraft.cpp` (`ShipRaceStats`).
 - `AEXHud`: tempo, posição, vidas (quadrados verdes), kit médico, contagem, clarão vermelho "-1 VIDA",
   mensagens, os outros no minimapa (quadrados vermelhos) e o quadro de resultados.
@@ -116,8 +116,7 @@ Os limiares de embate e de aterragem também mudam por nave (a VORTEX parte com 
   margem às paredes e a escolha das bifurcações (os melhores arriscam SKILL; os piores vão por SAFE).
 - **Sofrem o mesmo dano que o jogador** (os mesmos limiares), por isso alguns acabam eliminados pelo caminho.
 - Cada bot escolhe uma nave e leva as vidas dela. Nunca têm kit médico.
-- **Colisões entre naves:** começar sem colisão entre naves (atravessam-se), para os bots não se eliminarem uns aos
-  outros por azar. Ver "Por decidir".
+- **Colisões entre naves:** ativas; a intensidade é calculada pela velocidade relativa do impacto para não tratar navegação lado a lado como embate frontal.
 
 ## 6. Solo
 
@@ -135,7 +134,7 @@ Os limiares de embate e de aterragem também mudam por nave (a VORTEX parte com 
 - **Progresso:** o código não usa portões. Mede a distância do ponto da rota principal mais perto da nave e só a
   deixa avançar (no máximo 600 m de cada vez, para não haver cortes por cima da rocha). Os atalhos contam porque a
   nave volta à rota mais à frente. Portões por setor e por bifurcação ficam para uma próxima volta.
-- **Colisões entre naves:** desligadas.
+- **Colisões entre naves:** ativas na corrida; precisam de validação em jogo para afinar limiares e contactos na grelha de partida.
 - **Solo com 0 vidas:** a tentativa acaba (o quadro de resultados mostra até onde se chegou).
 - **Jogador eliminado no modo Bots:** a câmara fica parada e a corrida continua até ao fim (60 s depois, no máximo).
 - **Bots e saltos:** os bots usam o piloto automático do teste do deserto, que escorregava nas dunas e ficava preso

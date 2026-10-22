@@ -158,6 +158,20 @@ void AEXRaceDirector::MenuInput(int32 Step)
 	Mode = MenuChoice == 0 ? EEXRaceMode::Solo : EEXRaceMode::Bots;
 }
 
+void AEXRaceDirector::StartMenuChoice(int32 Choice)
+{
+	if (!bMenu)
+	{
+		return;
+	}
+	MenuChoice = FMath::Clamp(Choice, 0, 3);
+	if (MenuChoice == 1)
+	{
+		BotCount = 15;
+	}
+	MenuInput(0);
+}
+
 void AEXRaceDirector::Setup()
 {
 	// The player's craft and its race line exist from its BeginPlay on; until then, wait.
