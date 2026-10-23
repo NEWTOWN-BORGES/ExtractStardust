@@ -1,10 +1,61 @@
 # Extracting Stardust — notas para a IA (ler primeiro)
 
-Jogo de corrida de naves antigravidade (Unreal Engine, `ExtractingStardust.uproject`). O mapa **Red Dust Divide**
+Jogo de **extraction racing** de naves antigravidade (Unreal Engine, `ExtractingStardust.uproject`).
+Visão do produto: `Docs/VISAO_JOGO.md` (RACE. SURVIVE. EXTRACT. — A→B, 15/20/30 naves, pool de
+espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde). O mapa **Red Dust Divide**
 é gerado por scripts do Blender em `Scripts/`; a explicação completa está em `Docs/ESTUDO_BLENDKIT_CANYONS.md`
 (secções 5 a 12) e o plano do setor S01 em `Docs/MAPA_01_RED_DUST_DIVIDE_S01.md`.
 
 O jogador fala português (PT). Responder em português.
+
+## NAVES NOVAS: falta pô-las no Unreal (2026-10-21)
+
+As naves STRIX, WRAITH, NOMAD e VORTEX foram refeitas de dentro para fora (PR #3, ramo `ccr-6888126d-pxbtcg`) e
+substituem as antigas. Os FBX novos estão em `SourceArt/TestShips/<nave>.fbx`; as regras e cada nave estão em
+`Docs/NAVES_REGRAS.md` e `Docs/<NAVE>_CATEGORIA.md`. **Falta a BASTION**: será o contrário da VORTEX (a VORTEX tem
+tudo embutido numa asa; a BASTION terá tudo embutido num motor grande). O jogador manda as imagens de referência.
+
+Para aparecerem no jogo (no PC com o Unreal, depois do `git pull` desse ramo, ou do `extracting-stardust` quando o
+PR estiver fundido):
+1. Abrir o projeto no editor e correr `Scripts/import_test_ships.py` (Tools → Execute Python Script), ou na linha
+   de comandos: `UnrealEditor.exe <caminho>/ExtractingStardust.uproject -ExecutePythonScript=<caminho>/Scripts/import_test_ships.py`.
+   Reimporta `/Game/TestShips/SM_*`, que o `EXHoverCraft` já usa.
+2. No log, ver as linhas `SHIPBOUNDS`: nariz em −Y, comprimentos de ~5,8 a 7,3 m.
+3. Testar no jogo (trocar de nave) e fazer commit dos `.uasset` de `Content/TestShips`.
+
+## PARA FAZER EM CASA / NO PC COM O UNREAL (lista da sessão da nuvem, 2026-10-21)
+
+**Atalho (poucos tokens):** `powershell -ExecutionPolicy Bypass -File Scripts\casa_tudo.ps1`. Compila o C++ dos modos
+de jogo, gera a pista a 3 m, exporta-a, importa as peças e as naves novas e monta o mapa Expedition. Depois corre-se
+`Scripts\jogar.ps1 -Modo Bots` (ou `Solo`, ou `Teste`, que joga sozinho e escreve `EXRACE` no log). Os modos de jogo
+estão em `Docs/MODOS_DE_JOGO.md`. Foram escritos sem Unreal à mão, por isso o primeiro passo é ver se compilam.
+
+Feito na nuvem (sem Unreal), em `Scripts/sculpt_expedition_ab.py`, testado só a 10 m: túnel The Hollow em arco liso e
+largo, rochas a 30 m ou mais da pista, estradas de 56-64 m (6-7 naves lado a lado, grelha 3 × 6), variável
+`AB_ONLY=08_caverna,07_wash` para tirar só algumas fotos. Detalhes em `Docs/PISTA_AB_RED_DUST_DIVIDE.md`.
+
+1. **Juntar o trabalho do PC do trabalho.** A outra sessão (a de 21 de outubro, ~50 %) mexeu em
+   `sculpt_expedition_ab.py`, `EXDesertBuilder.cpp` (luzes do túnel nas balizas), `make_ground_material.py`,
+   `make_rock_material.py` e neste `CLAUDE.md`, e **não fez push**. Fazer push dela, fundir com o ramo `ccr-6888126d-pxbtcg`
+   (PR #3) e resolver os conflitos no script: manter o arco liso do túnel (`tunnel_walls`, `CAVE_EDGE`, `cave_roof`),
+   `TRACK_CLEAR` e as larguras da lista `SECTORS`; do resto aceitar o que ela fez.
+2. **Gerar a 3 m** (`blender -b -P Scripts/sculpt_expedition_ab.py -- C:/rdd/ab 3 kit=... molds=... plants=... ship=...`),
+   ver as fotos de piloto, sobretudo `ab_08_caverna` e `ab_01_partida`, e exportar/importar/montar o mapa
+   (`export_ab_unreal.py`, `import_world.py`, `EXDesertBuilder.build_world_map`).
+3. **Ver o túnel dentro do Unreal:** o teto `caves/*.fbx` faz agora também as paredes (arco de meia elipse); o chão do
+   túnel é só chão. Confirmar colisão (complexa) do teto, luz e claraboias (são aberturas na malha), e que a nave passa
+   a ~500 km/h sem raspar. Se a malha der trabalho, aumentar `CAVE_EDGE` ou o número de pontos laterais do `cave_roof`.
+4. **Naves:** correr `Scripts/import_test_ships.py` (ver acima). Falta a BASTION (o jogador manda as imagens).
+5. **Modos de jogo:** implementar `Docs/MODOS_DE_JOGO.md` (solo, 15 bots, vidas por nave, kit médico de 3 usos só
+   para o jogador), depois de perguntar o que está na secção 9 desse documento.
+6. **Mar de dunas** (pedido anterior, por fazer): ampliar o deserto e deixar estruturas de canyon soterradas na areia;
+   precisa do núcleo do mundo (`C:/rdd/mapa`), que só existe nos PCs do jogador.
+
+## MODOS DE JOGO: ver `Docs/VISAO_JOGO.md` (produto) e `Docs/MODOS_DE_JOGO.md` (rascunho Unreal)
+
+O jogo **não** é só contra o cronómetro. É extração A→B com pelotão grande. O código actual
+(solo / 15 bots / vidas / kit médico) é protótipo; falta menu de hub, som, sensação tipo podrace
+(câmara + bank), loadout no hangar, pool de espólios e lobbies de 20–30.
 
 ## PRIORIDADE ATUAL (2026-10-20): EXPEDIÇÃO DE A A B — `Scripts/sculpt_expedition_ab.py`
 
@@ -143,7 +194,7 @@ blender -b C:/rdd/mundo/world.blend -P Scripts/render_route_plan.py -- C:/rdd/mu
 blender -b C:/rdd/mapa/canyon_field.blend -P Scripts/render_ships.py -- C:/rdd/mapa <strix.fbx>
 ```
 
-O `strix.fbx` está no branch `main`: `ExtractStardustRDD/Assets/ExtractStardust/Vehicles/V2/Chassis/Resources/V2Chassis/strix.fbx`.
+A STRIX nova (um motor central, asas a descer) está em `SourceArt/TestShips/strix.fbx`, gerada por `Scripts/build_strix.py` (ver `Docs/STRIX_CATEGORIA.md`); a antiga continua no `main` em `ExtractStardustRDD/Assets/ExtractStardust/Vehicles/V2/Chassis/Resources/V2Chassis/strix.fbx`.
 Mostrar as imagens ao jogador (ele pede fotos com frequência: vista de cima, geral, piloto, naves).
 
 Vistas 3D do mundo inteiro (cores por altura, circuito a laranja; o jogador **gostou muito deste estilo**):
