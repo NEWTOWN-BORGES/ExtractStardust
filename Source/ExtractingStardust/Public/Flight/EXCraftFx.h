@@ -60,7 +60,7 @@ public:
 	/** Unlit, so it is kept darker than the sand it comes from. */
 	UPROPERTY(EditAnywhere, Category = "Fx") FLinearColor DustColor = FLinearColor(0.34f, 0.25f, 0.17f);
 	/** Dust puffs per second at top speed. */
-	UPROPERTY(EditAnywhere, Category = "Fx") float DustRateMax = 16.0f;
+	UPROPERTY(EditAnywhere, Category = "Fx") float DustRateMax = 22.0f;
 
 private:
 	struct FPuff

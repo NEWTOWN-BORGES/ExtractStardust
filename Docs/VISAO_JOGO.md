@@ -61,10 +61,9 @@ Moeda: **STARDUST**. O número do pool no HUD é valor estimado dos itens, não 
 ## O que falta no Unreal (pedido 2026-10-23)
 
 1. **Menu de jogo** — briefing SOLO / PELOTÃO 15 / HANGAR (loadout completo fica para depois).
-2. **Som** — síntese ao vivo (sem WAV em loop): motor, vento, hover, raspar, impacto. Afinar no Unreal.
-3. **Estilo de piloto** — bank das naves nas curvas, câmara a deitar-se, FOV, motion blur, poeira,
-   referências a passar perto (sensação de 400–550 km/h). Há uma chase camera portada do Unity;
-   ainda não está no nível podrace.
+2. **Som** — motores, vento, impacto, boost, audição de velocidade. Sem isto a corrida parece muda.
+3. **Estilo de piloto** — no código: bank forte, câmara a deitar-se e a olhar o ápice, FOV/blur
+   com a velocidade, poeira e risco junto às paredes. Falta validar em jogo (adrenalina a 400–550 km/h).
 4. **Extraction loop** — hangar/loadout, pool na meta, combustível e reparação da carga, Stardust.
 5. **Pelotão grande** — 20 e 30 corredores, quando a pista (56–64 m) e os bots aguentarem.
 6. **Monstros** — depois do loop de extração e da sensação de corrida estarem jogáveis.

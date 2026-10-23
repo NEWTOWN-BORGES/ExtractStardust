@@ -328,12 +328,12 @@ void UEXCraftFx::UpdateStreaks(float Dt, const FEXCraftFxInput& Input)
 		return;
 	}
 	const float Speed = Input.Velocity.Size() / 100.0f;
-	const float Strength = FMath::SmoothStep(35.0f, 110.0f, Speed) * (Input.bBoosting ? 1.4f : 1.0f);
+	const float Strength = FMath::SmoothStep(22.0f, 95.0f, Speed) * (Input.bBoosting ? 1.55f : 1.0f);
 	StreakMaterial->SetScalarParameterValue(IntensityParam, 0.6f * Strength);
 	const bool bVisible = Strength > 0.01f;
 	const FVector Direction = Speed > 1.0f ? Input.Velocity / (Speed * 100.0f) : Input.Heading;
 	// Each streak is as long as 0.06 s of travel, so faster flight draws longer lines.
-	const float LengthCm = FMath::Clamp(Speed * 6.0f, 50.0f, 900.0f);
+	const float LengthCm = FMath::Clamp(Speed * 8.0f, 80.0f, 1400.0f);
 	const FQuat Orientation = FRotationMatrix::MakeFromZ(Direction).ToQuat();
 	const FVector ViewSide = FVector::CrossProduct(Input.CameraForward, FVector::UpVector).GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
 	const FVector ViewUp = FVector::CrossProduct(ViewSide, Input.CameraForward).GetSafeNormal();

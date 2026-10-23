@@ -117,9 +117,13 @@ AEXHoverCraft::AEXHoverCraft()
 	// Blur mostly smears nearby scenery (as in the reference video); kept moderate because heavy full-screen
 	// blur measurably lowers the perceived speed.
 	Camera->PostProcessSettings.bOverride_MotionBlurAmount = true;
-	Camera->PostProcessSettings.MotionBlurAmount = 0.5f;
+	Camera->PostProcessSettings.MotionBlurAmount = 0.55f;
 	Camera->PostProcessSettings.bOverride_MotionBlurMax = true;
-	Camera->PostProcessSettings.MotionBlurMax = 8.0f;
+	Camera->PostProcessSettings.MotionBlurMax = 12.0f;
+	Camera->PostProcessSettings.bOverride_SceneFringeIntensity = true;
+	Camera->PostProcessSettings.SceneFringeIntensity = 0.0f;
+	Camera->PostProcessSettings.bOverride_VignetteIntensity = true;
+	Camera->PostProcessSettings.VignetteIntensity = 0.35f;
 
 	Fx = CreateDefaultSubobject<UEXCraftFx>(TEXT("Fx"));
 	Audio = CreateDefaultSubobject<UEXCraftAudio>(TEXT("Audio"));
@@ -366,7 +370,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 		Sound.Throttle = ThrottleInput;
 		Sound.Steer = SteerInput;
 		Sound.HeightM = HeightM;
-		Sound.Impact = ImpactShake;
+		Sound.Impact = FMath::Max(ImpactShake, WallThreat);
 		Sound.bBoosting = bBoosting;
 		Sound.bGrounded = bGrounded;
 		Sound.bDrifting = bDrifting;
@@ -641,8 +645,8 @@ void AEXHoverCraft::UpdateVisuals(float Dt)
 	HoverBobTime += Dt;
 	SteerVisual = FMath::FInterpTo(SteerVisual, SteerInput, Dt, 6.0f);
 	const float SpeedAlpha = FMath::Clamp(FMath::Abs(ForwardSpeedMps) / MaxSpeedMps, 0.0f, 1.0f);
-	const float DriftExtra = bDrifting ? 1.35f : 1.0f;
-	const float TargetRoll = SteerVisual * BankMaxDeg * FMath::Lerp(0.35f, 1.0f, SpeedAlpha) * DriftExtra + FMath::Sin(HoverBobTime * 1.7f) * 0.6f;
+	const float DriftExtra = bDrifting ? 1.45f : 1.0f;
+	const float TargetRoll = SteerVisual * BankMaxDeg * FMath::Lerp(0.45f, 1.0f, SpeedAlpha) * DriftExtra + FMath::Sin(HoverBobTime * 1.7f) * 0.6f;
 	const float TargetPitch = FMath::Clamp(LongAccelMps2 * PitchFromAccel, -6.0f, 5.0f);
 	const float TargetYaw = SteerVisual * NoseLeadMaxDeg * DriftExtra;
 	VisualRoll = FMath::FInterpTo(VisualRoll, TargetRoll, Dt, VisualResponse);
@@ -700,7 +704,25 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	// swings to the outside of the slide.
 	CamLookYaw = FMath::Lerp(CamLookYaw, bLookBack ? 180.0f : LookYawInput * LookYawMaxDeg, Damp(bLookBack ? 18.0f : 7.0f, Dt));
 	CamDriftSwing = FMath::Lerp(CamDriftSwing, bDrifting ? FMath::Clamp(-LateralSpeedMps * 0.7f, -20.0f, 20.0f) : 0.0f, Damp(bDrifting ? 3.0f : 2.0f, Dt));
-	const FVector ViewHeading = CamSmoothHeading.RotateAngleAxis(CamLookYaw + CamDriftSwing, CamSmoothUp);
+	CamApexYaw = FMath::Lerp(CamApexYaw, SteerVisual * SpeedAlpha * CamLookIntoTurnDeg, Damp(5.0f, Dt));
+	const FVector ViewHeading = CamSmoothHeading.RotateAngleAxis(CamLookYaw + CamDriftSwing + CamApexYaw, CamSmoothUp);
+
+	float NearWall = 0.0f;
+	{
+		FCollisionQueryParams WallParams(SCENE_QUERY_STAT(EXWallThreat), false, this);
+		const FVector Side = FVector::CrossProduct(CamSmoothUp, CamSmoothHeading).GetSafeNormal();
+		for (int32 Sign : { -1, 1 })
+		{
+			FHitResult WallHit;
+			const FVector Start = CraftLocation + CamSmoothUp * 80.0f;
+			if (GetWorld()->SweepSingleByChannel(WallHit, Start, Start + Side * Sign * 900.0f, FQuat::Identity, ECC_Visibility,
+				FCollisionShape::MakeSphere(20.0f), WallParams))
+			{
+				NearWall = FMath::Max(NearWall, 1.0f - FMath::Clamp(WallHit.Distance / 900.0f, 0.0f, 1.0f));
+			}
+		}
+	}
+	WallThreat = FMath::FInterpTo(WallThreat, NearWall * SpeedAlpha, Dt, 8.0f);
 	if (bBoosting && !bCamWasBoosting)
 	{
 		CamBoostPunch = 1.0f;
@@ -713,7 +735,8 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	CamLastSpeed = Speed;
 	const float Distance = BaseDistance + CamDistanceAtSpeedM * SpeedAlpha + Pull;
 	const float Height = BaseHeight + CamHeightAtSpeedM * SpeedAlpha;
-	const FVector DesiredOffset = (-ViewHeading * Distance + CamSmoothUp * Height) * CmPerM;
+	const FVector Outboard = FVector::CrossProduct(CamSmoothUp, ViewHeading).GetSafeNormal() * (-SteerVisual * CamOutboardM * SpeedAlpha);
+	const FVector DesiredOffset = (-ViewHeading * Distance + CamSmoothUp * Height + Outboard) * CmPerM;
 	CamOffsetCm = FMath::Lerp(CamOffsetCm, DesiredOffset, Damp(CamOffsetStiffness, Dt));
 
 	// Landing kick: a small spring that dips the camera when the craft touches down.
@@ -736,9 +759,11 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 
 	// The camera leans a little with the craft's bank, and vibrates lightly near top speed.
 	Rotation.Roll += VisualRoll * CameraBankFollow;
-	const float Shake = ShakeScale * TopSpeedShakeDeg * FMath::Clamp((SpeedAlpha - 0.85f) / 0.15f, 0.0f, 1.0f) * (bBoosting ? 1.6f : 1.0f);
+	const float Shake = ShakeScale * (TopSpeedShakeDeg * FMath::Clamp((SpeedAlpha - 0.72f) / 0.28f, 0.0f, 1.0f) * (bBoosting ? 1.6f : 1.0f)
+		+ WallThreat * 0.9f);
 	Rotation.Pitch += FMath::Sin(HoverBobTime * 31.0f) * Shake;
 	Rotation.Yaw += FMath::Sin(HoverBobTime * 23.0f + 1.3f) * Shake;
+	Rotation.Roll += FMath::Sin(HoverBobTime * 19.0f) * WallThreat * 0.7f;
 	// Short, sharp jolt after a hard landing or a wall hit.
 	CamJoltTime += Dt;
 	if (CamJolt > 0.0f)
@@ -755,6 +780,9 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	const float TargetFovV = FMath::Lerp(FovMinV, FovMaxV, 0.3f * SpeedAlpha + 0.7f * Vertigo) + (bBoosting ? FovBoostV : 0.0f);
 	CamFovV = FMath::Lerp(CamFovV, TargetFovV, Damp(3.0f, Dt));
 	Camera->SetFieldOfView(HorizontalFov(CamFovV + 7.0f * CamBoostPunch * CamBoostPunch));
+	Camera->PostProcessSettings.MotionBlurAmount = 0.45f + 0.55f * Vertigo + 0.25f * CamBoostPunch;
+	Camera->PostProcessSettings.SceneFringeIntensity = 0.35f * Vertigo + 0.55f * CamBoostPunch;
+	Camera->PostProcessSettings.VignetteIntensity = 0.28f + 0.22f * Vertigo;
 }
 
 void AEXHoverCraft::SelectShip(int32 Index)

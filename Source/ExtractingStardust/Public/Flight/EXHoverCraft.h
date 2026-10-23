@@ -51,7 +51,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float NitroAirRegen = 0.15f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateLow = 2.4f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateHigh = 0.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateHigh = 1.05f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float SteerResponse = 10.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float AirTurnMul = 0.35f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float BrakeTurnMul = 1.35f;
@@ -82,35 +82,38 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallBounce = 0.3f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallScrapeLoss = 0.2f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float BankMaxDeg = 22.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float NoseLeadMaxDeg = 5.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float PitchFromAccel = 0.12f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float VisualResponse = 6.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float BankMaxDeg = 38.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float NoseLeadMaxDeg = 8.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float PitchFromAccel = 0.16f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float VisualResponse = 9.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamDistanceM = 6.4f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamDistanceM = 5.8f;
 	/** Negative: the camera closes in at top speed. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamDistanceAtSpeedM = -1.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeightM = 1.6f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeightAtSpeedM = -0.35f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookAheadM = 16.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookHeightM = 0.8f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamUpFollow = 0.7f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamRollFollow = 0.4f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamOffsetStiffness = 7.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamUpSmoothing = 6.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeadingSmoothing = 8.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamDistanceAtSpeedM = -1.6f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeightM = 1.45f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeightAtSpeedM = -0.55f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookAheadM = 22.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookHeightM = 0.55f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamUpFollow = 0.75f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamRollFollow = 0.72f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamOffsetStiffness = 5.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamUpSmoothing = 5.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeadingSmoothing = 6.5f;
 	/** Vertical field of view in degrees, as in the previous game; converted to Unreal's horizontal FOV. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovMinV = 62.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovMaxV = 100.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovBoostV = 9.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovMinV = 68.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovMaxV = 112.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovBoostV = 14.0f;
 	/** Speeds (km/h) between which the vertigo effect (wider FOV, shake) builds up. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float VertigoKmhMin = 230.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float VertigoKmhMin = 180.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float VertigoKmhMax = 450.0f;
 	/** Light vibration near top speed, in degrees (the player preferred this to the old noise shake). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float TopSpeedShakeDeg = 0.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float TopSpeedShakeDeg = 0.55f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float ShakeScale = 1.0f;
 	/** Share of the craft's visual bank that the camera follows. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CameraBankFollow = 0.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CameraBankFollow = 0.82f;
+	/** Camera looks into the apex and hangs slightly outside the turn. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookIntoTurnDeg = 12.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamOutboardM = 1.35f;
 	/** Peak camera jolt on a hard landing or wall hit, in degrees. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float LandingShakeDeg = 2.2f;
 	/** How far the right stick orbits the camera around the craft. */
@@ -228,7 +231,7 @@ private:
 	bool bCamInitialized = false, bCamWasBoosting = false;
 	FVector CamOffsetCm = FVector::ZeroVector, CamSmoothUp = FVector::UpVector, CamSmoothHeading = FVector::ForwardVector;
 	float CamFovV = 62.0f, CamKick = 0.0f, CamKickVel = 0.0f, CamBoostPunch = 0.0f, CamDriftSwing = 0.0f, CamLastSpeed = 0.0f;
-	float LookYawInput = 0.0f, CamLookYaw = 0.0f, CamJolt = 0.0f, CamJoltTime = 0.0f;
+	float LookYawInput = 0.0f, CamLookYaw = 0.0f, CamJolt = 0.0f, CamJoltTime = 0.0f, CamApexYaw = 0.0f, WallThreat = 0.0f;
 	FVector GroundPointCm = FVector::ZeroVector;
 	bool bLookBack = false;
 
