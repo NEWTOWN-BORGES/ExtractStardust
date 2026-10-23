@@ -1,6 +1,8 @@
 # Extracting Stardust — notas para a IA (ler primeiro)
 
-Jogo de corrida de naves antigravidade (Unreal Engine, `ExtractingStardust.uproject`). O mapa **Red Dust Divide**
+Jogo de **extraction racing** de naves antigravidade (Unreal Engine, `ExtractingStardust.uproject`).
+Visão do produto: `Docs/VISAO_JOGO.md` (RACE. SURVIVE. EXTRACT. — A→B, 15/20/30 naves, pool de
+espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde). O mapa **Red Dust Divide**
 é gerado por scripts do Blender em `Scripts/`; a explicação completa está em `Docs/ESTUDO_BLENDKIT_CANYONS.md`
 (secções 5 a 12) e o plano do setor S01 em `Docs/MAPA_01_RED_DUST_DIVIDE_S01.md`.
 
@@ -49,11 +51,11 @@ largo, rochas a 30 m ou mais da pista, estradas de 56-64 m (6-7 naves lado a lad
 6. **Mar de dunas** (pedido anterior, por fazer): ampliar o deserto e deixar estruturas de canyon soterradas na areia;
    precisa do núcleo do mundo (`C:/rdd/mapa`), que só existe nos PCs do jogador.
 
-## MODOS DE JOGO PEDIDOS (ainda por fazer): ver `Docs/MODOS_DE_JOGO.md`
+## MODOS DE JOGO: ver `Docs/VISAO_JOGO.md` (produto) e `Docs/MODOS_DE_JOGO.md` (rascunho Unreal)
 
-Modo solo, e modo contra 15 bots em que só contam na meta as naves que sobrevivem. As naves têm vidas consoante as
-características (a VORTEX é a mais rápida e a mais frágil), e o jogador tem um kit médico de 3 usos que os bots não
-têm.
+O jogo **não** é só contra o cronómetro. É extração A→B com pelotão grande. O código actual
+(solo / 15 bots / vidas / kit médico) é protótipo; falta menu de hub, som, sensação tipo podrace
+(câmara + bank), loadout no hangar, pool de espólios e lobbies de 20–30.
 
 ## PRIORIDADE ATUAL (2026-10-20): EXPEDIÇÃO DE A A B — `Scripts/sculpt_expedition_ab.py`
 

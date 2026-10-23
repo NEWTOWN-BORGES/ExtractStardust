@@ -10,6 +10,7 @@ class UButton;
 class UTextBlock;
 class UVerticalBox;
 
+/** Briefing overlay: Solo, pelotão de 15, hangar. Voo livre fica só na linha de comandos. */
 UCLASS()
 class EXTRACTINGSTARDUST_API UEXMainMenuWidget : public UUserWidget
 {
@@ -23,43 +24,21 @@ protected:
 	virtual void NativeConstruct() override;
 
 private:
-	UButton* CreateModeButton(UVerticalBox* Parent, const FString& Number, const FString& Title, const FString& Description,
-		const FLinearColor& Accent);
+	UButton* CreateModeButton(UVerticalBox* Parent, const FString& Number, const FString& Title, const FString& Description);
 	void ApplyButtonStyle(UButton* Button, const FLinearColor& Normal, const FLinearColor& Hovered, const FLinearColor& Pressed);
 	void StartChoice(int32 Choice);
 	void RefreshSelection();
 	void RefreshShipName();
 	AEXHoverCraft* GetPlayerCraft() const;
 
-	UFUNCTION()
-	void OnSoloPressed();
+	UFUNCTION() void OnSoloPressed();
+	UFUNCTION() void OnBotsPressed();
+	UFUNCTION() void OnHangarPressed();
+	UFUNCTION() void OnPreviousShipPressed();
+	UFUNCTION() void OnNextShipPressed();
 
-	UFUNCTION()
-	void OnSurvivalPressed();
-
-	UFUNCTION()
-	void OnFreeFlightPressed();
-
-	UFUNCTION()
-	void OnHangarPressed();
-
-	UFUNCTION()
-	void OnPreviousShipPressed();
-
-	UFUNCTION()
-	void OnNextShipPressed();
-
-	UPROPERTY()
-	TObjectPtr<AEXRaceDirector> RaceDirector;
-
-	UPROPERTY()
-	TArray<TObjectPtr<UButton>> ModeButtons;
-
-	UPROPERTY()
-	TObjectPtr<UButton> HangarButton;
-
-	UPROPERTY()
-	TObjectPtr<UTextBlock> ShipNameText;
-
+	UPROPERTY() TObjectPtr<AEXRaceDirector> RaceDirector;
+	UPROPERTY() TArray<TObjectPtr<UButton>> ModeButtons;
+	UPROPERTY() TObjectPtr<UTextBlock> ShipNameText;
 	int32 SelectedChoice = 1;
 };

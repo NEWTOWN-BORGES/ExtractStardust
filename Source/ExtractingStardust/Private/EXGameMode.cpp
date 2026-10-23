@@ -50,7 +50,7 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 		|| FParse::Param(Line, TEXT("EXNoMenu")) || FCString::Strifind(Line, TEXT("EXLook=")) != nullptr;
 	if (ModeName.IsEmpty() && !bAutomated)
 	{
-		// Opened without a mode: the menu chooses (SOLO / CONTRA BOTS / VOO LIVRE).
+		// Opened without a mode: the menu chooses (SOLO / PELOTÃO 15 / HANGAR).
 		if (AEXRaceDirector* Race = World->SpawnActor<AEXRaceDirector>(FVector::ZeroVector, FRotator::ZeroRotator, Params))
 		{
 			Race->Configure(EEXRaceMode::Bots, 15);

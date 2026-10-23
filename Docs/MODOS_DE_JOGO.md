@@ -1,6 +1,8 @@
-# Modos de jogo, vidas e kit médico (pedido do jogador, 2026-10-21)
+# Modos de jogo, vidas e kit médico (rascunho Unreal, 2026-10-21)
 
-**Estado: código escrito na sessão da nuvem (sem Unreal), por compilar e testar em casa.** Pensado para a pista
+**Produto:** `Docs/VISAO_JOGO.md` (extraction racing; este ficheiro é o que o código faz hoje).
+
+**Estado: código escrito na sessão da nuvem, por testar em casa.** Pensado para a pista
 nova, a expedição de A a B (`Docs/PISTA_AB_RED_DUST_DIVIDE.md`, mapa `/Game/Maps/Expedition`).
 
 ## Como correr em casa (poucos passos, quase sem IA)
@@ -14,7 +16,7 @@ nova, a expedição de A a B (`Docs/PISTA_AB_RED_DUST_DIVIDE.md`, mapa `/Game/Ma
    (`Saved\Logs\ExtractingStardust.log`) tem as linhas `EXRACE`: partida, vidas perdidas, eliminações, chegadas e
    classificação.
 
-**Menu ao abrir o jogo** (sem `-EXMode`): interface nativa com CONTRA O CRONÓMETRO / SOBREVIVÊNCIA (15 rivais) / VOO LIVRE, seletor de nave e acesso ao Hangar.
+**Menu ao abrir o jogo** (sem `-EXMode`): briefing à esquerda (o deserto fica visível) com SOLO / PELOTÃO 15 / HANGAR e seletor de nave. Voo livre só por `-EXMode` / `-EXNoMenu`.
 - Modo: W/S, setas ou cruzeta para cima e para baixo.
 - Nave: Tab, 1-5 ou cruzeta para a esquerda e a direita.
 - Começar: Enter ou X.

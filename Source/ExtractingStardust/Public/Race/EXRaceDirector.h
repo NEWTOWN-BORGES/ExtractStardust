@@ -50,11 +50,11 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	void Configure(EEXRaceMode InMode, int32 InBots) { Mode = InMode; BotCount = InBots; }
-	/** Start on the menu (the game opened without a mode): SOLO / CONTRA BOTS / VOO LIVRE / HANGAR. */
+	/** Start on the menu (the game opened without a mode): SOLO / PELOTÃO 15 / HANGAR. */
 	void OpenMenu() { bMenu = true; }
 	void StartMenuChoice(int32 Choice);
 	bool IsInMenu() const { return bMenu; }
-	/** The highlighted menu line: 0 solo, 1 bots, 2 free flight, 3 hangar. */
+	/** The highlighted menu line: 0 solo, 1 bots, 2 hangar. */
 	int32 GetMenuChoice() const { return MenuChoice; }
 	/** From the player's craft: -1 up, +1 down, 0 confirm. */
 	void MenuInput(int32 Step);

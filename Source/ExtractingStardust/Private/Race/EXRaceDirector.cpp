@@ -131,13 +131,12 @@ void AEXRaceDirector::MenuInput(int32 Step)
 	}
 	if (Step != 0)
 	{
-		MenuChoice = (MenuChoice + Step + 4) % 4;
+		MenuChoice = (MenuChoice + Step + 3) % 3;
 		return;
 	}
 	bMenu = false;
-	if (MenuChoice == 3)
+	if (MenuChoice == 2)
 	{
-		// Hangar showroom: 360 orbital camera, tech specs card, ship switching
 		Mode = EEXRaceMode::Hangar;
 		if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0)))
 		{
@@ -145,17 +144,11 @@ void AEXRaceDirector::MenuInput(int32 Step)
 		}
 		return;
 	}
-	if (MenuChoice == 2)
-	{
-		// Free flight: no race, no lives; the director goes away.
-		if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0)))
-		{
-			Player->SetRaceHold(false);
-		}
-		Destroy();
-		return;
-	}
 	Mode = MenuChoice == 0 ? EEXRaceMode::Solo : EEXRaceMode::Bots;
+	if (Mode == EEXRaceMode::Bots)
+	{
+		BotCount = 15;
+	}
 }
 
 void AEXRaceDirector::StartMenuChoice(int32 Choice)
@@ -164,11 +157,7 @@ void AEXRaceDirector::StartMenuChoice(int32 Choice)
 	{
 		return;
 	}
-	MenuChoice = FMath::Clamp(Choice, 0, 3);
-	if (MenuChoice == 1)
-	{
-		BotCount = 15;
-	}
+	MenuChoice = FMath::Clamp(Choice, 0, 2);
 	MenuInput(0);
 }
 
