@@ -7,6 +7,7 @@
 class UBoxComponent;
 class UCameraComponent;
 class UEXCraftFx;
+class UEXCraftAudio;
 class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
@@ -120,6 +121,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UStaticMeshComponent> ShipMesh;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UCameraComponent> Camera;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UEXCraftFx> Fx;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UEXCraftAudio> Audio;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Ships") TArray<TObjectPtr<UStaticMesh>> ShipMeshes;
 	/** Yaw that turns the imported test models (long axis on Y) to face +X. */

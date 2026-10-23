@@ -10,6 +10,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Flight/EXCraftAudio.h"
 #include "Flight/EXCraftFx.h"
 #include "GameFramework/PlayerStart.h"
 #include "World/EXDesertTerrain.h"
@@ -121,6 +122,7 @@ AEXHoverCraft::AEXHoverCraft()
 	Camera->PostProcessSettings.MotionBlurMax = 8.0f;
 
 	Fx = CreateDefaultSubobject<UEXCraftFx>(TEXT("Fx"));
+	Audio = CreateDefaultSubobject<UEXCraftAudio>(TEXT("Audio"));
 }
 
 void AEXHoverCraft::BeginPlay()
@@ -217,11 +219,25 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (bEliminated)
 	{
+		if (Audio)
+		{
+			FEXCraftAudioInput Silent;
+			Silent.bViewer = false;
+			Audio->UpdateAudio(DeltaSeconds, Silent);
+		}
 		return;
 	}
 	if (bInHangar)
 	{
 		UpdateHangar(DeltaSeconds);
+		if (Audio)
+		{
+			FEXCraftAudioInput In;
+			In.bHangar = true;
+			In.bGrounded = true;
+			In.bViewer = true;
+			Audio->UpdateAudio(DeltaSeconds, In);
+		}
 		return;
 	}
 	HitCooldown = FMath::Max(0.0f, HitCooldown - DeltaSeconds);
@@ -343,6 +359,21 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	FxInput.bDrifting = bDrifting;
 	FxInput.bViewer = bViewer;
 	Fx->UpdateFx(DeltaSeconds, FxInput);
+	if (Audio)
+	{
+		FEXCraftAudioInput Sound;
+		Sound.SpeedMps = ForwardSpeedMps;
+		Sound.Throttle = ThrottleInput;
+		Sound.Steer = SteerInput;
+		Sound.HeightM = HeightM;
+		Sound.Impact = ImpactShake;
+		Sound.bBoosting = bBoosting;
+		Sound.bGrounded = bGrounded;
+		Sound.bDrifting = bDrifting;
+		Sound.bRaceHold = bRaceHold;
+		Sound.bViewer = bViewer;
+		Audio->UpdateAudio(DeltaSeconds, Sound);
+	}
 	if (bViewer)
 	{
 		ShowTelemetry();
@@ -829,6 +860,10 @@ void AEXHoverCraft::LoseLife()
 		return;
 	}
 	HitCooldown = 1.5f;   // one hit is one life, however many frames it scrapes
+	if (Audio)
+	{
+		Audio->Bang(1.0f);
+	}
 	Lives = FMath::Max(0, Lives - 1);
 	LastHitTime = GetWorld()->GetTimeSeconds();
 	UE_LOG(LogTemp, Display, TEXT("EXRACE HIT %s%s lives=%d at %.1f km"), *GetShipName(), bBot ? TEXT("") : TEXT(" (jogador)"), Lives,
