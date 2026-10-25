@@ -22,7 +22,9 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Race/EXRaceDirector.h"
+#include "Game/EXHangarModel.h"
 #include "Game/EXProfile.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "World/EXHangarStage.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
@@ -83,6 +85,25 @@ namespace
 	constexpr float ShowroomExposureBias = 0.0f;
 	constexpr float ShowroomVignette = 0.25f;
 
+	/** The engine nozzles of the new ships in the ship's frame (Blender metres: front -Y, up +Z), from the module
+	 *  manifests that Scripts/ship_modules.py writes (<ship>_modules.json); the radius is the nozzle's. */
+	struct FShipNozzles
+	{
+		const TCHAR* Ship;
+		float RadiusM;
+		int32 Count;
+		float Points[3][3];
+	};
+	const FShipNozzles ShipNozzles[] = {
+		{ TEXT("STRIX"), 0.16f, 2, { { 0.0f, 3.08f, 0.54f }, { 0.0f, 3.08f, 0.98f }, { 0.0f, 0.0f, 0.0f } } },
+		{ TEXT("WRAITH"), 0.17f, 3, { { 0.0f, 3.0f, 0.56f }, { -0.45f, 3.0f, 0.56f }, { 0.45f, 3.0f, 0.56f } } },
+		{ TEXT("NOMAD"), 0.16f, 3, { { 0.0f, 3.4f, 1.4f }, { -1.02f, 1.8f, 1.3f }, { 1.02f, 1.8f, 1.3f } } },
+		{ TEXT("VORTEX"), 0.20f, 1, { { 0.0f, 2.6f, 0.475f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } } },
+	};
+	/** The pieces on the hull, in the order of AEXHoverCraft::ModuleMeshes. */
+	const EEXFamily CraftExterior[] = { EEXFamily::Wings, EEXFamily::Tail, EEXFamily::Armor, EEXFamily::Cooling, EEXFamily::Utility };
+	const TCHAR* const CraftExteriorNames[] = { TEXT("ModuleWings"), TEXT("ModuleTail"), TEXT("ModuleArmor"), TEXT("ModuleCooling"), TEXT("ModuleUtility") };
+
 	/** The previous game used vertical FOV; Unreal cameras take horizontal FOV. */
 	float HorizontalFov(float VerticalDeg)
 	{
@@ -105,6 +126,22 @@ AEXHoverCraft::AEXHoverCraft()
 	ShipMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShipMesh"));
 	ShipMesh->SetupAttachment(VisualPivot);
 	ShipMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// The module pieces are exported in the ship's frame (Scripts/ship_modules.py): on the ship mesh with no offset.
+	for (const TCHAR* PieceName : CraftExteriorNames)
+	{
+		UStaticMeshComponent* Piece = CreateDefaultSubobject<UStaticMeshComponent>(PieceName);
+		Piece->SetupAttachment(ShipMesh);
+		Piece->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Piece->SetGenerateOverlapEvents(false);
+		ModuleMeshes.Add(Piece);
+	}
+	SkeletonMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Skeleton"));
+	SkeletonMesh->SetupAttachment(ShipMesh);
+	SkeletonMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SkeletonMesh->SetGenerateOverlapEvents(false);
+	SkeletonMesh->SetVisibility(false);
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Glow(TEXT("/Game/FX/M_FX_Glow.M_FX_Glow"));
+	GlowMaterial = Glow.Object;
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Strix(TEXT("/Game/TestShips/SM_STRIX.SM_STRIX"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Wraith(TEXT("/Game/TestShips/SM_WRAITH.SM_WRAITH"));
@@ -143,6 +180,14 @@ void AEXHoverCraft::BeginPlay()
 {
 	Super::BeginPlay();
 	BaseMaxSpeedMps = MaxSpeedMps;
+	BaseAccelMps2 = AccelerationMps2;
+	BaseBoostAccelMps2 = BoostAccelerationMps2;
+	BaseTurnLow = TurnRateLow;
+	BaseTurnHigh = TurnRateHigh;
+	BaseGripRedirect = GripRedirect;
+	BaseGripLateralMax = GripLateralMax;
+	BaseNitroSeconds = NitroSeconds;
+	Modules.SetNum(EXMeta::FamilyCount);
 	StartLocation = GetActorLocation();
 	LastGroundZCm = StartLocation.Z - 300.0f;
 	StartRotation = FRotator(0.0f, GetActorRotation().Yaw, 0.0f);
@@ -217,13 +262,21 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction(TEXT("Ship4"), IE_Pressed, this, &AEXHoverCraft::Ship4);
 	PlayerInputComponent->BindAction(TEXT("Ship5"), IE_Pressed, this, &AEXHoverCraft::Ship5);
 	PlayerInputComponent->BindAction(TEXT("ToggleCamera"), IE_Pressed, this, &AEXHoverCraft::CycleCamera);
-	PlayerInputComponent->BindAction(TEXT("MedKit"), IE_Pressed, this, &AEXHoverCraft::UseMedKit);
+	PlayerInputComponent->BindAction(TEXT("Consumable1"), IE_Pressed, this, &AEXHoverCraft::Quick1);
+	PlayerInputComponent->BindAction(TEXT("Consumable2"), IE_Pressed, this, &AEXHoverCraft::Quick2);
+	PlayerInputComponent->BindAction(TEXT("Consumable3"), IE_Pressed, this, &AEXHoverCraft::Quick3);
+	PlayerInputComponent->BindAction(TEXT("Consumable4"), IE_Pressed, this, &AEXHoverCraft::Quick4);
 	PlayerInputComponent->BindAction(TEXT("MenuUp"), IE_Pressed, this, &AEXHoverCraft::MenuUp);
 	PlayerInputComponent->BindAction(TEXT("MenuDown"), IE_Pressed, this, &AEXHoverCraft::MenuDown);
 	PlayerInputComponent->BindAction(TEXT("MenuConfirm"), IE_Pressed, this, &AEXHoverCraft::MenuConfirm);
 	PlayerInputComponent->BindAxis(TEXT("HangarPitch"), this, &AEXHoverCraft::InputHangarPitch);
 	PlayerInputComponent->BindAxis(TEXT("HangarYaw"), this, &AEXHoverCraft::InputHangarYaw);
-	PlayerInputComponent->BindAction(TEXT("Surge"), IE_Pressed, this, &AEXHoverCraft::UseSurge);
+	PlayerInputComponent->BindAxis(TEXT("HangarOrbit"), this, &AEXHoverCraft::InputHangarOrbit);
+	PlayerInputComponent->BindAxis(TEXT("HangarZoom"), this, &AEXHoverCraft::InputHangarZoom);
+	PlayerInputComponent->BindAction(TEXT("HangarTabPrev"), IE_Pressed, this, &AEXHoverCraft::HangarTabPrev);
+	PlayerInputComponent->BindAction(TEXT("HangarTabNext"), IE_Pressed, this, &AEXHoverCraft::HangarTabNext);
+	PlayerInputComponent->BindAction(TEXT("HangarClear"), IE_Pressed, this, &AEXHoverCraft::HangarClear);
+	PlayerInputComponent->BindAction(TEXT("HangarInsure"), IE_Pressed, this, &AEXHoverCraft::HangarInsure);
 	PlayerInputComponent->BindAction(TEXT("HangarZoomIn"), IE_Pressed, this, &AEXHoverCraft::HangarZoomIn);
 	PlayerInputComponent->BindAction(TEXT("HangarZoomOut"), IE_Pressed, this, &AEXHoverCraft::HangarZoomOut);
 	PlayerInputComponent->BindAction(TEXT("HangarToggleAuto"), IE_Pressed, this, &AEXHoverCraft::HangarToggleAutoRotate);
@@ -246,6 +299,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	if (bInShowroom)
 	{
 		UpdateHangar(DeltaSeconds);
+		Fx->TickPreview(DeltaSeconds, PreviewEnginePower);
 		if (Audio)
 		{
 			FEXCraftAudioInput In;
@@ -259,7 +313,6 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	}
 	HitCooldown = FMath::Max(0.0f, HitCooldown - DeltaSeconds);
 	AudioHitCooldown = FMath::Max(0.0f, AudioHitCooldown - DeltaSeconds);
-	MedKitCooldown = FMath::Max(0.0f, MedKitCooldown - DeltaSeconds);
 	const bool bViewer = IsPlayerControlled();
 	if (bBot)
 	{
@@ -284,6 +337,10 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 		BrakeInput = 1.0f;
 		bBoostHeld = false;
 		bDriftHeld = false;
+	}
+	if (bRaceRules && !bRaceHold)
+	{
+		UpdateRaceSystems(DeltaSeconds);
 	}
 	if (!bLost)
 	{
@@ -464,14 +521,14 @@ void AEXHoverCraft::StepFlight(float Dt)
 	bBraking = bGrounded && !bDrifting && (BrakeInput > 0.05f || bDriftHeld);
 	const float BrakeStrength = FMath::Max(BrakeInput, bDriftHeld ? 1.0f : 0.0f);
 
-	bBoosting = bBoostHeld && Nitro > 0.0f && ThrottleInput > 0.1f;
+	bBoosting = bBoostHeld && Nitro > 0.0f && ThrottleInput > 0.1f && !bOverheated;
 	Nitro = bBoosting ? FMath::Max(0.0f, Nitro - Dt / NitroSeconds)
 		: FMath::Min(1.0f, Nitro + Dt * (NitroRegen + (bWasDrifting ? NitroDriftRegen : 0.0f) + (bGrounded ? 0.0f : NitroAirRegen)));
 
 	FVector Acceleration = FVector::ZeroVector;
 	if (bGrounded)
 	{
-		const float TopSpeed = MaxSpeedMps * (bBoosting ? BoostTopMul : 1.0f);
+		const float TopSpeed = MaxSpeedMps * SpeedCapMul() * (bBoosting ? BoostTopMul : 1.0f);
 		float Thrust = 0.0f;
 		if (Forward < TopSpeed)
 		{
@@ -531,8 +588,10 @@ void AEXHoverCraft::StepFlight(float Dt)
 				FVector::DotProduct(Tangential, Heading));
 			SlipRad = SignedAngle;
 			GripBlend = bDrifting ? 0.0f : FMath::Min(1.0f, GripBlend + Dt / FMath::Max(0.05f, DriftRecoverTime));
-			float LateralMax = FMath::Lerp(DriftLateralMax, GripLateralMax, GripBlend) * (bBraking ? BrakeGripMul : 1.0f);
-			float Redirect = FMath::Lerp(DriftRedirect, GripRedirect, GripBlend);
+			// The Stabilizer Shot holds the line harder for its 8 seconds.
+			const float StabMul = StabLeft > 0.0f ? 1.35f : 1.0f;
+			float LateralMax = FMath::Lerp(DriftLateralMax, GripLateralMax, GripBlend) * (bBraking ? BrakeGripMul : 1.0f) * StabMul;
+			float Redirect = FMath::Lerp(DriftRedirect, GripRedirect, GripBlend) * StabMul;
 			const float SlipOverDeg = FMath::RadiansToDegrees(FMath::Abs(SignedAngle)) - DriftMaxSlipDeg;
 			if (SlipOverDeg > 0.0f)
 			{
@@ -836,6 +895,11 @@ void AEXHoverCraft::SelectShip(int32 Index)
 	{
 		Fx->SetShipHalfSize(ModelRotation.RotateVector(Mesh->GetBounds().BoxExtent).GetAbs());
 	}
+	if (bInShowroom && !bInHangar && Profile && !bBot)
+	{
+		Modules = Profile->EquippedCopy(GetShipName());   // the menu shows each ship with what it flies
+	}
+	RefreshModuleVisuals();
 	if (bRaceRules)
 	{
 		ApplyShipStats();
@@ -843,10 +907,6 @@ void AEXHoverCraft::SelectShip(int32 Index)
 	if (Profile && !bBot)
 	{
 		Profile->ShipIndex = ShipIndex;
-		if (bInShowroom)
-		{
-			HangarTrimCargo();
-		}
 	}
 }
 
@@ -873,6 +933,10 @@ void AEXHoverCraft::GetShipRaceStats(const FString& Name, int32& OutLives, float
 
 void AEXHoverCraft::ResetToStart()
 {
+	if (bInShowroom)
+	{
+		return;   // the craft stays on the turntable (R and the gamepad's top button mean other things there)
+	}
 	if (bRaceRules)
 	{
 		// In a race there is no going back to the start: the craft is put back on the line where it is.
@@ -907,10 +971,9 @@ FString AEXHoverCraft::GetShipName() const
 		? ShipMeshes[ShipIndex]->GetName().Replace(TEXT("SM_"), TEXT("")) : FString(TEXT("?"));
 }
 
-void AEXHoverCraft::SetRaceRules(int32 InMedKits)
+void AEXHoverCraft::SetRaceRules()
 {
 	bRaceRules = true;
-	MedKits = InMedKits;
 	Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 	Collision->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
 	ApplyShipStats();
@@ -928,11 +991,44 @@ void AEXHoverCraft::ApplyShipStats()
 			break;
 		}
 	}
-	MaxLives = Stats->Lives;
+	// The modules (Docs/MODULOS.md sec. 5): every point a module adds over the ship's own stat moves the tuned handling
+	// a little; hull adds lives; efficiency, cooling and repair drive the fuel, the heat and the consumables.
+	TArray<const FEXItem*> Fitted;
+	for (const FEXItem& Item : Modules)
+	{
+		Fitted.Add(Item.IsValid() ? &Item : nullptr);
+	}
+	EXMeta::Resolve(Name, Fitted, ResolvedStats);
+	const EXMeta::FShipDef& Ship = EXMeta::Ship(Name);
+	auto Delta = [this, &Ship](EEXStat Stat)
+	{
+		const int32 Index = static_cast<int32>(Stat);
+		return static_cast<float>(ResolvedStats[Index] - (Index < EXMeta::CoreStats ? Ship.Stats[Index] : 0));
+	};
+	const float MassFactor = FMath::Sqrt(Ship.MassKg / FMath::Max(1.0f, Ship.MassKg + static_cast<float>(ResolvedStats[static_cast<int32>(EEXStat::Mass)])));
+	MaxLives = EXMeta::Lives(Name, ResolvedStats[static_cast<int32>(EEXStat::Hull)]);
 	Lives = MaxLives;
-	MaxSpeedMps = BaseMaxSpeedMps * Stats->SpeedMul;
-	WallHitMps = Stats->WallHitMps;
-	LandingHitMps = Stats->LandingHitMps;
+	MaxSpeedMps = BaseMaxSpeedMps * Stats->SpeedMul * (1.0f + 0.0057f * Delta(EEXStat::Speed));
+	AccelerationMps2 = BaseAccelMps2 * (1.0f + 0.006f * Delta(EEXStat::Accel)) * MassFactor;
+	BoostAccelerationMps2 = BaseBoostAccelMps2 * (1.0f + 0.004f * Delta(EEXStat::Boost)) * MassFactor;
+	NitroSeconds = BaseNitroSeconds * (1.0f + 0.006f * Delta(EEXStat::Boost));
+	TurnRateLow = BaseTurnLow * (1.0f + 0.005f * Delta(EEXStat::Handling));
+	TurnRateHigh = BaseTurnHigh * (1.0f + 0.005f * Delta(EEXStat::Handling));
+	GripRedirect = BaseGripRedirect * (1.0f + 0.005f * Delta(EEXStat::Stability));
+	GripLateralMax = BaseGripLateralMax * (1.0f + 0.005f * Delta(EEXStat::Stability));
+	const float HullMul = (1.0f + 0.006f * Delta(EEXStat::Hull)) * (EXMeta::HasPerk(Fitted, TEXT("aegis")) ? 1.25f : 1.0f);
+	WallHitMps = Stats->WallHitMps * HullMul;
+	LandingHitMps = Stats->LandingHitMps * HullMul;
+	// Fuel: % per km flat out. NOMAD (92) uses ~65% of a 59 km expedition, VORTEX (49) ~80% (more with nitro).
+	FuelBurnPerKm = 236.9f / (ResolvedStats[static_cast<int32>(EEXStat::Efficiency)] + 123.0f);
+	HeatCoolPerS = 4.0f + 0.08f * ResolvedStats[static_cast<int32>(EEXStat::Cooling)];
+	bRedline = EXMeta::HasPerk(Fitted, TEXT("redline"));
+	BoostHeatPerS = 14.0f * (bRedline ? 1.15f : 1.0f);
+	RepairTimeMul = FMath::Max(0.4f, 1.0f - 0.03f * ResolvedStats[static_cast<int32>(EEXStat::Repair)]);
+	Fuel = 100.0f;
+	Heat = 0.0f;
+	bOverheated = false;
+	RepairLeft = RepairTotal = RepairSlow = StabLeft = 0.0f;
 }
 
 void AEXHoverCraft::SetBot(int32 InShipIndex, float InSkill, float InLaneM)
@@ -951,13 +1047,6 @@ void AEXHoverCraft::LoseLife()
 		return;
 	}
 	HitCooldown = 1.5f;   // one hit is one life, however many frames it scrapes
-	if (ShieldCharges > 0)
-	{
-		--ShieldCharges;
-		LastShieldTime = GetWorld()->GetTimeSeconds();
-		UE_LOG(LogTemp, Display, TEXT("EXRACE SHIELD %s shields=%d"), *GetShipName(), ShieldCharges);
-		return;
-	}
 	if (Audio)
 	{
 		Audio->Bang(1.0f);
@@ -1026,13 +1115,16 @@ void AEXHoverCraft::SendMenu(int32 Step)
 {
 	if (bInHangar)
 	{
-		if (Step == 0)
+		if (HangarModel)
 		{
-			HangarLaunch();
-		}
-		else
-		{
-			HangarRow = (HangarRow + Step + EXEconomy::ItemCount) % EXEconomy::ItemCount;
+			if (Step == 0)
+			{
+				HangarModel->Confirm();
+			}
+			else
+			{
+				HangarModel->Move(Step);
+			}
 		}
 		return;
 	}
@@ -1043,17 +1135,67 @@ void AEXHoverCraft::SendMenu(int32 Step)
 	}
 }
 
-void AEXHoverCraft::UseMedKit()
+void AEXHoverCraft::UseQuick(int32 Slot)
 {
-	// The medical kit: the player's only (bots get no charges), one life back, never above the ship's maximum.
-	if (!bRaceRules || bEliminated || MedKits <= 0 || Lives >= MaxLives || MedKitCooldown > 0.0f)
+	// Keys 1-4 and the d-pad: in the hangar they pick ships and move through the lists; on the track they use the slot.
+	if (bInShowroom || !bRaceRules || bEliminated || bRaceHold || !QuickSlots.IsValidIndex(Slot) || QuickCooldown > 0.0f)
 	{
 		return;
 	}
-	--MedKits;
-	++Lives;
-	MedKitCooldown = 5.0f;
-	UE_LOG(LogTemp, Display, TEXT("EXRACE MEDKIT lives=%d kits=%d"), Lives, MedKits);
+	FEXQuickSlot& Quick = QuickSlots[Slot];
+	const EEXConsumable Kind = static_cast<EEXConsumable>(Quick.Kind);
+	if (Quick.Count <= 0 || Kind == EEXConsumable::None)
+	{
+		return;
+	}
+	// Doc 03 sec. 6. A consumable that would do nothing now is kept.
+	bool bUsed = true;
+	switch (Kind)
+	{
+	case EEXConsumable::Coolant:
+		bUsed = Heat > 1.0f;
+		Heat = FMath::Max(0.0f, Heat - 45.0f);
+		bOverheated = bOverheated && Heat > 40.0f;
+		break;
+	case EEXConsumable::Foam:
+	case EEXConsumable::Nanogel:
+		bUsed = Lives < MaxLives && RepairLeft <= 0.0f;
+		if (bUsed)
+		{
+			const bool bFoam = Kind == EEXConsumable::Foam;
+			RepairTotal = RepairLeft = (bFoam ? 8.0f : 2.5f) * RepairTimeMul;
+			RepairSlow = (bFoam ? 0.10f : 0.25f) * RepairTimeMul;
+		}
+		break;
+	case EEXConsumable::Fuel:
+		bUsed = Fuel < 99.0f;
+		Fuel = FMath::Min(100.0f, Fuel + 30.0f);
+		break;
+	case EEXConsumable::Stabilizer:
+		StabLeft = 8.0f;
+		break;
+	case EEXConsumable::Surge:
+		bUsed = Nitro < 0.95f;
+		if (bUsed)
+		{
+			Nitro = FMath::Min(1.0f, Nitro + 0.7f);
+			Heat = FMath::Min(100.0f, Heat + 12.0f);
+		}
+		break;
+	default:
+		bUsed = false;
+		break;
+	}
+	if (!bUsed)
+	{
+		return;
+	}
+	--Quick.Count;
+	LastQuickSlot = Slot;
+	LastQuickTime = GetWorld()->GetTimeSeconds();
+	QuickCooldown = 0.4f;
+	UE_LOG(LogTemp, Display, TEXT("EXRACE QUICK %d %s left=%d lives=%d fuel=%.0f heat=%.0f"), Slot + 1, EXMeta::Consumable(Kind).Id, Quick.Count,
+		Lives, Fuel, Heat);
 }
 
 void AEXHoverCraft::RespawnOnRoute()
@@ -1406,6 +1548,11 @@ void AEXHoverCraft::EnterShowroom()
 		return;
 	}
 	EnsureProfile();
+	if (!HangarModel)
+	{
+		HangarModel = NewObject<UEXHangarModel>(this);
+		HangarModel->Bind(this);
+	}
 	bInShowroom = true;
 	bRaceHold = true;
 	bShipLocked = false;
@@ -1422,6 +1569,7 @@ void AEXHoverCraft::EnterShowroom()
 	if (Profile)
 	{
 		SelectShip(Profile->ShipIndex);
+		PreviewModules(Profile->EquippedCopy(GetShipName()), EEXFamily::Wings);
 	}
 	// Onto the turntable; back to the start of the race line when the showroom closes.
 	PreHangarLocation = GetActorLocation();
@@ -1445,6 +1593,9 @@ void AEXHoverCraft::ExitShowroom()
 	bInShowroom = false;
 	bInHangar = false;
 	bCamInitialized = false;
+	bXRay = false;
+	PreviewEnginePower = 0.0f;
+	AppliedHangarVersion = -1;
 	if (Profile)
 	{
 		Profile->ShipIndex = ShipIndex;
@@ -1473,13 +1624,16 @@ void AEXHoverCraft::EnterHangar()
 		return;
 	}
 	bInHangar = true;
-	HangarRow = 0;
 	bQtyArmed = true;
 	HangarOrbitDist = 900.0f;
 	HangarOrbitPitch = 14.0f;
 	bHangarAutoRotate = true;
 	HangarIdleTime = 0.0f;
-	HangarTrimCargo();
+	if (HangarModel)
+	{
+		HangarModel->Open();
+	}
+	AppliedHangarVersion = -1;
 	if (HangarStage)
 	{
 		HangarStage->SetLightTarget(1.0f);
@@ -1495,6 +1649,11 @@ void AEXHoverCraft::LeaveHangar()
 	bInHangar = false;
 	HangarOrbitDist = ShowroomDistCm;
 	bHangarAutoRotate = true;
+	// Back in the menu the ship shows what it will fly with.
+	if (Profile)
+	{
+		PreviewModules(Profile->EquippedCopy(GetShipName()), EEXFamily::Wings);
+	}
 	if (Profile)
 	{
 		Profile->ShipIndex = ShipIndex;
@@ -1506,9 +1665,9 @@ void AEXHoverCraft::UpdateHangar(float Dt)
 {
 	if (bInHangar)
 	{
-		// Orbit: mouse, right stick or Q/E; zoom: wheel, PageUp/PageDown or the shoulders (HangarZoomIn/Out).
-		// W/S choose the cargo row (MenuUp/MenuDown), A/D or the left stick change its quantity, Tab / 1-5 / d-pad the ship.
-		const float YawDelta = LookYawInput * 120.0f * Dt + HangarYawInput * 0.6f;
+		// Orbit: mouse or right stick; zoom: wheel, PageUp/PageDown or the triggers. Q/E or the shoulders change the tab,
+		// W/S the row (MenuUp/MenuDown), A/D or the left stick the choice in it; Tab, 1-5 and the d-pad sides the ship.
+		const float YawDelta = HangarOrbitInput * 120.0f * Dt + HangarYawInput * 0.6f;
 		const float PitchDelta = HangarPitchInput * 50.0f * Dt;
 		if (!FMath::IsNearlyZero(YawDelta) || !FMath::IsNearlyZero(PitchDelta))
 		{
@@ -1529,15 +1688,33 @@ void AEXHoverCraft::UpdateHangar(float Dt)
 		{
 			HangarOrbitYaw += 16.0f * Dt;
 		}
-		// Quantity: one step per push of A/D or the left stick.
+		// One step per push of A/D or the left stick.
 		if (FMath::Abs(SteerInput) > 0.6f && bQtyArmed)
 		{
 			bQtyArmed = false;
-			HangarChangeQuantity(SteerInput > 0.0f ? 1 : -1);
+			if (HangarModel)
+			{
+				HangarModel->Change(SteerInput > 0.0f ? 1 : -1);
+			}
 		}
 		else if (FMath::Abs(SteerInput) < 0.3f)
 		{
 			bQtyArmed = true;
+		}
+		if (!FMath::IsNearlyZero(HangarZoomInput))
+		{
+			HangarOrbitDist = FMath::Clamp(HangarOrbitDist - HangarZoomInput * 500.0f * Dt, 320.0f, ShowroomDistCm);
+		}
+		if (HangarModel)
+		{
+			HangarModel->Tick(Dt);
+			// The ship on the turntable wears what the pilot is looking at.
+			if (HangarModel->GetVersion() != AppliedHangarVersion || AppliedHangarShip != ShipIndex)
+			{
+				AppliedHangarVersion = HangarModel->GetVersion();
+				AppliedHangarShip = ShipIndex;
+				PreviewModules(HangarModel->GetPreviewBuild(), HangarModel->GetFocus());
+			}
 		}
 	}
 	else
@@ -1589,79 +1766,6 @@ UEXProfileSave* AEXHoverCraft::EnsureProfile()
 	return Profile;
 }
 
-void AEXHoverCraft::HangarNote(const FString& Notice)
-{
-	HangarNotice = Notice;
-	HangarNoticeTime = GetWorld()->GetTimeSeconds();
-}
-
-void AEXHoverCraft::HangarChangeQuantity(int32 Delta)
-{
-	if (!Profile)
-	{
-		return;
-	}
-	const EEXItem Item = static_cast<EEXItem>(FMath::Clamp(HangarRow, 0, EXEconomy::ItemCount - 1));
-	const EXEconomy::FItemDef& Def = EXEconomy::Item(Item);
-	if (!Def.bAvailable)
-	{
-		HangarNote(TEXT("Ainda n\u00E3o dispon\u00EDvel"));
-		return;
-	}
-	const int32 Have = Profile->Count(Item);
-	if (Delta > 0)
-	{
-		if (EXEconomy::CargoWeight(Profile) + Def.Weight > EXEconomy::ShipCapacity(GetShipName()))
-		{
-			HangarNote(TEXT("Carga cheia nesta nave"));
-			return;
-		}
-		if (Profile->Stardust < Def.Cost)
-		{
-			HangarNote(TEXT("STARDUST insuficiente"));
-			return;
-		}
-		Profile->Stardust -= Def.Cost;
-		Profile->SetCount(Item, Have + 1);
-	}
-	else if (Have > 0)
-	{
-		Profile->Stardust += Def.Cost;   // returned to the store at full value: it never left the hangar
-		Profile->SetCount(Item, Have - 1);
-	}
-}
-
-void AEXHoverCraft::HangarTrimCargo()
-{
-	// A smaller ship: the heaviest items go back to the store (refunded) until the cargo fits.
-	if (!Profile)
-	{
-		return;
-	}
-	const int32 Capacity = EXEconomy::ShipCapacity(GetShipName());
-	int32 Guard = 64;
-	while (EXEconomy::CargoWeight(Profile) > Capacity && Guard-- > 0)
-	{
-		int32 Heaviest = -1;
-		for (int32 Index = 0; Index < EXEconomy::ItemCount; ++Index)
-		{
-			const EEXItem Item = static_cast<EEXItem>(Index);
-			if (Profile->Count(Item) > 0 && (Heaviest < 0 || EXEconomy::Item(Item).Weight > EXEconomy::Item(static_cast<EEXItem>(Heaviest)).Weight))
-			{
-				Heaviest = Index;
-			}
-		}
-		if (Heaviest < 0)
-		{
-			break;
-		}
-		const EEXItem Item = static_cast<EEXItem>(Heaviest);
-		Profile->SetCount(Item, Profile->Count(Item) - 1);
-		Profile->Stardust += EXEconomy::Item(Item).Cost;
-		HangarNote(TEXT("Carga ajustada \u00E0 nave"));
-	}
-}
-
 void AEXHoverCraft::HangarLaunch()
 {
 	if (!bInHangar)
@@ -1675,24 +1779,6 @@ void AEXHoverCraft::HangarLaunch()
 		return;
 	}
 	ExitShowroom();
-}
-
-void AEXHoverCraft::SetLoadout(int32 Repair, int32 Surge, int32 Shield)
-{
-	MedKits = FMath::Max(0, Repair);
-	SurgeCharges = FMath::Max(0, Surge);
-	ShieldCharges = FMath::Max(0, Shield);
-}
-
-void AEXHoverCraft::UseSurge()
-{
-	if (!bRaceRules || bEliminated || bRaceHold || bInHangar || SurgeCharges <= 0 || Nitro > 0.95f)
-	{
-		return;
-	}
-	--SurgeCharges;
-	Nitro = 1.0f;
-	UE_LOG(LogTemp, Display, TEXT("EXRACE SURGE surges=%d"), SurgeCharges);
 }
 
 void AEXHoverCraft::HangarZoomIn()
@@ -1713,26 +1799,244 @@ void AEXHoverCraft::HangarZoomOut()
 
 void AEXHoverCraft::HangarToggleAutoRotate()
 {
-	if (bInHangar)
-	{
-		bHangarAutoRotate = !bHangarAutoRotate;
-		HangarIdleTime = 0.0f;
-	}
-}
-
-void AEXHoverCraft::HangarBack()
-{
 	if (!bInHangar)
 	{
 		return;
 	}
-	LeaveHangar();
+	if (HangarModel && HangarModel->IsOpening())
+	{
+		HangarModel->Alt();   // Space shows every card of the cache at once
+		return;
+	}
+	bHangarAutoRotate = !bHangarAutoRotate;
+	HangarIdleTime = 0.0f;
+}
+
+void AEXHoverCraft::HangarBack()
+{
+	// Esc is QuitGame too (which comes back here): one press does one thing.
+	if (!bInHangar || HangarBackFrame == GFrameCounter)
+	{
+		return;
+	}
 	HangarBackFrame = GFrameCounter;
+	if (HangarModel && HangarModel->IsOpening())
+	{
+		HangarModel->CloseCache();   // Esc closes the cards first (everything in it is already in the vault)
+		return;
+	}
+	LeaveHangar();
 	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
 	{
 		It->OpenMenu();
 		break;
 	}
+}
+
+void AEXHoverCraft::HangarTabPrev()
+{
+	if (bInHangar && HangarModel)
+	{
+		HangarModel->Tab(-1);
+	}
+}
+
+void AEXHoverCraft::HangarTabNext()
+{
+	if (bInHangar && HangarModel)
+	{
+		HangarModel->Tab(1);
+	}
+}
+
+void AEXHoverCraft::HangarClear()
+{
+	if (bInHangar && HangarModel)
+	{
+		HangarModel->Clear();
+	}
+}
+
+void AEXHoverCraft::HangarInsure()
+{
+	if (bInHangar && HangarModel)
+	{
+		HangarModel->Insure();
+	}
+}
+
+void AEXHoverCraft::SetModules(const TArray<FEXItem>& InModules)
+{
+	Modules = InModules;
+	Modules.SetNum(EXMeta::FamilyCount);
+	bXRay = false;
+	PreviewEnginePower = 0.0f;
+	RefreshModuleVisuals();
+	if (bRaceRules)
+	{
+		ApplyShipStats();
+	}
+}
+
+void AEXHoverCraft::SetQuickSlots(const TArray<FEXQuickSlot>& InSlots)
+{
+	QuickSlots = InSlots;
+	QuickSlots.SetNum(EXMeta::QuickSlots);
+	LastQuickSlot = -1;
+	LastQuickTime = -100.0f;
+}
+
+void AEXHoverCraft::PreviewModules(const TArray<FEXItem>& InModules, EEXFamily Focus)
+{
+	Modules = InModules;
+	Modules.SetNum(EXMeta::FamilyCount);
+	// Engine, propulsion and reactor sit inside the hull: the x-ray view, with the engine running (the nitro colour
+	// shows on the propulsion slot).
+	bXRay = Focus == EEXFamily::Engine || Focus == EEXFamily::Propulsion || Focus == EEXFamily::Reactor;
+	PreviewEnginePower = Focus == EEXFamily::Engine ? 0.85f : (Focus == EEXFamily::Propulsion ? 1.0f : (bXRay ? 0.35f : 0.0f));
+	RefreshModuleVisuals();
+}
+
+UStaticMesh* AEXHoverCraft::LoadPiece(const FString& Ship, const FString& Piece)
+{
+	const FString Up = Ship.ToUpper();
+	const FString Key = Up + TEXT("_") + Piece;
+	if (const TObjectPtr<UStaticMesh>* Found = PieceCache.Find(Key))
+	{
+		return Found->Get();
+	}
+	// Scripts/import_ship_modules.py: /Game/Ships/<SHIP>/SM_<SHIP>_<piece>. Missing until the pieces are imported.
+	const FString Path = FString::Printf(TEXT("/Game/Ships/%s/SM_%s_%s.SM_%s_%s"), *Up, *Up, *Piece, *Up, *Piece);
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	PieceCache.Add(Key, Mesh);
+	return Mesh;
+}
+
+void AEXHoverCraft::RefreshModuleVisuals()
+{
+	if (!ShipMesh || !SkeletonMesh)
+	{
+		return;
+	}
+	const FString Ship = GetShipName();
+	UStaticMesh* Full = ShipMeshes.IsValidIndex(ShipIndex) ? ShipMeshes[ShipIndex].Get() : nullptr;
+	// With the pieces imported the hull is the core (no wings) and the modules go on it; without them, the whole ship.
+	UStaticMesh* Core = LoadPiece(Ship, TEXT("core"));
+	UStaticMesh* Skeleton = Core ? LoadPiece(Ship, TEXT("skeleton")) : nullptr;
+	const bool bShowSkeleton = bXRay && Skeleton != nullptr;
+	ShipMesh->SetStaticMesh(Core ? Core : Full);
+	ShipMesh->SetVisibility(!bShowSkeleton);
+	auto Fitted = [this](EEXFamily Family) -> const FEXItem*
+	{
+		const int32 Index = static_cast<int32>(Family);
+		return Modules.IsValidIndex(Index) && Modules[Index].IsValid() ? &Modules[Index] : nullptr;
+	};
+	for (int32 K = 0; K < ModuleMeshes.Num() && K < static_cast<int32>(UE_ARRAY_COUNT(CraftExterior)); ++K)
+	{
+		UStaticMesh* Mesh = nullptr;
+		if (Core)
+		{
+			const FEXItem* Item = Fitted(CraftExterior[K]);
+			const EXMeta::FModuleDef* Def = Item ? EXMeta::Find(*Item) : nullptr;
+			Mesh = Def && !Def->Piece.IsEmpty() ? LoadPiece(Ship, Def->Piece) : nullptr;
+			if (!Mesh && CraftExterior[K] == EEXFamily::Wings)
+			{
+				Mesh = LoadPiece(Ship, TEXT("wing_stock"));
+			}
+		}
+		ModuleMeshes[K]->SetStaticMesh(Mesh);
+		ModuleMeshes[K]->SetVisibility(Mesh != nullptr && !bShowSkeleton);
+	}
+	SkeletonMesh->SetStaticMesh(Skeleton);
+	SkeletonMesh->SetVisibility(bShowSkeleton);
+	if (Skeleton && GlowMaterial)
+	{
+		// The reactor glows in the colour of its module.
+		if (!ReactorGlow)
+		{
+			ReactorGlow = UMaterialInstanceDynamic::Create(GlowMaterial, this);
+		}
+		ReactorGlow->SetVectorParameterValue(TEXT("Color"), EXMeta::ReactorGlow(Fitted(EEXFamily::Reactor)));
+		ReactorGlow->SetScalarParameterValue(TEXT("Intensity"), 25.0f);
+		const TArray<FStaticMaterial>& Slots = Skeleton->GetStaticMaterials();
+		for (int32 Slot = 0; Slot < Slots.Num(); ++Slot)
+		{
+			if (Slots[Slot].MaterialSlotName.ToString().Contains(TEXT("Reactor_Glow")))
+			{
+				SkeletonMesh->SetMaterial(Slot, ReactorGlow);
+			}
+		}
+	}
+	// The engine's flame and the nitro's colour, out of the ship's real nozzles.
+	const EXMeta::FFlameStyle Flame = EXMeta::Flame(Fitted(EEXFamily::Engine));
+	Fx->SetFlameStyle(Flame.Outer, Flame.Core, Flame.Length, Flame.Radius, Flame.Diamonds, Flame.bSparks, EXMeta::NitroColour(Fitted(EEXFamily::Propulsion)));
+	TArray<FVector> Anchors;
+	float NozzleRadiusCm = 0.0f;
+	for (const FShipNozzles& Nozzles : ShipNozzles)
+	{
+		if (Full && Ship.Equals(Nozzles.Ship, ESearchCase::IgnoreCase))
+		{
+			const FRotator ModelRotation(0.0f, ModelYawOffsetDeg, 0.0f);
+			const FVector Origin = Full->GetBounds().Origin;
+			for (int32 Index = 0; Index < Nozzles.Count; ++Index)
+			{
+				// Blender (x, y, z) m -> the imported mesh (x, -y, z) cm -> the craft's frame, as SelectShip places the mesh.
+				const FVector InMesh(Nozzles.Points[Index][0] * CmPerM, -Nozzles.Points[Index][1] * CmPerM, Nozzles.Points[Index][2] * CmPerM);
+				Anchors.Add(ModelRotation.RotateVector(InMesh - Origin));
+			}
+			NozzleRadiusCm = Nozzles.RadiusM * CmPerM;
+		}
+	}
+	Fx->SetNozzles(Anchors, NozzleRadiusCm);
+}
+
+void AEXHoverCraft::UpdateRaceSystems(float Dt)
+{
+	if (bEliminated)
+	{
+		return;
+	}
+	// Fuel by distance, more flat out and on nitro (efficiency sets the rate); heat from the nitro, cooled by the
+	// cooling stat; repairs and the stabiliser run out.
+	const float DistanceKm = VelocityCmps.Size() * Dt / CmPerM / 1000.0f;
+	Fuel = FMath::Max(0.0f, Fuel - FuelBurnPerKm * DistanceKm * (0.35f + 0.65f * ThrottleInput) * (bBoosting ? 2.0f : 1.0f));
+	Heat = FMath::Clamp(Heat + (bBoosting ? BoostHeatPerS : -HeatCoolPerS) * Dt, 0.0f, 100.0f);
+	if (!bOverheated && Heat >= 100.0f)
+	{
+		bOverheated = true;
+		UE_LOG(LogTemp, Display, TEXT("EXRACE OVERHEAT %s"), *GetShipName());
+	}
+	else if (bOverheated && Heat <= 40.0f)
+	{
+		bOverheated = false;
+	}
+	if (RepairLeft > 0.0f)
+	{
+		RepairLeft -= Dt;
+		if (RepairLeft <= 0.0f)
+		{
+			RepairLeft = RepairTotal = RepairSlow = 0.0f;
+			Lives = FMath::Min(MaxLives, Lives + 1);
+			UE_LOG(LogTemp, Display, TEXT("EXRACE REPAIRED %s lives=%d"), *GetShipName(), Lives);
+		}
+	}
+	StabLeft = FMath::Max(0.0f, StabLeft - Dt);
+	QuickCooldown = FMath::Max(0.0f, QuickCooldown - Dt);
+}
+
+float AEXHoverCraft::SpeedCapMul() const
+{
+	if (!bRaceRules)
+	{
+		return 1.0f;
+	}
+	float Mul = 1.0f;
+	Mul *= Fuel <= 0.0f ? 0.5f : 1.0f;
+	Mul *= bOverheated ? 0.9f : 1.0f;
+	Mul *= RepairLeft > 0.0f ? 1.0f - RepairSlow : 1.0f;
+	// REDLINE-X: above 90% of the top speed, 3% more.
+	Mul *= bRedline && ForwardSpeedMps > 0.9f * MaxSpeedMps ? 1.03f : 1.0f;
+	return Mul;
 }
 
 void AEXHoverCraft::HangarConfirm()

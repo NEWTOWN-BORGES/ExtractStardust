@@ -9,44 +9,41 @@ O jogador recusou o menu escuro: a garagem fica sempre iluminada e visível.
 - À esquerda, o logo e quatro linhas: **01 EXPEDIÇÃO SOLO, 02 PELOTÃO 15, 03 HANGAR, 04 SAIR**. A linha escolhida
   acende-se e mostra a descrição.
 - À direita, o briefing: mapa da rota (`UEXRouteMapWidget`, a linha de corrida vista de cima), distância, duração
-  estimada, atalhos, nave, carga, valor em risco e resultado da última expedição.
+  estimada, atalhos, nave, módulos e consumíveis, valor em risco e resultado da última expedição.
 - A carteira de STARDUST fica em cima e as teclas em baixo.
 - Controlo com W/S ou as setas do comando, Enter ou Cruz, Tab para trocar de nave e Esc para sair. O rato acende e
   clica as linhas.
 
-## Hangar (`UEXHangarWidget`, maqueta aprovada `hangar2.png`)
+## Hangar (`UEXHangarWidget` + `UEXHangarModel`)
 
-- A câmara aproxima-se da nave.
-- **Naves:** lista à esquerda, com as vidas em losangos.
-- **Carga da expedição:** painel à direita com a capacidade da nave, os itens (quantidade e preço) e o valor em risco.
-- **Números da nave** em baixo: velocidade de ponta, vidas, espaços de carga e o choque que tira uma vida.
-- **Botão LANÇAR EXPEDIÇÃO:** usa o modo escolhido antes no menu (Pelotão 15 por omissão).
-- **Teclas:**
-  - W/S escolhem o item e A/D mudam a quantidade;
-  - Tab, 1 a 5 ou as setas do comando trocam de nave;
-  - rato, Q/E ou o analógico direito rodam a câmara, e a roda dá zoom;
-  - Espaço liga ou desliga a rotação automática;
-  - Enter lança a expedição e Esc volta ao menu.
+Os módulos, as caixas e os consumíveis estão em `Docs/MODULOS.md` (secção 10, separadores e teclas).
 
-## Economia (`EXProfile.h`: `UEXProfileSave`, `EXEconomy`)
+- **Câmara:** aproxima-se da nave. O rato ou o analógico direito rodam-na, e a roda ou os gatilhos dão zoom. Espaço
+  liga ou desliga a rotação automática.
+- **Separadores:** Q/E ou os botões de ombro.
+  - **NAVE:** as naves, com as vidas, e o botão **LANÇAR EXPEDIÇÃO** (Enter), que usa o modo escolhido antes no menu
+    (Pelotão 15 por omissão).
+  - **EQUIPAR:** os slots e as peças, com a nave a mostrar a peça escolhida.
+  - **CONSUMÍVEIS:** os 4 slots rápidos.
+  - **LOJA:** caixas e módulos.
+  - **COFRE:** abrir caixas e vender peças.
+- **Outras teclas:**
+  - W/S escolhem a linha e A/D a opção;
+  - Tab ou 1 a 5 trocam de nave;
+  - Esc volta ao menu (com uma caixa aberta, fecha primeiro a caixa).
 
-- **Perfil:** guardado no slot `EXProfile`. Um perfil novo começa com 3000 STARDUST, 2 kits de reparação e 1 surge.
-- **Itens:**
+## Economia (`EXMeta.h`, `EXProfile.h`)
 
-  | Item | Preço | Peso | Efeito |
-  | --- | --- | --- | --- |
-  | Kit de reparação | 150 | 1 | +1 vida (H ou Quadrado) |
-  | Surge | 200 | 1 | Enche o nitro (F ou seta para cima) |
-  | Escudo | 300 | 2 | O próximo embate não tira vida |
-  | Combustível | — | — | Em breve |
-
-- **Capacidade por nave:** VORTEX 3, STRIX 4, WRAITH 5, BASTION 6, NOMAD 7. Ao trocar para uma nave mais pequena,
-  o excesso volta à loja e o dinheiro é devolvido.
+- **Perfil:** guardado no slot `EXProfile` (versão 2).
+- **Perfil novo:** 3000 STARDUST, uma STANDARD CACHE e os consumíveis do jogo antigo.
+- **Perfis do protótipo de carga:** ficam com o STARDUST e recebem o mesmo kit inicial.
 - **Fim da expedição (`AEXRaceDirector::SettleExtraction`):**
-  - quem chega a B fica **EXTRACTED**: guarda o que sobrou da carga e recebe 250, mais 30 por cada nave que chegou
-    depois de si, mais uma parte do espólio;
-  - o espólio é a soma da carga dos **DESTROYED**. Divide-se por ordem de chegada: o 1.º leva a maior parte;
-  - quem é destruído perde a carga. Quem ainda vai a caminho fica **STRANDED**;
+  - quem chega a B fica **EXTRACTED** e recebe o prémio do lugar (tabela do doc 03 × 0,70) mais 250; a primeira
+    extração dá mais 500, uma vez só;
+  - quem é destruído (**DESTROYED**) perde até 3 módulos montados (nunca o segurado) e os consumíveis que levava;
+  - essas peças reais, também as dos bots, formam o espólio. Reparte-se em serpentina por valor entre os
+    EXTRACTED;
+  - quem ainda vai a caminho fica **STRANDED**: fica com tudo e não ganha nada;
   - o STARDUST da carteira nunca se perde.
 
 ## A afinar no Unreal

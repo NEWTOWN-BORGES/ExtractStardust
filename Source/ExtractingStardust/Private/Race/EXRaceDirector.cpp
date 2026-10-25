@@ -7,6 +7,7 @@
 #include "HAL/PlatformMisc.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
+#include "Misc/DateTime.h"
 #include "Misc/Parse.h"
 
 namespace
@@ -21,10 +22,6 @@ namespace
 	constexpr float BotsAfterPlayerS = 60.0f;  // Bots mode: the race ends this long after the player is done
 	constexpr float TestTimeLimitS = 1500.0f;
 	constexpr int32 MenuItems = 4;          // 0 solo, 1 bots, 2 hangar, 3 quit
-	// Extraction rewards (Docs/VISAO_JOGO.md): every extractor gets the EXTRACTED bonus and a bonus by arrival order;
-	// the pool of cargo lost by the destroyed is shared by the extractors, the first taking the biggest part.
-	constexpr int32 ExtractBonus = 250;
-	constexpr int32 PlaceBonus = 30;
 	/** Bot pace against the ideal line, by bot (the tuning knob for how good the bots are). */
 	constexpr float BotSkills[] = { 0.95f, 0.94f, 0.93f, 0.92f, 0.91f, 0.90f, 0.89f, 0.88f, 0.87f, 0.87f, 0.86f, 0.85f, 0.84f, 0.83f, 0.82f };
 
@@ -236,17 +233,26 @@ void AEXRaceDirector::Setup()
 
 	// Solo: the front row, in the middle. Bots: the back row (the player has to fight through).
 	const int32 PlayerSlot = Mode == EEXRaceMode::Bots ? (GridRows - 1) * GridColumns + 2 : 2;
-	// The cargo from the hangar (Docs/VISAO_JOGO.md): repair kits, surges and shields, at risk until B.
-	Player->SetRaceRules(0);
-	int32 MyCargoValue = 0;
+	LootRandom.Initialize(static_cast<int32>(FDateTime::Now().GetTicks() & 0x7fffffff));
+	// What the hangar fitted (Docs/MODULOS.md): the modules and the four quick slots, at risk until B. The consumables
+	// carried leave the safe stock; the ones not used come back on extraction.
+	Player->SetRaceRules();
+	TArray<FEXItem> MyModules;
+	int32 MyInsured = 0;
 	if (UEXProfileSave* Profile = Player->EnsureProfile())
 	{
-		StartRepair = Profile->Count(EEXItem::Repair);
-		StartSurge = Profile->Count(EEXItem::Surge);
-		StartShield = Profile->Count(EEXItem::Shield);
-		MyCargoValue = EXEconomy::CargoValue(Profile);
+		const FString Ship = Player->GetShipName();
+		MyModules = Profile->EquippedCopy(Ship);
+		const FEXBuild* Build = Profile->FindBuild(Ship);
+		MyInsured = Build ? Build->Insured : 0;
+		EXEconomy::SanitizeQuick(Profile);
+		Player->SetQuickSlots(Profile->Quick);
+		for (const FEXQuickSlot& Quick : Profile->Quick)
+		{
+			Profile->AddStock(static_cast<EEXConsumable>(Quick.Kind), -Quick.Count);
+		}
 	}
-	Player->SetLoadout(StartRepair, StartSurge, StartShield);
+	Player->SetModules(MyModules);
 	if (bTest)
 	{
 		Player->SetBot(Player->GetShipIndex(), 0.95f, 0.0f);
@@ -257,7 +263,8 @@ void AEXRaceDirector::Setup()
 	Me.Craft = Player;
 	Me.Name = TEXT("TU");
 	Me.bPlayer = true;
-	Me.CargoValue = MyCargoValue;
+	Me.Modules = MyModules;
+	Me.Insured = MyInsured;
 
 	if (Mode == EEXRaceMode::Bots)
 	{
@@ -282,14 +289,18 @@ void AEXRaceDirector::Setup()
 			// to its grid column (lanes 4 m apart round the line).
 			const float Skill = BotSkills[Bot % static_cast<int32>(UE_ARRAY_COUNT(BotSkills))];
 			const float Lane = ((Slot % GridColumns) - (GridColumns - 1) * 0.5f) * 4.0f;
-			Craft->SetRaceRules(0);
+			Craft->SetRaceRules();
 			Craft->SetBot(Bot % 5, Skill, Lane);
+			// Real pieces (doc 03): what a destroyed bot loses is real loot for the extractors. Better bots, better gear.
+			TArray<FEXItem> BotModules;
+			EXMeta::RollBotBuild(Craft->GetShipName(), Skill >= 0.92f ? 2 : (Skill >= 0.87f ? 1 : 0), LootRandom, BotSerial, BotModules);
+			Craft->SetModules(BotModules);
 			Craft->SetRaceHold(true);
 			PlaceOnGrid(Craft, Slot);
 			FEXRacer& Racer = Racers.AddDefaulted_GetRef();
 			Racer.Craft = Craft;
 			Racer.Name = FString::Printf(TEXT("%s #%d"), *Craft->GetShipName(), Bot + 2);
-			Racer.CargoValue = 300 + 100 * FMath::RandRange(0, 12);   // what this rival carries (the pool if it falls)
+			Racer.Modules = BotModules;
 		}
 	}
 	bReady = true;
@@ -384,24 +395,27 @@ void AEXRaceDirector::Finish()
 
 void AEXRaceDirector::SettleExtraction()
 {
-	// EXTRACTED: reached B alive. DESTROYED: no lives left (its cargo goes to the pool). STRANDED: still on the way.
+	// EXTRACTED: reached B alive. DESTROYED: no lives left (up to three of its modules go to the pool, never the insured
+	// one). STRANDED: still on the way (keeps everything, wins nothing).
 	Pool = 0;
+	PlayerNews.Reset();
+	TArray<FEXItem> Loot;
 	TArray<int32> Extracted;
 	for (int32 Index = 0; Index < Racers.Num(); ++Index)
 	{
 		FEXRacer& Racer = Racers[Index];
 		Racer.State = Racer.bFinished ? 1 : (Racer.bOut ? 2 : 3);
 		Racer.Reward = 0;
-		if (Racer.bPlayer && IsValid(Racer.Craft))
-		{
-			// What the player still carries (used items are gone either way).
-			Racer.CargoValue = Racer.Craft->GetMedKits() * EXEconomy::Item(EEXItem::Repair).Cost
-				+ Racer.Craft->GetSurgeCharges() * EXEconomy::Item(EEXItem::Surge).Cost
-				+ Racer.Craft->GetShieldCharges() * EXEconomy::Item(EEXItem::Shield).Cost;
-		}
+		Racer.LostValue = 0;
+		Racer.Won.Reset();
 		if (Racer.State == 2)
 		{
-			Pool += Racer.CargoValue;
+			for (const int32 Lost : EXMeta::SelectLosses(Racer.Modules, Racer.Insured, LootRandom))
+			{
+				Loot.Add(Racer.Modules[Lost]);
+				Racer.LostValue += Racer.Modules[Lost].Value;
+			}
+			Pool += Racer.LostValue;
 		}
 		else if (Racer.State == 1)
 		{
@@ -409,15 +423,22 @@ void AEXRaceDirector::SettleExtraction()
 		}
 	}
 	Extracted.Sort([this](int32 A, int32 B) { return Racers[A].FinishTime < Racers[B].FinishTime; });
-	const int32 Count = Extracted.Num();
-	const int32 WeightSum = Count * (Count + 1) / 2;
-	for (int32 K = 0; K < Count; ++K)
+	for (int32 K = 0; K < Extracted.Num(); ++K)
 	{
-		const int32 Share = WeightSum > 0 ? Pool * (Count - K) / WeightSum : 0;
-		Racers[Extracted[K]].Reward = ExtractBonus + (Racers.Num() - 1 - K) * PlaceBonus + Share;
+		Racers[Extracted[K]].Reward = EXMeta::PlaceReward(K + 1) + EXMeta::ExtractedBonus;
+	}
+	// The pool in serpentine by value: the first extractor takes the most valuable piece, the second the next...; the
+	// order turns round every round. The pieces run out, the sharing stops.
+	Loot.Sort([](const FEXItem& A, const FEXItem& B) { return A.Value > B.Value; });
+	const int32 Count = Extracted.Num();
+	for (int32 K = 0; K < Loot.Num() && Count > 0; ++K)
+	{
+		const int32 Round = K / Count;
+		const int32 Turn = Round % 2 == 0 ? K % Count : Count - 1 - K % Count;
+		Racers[Extracted[Turn]].Won.Add(Loot[K]);
 	}
 
-	// The player's profile: rewards in, cargo kept (what is left) or lost (destroyed); not in the automated test.
+	// The player's profile: not in the automated test.
 	const int32 MeIndex = Racers.IndexOfByPredicate([](const FEXRacer& Racer) { return Racer.bPlayer; });
 	if (bTest || !Racers.IsValidIndex(MeIndex) || !IsValid(Racers[MeIndex].Craft))
 	{
@@ -431,18 +452,60 @@ void AEXRaceDirector::SettleExtraction()
 		return;
 	}
 	const bool bDestroyed = Me.State == 2;
-	Profile->SetCount(EEXItem::Repair, bDestroyed ? 0 : Player->GetMedKits());
-	Profile->SetCount(EEXItem::Surge, bDestroyed ? 0 : Player->GetSurgeCharges());
-	Profile->SetCount(EEXItem::Shield, bDestroyed ? 0 : Player->GetShieldCharges());
-	Profile->Stardust += Me.Reward;
-	Profile->LastReward = bDestroyed ? -Me.CargoValue : Me.Reward;
-	++Profile->Expeditions;
+	int32 Gained = Me.Reward;
+	if (bDestroyed)
+	{
+		// The lost pieces leave the profile; the consumables carried are gone (they left the stock at the start).
+		for (const FEXItem& Item : Me.Modules)
+		{
+			if (Item.IsValid() && Loot.ContainsByPredicate([&Item](const FEXItem& L) { return L.Serial == Item.Serial; }))
+			{
+				PlayerNews.Add(FString::Printf(TEXT("Perdeste: %s"), *EXMeta::ItemLabel(Item)));
+				Profile->RemoveItem(Item.Serial);
+			}
+		}
+	}
+	else
+	{
+		for (const FEXQuickSlot& Quick : Player->GetQuickSlots())
+		{
+			Profile->AddStock(static_cast<EEXConsumable>(Quick.Kind), Quick.Count);
+		}
+	}
 	if (Me.State == 1)
 	{
-		++Profile->Extractions;
 		const int32 Place = 1 + Extracted.IndexOfByKey(MeIndex);
+		PlayerNews.Insert(FString::Printf(TEXT("EXTRACTED em %d.\u00BA lugar: +%d STARDUST"), Place, Me.Reward), 0);
+		if (!Profile->bFirstExtractionPaid)
+		{
+			Profile->bFirstExtractionPaid = true;
+			Gained += EXMeta::FirstExtractionBonus;
+			PlayerNews.Add(FString::Printf(TEXT("Primeira extra\u00E7\u00E3o: +%d STARDUST"), EXMeta::FirstExtractionBonus));
+		}
+		for (const FEXItem& Won : Me.Won)
+		{
+			// The piece changes hands with its rolls and value; it takes a serial of this profile.
+			FEXItem Item = Won;
+			Item.Serial = Profile->NextSerial++;
+			Profile->Items.Add(Item);
+			PlayerNews.Add(FString::Printf(TEXT("Esp\u00F3lio: %s (%s)"), *EXMeta::ItemLabel(Item), *EXMeta::RarityName(static_cast<EEXRarity>(Item.Rarity))));
+		}
+		++Profile->Extractions;
 		Profile->BestPlace = Profile->BestPlace == 0 ? Place : FMath::Min(Profile->BestPlace, Place);
 	}
+	else if (bDestroyed)
+	{
+		PlayerNews.Insert(FString(TEXT("DESTRU\u00CDDA: as pe\u00E7as perdidas foram para quem extraiu")), 0);
+	}
+	else
+	{
+		PlayerNews.Insert(FString(TEXT("STRANDED: ainda a caminho de B, ficas com tudo e n\u00E3o ganhas nada")), 0);
+	}
+	Profile->Stardust += Gained;
+	Profile->LastReward = bDestroyed ? -Me.LostValue : Gained;
+	Profile->LastNews = PlayerNews;
+	++Profile->Expeditions;
+	EXEconomy::RollShop(Profile);
+	EXEconomy::SanitizeQuick(Profile);
 	EXEconomy::Save(Profile);
 }
-

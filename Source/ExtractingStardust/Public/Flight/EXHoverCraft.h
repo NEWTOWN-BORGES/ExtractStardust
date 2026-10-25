@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Game/EXMeta.h"
 #include "GameFramework/Pawn.h"
 #include "EXHoverCraft.generated.h"
 
@@ -10,7 +11,10 @@ class UEXCraftFx;
 class UEXCraftAudio;
 struct FEXCraftAudioInput;
 class UEXProfileSave;
+class UEXHangarModel;
 class AEXHangarStage;
+class UMaterialInstanceDynamic;
+class UMaterialInterface;
 class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
@@ -137,15 +141,15 @@ public:
 	const TArray<FVector2D>& GetMapRoute() const { return MapRoute; }
 
 	// ---- Race rules (Docs/MODOS_DE_JOGO.md), switched on by AEXRaceDirector; off in free flight and the tests.
-	/** Lives by ship, damage from hard wall hits and hard landings, the medical kit (charges: 3 for the player, 0 for bots). */
-	void SetRaceRules(int32 InMedKits);
+	/** Lives by ship (plus the hull of the modules), damage from hard wall hits and hard landings, fuel and heat. */
+	void SetRaceRules();
 	/** Makes this craft a bot that drives itself along the race line (skill 0.8-1.0, lane offset from the line in m). */
 	void SetBot(int32 InShipIndex, float InSkill, float InLaneM);
 	/** Holds the craft on the grid (countdown, after the finish). */
 	void SetRaceHold(bool bHold) { bRaceHold = bHold; }
-	/** Showroom: the craft stands on the turntable of the workshop (AEXHangarStage) under a slow orbit camera. The menu
-	 *  is drawn over it with the workshop in the dark (a spot on the ship); EnterHangar switches the lights on and lets
-	 *  the pilot pick the ship and the cargo for the expedition (bought with STARDUST from the profile). */
+	/** Showroom: the craft stands on the turntable of the workshop (AEXHangarStage) under a slow orbit camera, with the
+	 *  menu drawn over it. EnterHangar opens the hangar's tabs (UEXHangarModel): ship, modules, consumables, shop and
+	 *  vault, paid with the STARDUST of the profile. */
 	void EnterShowroom();
 	/** Back to where the craft stood before the showroom (the start of the race line). */
 	void ExitShowroom();
@@ -161,19 +165,37 @@ public:
 	float GetBaseTopSpeedMps() const { return BaseMaxSpeedMps > 0.0f ? BaseMaxSpeedMps : MaxSpeedMps; }
 	/** Race stats of a ship by name: lives, top speed against the base, speed into a wall that costs a life (m/s). */
 	static void GetShipRaceStats(const FString& Name, int32& OutLives, float& OutSpeedMul, float& OutWallHitMps);
-	/** The pilot's saved profile (wallet, ship, cargo), loaded on first use; the player's craft only. */
+	/** The pilot's saved profile (wallet, modules, consumables), loaded on first use; the player's craft only. */
 	UEXProfileSave* EnsureProfile();
 	UEXProfileSave* GetProfile() const { return Profile; }
-	/** Hangar cargo list: the highlighted row (an EEXItem) and the last notice ("Carga cheia", ...). */
-	int32 GetHangarRow() const { return HangarRow; }
-	const FString& GetHangarNotice() const { return HangarNotice; }
-	float GetHangarNoticeTime() const { return HangarNoticeTime; }
-	/** The cargo carried into the race: repair kits (H / Square), surges (F / D-pad up), shields (absorb one hit). */
-	void SetLoadout(int32 Repair, int32 Surge, int32 Shield);
-	int32 GetSurgeCharges() const { return SurgeCharges; }
-	int32 GetShieldCharges() const { return ShieldCharges; }
-	/** World time a shield last took a hit (the HUD flashes it), -1 if none. */
-	float GetLastShieldTime() const { return LastShieldTime; }
+	UEXHangarModel* GetHangarModel() const { return HangarModel; }
+	/** From the hangar's ship tab: start the expedition. */
+	void LaunchFromHangar() { HangarLaunch(); }
+
+	// ---- Modules and consumables (Docs/MODULOS.md)
+	/** The modules this craft flies with, by EEXFamily (an empty item is the stock part): the race stats, the pieces on
+	 *  the hull, the engine's flame and the nitro's colour. */
+	void SetModules(const TArray<FEXItem>& InModules);
+	const TArray<FEXItem>& GetModules() const { return Modules; }
+	/** Final stats of the ship and its modules (EEXStat order). */
+	int32 GetStat(EEXStat Stat) const { return ResolvedStats[FMath::Clamp(static_cast<int32>(Stat), 0, EXMeta::StatCount - 1)]; }
+	/** The four quick slots carried into the race: keys 1-4, d-pad up, down, left and right. */
+	void SetQuickSlots(const TArray<FEXQuickSlot>& InSlots);
+	const TArray<FEXQuickSlot>& GetQuickSlots() const { return QuickSlots; }
+	/** Fuel and heat, 0-100. Without fuel the craft has half its top speed; at 100 heat it overheats (no nitro until 40). */
+	float GetFuel() const { return Fuel; }
+	float GetHeat() const { return Heat; }
+	bool IsOverheated() const { return bOverheated; }
+	float GetNitro() const { return Nitro; }
+	/** A repair under way (foam or nanogel): 0-1 done, -1 when none. */
+	float GetRepairProgress() const { return RepairTotal > 0.0f ? 1.0f - RepairLeft / RepairTotal : -1.0f; }
+	float GetStabilizerLeft() const { return StabLeft; }
+	/** The last quick slot used and when (world time), for the HUD; -1 if none. */
+	int32 GetLastQuickSlot() const { return LastQuickSlot; }
+	float GetLastQuickTime() const { return LastQuickTime; }
+	/** Hangar preview: the craft wears this build. Looking at a slot inside the hull (engine, propulsion, reactor) the
+	 *  bodywork goes, the skeleton shows and the engine runs with its flame. */
+	void PreviewModules(const TArray<FEXItem>& InModules, EEXFamily Focus);
 	/** No more ship changes once the race is on. */
 	void LockShip() { bShipLocked = true; }
 	/** Puts the craft at a place and heading, at rest (grid slots, respawns). */
@@ -183,7 +205,6 @@ public:
 	bool IsEliminated() const { return bEliminated; }
 	int32 GetLives() const { return Lives; }
 	int32 GetMaxLives() const { return MaxLives; }
-	int32 GetMedKits() const { return MedKits; }
 	/** World time of the last life lost (the HUD flashes it), -1 if none. */
 	float GetLastHitTime() const { return LastHitTime; }
 	FString GetShipName() const;
@@ -229,8 +250,11 @@ private:
 	void Ship4() { SelectShip(3); }
 	void Ship5() { SelectShip(4); }
 	void CycleCamera() { CameraMode = (CameraMode + 1) % 4; bCamInitialized = false; }
-	void UseMedKit();
-	void UseSurge();
+	void UseQuick(int32 Slot);
+	void Quick1() { UseQuick(0); }
+	void Quick2() { UseQuick(1); }
+	void Quick3() { UseQuick(2); }
+	void Quick4() { UseQuick(3); }
 	void MenuUp() { SendMenu(-1); }
 	void MenuDown() { SendMenu(1); }
 	void MenuConfirm() { SendMenu(0); }
@@ -242,10 +266,19 @@ private:
 	void HangarConfirm();
 	void InputHangarPitch(float Value) { HangarPitchInput = FMath::Clamp(Value, -1.0f, 1.0f); }
 	void InputHangarYaw(float Value) { HangarYawInput = FMath::Clamp(Value, -10.0f, 10.0f); }
-	void HangarChangeQuantity(int32 Delta);
-	void HangarTrimCargo();
+	void InputHangarOrbit(float Value) { HangarOrbitInput = FMath::Clamp(Value, -1.0f, 1.0f); }
+	void InputHangarZoom(float Value) { HangarZoomInput = FMath::Clamp(Value, -1.0f, 1.0f); }
+	void HangarTabPrev();
+	void HangarTabNext();
+	void HangarClear();
+	void HangarInsure();
 	void HangarLaunch();
-	void HangarNote(const FString& Notice);
+	void RefreshModuleVisuals();
+	UStaticMesh* LoadPiece(const FString& Ship, const FString& Piece);
+	/** Fuel, heat, repairs and the stabiliser, every frame of a race. */
+	void UpdateRaceSystems(float Dt);
+	/** Top speed against MaxSpeedMps now: no fuel, overheating, a repair under way, the REDLINE-X perk. */
+	float SpeedCapMul() const;
 	void SendMenu(int32 Step);
 	void DriveBot(float Dt);
 	void LoseLife();
@@ -293,9 +326,31 @@ private:
 
 	// Race rules state.
 	bool bRaceRules = false, bBot = false, bRaceHold = false, bShipLocked = false, bEliminated = false;
-	int32 Lives = 0, MaxLives = 0, MedKits = 0;
+	int32 Lives = 0, MaxLives = 0;
 	float BaseMaxSpeedMps = 0.0f, WallHitMps = 1.0e6f, LandingHitMps = 1.0e6f;
-	float HitCooldown = 0.0f, MedKitCooldown = 0.0f, LastHitTime = -1.0f, RaceProgressM = 0.0f;
+	float HitCooldown = 0.0f, LastHitTime = -1.0f, RaceProgressM = 0.0f;
+	// The tuned handling before the modules (BeginPlay), so the module stats never compound.
+	float BaseAccelMps2 = 0.0f, BaseBoostAccelMps2 = 0.0f, BaseTurnLow = 0.0f, BaseTurnHigh = 0.0f, BaseGripRedirect = 0.0f;
+	float BaseGripLateralMax = 0.0f, BaseNitroSeconds = 0.0f;
+	// Modules, consumables, fuel and heat.
+	TArray<FEXItem> Modules;
+	TArray<FEXQuickSlot> QuickSlots;
+	int32 ResolvedStats[EXMeta::StatCount] = {};
+	float Fuel = 100.0f, Heat = 0.0f, RepairLeft = 0.0f, RepairTotal = 0.0f, RepairSlow = 0.0f, StabLeft = 0.0f;
+	float LastQuickTime = -100.0f, QuickCooldown = 0.0f;
+	float FuelBurnPerKm = 1.2f, HeatCoolPerS = 8.0f, BoostHeatPerS = 14.0f, RepairTimeMul = 1.0f;
+	bool bOverheated = false, bRedline = false, bXRay = false;
+	int32 LastQuickSlot = -1, AppliedHangarVersion = -1, AppliedHangarShip = -1;
+	float PreviewEnginePower = 0.0f, HangarOrbitInput = 0.0f, HangarZoomInput = 0.0f;
+	/** The exterior pieces on the hull: wings, tail, armour, cooling, utility (attached to ShipMesh, no offset). */
+	UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> ModuleMeshes;
+	/** The x-ray view: structure, engines, reactor, cockpit, without the bodywork. */
+	UPROPERTY() TObjectPtr<UStaticMeshComponent> SkeletonMesh;
+	UPROPERTY() TObjectPtr<UMaterialInterface> GlowMaterial;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> ReactorGlow;
+	/** /Game/Ships/<SHIP>/SM_<SHIP>_<piece>, loaded once (a missing piece is remembered as null). */
+	UPROPERTY(Transient) TMap<FString, TObjectPtr<UStaticMesh>> PieceCache;
+	UPROPERTY(Transient) TObjectPtr<UEXHangarModel> HangarModel;
 	float LastGroundZCm = 0.0f;
 	/** Wall closeness on each side (0 far, 1 touching), from the camera's wall probes; the sound uses them. */
 	float WallNearLeft = 0.0f, WallNearRight = 0.0f, AudioHitCooldown = 0.0f;
@@ -304,14 +359,12 @@ private:
 	UPROPERTY(Transient) TObjectPtr<AEXHangarStage> HangarStage;
 	FVector PreHangarLocation = FVector::ZeroVector;
 	FRotator PreHangarRotation = FRotator::ZeroRotator;
-	bool bInShowroom = false, bQtyArmed = true;
+	bool bInShowroom = false, bQtyArmed = true, bZoomArmed = true;
 	/** The orbit camera's distance now (it glides to HangarOrbitDist). */
 	float HangarCamDist = 1250.0f;
 	/** The frame the hangar was closed with Esc (the same press must not also quit from the menu). */
 	uint64 HangarBackFrame = 0;
-	int32 HangarRow = 0, SurgeCharges = 0, ShieldCharges = 0;
-	float HangarYawInput = 0.0f, HangarNoticeTime = -100.0f, LastShieldTime = -1.0f;
-	FString HangarNotice;
+	float HangarYawInput = 0.0f;
 	void FillAudioOthers(FEXCraftAudioInput& Sound) const;
 	float BotSkill = 1.0f, BotLaneM = 0.0f, BotPhase = 0.0f, BotStuckSeconds = 0.0f, BotTime = 0.0f;
 

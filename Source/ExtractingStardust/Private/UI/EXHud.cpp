@@ -223,12 +223,13 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 	const FLinearColor White = FLinearColor::White;
 	const FLinearColor Red(1.0f, 0.2f, 0.15f);
 	const FLinearColor Grey(0.6f, 0.6f, 0.6f);
-	const FLinearColor Shield(0.35f, 0.65f, 1.0f);
+	const FLinearColor Sand(0.66f, 0.55f, 0.42f);
+	const float Now = GetWorld()->GetTimeSeconds();
 
-	// Panel, top left: mode and time, place, lives, the cargo still on board.
+	// Panel, top left: mode and time, place, lives.
 	const float X = 24.0f * Scale;
 	float Y = 20.0f * Scale;
-	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.45f), X - 10.0f * Scale, Y - 6.0f * Scale, 360.0f * Scale, (bBots ? 170.0f : 146.0f) * Scale);
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.45f), X - 10.0f * Scale, Y - 6.0f * Scale, 360.0f * Scale, (bBots ? 100.0f : 76.0f) * Scale);
 	DrawText(FString::Printf(TEXT("%s   %s"), bBots ? TEXT("PELOT\u00C3O 15") : TEXT("EXPEDI\u00C7\u00C3O SOLO"), *HudRaceClock(Race->GetRaceTime())), White, X, Y,
 		nullptr, 1.3f * Scale);
 	Y += 26.0f * Scale;
@@ -249,17 +250,18 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 		DrawRect(Life < Craft->GetLives() ? FLinearColor(0.3f, 1.0f, 0.4f) : FLinearColor(0.25f, 0.25f, 0.25f, 0.8f),
 			X + (70.0f + Life * 26.0f) * Scale, Y + 3.0f * Scale, 20.0f * Scale, 14.0f * Scale);
 	}
-	Y += 24.0f * Scale;
-	DrawText(FString::Printf(TEXT("REPARA\u00C7\u00C3O x%d   (H / Quadrado)"), Craft->GetMedKits()), Craft->GetMedKits() > 0 ? White : Grey, X, Y,
-		nullptr, 1.05f * Scale);
-	Y += 22.0f * Scale;
-	DrawText(FString::Printf(TEXT("SURGE x%d   (F / Cima)"), Craft->GetSurgeCharges()), Craft->GetSurgeCharges() > 0 ? White : Grey, X, Y,
-		nullptr, 1.05f * Scale);
-	Y += 22.0f * Scale;
-	DrawText(FString::Printf(TEXT("ESCUDO x%d   (absorve o pr\u00F3ximo embate)"), Craft->GetShieldCharges()), Craft->GetShieldCharges() > 0 ? Shield : Grey,
-		X, Y, nullptr, 1.05f * Scale);
+
+	DrawGauges(Craft, Scale);
+	DrawQuickSlots(Craft, Scale);
 
 	const float Mid = Canvas->ClipX * 0.5f;
+	auto Centred = [this, Mid](const FString& Text, const FLinearColor& Colour, float AtY, float TextScale)
+	{
+		float W = 0.0f, H = 0.0f;
+		GetTextSize(Text, W, H, nullptr, TextScale);
+		DrawRect(FLinearColor(0.03f, 0.02f, 0.01f, 0.6f), Mid - W * 0.5f - 12.0f, AtY - 4.0f, W + 24.0f, H + 8.0f);
+		DrawText(Text, Colour, Mid - W * 0.5f, AtY, nullptr, TextScale);
+	};
 	// Countdown: 3, 2, 1, VAI!
 	if (Race->GetCountdown() > 0.0f)
 	{
@@ -267,26 +269,54 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 		DrawText(Count > 0 ? FString::FromInt(Count) : FString(TEXT("VAI!")), Count > 0 ? FLinearColor(1.0f, 0.85f, 0.2f)
 			: FLinearColor(0.3f, 1.0f, 0.4f), Mid - 40.0f * Scale, Canvas->ClipY * 0.3f, nullptr, 4.0f * Scale);
 	}
-	// A life lost: red flash. A shield that took the hit: blue flash.
-	const float Now = GetWorld()->GetTimeSeconds();
+	// What the craft is doing with its consumables, fuel and heat (under the guide arrow).
+	float ToastY = 150.0f * Scale;
+	const int32 LastSlot = Craft->GetLastQuickSlot();
+	if (LastSlot >= 0 && Now - Craft->GetLastQuickTime() < 2.0f && Craft->GetQuickSlots().IsValidIndex(LastSlot))
+	{
+		const EXMeta::FConsumableDef& Def = EXMeta::Consumable(static_cast<EEXConsumable>(Craft->GetQuickSlots()[LastSlot].Kind));
+		Centred(FString::Printf(TEXT("%s  \u00B7  %s"), *FString(Def.Name).ToUpper(), Def.Effect), Def.Colour, ToastY, 1.2f * Scale);
+		ToastY += 30.0f * Scale;
+	}
+	if (Craft->GetRepairProgress() >= 0.0f)
+	{
+		Centred(FString::Printf(TEXT("A REPARAR  %d%%  \u00B7  +1 VIDA"), FMath::RoundToInt(Craft->GetRepairProgress() * 100.0f)),
+			FLinearColor(0.48f, 0.88f, 0.54f), ToastY, 1.1f * Scale);
+		ToastY += 28.0f * Scale;
+	}
+	if (Craft->IsOverheated())
+	{
+		const float Blink = 0.6f + 0.4f * FMath::Sin(Now * 10.0f);
+		Centred(TEXT("SOBREAQUECIDA  \u00B7  SEM NITRO AT\u00C9 ARREFECER"), FLinearColor(1.0f, 0.25f * Blink, 0.1f), ToastY, 1.2f * Scale);
+		ToastY += 30.0f * Scale;
+	}
+	if (Craft->GetFuel() <= 0.0f)
+	{
+		Centred(TEXT("SEM COMBUST\u00CDVEL  \u00B7  METADE DA VELOCIDADE"), Red, ToastY, 1.2f * Scale);
+		ToastY += 30.0f * Scale;
+	}
+	else if (Craft->GetFuel() < 15.0f)
+	{
+		Centred(TEXT("COMBUST\u00CDVEL BAIXO"), FLinearColor(1.0f, 0.71f, 0.28f), ToastY, 1.0f * Scale);
+		ToastY += 26.0f * Scale;
+	}
+	if (Craft->GetStabilizerLeft() > 0.0f)
+	{
+		Centred(FString::Printf(TEXT("ESTABILIZADOR  %.0f s"), Craft->GetStabilizerLeft()), FLinearColor(0.79f, 0.61f, 1.0f), ToastY, 1.0f * Scale);
+	}
+	// A life lost: red flash.
 	const float SinceHit = Now - Craft->GetLastHitTime();
 	if (Craft->GetLastHitTime() >= 0.0f && SinceHit < 1.5f && !Craft->IsEliminated())
 	{
 		DrawRect(FLinearColor(1.0f, 0.0f, 0.0f, 0.25f * (1.0f - SinceHit / 1.5f)), 0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY);
 		DrawText(TEXT("-1 VIDA"), Red, Mid - 60.0f * Scale, Canvas->ClipY * 0.36f, nullptr, 2.4f * Scale);
 	}
-	const float SinceShield = Now - Craft->GetLastShieldTime();
-	if (Craft->GetLastShieldTime() >= 0.0f && SinceShield < 1.2f)
-	{
-		DrawRect(FLinearColor(0.2f, 0.5f, 1.0f, 0.22f * (1.0f - SinceShield / 1.2f)), 0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY);
-		DrawText(TEXT("ESCUDO!"), Shield, Mid - 70.0f * Scale, Canvas->ClipY * 0.36f, nullptr, 2.4f * Scale);
-	}
 	if (Craft->IsEliminated() && !Race->IsOver())
 	{
-		DrawText(TEXT("DESTRU\u00CDDA - A TUA CARGA FICA PARA QUEM EXTRAIR"), Red, Mid - 330.0f * Scale, Canvas->ClipY * 0.36f, nullptr, 1.8f * Scale);
+		DrawText(TEXT("DESTRU\u00CDDA - AT\u00C9 3 M\u00D3DULOS V\u00C3O PARA QUEM EXTRAIR"), Red, Mid - 330.0f * Scale, Canvas->ClipY * 0.36f, nullptr, 1.8f * Scale);
 	}
 	// Messages of the last 6 s (left, under the panel).
-	float FeedY = (bBots ? 200.0f : 176.0f) * Scale;
+	float FeedY = (bBots ? 130.0f : 106.0f) * Scale;
 	for (const TPair<float, FString>& Line : Race->GetFeed())
 	{
 		if (Race->GetRaceTime() - Line.Key < 6.0f || Race->GetCountdown() > 0.0f)
@@ -295,17 +325,19 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 			FeedY += 20.0f * Scale;
 		}
 	}
-	// The extraction: who reached B (EXTRACTED), who was destroyed (their cargo is the pool) and who was still on the way.
+	// The extraction: who reached B (EXTRACTED), who was destroyed (up to three of its modules are the pool) and who
+	// was still on the way; then what the player won and lost.
 	if (Race->IsOver())
 	{
-		const float W = 660.0f * Scale;
+		const TArray<FString>& News = Race->GetPlayerNews();
+		const float W = 700.0f * Scale;
 		const float Row = 22.0f * Scale;
-		const int32 Lines = Standings.Num() + 4;
+		const int32 Lines = Standings.Num() + 4 + News.Num();
 		float TY = Canvas->ClipY * 0.5f - Lines * Row * 0.5f;
 		const float Left = Mid - W * 0.5f;
-		DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.75f), Left, TY - 10.0f * Scale, W, Lines * Row + 20.0f * Scale);
-		DrawText(FString::Printf(TEXT("EXTRA\u00C7\u00C3O   \u00B7   esp\u00F3lio dos destru\u00EDdos: %d STARDUST"), Race->GetPool()), FLinearColor(1.0f, 0.55f, 0.2f),
-			Left + 16.0f * Scale, TY, nullptr, 1.3f * Scale);
+		DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.78f), Left, TY - 10.0f * Scale, W, Lines * Row + 20.0f * Scale);
+		DrawText(FString::Printf(TEXT("EXTRA\u00C7\u00C3O   \u00B7   esp\u00F3lio dos destru\u00EDdos: %d STARDUST em pe\u00E7as"), Race->GetPool()),
+			FLinearColor(1.0f, 0.55f, 0.2f), Left + 16.0f * Scale, TY, nullptr, 1.3f * Scale);
 		TY += Row * 1.5f;
 		static const TCHAR* const StateNames[4] = { TEXT("-"), TEXT("EXTRACTED"), TEXT("DESTROYED"), TEXT("STRANDED") };
 		for (int32 Place = 0; Place < Standings.Num(); ++Place)
@@ -319,11 +351,92 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 			DrawText(Racer.Name, Colour, Left + 56.0f * Scale, TY, nullptr, 1.0f * Scale);
 			DrawText(Result, Colour, Left + 250.0f * Scale, TY, nullptr, 1.0f * Scale);
 			DrawText(StateNames[State], State == 2 ? Red : Colour, Left + 380.0f * Scale, TY, nullptr, 1.0f * Scale);
-			DrawText(State == 1 ? FString::Printf(TEXT("+%d"), Racer.Reward) : (State == 2 ? FString::Printf(TEXT("-%d"), Racer.CargoValue) : FString()),
-				State == 2 ? Red : Colour, Left + 540.0f * Scale, TY, nullptr, 1.0f * Scale);
+			const FString Money = State == 1 ? FString::Printf(TEXT("+%d%s"), Racer.Reward, Racer.Won.Num() > 0 ? *FString::Printf(TEXT("  +%d pe\u00E7as"), Racer.Won.Num()) : TEXT(""))
+				: (State == 2 && Racer.LostValue > 0 ? FString::Printf(TEXT("-%d em pe\u00E7as"), Racer.LostValue) : FString());
+			DrawText(Money, State == 2 ? Red : Colour, Left + 520.0f * Scale, TY, nullptr, 1.0f * Scale);
 			TY += Row;
 		}
 		TY += Row * 0.5f;
+		for (const FString& Line : News)
+		{
+			DrawText(Line, FLinearColor(0.48f, 0.88f, 0.54f), Left + 16.0f * Scale, TY, nullptr, 1.05f * Scale);
+			TY += Row;
+		}
 		DrawText(TEXT("Enter / X: voltar ao menu"), FLinearColor(1.0f, 0.85f, 0.6f), Left + 16.0f * Scale, TY, nullptr, 1.1f * Scale);
+	}
+}
+
+void AEXHud::DrawGauges(const AEXHoverCraft* Craft, float Scale)
+{
+	// Bottom left: the speed, then the nitro, the heat and the fuel (Docs/MODULOS.md sec. 6).
+	const float GX = 24.0f * Scale;
+	const float GW = 300.0f * Scale;
+	const float GY = Canvas->ClipY - 150.0f * Scale;
+	DrawRect(FLinearColor(0.03f, 0.02f, 0.01f, 0.6f), GX - 10.0f * Scale, GY - 8.0f * Scale, GW + 20.0f * Scale, 132.0f * Scale);
+	DrawRect(FLinearColor(0.92f, 0.34f, 0.10f), GX - 10.0f * Scale, GY - 8.0f * Scale, 3.0f * Scale, 132.0f * Scale);
+	DrawText(FString::FromInt(FMath::RoundToInt(Craft->GetSpeedKmh())), FLinearColor::White, GX, GY - 4.0f * Scale, nullptr, 2.6f * Scale);
+	DrawText(TEXT("KM/H"), FLinearColor(0.66f, 0.55f, 0.42f), GX + 118.0f * Scale, GY + 20.0f * Scale, nullptr, 1.0f * Scale);
+	const float Blink = 0.6f + 0.4f * FMath::Sin(GetWorld()->GetTimeSeconds() * 10.0f);
+	struct FGauge
+	{
+		const TCHAR* Label;
+		float Value;
+		FLinearColor Colour;
+	};
+	const float Heat = Craft->GetHeat();
+	const FGauge Gauges[3] = {
+		{ TEXT("NITRO"), Craft->GetNitro() * 100.0f, FLinearColor(1.0f, 0.5f, 0.15f) },
+		{ TEXT("CALOR"), Heat, Craft->IsOverheated() ? FLinearColor(1.0f, 0.15f * Blink, 0.08f) : FMath::Lerp(FLinearColor(1.0f, 0.8f, 0.3f), FLinearColor(1.0f, 0.25f, 0.12f), Heat / 100.0f) },
+		{ TEXT("COMBUST\u00CDVEL"), Craft->GetFuel(), Craft->GetFuel() < 15.0f ? FLinearColor(1.0f, 0.3f, 0.2f) : FLinearColor(0.42f, 0.86f, 0.5f) },
+	};
+	const float BarX = GX + 110.0f * Scale;
+	const float BarW = GW - 160.0f * Scale;
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		const float RowY = GY + (60.0f + Index * 22.0f) * Scale;
+		DrawText(Gauges[Index].Label, FLinearColor(0.66f, 0.55f, 0.42f), GX, RowY - 2.0f * Scale, nullptr, 0.8f * Scale);
+		DrawRect(FLinearColor(1.0f, 1.0f, 1.0f, 0.12f), BarX, RowY, BarW, 8.0f * Scale);
+		DrawRect(Gauges[Index].Colour, BarX, RowY, BarW * FMath::Clamp(Gauges[Index].Value / 100.0f, 0.0f, 1.0f), 8.0f * Scale);
+		DrawText(FString::Printf(TEXT("%d"), FMath::RoundToInt(Gauges[Index].Value)), FLinearColor::White, BarX + BarW + 10.0f * Scale, RowY - 3.0f * Scale,
+			nullptr, 0.85f * Scale);
+	}
+}
+
+void AEXHud::DrawQuickSlots(const AEXHoverCraft* Craft, float Scale)
+{
+	// Bottom right: the four quick slots as a cross, like the d-pad (1 up, 2 down, 3 left, 4 right), the key in a corner.
+	const TArray<FEXQuickSlot>& Slots = Craft->GetQuickSlots();
+	const float Size = 62.0f * Scale;
+	const float Gap = 6.0f * Scale;
+	const FVector2D Centre(Canvas->ClipX - Size * 1.5f - Gap - 28.0f * Scale, Canvas->ClipY - Size * 1.5f - Gap - 28.0f * Scale);
+	const FVector2D Offsets[EXMeta::QuickSlots] = { FVector2D(0.0f, -1.0f), FVector2D(0.0f, 1.0f), FVector2D(-1.0f, 0.0f), FVector2D(1.0f, 0.0f) };
+	const float ArrowDeg[EXMeta::QuickSlots] = { 0.0f, 180.0f, -90.0f, 90.0f };
+	const float Now = GetWorld()->GetTimeSeconds();
+	for (int32 Slot = 0; Slot < EXMeta::QuickSlots; ++Slot)
+	{
+		const FEXQuickSlot Quick = Slots.IsValidIndex(Slot) ? Slots[Slot] : FEXQuickSlot();
+		const EEXConsumable Kind = static_cast<EEXConsumable>(Quick.Kind);
+		const EXMeta::FConsumableDef& Def = EXMeta::Consumable(Kind);
+		const bool bHas = Kind != EEXConsumable::None && Quick.Count > 0;
+		const bool bRecent = Craft->GetLastQuickSlot() == Slot && Now - Craft->GetLastQuickTime() < 0.6f;
+		const FVector2D TopLeft = Centre + Offsets[Slot] * (Size + Gap) - FVector2D(Size * 0.5f, Size * 0.5f);
+		DrawRect(bRecent ? FLinearColor(Def.Colour.R, Def.Colour.G, Def.Colour.B, 0.45f) : FLinearColor(0.03f, 0.02f, 0.01f, bHas ? 0.66f : 0.4f),
+			TopLeft.X, TopLeft.Y, Size, Size);
+		const FLinearColor Edge = bHas ? FLinearColor(Def.Colour.R, Def.Colour.G, Def.Colour.B, 0.8f) : FLinearColor(1.0f, 1.0f, 1.0f, 0.2f);
+		DrawLine(TopLeft.X, TopLeft.Y, TopLeft.X + Size, TopLeft.Y, Edge, 1.5f);
+		DrawLine(TopLeft.X, TopLeft.Y + Size, TopLeft.X + Size, TopLeft.Y + Size, Edge, 1.5f);
+		DrawLine(TopLeft.X, TopLeft.Y, TopLeft.X, TopLeft.Y + Size, Edge, 1.5f);
+		DrawLine(TopLeft.X + Size, TopLeft.Y, TopLeft.X + Size, TopLeft.Y + Size, Edge, 1.5f);
+		DrawText(FString::FromInt(Slot + 1), FLinearColor::White, TopLeft.X + 5.0f * Scale, TopLeft.Y + 3.0f * Scale, nullptr, 0.9f * Scale);
+		DrawArrow(FVector2D(TopLeft.X + Size - 11.0f * Scale, TopLeft.Y + 11.0f * Scale), ArrowDeg[Slot], 6.0f * Scale, FLinearColor(1.0f, 0.48f, 0.23f));
+		if (!bHas)
+		{
+			DrawText(TEXT("vazio"), FLinearColor(1.0f, 1.0f, 1.0f, 0.35f), TopLeft.X + 12.0f * Scale, TopLeft.Y + Size * 0.5f - 6.0f * Scale, nullptr, 0.75f * Scale);
+			continue;
+		}
+		// A gem in the consumable's colour, its short name and the count.
+		DrawRect(Def.Colour, TopLeft.X + Size * 0.5f - 8.0f * Scale, TopLeft.Y + 16.0f * Scale, 16.0f * Scale, 16.0f * Scale);
+		DrawText(FString(Def.Id).ToUpper(), FLinearColor(0.95f, 0.9f, 0.8f), TopLeft.X + 5.0f * Scale, TopLeft.Y + Size - 18.0f * Scale, nullptr, 0.68f * Scale);
+		DrawText(FString::Printf(TEXT("x%d"), Quick.Count), FLinearColor::White, TopLeft.X + Size - 20.0f * Scale, TopLeft.Y + 34.0f * Scale, nullptr, 0.85f * Scale);
 	}
 }

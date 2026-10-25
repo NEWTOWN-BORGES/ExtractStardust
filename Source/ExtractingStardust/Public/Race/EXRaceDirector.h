@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
+#include "Game/EXMeta.h"
 #include "GameFramework/Actor.h"
 #include "EXRaceDirector.generated.h"
 
@@ -29,21 +30,27 @@ struct FEXRacer
 	bool bFinished = false;
 	bool bOut = false;
 	float FinishTime = 0.0f;
-	/** STARDUST value of the cargo carried (lost to the pool if destroyed). */
-	int32 CargoValue = 0;
+	/** The modules carried, by EEXFamily (an empty item is the stock part): real pieces, for bots too. */
+	TArray<FEXItem> Modules;
+	/** The insured module (never lost). */
+	int32 Insured = 0;
 	/** Extraction result: 0 still racing, 1 EXTRACTED, 2 DESTROYED, 3 STRANDED. */
 	uint8 State = 0;
-	/** STARDUST earned at the end (bonus + share of the pool). */
+	/** STARDUST earned at the end (the reward for the place and the EXTRACTED bonus). */
 	int32 Reward = 0;
+	/** What a destroyed craft lost to the pool (STARDUST value), and the pieces an extractor won from it. */
+	int32 LostValue = 0;
+	TArray<FEXItem> Won;
 	/** Where it dropped out (m along the race line). */
 	float OutAtM = 0.0f;
 };
 
 /**
  * Runs a race from A to B on a map with a race line (spline tagged EXRoute): the grid (3 rows of 6 at the start of
- * the line), the countdown, lives and the medical kit on every craft (the kit only for the player), the 15 bots in the
- * Bots mode, eliminations, the finish at the end of the line and the standings: the survivors by finishing time, then
- * the ones left on the way by how far they got. Also manages the start menu and the Hangar showroom mode.
+ * the line), the countdown, the modules and quick slots from the hangar on the player's craft and real rolled modules on
+ * the 15 bots of the Bots mode, eliminations, the finish at the end of the line, the standings (the survivors by
+ * finishing time, then the ones left on the way by how far they got) and the extraction: rewards by place, the pieces
+ * the destroyed lose to the pool and the pool shared by the extractors. Also manages the start menu and the hangar mode.
  */
 UCLASS()
 class EXTRACTINGSTARDUST_API AEXRaceDirector : public AActor
@@ -65,8 +72,10 @@ public:
 	void LaunchExpedition();
 	/** The mode the hangar's launch button starts. */
 	EEXRaceMode GetLaunchMode() const { return LastRaceMode; }
-	/** The pool of lost cargo shared by the extractors (known at the end). */
+	/** The value of the pool (the real pieces lost by the destroyed, shared by the extractors), known at the end. */
 	int32 GetPool() const { return Pool; }
+	/** What happened to the player's things at the end (reward, pieces won and lost), for the results. */
+	const TArray<FString>& GetPlayerNews() const { return PlayerNews; }
 	bool IsInMenu() const { return bMenu; }
 	/** The highlighted menu line: 0 solo, 1 bots, 2 hangar, 3 quit. */
 	int32 GetMenuChoice() const { return MenuChoice; }
@@ -101,7 +110,10 @@ private:
 	bool bReady = false, bStarted = false, bOver = false, bTest = false, bMenu = false;
 	int32 MenuChoice = 1;
 	int32 Pool = 0;
-	int32 StartRepair = 0, StartSurge = 0, StartShield = 0;
+	/** Serials for the bots' pieces (far from the player's). */
+	int32 BotSerial = 1000000;
+	FRandomStream LootRandom;
+	TArray<FString> PlayerNews;
 	EEXRaceMode LastRaceMode = EEXRaceMode::Bots;
 	float Countdown = 4.0f, RaceTime = 0.0f, RouteLengthM = 0.0f, PlayerDoneTime = -1.0f, OverTime = 0.0f;
 	int32 PlayerPlace = 1;

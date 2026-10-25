@@ -47,6 +47,15 @@ public:
 	void Initialize(USceneComponent* ShipAttach);
 	/** Half size of the current ship in the craft's frame (X length, Y width, Z height), in cm. */
 	void SetShipHalfSize(const FVector& HalfSizeCm);
+	/** The engine nozzles in the craft's frame (cm), from the ship's module manifest (up to four); an empty list goes
+	 *  back to two nozzles estimated from the size. */
+	void SetNozzles(const TArray<FVector>& AnchorsCm, float RadiusCm);
+	/** The flame of the engine module (EXMeta::Flame): colours, length and width against the stock flame, shock
+	 *  diamonds, sparks; and the nitro colour of the propulsion module. */
+	void SetFlameStyle(const FLinearColor& Outer, const FLinearColor& Core, float LengthMul, float RadiusMul, int32 Diamonds, bool bSparks,
+		const FLinearColor& Nitro);
+	/** Hangar: the engines run at this power with the craft standing still (0 switches them off). Call every frame. */
+	void TickPreview(float Dt, float Power);
 	void UpdateFx(float Dt, const FEXCraftFxInput& Input);
 	void LandingBurst(const FVector& Point, const FVector& Up, float Strength);
 	/** Sparks thrown off a wall hit or scrape. */
@@ -86,6 +95,7 @@ private:
 
 	UStaticMeshComponent* MakeMesh(UStaticMesh* Mesh, UMaterialInterface* Material, USceneComponent* Parent, bool bWorldSpace);
 	void UpdateSparks(float Dt);
+	void SpawnSpark(const FVector& Location, const FVector& Velocity, float Life);
 	void SpawnPuff(const FVector& Location, const FVector& Velocity, float Life, float StartSizeM, float EndSizeM, float Opacity);
 	void UpdateFlames(float Dt, const FEXCraftFxInput& Input);
 	void UpdateDust(float Dt, const FEXCraftFxInput& Input);
@@ -98,6 +108,10 @@ private:
 	/** Per engine: outer flame, then core. */
 	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> FlameMeshes;
 	UPROPERTY(Transient) TArray<TObjectPtr<UMaterialInstanceDynamic>> FlameMaterials;
+	/** Per engine, the shock diamonds of the burner and the epic flames. */
+	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> DiamondMeshes;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> DiamondMaterial;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> FlameParent;
 	UPROPERTY(Transient) TArray<TObjectPtr<UPointLightComponent>> EngineLights;
 	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> PuffMeshes;
 	UPROPERTY(Transient) TArray<TObjectPtr<UMaterialInstanceDynamic>> PuffMaterials;
@@ -111,9 +125,15 @@ private:
 	float BoostBlend = 0.0f;
 	TArray<FVector> StreakLocations;
 	TArray<bool> StreakActive;
-	FVector EngineAnchors[2] = { FVector::ZeroVector, FVector::ZeroVector };
+	TArray<FVector> EngineAnchors;
 	FVector ShipHalfSize = FVector(330.0f, 160.0f, 60.0f);
 	float FlameRadiusCm = 30.0f;
+	bool bNozzlesFromManifest = false;
+	float StyleLength = 1.0f, StyleRadius = 1.0f, SparkTimer = 0.0f;
+	int32 StyleDiamonds = 0;
+	bool bStyleSparks = false;
+	/** TickPreview's power for this frame (-1: the flames follow the flight input). */
+	float PreviewPowerOverride = -1.0f;
 	float FlamePower = 0.0f;
 	float FlickerTime = 0.0f;
 	float SpawnAccumulator = 0.0f;

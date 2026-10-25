@@ -24,8 +24,6 @@ namespace
 	constexpr float MenuColumnWidth = 624.0f;
 	constexpr float BriefCardWidth = 564.0f;
 	constexpr float BriefAverageKmh = 340.0f;     // the duration shown: the race line at this average speed
-	/** Short cargo names for the briefing, by EEXItem. */
-	const TCHAR* const MenuCargoNames[] = { TEXT("Repara\u00E7\u00E3o"), TEXT("Surge"), TEXT("Escudo"), TEXT("Combust\u00EDvel") };
 }
 
 void UEXMainMenuWidget::InitializeMenu(AEXRaceDirector* InRaceDirector)
@@ -82,7 +80,7 @@ void UEXMainMenuWidget::BuildTree()
 	const TCHAR* const Descriptions[MenuLineCount] = {
 		TEXT("Tu contra o deserto. Chega vivo a B."),
 		TEXT("Quinze rivais na grelha. S\u00F3 quem chega vivo a B extrai."),
-		TEXT("Nave e carga para a expedi\u00E7\u00E3o. As luzes acendem-se."),
+		TEXT("M\u00F3dulos, consum\u00EDveis, loja e cofre. As luzes acendem-se."),
 		TEXT("Fechar o jogo. O perfil fica guardado."),
 	};
 	for (int32 Index = 0; Index < MenuLineCount; ++Index)
@@ -203,7 +201,7 @@ UWidget* UEXMainMenuWidget::BuildBriefing()
 	ShipText = EXUi::Text(Tree, TEXT("-"), 13, EXUi::Bone(), true, 120);
 	AddRow(TEXT("A tua nave"), ShipText, true);
 	CargoText = EXUi::Text(Tree, TEXT("-"), 13, EXUi::Bone(), false);
-	AddRow(TEXT("Carga"), CargoText, false);
+	AddRow(TEXT("M\u00F3dulos e consum\u00EDveis"), CargoText, false);
 	RiskText = EXUi::Text(Tree, TEXT("0"), 13, EXUi::RustHot(), true);
 	AddRow(TEXT("Em risco se fores destru\u00EDdo"), RiskText, true);
 	LastRunText = EXUi::Text(Tree, TEXT("-"), 13, EXUi::Sand(), true);
@@ -256,20 +254,26 @@ void UEXMainMenuWidget::Refresh()
 		return;
 	}
 	EXUi::SetText(WalletText, EXUi::Thousands(Profile->Stardust));
-	FString Cargo;
-	for (int32 Index = 0; Index < EXEconomy::ItemCount && Index < static_cast<int32>(UE_ARRAY_COUNT(MenuCargoNames)); ++Index)
+	// What the ship flies with (Docs/MODULOS.md): the modules fitted and the consumables in the quick slots.
+	const FString Ship = Craft->GetShipName();
+	int32 Fitted = 0;
+	for (const FEXItem* Item : Profile->Equipped(Ship))
 	{
-		const int32 Count = Profile->Count(static_cast<EEXItem>(Index));
-		if (Count > 0)
+		Fitted += Item ? 1 : 0;
+	}
+	FString Cargo = FString::Printf(TEXT("%d m\u00F3dulos"), Fitted);
+	for (const FEXQuickSlot& Quick : Profile->Quick)
+	{
+		if (Quick.Kind != 0 && Quick.Count > 0)
 		{
-			Cargo += FString::Printf(TEXT("%s%s \u00D7%d"), Cargo.IsEmpty() ? TEXT("") : TEXT("  \u00B7  "), MenuCargoNames[Index], Count);
+			Cargo += FString::Printf(TEXT("  \u00B7  %s \u00D7%d"), EXMeta::Consumable(static_cast<EEXConsumable>(Quick.Kind)).Name, Quick.Count);
 		}
 	}
-	EXUi::SetText(CargoText, Cargo.IsEmpty() ? FString(TEXT("vazia (o hangar vende)")) : Cargo);
-	EXUi::SetText(RiskText, EXUi::Thousands(EXEconomy::CargoValue(Profile)) + TEXT(" STARDUST"));
+	EXUi::SetText(CargoText, Cargo);
+	EXUi::SetText(RiskText, EXUi::Thousands(EXEconomy::RiskValue(Profile, Ship)) + TEXT(" STARDUST"));
 	const FString LastRun = Profile->Expeditions == 0 ? FString(TEXT("nenhuma ainda"))
 		: (Profile->LastReward >= 0 ? FString::Printf(TEXT("+%s STARDUST"), *EXUi::Thousands(Profile->LastReward))
-			: FString::Printf(TEXT("carga perdida (%s)"), *EXUi::Thousands(Profile->LastReward)));
+			: FString::Printf(TEXT("pe\u00E7as perdidas (%s)"), *EXUi::Thousands(Profile->LastReward)));
 	if (LastRunText && !LastRunText->GetText().ToString().Equals(LastRun))
 	{
 		LastRunText->SetText(FText::FromString(LastRun));

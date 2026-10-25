@@ -1,0 +1,45 @@
+{
+ "ship": "STRIX",
+ "pieces": [
+  "core",
+  "wing_stock",
+  "skeleton",
+  "wing_blade",
+  "wing_longspan",
+  "wing_vector",
+  "armor_light",
+  "armor_guard",
+  "armor_bulwark",
+  "armor_shell",
+  "armor_aegis",
+  "cooling_vents",
+  "cooling_radiator",
+  "cooling_grid",
+  "tail_compact",
+  "tail_twin",
+  "tail_keel",
+  "utility_mast",
+  "utility_dome",
+  "utility_drone"
+ ],
+ "wings": [
+  "blade",
+  "longspan",
+  "vector"
+ ],
+ "tail": "below",
+ "nozzles": [
+  [
+   0.0,
+   3.08,
+   0.54,
+   0.16
+  ],
+  [
+   0.0,
+   3.08,
+   0.98,
+   0.16
+  ]
+ ]
+}

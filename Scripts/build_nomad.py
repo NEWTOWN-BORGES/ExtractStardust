@@ -560,3 +560,8 @@ for name, loc in (("Socket_Reactor", (0, -0.25, 0.72)), ("Socket_Propulsion_Boom
     group(name, G["Sockets"], loc)
 
 finish_ship(G["Decals"], cockpit=((-1.7, -3.2, 2.1), (0, -1.6, 1.10)), scale=1.15)
+
+# ================================================================ modules (Docs/MODULOS.md): the split for the game and the variants
+from ship_modules import build_modules  # noqa: E402
+build_modules(globals(), wings=("longspan", "brace", "glide"), palette=("Paint_White", "Paint_Orange", "Paint_Black"),
+              tail="below", scale=1.15, nozzle_r=0.16)

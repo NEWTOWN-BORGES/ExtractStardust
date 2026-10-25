@@ -26,9 +26,26 @@ PR estiver fundido):
 ## MENU E HANGAR (2026-10-25): `Docs/MENU_HANGAR.md`
 
 O menu e o hangar são a mesma oficina iluminada (`AEXHangarStage`), com a nave no prato giratório. Por cima ficam o
-menu (Solo, Pelotão 15, Hangar, Sair, briefing com mapa) e o hangar (naves, carga, lançar). Há carteira de STARDUST
-guardada e espólio na meta. Interface em UMG feita em código (`UI/EXUiStyle.h`). **A seguir:** módulos das naves,
-raridades, caixas e 4 consumíveis (pedido de 2026-10-25, ver `Docs/MODULOS.md` quando existir).
+menu (Solo, Pelotão 15, Hangar, Sair, briefing com mapa) e o hangar, com 5 separadores: NAVE, EQUIPAR, CONSUMÍVEIS,
+LOJA e COFRE. Há carteira de STARDUST guardada e espólio na meta. Interface em UMG feita em código
+(`UI/EXUiStyle.h`).
+
+## MÓDULOS, RARIDADES, CAIXAS E CONSUMÍVEIS (2026-10-25): `Docs/MODULOS.md`
+
+Os módulos do jogo antigo (a demo Unity das 5 naves antigas) foram trazidos para as naves novas, com as regras de
+`Catalog.cs`, `Items.cs` e `Economy.cs` do `main`.
+- **Peças:** 3 asas próprias por nave e as peças universais encostadas à carroçaria, feitas por
+  `Scripts/ship_modules.py`. Ficam em `SourceArt/TestShips/modules/` e importam-se com
+  `Scripts/import_ship_modules.py` (passo 3c do `casa_tudo.ps1`).
+- **Hangar:** no EQUIPAR a nave mostra a peça escolhida. Motor, reator e propulsão mostram-se em esqueleto, com as
+  chamas de cada motor.
+- **Consumíveis:** 4 slots, nas teclas 1-4 e nas setas do comando (cima, baixo, esquerda, direita).
+- **Combustível e calor:** são sistemas novos.
+- **Caixas:** STANDARD, ADVANCED e ELITE.
+- **Fim da expedição:** perdas e espólio com peças reais, também as dos bots.
+
+Escrito na nuvem sem Unreal: em casa, compilar primeiro e seguir a lista "A testar no Unreal" da secção 13 do
+documento.
 
 ## SOM (2026-10-25): `Docs/SOM.md`
 
@@ -58,7 +75,8 @@ largo, rochas a 30 m ou mais da pista, estradas de 56-64 m (6-7 naves lado a lad
 3. **Ver o túnel dentro do Unreal:** o teto `caves/*.fbx` faz agora também as paredes (arco de meia elipse); o chão do
    túnel é só chão. Confirmar colisão (complexa) do teto, luz e claraboias (são aberturas na malha), e que a nave passa
    a ~500 km/h sem raspar. Se a malha der trabalho, aumentar `CAVE_EDGE` ou o número de pontos laterais do `cave_roof`.
-4. **Naves:** correr `Scripts/import_test_ships.py` (ver acima). Falta a BASTION (o jogador manda as imagens).
+4. **Naves:** correr `Scripts/import_test_ships.py` (ver acima) e `Scripts/import_ship_modules.py` (os módulos, ver
+   `Docs/MODULOS.md` secção 13). Falta a BASTION (o jogador manda as imagens).
 5. **Modos de jogo:** implementar `Docs/MODOS_DE_JOGO.md` (solo, 15 bots, vidas por nave, kit médico de 3 usos só
    para o jogador), depois de perguntar o que está na secção 9 desse documento.
 6. **Mar de dunas** (pedido anterior, por fazer): ampliar o deserto e deixar estruturas de canyon soterradas na areia;

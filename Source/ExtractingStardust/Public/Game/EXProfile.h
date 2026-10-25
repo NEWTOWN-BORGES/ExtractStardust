@@ -1,66 +1,77 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Game/EXMeta.h"
 #include "GameFramework/SaveGame.h"
 #include "EXProfile.generated.h"
 
 /**
- * What a pilot brings to an expedition. Docs/VISAO_JOGO.md: there are no pickups on the track; everything is chosen in
- * the hangar, used on the way, lost if the craft is destroyed (it feeds the pool the extractors share at B) and kept if
- * the pilot extracts.
+ * The pilot's profile, kept between games (Docs/MODULOS.md): the STARDUST wallet, the modules owned and what each ship
+ * carries, the consumables in stock and in the four quick slots, the caches not yet opened and the shop's rotation.
+ * Everything is chosen in the hangar (no pickups on the track), lost if the craft is destroyed and kept on extraction.
  */
-UENUM()
-enum class EEXItem : uint8
-{
-	Repair,  // one life back (H / Square)
-	Surge,   // the nitro filled at once (F / D-pad up)
-	Shield,  // the next hit costs no life
-	Fuel,    // later
-	Count UMETA(Hidden)
-};
-
-/** The pilot's profile, kept between games: the STARDUST wallet, the chosen ship, the cargo for the next expedition. */
 UCLASS()
 class EXTRACTINGSTARDUST_API UEXProfileSave : public USaveGame
 {
 	GENERATED_BODY()
 
 public:
-	UPROPERTY() int32 Stardust = 3000;
+	/** 2: modules and caches. Older profiles keep their STARDUST and get the starter kit. */
+	UPROPERTY() int32 Version = 0;
+	UPROPERTY() int32 Stardust = EXMeta::StartingStardust;
 	UPROPERTY() int32 ShipIndex = 1;
-	/** Items in the cargo, indexed by EEXItem. */
-	UPROPERTY() TArray<int32> Cargo;
 	UPROPERTY() int32 Expeditions = 0;
 	UPROPERTY() int32 Extractions = 0;
 	UPROPERTY() int32 BestPlace = 0;
-	/** STARDUST won (or lost) in the last expedition, for the menu. */
+	/** STARDUST won in the last expedition, for the menu. */
 	UPROPERTY() int32 LastReward = 0;
+	/** What happened to the pilot's things in the last expedition (won, lost), for the menu. */
+	UPROPERTY() TArray<FString> LastNews;
+	UPROPERTY() TArray<FEXItem> Items;
+	UPROPERTY() TArray<FEXBuild> Builds;
+	/** Consumables in the hangar, safe (by EEXConsumable). */
+	UPROPERTY() TArray<int32> Stock;
+	/** The four quick slots for the next expedition, taken out of the stock at the start. */
+	UPROPERTY() TArray<FEXQuickSlot> Quick;
+	/** Caches bought or won, not yet opened (EEXCache). */
+	UPROPERTY() TArray<uint8> Caches;
+	/** Components on sale until the next expedition. */
+	UPROPERTY() TArray<FEXItem> Shop;
+	UPROPERTY() int32 NextSerial = 1;
+	UPROPERTY() int32 Seed = 0;
+	UPROPERTY() bool bFirstExtractionPaid = false;
 
-	int32 Count(EEXItem Item) const;
-	void SetCount(EEXItem Item, int32 Value);
+	FEXBuild& BuildFor(const FString& Ship);
+	const FEXBuild* FindBuild(const FString& Ship) const;
+	FEXItem* FindItem(int32 Serial);
+	const FEXItem* FindItem(int32 Serial) const;
+	/** The module in each slot of a ship, by EEXFamily (nullptr: the stock part). */
+	TArray<const FEXItem*> Equipped(const FString& Ship) const;
+	/** The same, copied (an empty FEXItem is the stock part): what a craft flies with. */
+	TArray<FEXItem> EquippedCopy(const FString& Ship) const;
+	/** The ship an item is fitted to, or an empty string. */
+	FString EquippedOn(int32 Serial) const;
+	/** Fits an item (0: back to the stock part). A piece is on one ship at a time: it leaves any other. */
+	void Equip(const FString& Ship, EEXFamily Slot, int32 Serial);
+	void RemoveItem(int32 Serial);
+	int32 StockOf(EEXConsumable Kind) const;
+	void AddStock(EEXConsumable Kind, int32 Delta);
+	/** A fresh random stream for this profile (caches, shop, bots) that never repeats. */
+	FRandomStream NextRandom();
 };
 
-/** The item and ship tables, and the profile on disk (save slot "EXProfile"). */
+/** The profile on disk (save slot "EXProfile") and what the hangar and the menu read from it. */
 namespace EXEconomy
 {
-	constexpr int32 ItemCount = static_cast<int32>(EEXItem::Count);
-
-	struct FItemDef
-	{
-		const TCHAR* Name;
-		const TCHAR* Effect;
-		int32 Cost;      // STARDUST per unit
-		int32 Weight;    // cargo units per item
-		bool bAvailable;
-	};
-
-	const FItemDef& Item(EEXItem Which);
-	/** Cargo units a ship carries (VORTEX 3 ... NOMAD 7). */
-	int32 ShipCapacity(const FString& ShipName);
-	int32 CargoWeight(const UEXProfileSave* Profile);
-	/** STARDUST value of the cargo: what is at risk on the track. */
-	int32 CargoValue(const UEXProfileSave* Profile);
-	/** The profile from disk, or a new one (3000 STARDUST, two repair kits and one surge). */
+	/** The profile from disk, or a new one: 3000 STARDUST, a STANDARD CACHE and the old game's consumables. */
 	UEXProfileSave* Load();
 	void Save(UEXProfileSave* Profile);
+	/** STARDUST of the consumables in the quick slots. */
+	int32 QuickValue(const UEXProfileSave* Profile);
+	/** STARDUST at risk with this ship: the three most valuable modules that can be lost, and the consumables carried. */
+	int32 RiskValue(const UEXProfileSave* Profile, const FString& Ship);
+	/** Puts the quick slots right: four of them, known kinds, 0-2 each and never more than the stock. */
+	void SanitizeQuick(UEXProfileSave* Profile);
+	/** A new shop rotation (after each expedition). */
+	void RollShop(UEXProfileSave* Profile);
 }
