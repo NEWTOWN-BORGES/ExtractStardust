@@ -999,7 +999,8 @@ void AEXHoverCraft::ApplyShipStats()
 	{
 		Fitted.Add(Item.IsValid() ? &Item : nullptr);
 	}
-	EXMeta::Resolve(Name, Fitted, ResolvedStats);
+	// The player's ship counts its stars (a copy of the ship from an ELITE CACHE each); the bots have none.
+	EXMeta::Resolve(Name, Fitted, ResolvedStats, Profile && !bBot ? Profile->StarsOf(Name) : 0);
 	const EXMeta::FShipDef& Ship = EXMeta::Ship(Name);
 	auto Delta = [this, &Ship](EEXStat Stat)
 	{

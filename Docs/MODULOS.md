@@ -218,7 +218,7 @@ O HUD da corrida mostra as duas barras.
 
 ## 8. Loja e caixas (Doc 03, secções 7 e 8)
 
-**Caixas:** 10 itens cada (4 a 6 componentes, o resto consumíveis). Nunca trazem naves.
+**Caixas:** 10 itens cada (4 a 6 componentes, o resto consumíveis). Só a ELITE pode trazer uma cópia de nave (secção 8b).
 
 | Caixa | Preço | Probabilidades e garantias |
 | --- | --- | --- |
@@ -227,6 +227,22 @@ O HUD da corrida mostra as duas barras.
 | ELITE | 10 000 | 25% incomum, 55% raro, 20% épico; 1 épico garantido, mínimo 4 raros ou melhor, e **uma** tentativa de 4% por caixa de subir um item a lendário |
 
 O ELITE custa 10 000 na demo; o documento prevê 13 500 no jogo final.
+
+### 8b. Estrelas das naves (pedido do jogador, 2026-10-25)
+
+Como as cópias do Dragon Ball Legends: cada **cópia de uma nave** dá-lhe **1 estrela**, até **7**.
+- **Onde sai:** só na caixa mais cara, a **ELITE**, com **6%** de probabilidade por caixa (baixa, mas possível), além
+  dos 10 itens. A nave é sorteada entre as 5. É a última carta a virar, a dourado.
+- **O que dão:** pontos nos 8 stats base da própria nave, antes de qualquer módulo ou item: **+2 por estrela**
+  (+15 com as 7). Os módulos somam por cima e os stats continuam limitados a 100.
+  Exemplo: STRIX com 3 estrelas tem +6 em tudo (VEL 72 → 78).
+- **Vidas:** como o casco conta nas vidas (1 por cada 10 acima do da nave), 5 estrelas já dão +1 vida e 7 estrelas
+  também (+15 de casco).
+- **Repetidas:** com as 7 estrelas, a cópia paga **8 000 STARDUST**.
+- **Só o jogador:** os bots não têm estrelas.
+- **No hangar:** o separador NAVE mostra `◆◆◆◇◇◇◇  3/7 ESTRELAS` em cada nave e os stats já com o bónus.
+- **No código:** `UEXProfileSave::ShipStars` (por nome, sem mudar a versão do perfil, por isso os perfis atuais
+  guardam-se), `EXMeta::StarBonus`, `Resolve(..., Stars)` e `OpenCache(..., &ShipCopy)`.
 
 **Loja de componentes:**
 

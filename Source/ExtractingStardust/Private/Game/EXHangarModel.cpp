@@ -37,6 +37,17 @@ namespace
 		return HangarShipWords[0];
 	}
 
+	/** Seven pips, one filled per star, then "3/7 ESTRELAS". */
+	FString StarPips(int32 Stars)
+	{
+		FString Out;
+		for (int32 Index = 0; Index < EXMeta::MaxStars; ++Index)
+		{
+			Out += Index < Stars ? TEXT("\u25C6") : TEXT("\u25C7");
+		}
+		return Out + FString::Printf(TEXT("  %d/%d ESTRELAS"), Stars, EXMeta::MaxStars);
+	}
+
 	const TCHAR* const HangarQuickKeys[EXMeta::QuickSlots] = { TEXT("1  \u00B7  \u25B2"), TEXT("2  \u00B7  \u25BC"), TEXT("3  \u00B7  \u25C0"), TEXT("4  \u00B7  \u25B6") };
 
 	FString HangarDust(int32 Value)
@@ -263,14 +274,15 @@ void UEXHangarModel::GetStats(int32 (&Now)[EXMeta::StatCount], int32 (&Next)[EXM
 	{
 		Fitted = Profile->Equipped(Ship);
 	}
-	EXMeta::Resolve(Ship, Fitted, Now);
+	const int32 Stars = Profile ? Profile->StarsOf(Ship) : 0;
+	EXMeta::Resolve(Ship, Fitted, Now, Stars);
 	const TArray<FEXItem> Preview = GetPreviewBuild();
 	TArray<const FEXItem*> PreviewPointers;
 	for (const FEXItem& Item : Preview)
 	{
 		PreviewPointers.Add(Item.IsValid() ? &Item : nullptr);
 	}
-	EXMeta::Resolve(Ship, PreviewPointers, Next);
+	EXMeta::Resolve(Ship, PreviewPointers, Next, Stars);
 	LivesNow = EXMeta::Lives(Ship, Now[static_cast<int32>(EEXStat::Hull)]);
 	LivesNext = EXMeta::Lives(Ship, Next[static_cast<int32>(EEXStat::Hull)]);
 }
@@ -626,7 +638,8 @@ void UEXHangarModel::OpenCache(int32 Index)
 	FRandomStream Random = Profile->NextRandom();
 	TArray<FEXItem> Got;
 	TArray<EEXConsumable> Consumables;
-	EXMeta::OpenCache(OpenedKind, Random, Profile->NextSerial, Got, Consumables);
+	int32 ShipCopy = INDEX_NONE;
+	EXMeta::OpenCache(OpenedKind, Random, Profile->NextSerial, Got, Consumables, &ShipCopy);
 	Profile->Items.Append(Got);
 	// The cards: the consumables first, then the modules from the plainest to the best (the best turns over last).
 	Cards.Reset();
@@ -650,6 +663,32 @@ void UEXHangarModel::OpenCache(int32 Index)
 		Card.Tag = Item.Rarity >= static_cast<uint8>(EEXRarity::Epic) ? FString(TEXT("NOVO")) : FString();
 		Cards.Add(Card);
 		CacheValue += Item.Value;
+	}
+	if (ShipCopy != INDEX_NONE)
+	{
+		// The last card, the rarest: a copy of a ship. It adds a star, or pays STARDUST if the ship is already at seven.
+		const EXMeta::FShipDef& Def = EXMeta::ShipAt(ShipCopy);
+		const FString ShipName(Def.Name);
+		FEXHangarRow& Card = Cards.AddDefaulted_GetRef();
+		Card.Label = TEXT("C\u00D3PIA DA NAVE");
+		Card.Title = ShipName;
+		Card.Colour = FLinearColor(1.0f, 0.82f, 0.20f);
+		if (Profile->AddStar(ShipName))
+		{
+			const int32 Stars = Profile->StarsOf(ShipName);
+			Card.Sub = FString::Printf(TEXT("%s  \u00B7  +%d em todos os stats base"), *StarPips(Stars), EXMeta::StarBonus(Stars) - EXMeta::StarBonus(Stars - 1));
+			Card.Right = FString::Printf(TEXT("%d/%d"), Stars, EXMeta::MaxStars);
+			Card.Tag = TEXT("NOVA ESTRELA");
+			Note(FString::Printf(TEXT("C\u00F3pia da %s: agora com %d estrelas"), *ShipName, Stars));
+		}
+		else
+		{
+			Profile->Stardust += EXMeta::ShipCopyRefund;
+			Card.Sub = TEXT("J\u00E1 tem as 7 estrelas: a c\u00F3pia foi paga em STARDUST");
+			Card.Right = HangarDust(EXMeta::ShipCopyRefund);
+			Card.Tag = TEXT("REPETIDA");
+		}
+		UE_LOG(LogTemp, Display, TEXT("EXMETA SHIPCOPY %s stars=%d"), *ShipName, Profile->StarsOf(ShipName));
 	}
 	bOpening = true;
 	Revealed = 0;
@@ -746,12 +785,13 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			if (Profile)
 			{
 				int32 Stats[EXMeta::StatCount];
-				EXMeta::Resolve(Name, Profile->Equipped(Name), Stats);
+				EXMeta::Resolve(Name, Profile->Equipped(Name), Stats, Profile->StarsOf(Name));
 				ShipLives = EXMeta::Lives(Name, Stats[static_cast<int32>(EEXStat::Hull)]);
 			}
 			FEXHangarRow& R = Out.AddDefaulted_GetRef();
 			R.Label = ShipRole(Name);
 			R.Title = Name;
+			R.Sub = Profile ? StarPips(Profile->StarsOf(Name)) : FString();
 			R.Right = FString::Printf(TEXT("%d VIDAS"), ShipLives);
 			R.Colour = FLinearColor(1.0f, 0.34f, 0.10f);
 		}

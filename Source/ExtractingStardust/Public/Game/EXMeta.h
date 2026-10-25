@@ -131,6 +131,12 @@ namespace EXMeta
 	constexpr int32 FirstExtractionBonus = 500;
 	constexpr int32 ExtractedBonus = 250;
 	constexpr int32 StartingStardust = 3000;
+	/** Ship stars (like the duplicates of Dragon Ball Legends): each copy of a ship adds one, up to seven. */
+	constexpr int32 MaxStars = 7;
+	/** Chance that an ELITE CACHE holds one copy of a ship. */
+	constexpr float ShipCopyChance = 0.06f;
+	/** STARDUST a copy is worth when its ship already has all seven stars. */
+	constexpr int32 ShipCopyRefund = 8000;
 
 	/** Size classes, as a mask: a slot takes the classes it lists. */
 	enum : uint8 { SizeS = 1, SizeM = 2, SizeL = 4, SizeAny = 7 };
@@ -223,6 +229,10 @@ namespace EXMeta
 	const FModuleDef* Find(FName Id);
 	const FModuleDef* Find(const FEXItem& Item);
 	const FShipDef& Ship(const FString& Name);
+	int32 ShipCount();
+	const FShipDef& ShipAt(int32 Index);
+	/** Points a ship's stars add to each of its eight core stats (the ship alone, before any module): 2 a star, 15 at seven. */
+	int32 StarBonus(int32 Stars);
 	const FConsumableDef& Consumable(EEXConsumable Kind);
 	const FCacheDef& Cache(EEXCache Kind);
 
@@ -248,8 +258,8 @@ namespace EXMeta
 	/** A new instance: the rarity's budget spread over the family's stats under their ceilings, sometimes with a
 	 *  drawback that returns budget; legendaries get their controlled rolls. */
 	FEXItem Roll(const FModuleDef& Def, EEXRarity Rarity, FRandomStream& Random, int32 Serial);
-	/** Final stats (EEXStat order): the ship's plus every module's rolls, core stats held to 0-100. */
-	void Resolve(const FString& ShipName, const TArray<const FEXItem*>& Modules, int32 (&Out)[StatCount]);
+	/** Final stats (EEXStat order): the ship's (plus its stars' bonus) and every module's rolls, core stats held to 0-100. */
+	void Resolve(const FString& ShipName, const TArray<const FEXItem*>& Modules, int32 (&Out)[StatCount], int32 Stars = 0);
 	/** The ship's lives, plus one per 10 hull above its own (6 at most). */
 	int32 Lives(const FString& ShipName, int32 HullStat);
 	bool HasPerk(const TArray<const FEXItem*>& Modules, const TCHAR* Perk);
@@ -258,8 +268,10 @@ namespace EXMeta
 	FLinearColor ReactorGlow(const FEXItem* Reactor);
 
 	// ---- caches, shop, bots, rewards
-	/** Ten things: 4-6 components (5-6 in an ELITE) under the cache's odds and promises, the rest consumables. */
-	void OpenCache(EEXCache Kind, FRandomStream& Random, int32& NextSerial, TArray<FEXItem>& OutItems, TArray<EEXConsumable>& OutConsumables);
+	/** Ten things: 4-6 components (5-6 in an ELITE) under the cache's odds and promises, the rest consumables. Only an
+	 *  ELITE can also hold a copy of a ship (rarely): its index in the ship table goes to OutShipCopy, else INDEX_NONE. */
+	void OpenCache(EEXCache Kind, FRandomStream& Random, int32& NextSerial, TArray<FEXItem>& OutItems, TArray<EEXConsumable>& OutConsumables,
+		int32* OutShipCopy = nullptr);
 	/** The shop's rotation after each expedition: three commons, two uncommons, one rare. */
 	void RollShop(FRandomStream& Random, int32& NextSerial, TArray<FEXItem>& Out);
 	/** A bot's garage: real pieces (skill 0-2), so what a destroyed bot loses is real loot. Out is by EEXFamily. */

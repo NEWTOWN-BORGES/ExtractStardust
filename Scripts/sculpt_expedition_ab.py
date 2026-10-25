@@ -739,6 +739,59 @@ for name, b in branches.items():
 carve(main, bed, half_w, kind, bank, curv, skip=skip)  # last, so no branch lifts the main line at a junction
 
 
+# Curve walls (player, 2026-10-25: the zig-zag was hard to drive without leaving the track): on the OUTSIDE of every
+# bend a wall grows out of the floor edge, joined to it with no step. Its profile is a quarter of an oval (tangent to
+# the floor, steepening to ~80 degrees at the top), so a craft can ride up it and round the bend on the wall. Its
+# height follows the bend (full below WALL_R_FULL m of radius, none above WALL_R_NONE m) and sinks back to nothing on
+# the short straights between the bends. A flat rim and a back slope at ~40 degrees finish it, so the heightfield
+# shows no cliff. Not in the tunnel, the switchbacks, the Red Wall (it has its own bank) or the open desert.
+WALL_H = 13.0         # m, at the tightest bends
+WALL_RUN = 1.8        # horizontal run of the oval = this x its height
+WALL_RIM = 6.0        # m of flat top
+WALL_R_FULL, WALL_R_NONE = 200.0, 520.0
+WALL_KINDS = ["top", "floor", "wash", "rim"]
+wall_k = np.abs(curvature(main, 41))
+wall_h = WALL_H * smoothstep(1.0 / WALL_R_NONE, 1.0 / WALL_R_FULL, wall_k)
+wall_h = smooth1d(wall_h, 61) * np.isin(kind, WALL_KINDS) * ~skip
+WALL = np.zeros(H.shape, bool)  # where a wall stands (props keep out of it)
+
+
+def curve_walls():
+    global H, WALL
+    sub = main[::2]
+    reach = float(np.max(half_w)) + WALL_H * (WALL_RUN + 1.5) + WALL_RIM + 20.0
+    d, idx = nearest(sub, reach)
+    i = np.clip(np.maximum(idx, 0) * 2, 0, N - 1)
+    lat = lateral(sub, idx)
+    outer_ = np.sign(lat) == -np.sign(curv[i])
+    h = wall_h[i].astype(np.float32)
+    s_ = d - half_w[i]
+    run = WALL_RUN * h
+    # Start at the floor edge's own height (the floor profile rises a little toward its edges).
+    base = section(half_w[i].astype(np.float32), i, bed[i], half_w[i], kind[i], np.zeros(d.shape), curv[i])
+    t = np.clip(s_ / np.maximum(run, 1e-3), 0.0, 1.0)
+    oval = h * (1.0 - np.sqrt(1.0 - t * t))
+    behind = np.maximum(h - np.maximum(s_ - run - WALL_RIM, 0.0) * math.tan(math.radians(40.0)), 0.0)  # rim, then back slope
+    tgt = base + np.where(s_ <= run, oval, behind)
+    foot = run + WALL_RIM + h / math.tan(math.radians(40.0))
+    zone = (idx >= 0) & outer_ & (h > 0.5) & (s_ > 0.0) & (s_ < foot)
+    H = np.where(zone & (tgt > H), tgt, H).astype(H.dtype)
+    WALL = zone | WALL
+    print("CURVE WALLS: %.1f km of wall, tallest %.1f m, %d bends over 4 m" % (
+        float(np.sum(wall_h > 0.5)) / 1000.0, float(wall_h.max()),
+        int(np.sum((wall_h[1:] > 4.0) & (wall_h[:-1] <= 4.0)))))
+    # One cross-section across the tallest wall (height above the floor edge every 6 m, from the edge outwards), as proof.
+    j = int(np.argmax(wall_h))
+    tj = main[min(j + 3, N - 1)] - main[max(j - 3, 0)]
+    nj = np.array([-tj[1], tj[0]]) / (np.linalg.norm(tj) + 1e-9) * (-np.sign(curv[j]))  # towards the outside of the bend
+    q0 = main[j] + nj * half_w[j]
+    prof = [float(bilinear(H, *(q0 + nj * l))) - float(bilinear(H, *q0)) for l in np.arange(0.0, 70.0, 6.0)]
+    print("CURVE WALL PROFILE at (%d, %d) h=%.1f: %s" % (main[j, 0], main[j, 1], wall_h[j], " ".join("%.1f" % v for v in prof)))
+
+
+curve_walls()
+
+
 # Tunnel walls (The Hollow and its arm): the walls and the vault are one smooth arch made by cave_roof (a half ellipse
 # 22-28 m tall that meets the floor `CAVE_EDGE` m outside the floor edge). A heightfield cannot make a clean steep wall
 # (its triangles show as wedges), so the ground inside the arch is just the floor, level with the floor edge, and the
@@ -1208,6 +1261,7 @@ for b in branches.values():
 # Nothing at all in or beside the tunnels (the roof covers them; a prop there would stand inside the tunnel).
 d_cv, _i = nearest(main[cv_][::4], 200)
 free_d = np.where(d_cv < 120.0, -1.0, free_d)
+free_d = np.where(WALL, -1.0, free_d)  # no rock or plant inside a curve wall
 for b in branches.values():
     if b["kind"] == "cave":
         d_cb, _i = nearest(b["p"][::4], 200)
