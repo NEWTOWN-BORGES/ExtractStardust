@@ -75,12 +75,11 @@ AEXHoverCraft::AEXHoverCraft()
 	ShipMesh->SetupAttachment(VisualPivot);
 	ShipMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Strix(TEXT("/Game/TestShips/SM_STRIX.SM_STRIX"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Wraith(TEXT("/Game/TestShips/SM_WRAITH.SM_WRAITH"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Nomad(TEXT("/Game/TestShips/SM_NOMAD.SM_NOMAD"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Bastion(TEXT("/Game/TestShips/SM_BASTION.SM_BASTION"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Vortex(TEXT("/Game/TestShips/SM_VORTEX.SM_VORTEX"));
-	for (UStaticMesh* Mesh : { Strix.Object, Wraith.Object, Nomad.Object, Bastion.Object, Vortex.Object })
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Strix(TEXT("/Game/ShipsV2/SM_V2_STRIX.SM_V2_STRIX"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Wraith(TEXT("/Game/ShipsV2/SM_V2_WRAITH.SM_V2_WRAITH"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Nomad(TEXT("/Game/ShipsV2/SM_V2_NOMAD.SM_V2_NOMAD"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Vortex(TEXT("/Game/ShipsV2/SM_V2_VORTEX.SM_V2_VORTEX"));
+	for (UStaticMesh* Mesh : { Strix.Object, Nomad.Object, Vortex.Object, Wraith.Object })
 	{
 		if (Mesh)
 		{
@@ -177,13 +176,26 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction(TEXT("Ship2"), IE_Pressed, this, &AEXHoverCraft::Ship2);
 	PlayerInputComponent->BindAction(TEXT("Ship3"), IE_Pressed, this, &AEXHoverCraft::Ship3);
 	PlayerInputComponent->BindAction(TEXT("Ship4"), IE_Pressed, this, &AEXHoverCraft::Ship4);
-	PlayerInputComponent->BindAction(TEXT("Ship5"), IE_Pressed, this, &AEXHoverCraft::Ship5);
 	PlayerInputComponent->BindAction(TEXT("ToggleCamera"), IE_Pressed, this, &AEXHoverCraft::CycleCamera);
 }
 
 void AEXHoverCraft::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bHangarPreview)
+	{
+		PreviewTime += DeltaSeconds;
+		SetActorRotation(FRotator(0.0f, PreviewTime * 8.0f, 0.0f));
+		VisualPivot->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, FMath::Sin(PreviewTime * 1.2f) * 5.0f), FRotator::ZeroRotator);
+
+		const float Radius = ShipMesh && ShipMesh->GetStaticMesh()
+			? FMath::Max(500.0f, ShipMesh->GetBounds().SphereRadius)
+			: 700.0f;
+		const FVector CameraLocation = HangarPreviewLocation + FVector(-Radius * 2.3f, -Radius * 3.0f, Radius * 1.1f);
+		Camera->SetWorldLocationAndRotation(CameraLocation, (HangarPreviewLocation - CameraLocation).Rotation());
+		Camera->SetFieldOfView(48.0f);
+		return;
+	}
 	if (bTour)
 	{
 		RunTour(DeltaSeconds);
@@ -196,7 +208,24 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	{
 		RunFlightTest(DeltaSeconds);
 	}
-	if (!bLost)
+	ImpactDamageCooldown = FMath::Max(0.0f, ImpactDamageCooldown - DeltaSeconds);
+	const bool bWaitingForSurvivalStart = bSurvivalParticipant && !bSurvivalRunning;
+	if (bWaitingForSurvivalStart)
+	{
+		ThrottleInput = 0.0f;
+		BrakeInput = 0.0f;
+		SteerInput = 0.0f;
+		bBoostHeld = false;
+		bDriftHeld = false;
+		VelocityCmps = FVector::ZeroVector;
+		ForwardSpeedMps = 0.0f;
+		LateralSpeedMps = 0.0f;
+	}
+	else if (bSurvivalBot && bSurvivalRunning)
+	{
+		UpdateBotAI(DeltaSeconds);
+	}
+	if (!bLost && !bWaitingForSurvivalStart)
 	{
 		// Fixed small steps keep the hover spring stable through frame hitches.
 		float Remaining = FMath::Min(DeltaSeconds, 0.1f);
@@ -211,6 +240,10 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 			bLost = true;
 			VelocityCmps = FVector::ZeroVector;
 		}
+	}
+	if (bSurvivalParticipant && bSurvivalRunning && bLost)
+	{
+		EliminateFromSurvival();
 	}
 	if (MapRoute.Num() > 0)
 	{
@@ -260,6 +293,8 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	FxInput.CameraForward = Camera->GetForwardVector();
 	FxInput.SpeedAlpha = FMath::Clamp(ForwardSpeedMps / MaxSpeedMps, 0.0f, 1.2f);
 	FxInput.Throttle = ThrottleInput;
+	// Keep the 15 AI craft silent; their one-shot cues would otherwise stack into a noisy crowd.
+	FxInput.AudioScale = bSurvivalBot ? 0.0f : 1.0f;
 	FxInput.HeightM = HeightM;
 	FxInput.bGrounded = bGrounded;
 	FxInput.bBoosting = bBoosting;
@@ -272,11 +307,14 @@ void AEXHoverCraft::StepFlight(float Dt)
 {
 	const FVector Location = GetActorLocation();
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(EXHoverProbe), false, this);
+	const float ProbeReachCm = FMath::Max(HoverHeightM * CmPerM * 3.0f, 1200.0f);
 	FHitResult GroundHit;
-	const bool bHit = GetWorld()->SweepSingleByChannel(GroundHit, Location, Location - SurfaceUp * (HoverHeightM * CmPerM * 3.0f),
+	const bool bHit = GetWorld()->SweepSingleByChannel(GroundHit, Location, Location - SurfaceUp * ProbeReachCm,
 		FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(ProbeRadiusCm), Params);
 	HeightM = bHit ? (GroundHit.bStartPenetrating ? 0.3f : (GroundHit.Distance + ProbeRadiusCm) / CmPerM) : 99.0f;
 	FVector GroundNormal = bHit ? FVector(GroundHit.ImpactNormal) : FVector::UpVector;
+	bool bHasProbePlane = false;
+	int32 NumProbeHits = 0;
 	// Four line probes under the hull (nose, tail, both sides): the height is their average and the ground is the
 	// plane they span, so single terrain triangles no longer shake the craft. The sphere above stays as the fallback.
 	{
@@ -290,23 +328,34 @@ void AEXHoverCraft::StepFlight(float Dt)
 		{
 			FHitResult ProbeHit;
 			const FVector Start = Location + Offsets[Probe];
-			if (GetWorld()->LineTraceSingleByChannel(ProbeHit, Start, Start - SurfaceUp * (HoverHeightM * CmPerM * 3.0f), ECC_Visibility, Params))
+			if (GetWorld()->LineTraceSingleByChannel(ProbeHit, Start, Start - SurfaceUp * ProbeReachCm, ECC_Visibility, Params))
 			{
 				Points[Count++] = ProbeHit.ImpactPoint;
 				HeightSum += ProbeHit.Distance / CmPerM;
 			}
 		}
-		if (Count == 4 && !GroundHit.bStartPenetrating)
+		NumProbeHits = Count;
+		if (Count >= 3 && !GroundHit.bStartPenetrating)
 		{
-			const FVector Plane = FVector::CrossProduct(Points[0] - Points[1], Points[2] - Points[3]).GetSafeNormal();
+			const FVector Plane = Count == 4
+				? FVector::CrossProduct(Points[0] - Points[1], Points[2] - Points[3]).GetSafeNormal()
+				: FVector::CrossProduct(Points[1] - Points[0], Points[2] - Points[0]).GetSafeNormal();
 			GroundNormal = FVector::DotProduct(Plane, SurfaceUp) < 0.0f ? -Plane : Plane;
-			HeightM = FMath::Min(HeightM, HeightSum / 4.0f + 0.25f);  // never above what the sphere sees (walls, lips)
+			bHasProbePlane = true;
+			HeightM = bHit ? FMath::Min(HeightM, HeightSum / Count + 0.25f) : HeightSum / Count;
+			if (!bHit)
+			{
+				GroundPointCm = (Points[0] + Points[1] + Points[2]) / 3.0f;
+			}
 		}
 	}
-	GroundPointCm = bHit ? FVector(GroundHit.ImpactPoint) : Location - SurfaceUp * (HoverHeightM * CmPerM);
+	if (bHit)
+	{
+		GroundPointCm = FVector(GroundHit.ImpactPoint);
+	}
 	const bool bWasGrounded = bGrounded;
 	const float AirTimeBefore = AirTimeSeconds;
-	bGrounded = bHit && FVector::DotProduct(GroundNormal, SurfaceUp) > 0.5f && HeightM < HoverHeightM * 2.5f;
+	bGrounded = (bHit || bHasProbePlane) && FVector::DotProduct(GroundNormal, SurfaceUp) > 0.5f && HeightM < HoverHeightM + 4.0f;
 	AirTimeSeconds = bGrounded ? 0.0f : AirTimeSeconds + Dt;
 
 	SurfaceUp = FMath::VInterpNormalRotationTo(SurfaceUp, bGrounded ? GroundNormal : FVector::UpVector, Dt,
@@ -360,9 +409,11 @@ void AEXHoverCraft::StepFlight(float Dt)
 		// Critically damped hover spring along the surface normal. It never pulls down harder than about
 		// gravity, so the craft can fly off crests and ramps instead of being glued to the ground.
 		const float NormalSpeed = FVector::DotProduct(V, SurfaceUp);
-		Acceleration += SurfaceUp * (FMath::Max(HoverStiffness * (HoverHeightM - HeightM), -GravityMps2 * 1.3f)
-			- 2.0f * FMath::Sqrt(HoverStiffness) * HoverDamping * NormalSpeed);
-		Acceleration += FVector::VectorPlaneProject(FVector(0.0f, 0.0f, -GravityMps2), SurfaceUp) * SlopeGravityScale;
+		const FVector Gravity = FVector(0.0f, 0.0f, -GravityMps2);
+		const float SpringAcceleration = FMath::Max(HoverStiffness * (HoverHeightM - HeightM), -GravityMps2 * 1.3f);
+		const float GravityAlongSurface = FVector::DotProduct(Gravity, SurfaceUp);
+		Acceleration += SurfaceUp * (SpringAcceleration - 2.0f * FMath::Sqrt(HoverStiffness) * HoverDamping * NormalSpeed - GravityAlongSurface);
+		Acceleration += FVector::VectorPlaneProject(Gravity, SurfaceUp) * SlopeGravityScale;
 	}
 	else
 	{
@@ -481,6 +532,7 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 			continue;
 		}
 		const FVector Normal = Hit.Normal;
+		const FVector IncomingVelocity = VelocityCmps;
 		const float IntoSpeed = FVector::DotProduct(VelocityCmps, Normal);
 		if (IntoSpeed < 0.0f)
 		{
@@ -500,6 +552,25 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 					SparkCooldown = 0.05f;
 					Fx->ImpactSparks(Hit.ImpactPoint, Normal, VelocityCmps, FMath::Clamp(-IntoSpeed / CmPerM / 15.0f, 0.2f, 1.0f));
 				}
+			}
+		}
+		if (IntoSpeed < -300.0f && ImpactDamageCooldown <= 0.0f)
+		{
+			AEXHoverCraft* OtherCraft = Cast<AEXHoverCraft>(Hit.GetActor());
+			if (bSurvivalParticipant && bSurvivalRunning && OtherCraft && OtherCraft->bSurvivalParticipant && OtherCraft->bSurvivalRunning)
+			{
+				const float RelativeSpeedMps = (IncomingVelocity - OtherCraft->GetFlightVelocity()).Size() / CmPerM;
+				const float Damage = FMath::Clamp((RelativeSpeedMps - 8.0f) * 0.65f, 4.0f, 55.0f);
+				ApplySurvivalDamage(Damage);
+				OtherCraft->ApplySurvivalDamage(Damage);
+				ImpactDamageCooldown = 0.28f;
+				OtherCraft->ImpactDamageCooldown = FMath::Max(OtherCraft->ImpactDamageCooldown, 0.28f);
+			}
+			else if (bSurvivalParticipant && bSurvivalRunning && FVector::DotProduct(Normal, SurfaceUp) < 0.6f)
+			{
+				const float ImpactSpeedMps = -IntoSpeed / CmPerM;
+				ApplySurvivalDamage(FMath::Clamp((ImpactSpeedMps - 10.0f) * 0.55f, 2.0f, 48.0f));
+				ImpactDamageCooldown = 0.28f;
 			}
 		}
 		Delta = FVector::VectorPlaneProject(Delta * (1.0f - Hit.Time), Normal);
@@ -642,8 +713,188 @@ void AEXHoverCraft::SelectShip(int32 Index)
 	ShipMesh->SetRelativeLocation(-ModelRotation.RotateVector(Mesh ? Mesh->GetBounds().Origin : FVector::ZeroVector));
 	if (Mesh)
 	{
-		Fx->SetShipHalfSize(ModelRotation.RotateVector(Mesh->GetBounds().BoxExtent).GetAbs());
+		const FVector HalfSize = ModelRotation.RotateVector(Mesh->GetBounds().BoxExtent).GetAbs();
+		Fx->SetShipHalfSize(HalfSize);
+		auto Nozzle = [&HalfSize](float Side, float Height)
+		{
+			return FVector(-HalfSize.X * 0.90f, HalfSize.Y * Side, HalfSize.Z * Height);
+		};
+		TArray<FVector> Engines;
+		switch (ShipIndex)
+		{
+		case 0: // STRIX: two thrusters stacked vertically at the centre of the tail.
+			Engines = { Nozzle(0.0f, -0.34f), Nozzle(0.0f, 0.34f) };
+			break;
+		case 1: // NOMAD: three thrusters in a horizontal row across the tail.
+			Engines = { Nozzle(-0.52f, 0.0f), Nozzle(0.0f, 0.0f), Nozzle(0.52f, 0.0f) };
+			break;
+		case 2: // VORTEX: one central tail thruster.
+			Engines = { Nozzle(0.0f, 0.0f) };
+			break;
+		default: // WRAITH: central rear thruster, plus two raised side thrusters.
+			Engines = { Nozzle(0.0f, -0.05f), Nozzle(-0.48f, 0.42f), Nozzle(0.48f, 0.42f) };
+			break;
+		}
+		Fx->SetEngineAnchors(Engines);
 	}
+}
+
+void AEXHoverCraft::UpdateBotAI(float Dt)
+{
+	if (MapRoute.Num() < 4 || bSurvivalEliminated)
+	{
+		ThrottleInput = 0.0f;
+		SteerInput = 0.0f;
+		bBoostHeld = false;
+		bDriftHeld = false;
+		return;
+	}
+
+	const int32 Count = MapRoute.Num();
+	const FVector Location = GetActorLocation();
+	const FVector2D Here(Location.X / CmPerM, Location.Y / CmPerM);
+	const float LookAheadM = FMath::Clamp(12.0f + FMath::Max(0.0f, ForwardSpeedMps) * 0.45f, 12.0f, 36.0f);
+	const int32 Lead = FMath::Clamp(FMath::RoundToInt(LookAheadM / 5.0f), 2, 12);
+	const int32 TargetIndex = (RouteIndex + Lead) % Count;
+	const FVector2D RouteTangent = (MapRoute[(TargetIndex + 2) % Count] - MapRoute[(TargetIndex - 2 + Count) % Count]).GetSafeNormal();
+	const FVector2D RouteRight(-RouteTangent.Y, RouteTangent.X);
+	const FVector2D Target = MapRoute[TargetIndex] + RouteRight * BotLaneOffsetM;
+	const FVector2D Desired = (Target - Here).GetSafeNormal();
+	const FVector2D Nose(Heading.X, Heading.Y);
+	const float Angle = FMath::Atan2(Nose ^ Desired, Nose | Desired);
+	SteerInput = FMath::Clamp(Angle * 2.0f, -1.0f, 1.0f);
+	ThrottleInput = 1.0f;
+	BrakeInput = 0.0f;
+	bDriftHeld = ForwardSpeedMps > 42.0f && FMath::Abs(Angle) > 0.28f;
+
+	BotBoostCooldown = FMath::Max(0.0f, BotBoostCooldown - Dt);
+	if (bBoostHeld)
+	{
+		if (FMath::Abs(Angle) > 0.22f || Nitro < 0.15f)
+		{
+			bBoostHeld = false;
+			BotBoostCooldown = 1.6f + (1.0f - BotSkill) * 1.8f;
+		}
+	}
+	else if (BotBoostCooldown <= 0.0f && ForwardSpeedMps > 24.0f && FMath::Abs(Angle) < 0.14f && Nitro > 0.35f)
+	{
+		bBoostHeld = true;
+		BotBoostCooldown = 3.8f + (1.0f - BotSkill) * 3.0f;
+	}
+}
+
+void AEXHoverCraft::EnterHangarPreview(const FVector& PreviewLocation)
+{
+	bHangarPreview = true;
+	HangarPreviewLocation = PreviewLocation;
+	VelocityCmps = FVector::ZeroVector;
+	ThrottleInput = 0.0f;
+	BrakeInput = 0.0f;
+	SteerInput = 0.0f;
+	bBoostHeld = false;
+	bDriftHeld = false;
+	SetActorLocationAndRotation(HangarPreviewLocation, FRotator::ZeroRotator, false, nullptr, ETeleportType::TeleportPhysics);
+	Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	bCamInitialized = false;
+}
+
+void AEXHoverCraft::StartFromHangar()
+{
+	bHangarPreview = false;
+	PreviewTime = 0.0f;
+	Collision->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	ResetToStart();
+}
+
+void AEXHoverCraft::SetRaceGridStart(const FVector& Location, const FRotator& Rotation, const FVector& SurfaceNormal)
+{
+	const FVector Up = SurfaceNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	const FVector Forward = FVector::VectorPlaneProject(Rotation.Vector(), Up).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	StartLocation = Location;
+	StartRotation = FRotationMatrix::MakeFromXZ(Forward, Up).Rotator();
+	SetActorLocationAndRotation(StartLocation, StartRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	VelocityCmps = FVector::ZeroVector;
+	Heading = Forward;
+	SurfaceUp = Up;
+	ForwardSpeedMps = 0.0f;
+	LateralSpeedMps = 0.0f;
+	LongAccelMps2 = 0.0f;
+	AirTimeSeconds = 0.0f;
+	HeightM = HoverHeightM;
+	bGrounded = true;
+	bLost = false;
+	bCamInitialized = false;
+}
+
+void AEXHoverCraft::ConfigureSurvivalRacer(bool bBot, int32 InBotSlot, float Skill)
+{
+	bSurvivalParticipant = true;
+	bSurvivalBot = bBot;
+	bSurvivalRunning = false;
+	bSurvivalEliminated = false;
+	BotSlot = InBotSlot;
+	BotSkill = FMath::Clamp(Skill, 0.25f, 1.0f);
+	HullPercent = 100.0f;
+	ImpactDamageCooldown = 0.0f;
+	BotLaneOffsetM = bBot ? (static_cast<float>(InBotSlot % 5) - 2.0f) * 4.0f : 0.0f;
+	BotBoostCooldown = 1.0f + static_cast<float>(FMath::Max(0, InBotSlot % 7)) * 0.32f;
+	if (bBot)
+	{
+		MaxSpeedMps = FMath::Lerp(88.0f, 112.0f, BotSkill);
+	}
+}
+
+void AEXHoverCraft::SetSurvivalRaceRunning(bool bRunning)
+{
+	bSurvivalRunning = bRunning;
+	if (!bRunning)
+	{
+		ThrottleInput = 0.0f;
+		BrakeInput = 0.0f;
+		SteerInput = 0.0f;
+		bBoostHeld = false;
+		bDriftHeld = false;
+		VelocityCmps = FVector::ZeroVector;
+	}
+}
+
+void AEXHoverCraft::ApplySurvivalDamage(float Damage)
+{
+	if (!bSurvivalParticipant || !bSurvivalRunning || bSurvivalEliminated || Damage <= 0.0f)
+	{
+		return;
+	}
+	HullPercent = FMath::Max(0.0f, HullPercent - Damage);
+	if (HullPercent <= 0.0f)
+	{
+		EliminateFromSurvival();
+	}
+}
+
+void AEXHoverCraft::EliminateFromSurvival()
+{
+	if (bSurvivalEliminated)
+	{
+		return;
+	}
+	bSurvivalEliminated = true;
+	ThrottleInput = 0.0f;
+	BrakeInput = 0.0f;
+	SteerInput = 0.0f;
+	bBoostHeld = false;
+	bDriftHeld = false;
+	VelocityCmps = FVector::ZeroVector;
+	Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	VisualPivot->SetVisibility(false, true);
+	Fx->StopAudio();
+	SetActorTickEnabled(false);
+}
+
+FString AEXHoverCraft::GetSelectedShipName() const
+{
+	return ShipMeshes.IsValidIndex(ShipIndex) && ShipMeshes[ShipIndex]
+		? ShipMeshes[ShipIndex]->GetName().Replace(TEXT("SM_V2_"), TEXT(""))
+		: FString(TEXT("NAVE"));
 }
 
 void AEXHoverCraft::ResetToStart()
@@ -675,7 +926,7 @@ void AEXHoverCraft::ShowTelemetry() const
 	}
 	static const TCHAR* CameraNames[] = { TEXT("perto"), TEXT("longe"), TEXT("lado"), TEXT("frente") };
 	const FString ShipName = ShipMeshes.IsValidIndex(ShipIndex) && ShipMeshes[ShipIndex]
-		? ShipMeshes[ShipIndex]->GetName().Replace(TEXT("SM_"), TEXT("")) : FString(TEXT("?"));
+		? ShipMeshes[ShipIndex]->GetName().Replace(TEXT("SM_V2_"), TEXT("")) : FString(TEXT("?"));
 	GEngine->AddOnScreenDebugMessage(9101, 0.0f, FColor::White, FString::Printf(TEXT("%s   %4.0f km/h   %s   nitro %3.0f%%   camara %s%s%s"),
 		*ShipName, FMath::Abs(ForwardSpeedMps) * 3.6f, bGrounded ? TEXT("HOVER") : TEXT("NO AR"), Nitro * 100.0f,
 		CameraNames[FMath::Clamp(CameraMode, 0, 3)], bDrifting ? TEXT("   DRIFT") : TEXT(""), MiniTurboFlash > 0.0f ? TEXT("   MINI-TURBO!") : TEXT("")));

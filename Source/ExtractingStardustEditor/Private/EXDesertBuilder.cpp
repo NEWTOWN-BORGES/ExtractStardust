@@ -10,6 +10,7 @@
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -17,6 +18,7 @@
 #include "Engine/DirectionalLight.h"
 #include "Engine/Engine.h"
 #include "Engine/ExponentialHeightFog.h"
+#include "Engine/PointLight.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/SkyLight.h"
 #include "Engine/StaticMesh.h"
@@ -1063,10 +1065,15 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 	const TArray<TSharedPtr<FJsonValue>>& LapWidths = Circuit->GetObjectField(TEXT("lap"))->GetArrayField(TEXT("width_m"));
 	TArray<FTransform> Beacons;
 	float SinceLast = 1000.0f;
+	float SinceCaveLight = 1000.0f;
+	float SinceCaveLamp = 1000.0f;
+	int32 CaveLamps = 0;
 	double StraightSide = 1.0;
 	for (int32 Index = 10; Index + 10 < LapPoints.Num(); ++Index)
 	{
 		SinceLast += 4.0f;
+		SinceCaveLight += 4.0f;
+		SinceCaveLamp += 4.0f;
 		const FVector A = LapPoint(Index - 10);
 		const FVector B = LapPoint(Index);
 		const FVector C = LapPoint(Index + 10);
@@ -1082,7 +1089,39 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 		FHitResult Hit;
 		if (World->LineTraceSingleByChannel(Hit, B + FVector(0.0, 0.0, 200.0), B + FVector(0.0, 0.0, 6000.0), ECC_WorldStatic))
 		{
-			continue;  // under a tunnel roof: the tunnel itself shows the way
+			// Under a cave roof: short glowing posts on both sides every 40 m, 4 m inside the foot of the vault, and a
+			// warm lamp under the vault every 160 m (no shadows), so the way reads in the dark.
+			const FVector2D CaveDir = FVector2D(C - A).GetSafeNormal();
+			const FVector2D CaveLeft(-CaveDir.Y, CaveDir.X);
+			if (SinceCaveLight >= 40.0f)
+			{
+				SinceCaveLight = 0.0f;
+				const double InsideCm = FMath::Max(2.0, 0.5 * LapWidths[Index]->AsNumber() - 4.0) * CmPerM;
+				for (const double Side : {1.0, -1.0})
+				{
+					const FVector2D Post = FVector2D(B) + CaveLeft * Side * InsideCm;
+					double GroundZ = B.Z;
+					if (World->LineTraceSingleByChannel(Hit, FVector(Post, B.Z + 500.0), FVector(Post, B.Z - 8000.0), ECC_WorldStatic))
+					{
+						GroundZ = Hit.ImpactPoint.Z;
+					}
+					Beacons.Add(FTransform(FRotator::ZeroRotator, FVector(Post, GroundZ + 60.0), FVector(0.3, 0.3, 1.4)));
+				}
+			}
+			if (SinceCaveLamp >= 160.0f)
+			{
+				SinceCaveLamp = 0.0f;
+				APointLight* Lamp = World->SpawnActor<APointLight>(B + FVector(0.0, 0.0, 1200.0), FRotator::ZeroRotator);
+				Lamp->SetMobility(EComponentMobility::Movable);
+				Lamp->PointLightComponent->SetIntensityUnits(ELightUnits::Candelas);
+				Lamp->PointLightComponent->SetIntensity(2500.0f);  // the sun is 10 lux: ~15 lux on the floor below
+				Lamp->PointLightComponent->SetAttenuationRadius(9000.0f);
+				Lamp->PointLightComponent->SetLightColor(FLinearColor(1.0f, 0.62f, 0.32f));
+				Lamp->PointLightComponent->SetCastShadows(false);
+				Lamp->SetFolderPath(TEXT("World/CaveLamps"));
+				++CaveLamps;
+			}
+			continue;
 		}
 		SinceLast = 0.0f;
 		const FVector2D Dir = FVector2D(C - A).GetSafeNormal();
@@ -1104,7 +1143,7 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 			Posts->SetMaterial(0, LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/World/M_Beacon.M_Beacon")));
 		}
 	}
-	UE_LOG(LogTemp, Display, TEXT("EXWORLD beacons %d"), Beacons.Num());
+	UE_LOG(LogTemp, Display, TEXT("EXWORLD beacons %d, cave lamps %d"), Beacons.Num(), CaveLamps);
 
 	const FVector Start = LapPoint(0);
 	const FVector Ahead = LapPoint(FMath::Min(10, LapPoints.Num() - 1));

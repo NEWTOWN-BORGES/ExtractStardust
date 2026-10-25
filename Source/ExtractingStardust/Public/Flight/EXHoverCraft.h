@@ -34,6 +34,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Flight")
 	void SelectShip(int32 Index);
 
+	void EnterHangarPreview(const FVector& PreviewLocation);
+	void StartFromHangar();
+	void SetRaceGridStart(const FVector& Location, const FRotator& Rotation, const FVector& SurfaceNormal);
+	void ConfigureSurvivalRacer(bool bBot, int32 BotSlot, float Skill);
+	void SetSurvivalRaceRunning(bool bRunning);
+	void ApplySurvivalDamage(float Damage);
+	void EliminateFromSurvival();
+	bool IsSurvivalEliminated() const { return bSurvivalEliminated; }
+	float GetHullPercent() const { return HullPercent; }
+	bool IsSurvivalBot() const { return bSurvivalBot; }
+	FString GetSelectedShipName() const;
+	int32 GetSelectedShipIndex() const { return ShipIndex; }
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float MaxSpeedMps = 118.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float BoostTopMul = 1.16f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float AccelerationMps2 = 36.0f;
@@ -143,6 +156,7 @@ private:
 	void RunFlightTest(float Dt);
 	void RunDesertTest(float Dt);
 	void RunTour(float Dt);
+	void UpdateBotAI(float Dt);
 
 	void InputThrottle(float Value) { ThrottleInput = FMath::Clamp(Value, 0.0f, 1.0f); }
 	void InputBrake(float Value) { BrakeInput = FMath::Clamp(Value, 0.0f, 1.0f); }
@@ -161,7 +175,6 @@ private:
 	void Ship2() { SelectShip(1); }
 	void Ship3() { SelectShip(2); }
 	void Ship4() { SelectShip(3); }
-	void Ship5() { SelectShip(4); }
 	void CycleCamera() { CameraMode = (CameraMode + 1) % 4; bCamInitialized = false; }
 
 	FVector VelocityCmps = FVector::ZeroVector;
@@ -184,9 +197,19 @@ private:
 	float LookYawInput = 0.0f, CamLookYaw = 0.0f, CamJolt = 0.0f, CamJoltTime = 0.0f;
 	FVector GroundPointCm = FVector::ZeroVector;
 	bool bLookBack = false;
+	bool bSurvivalParticipant = false;
+	bool bSurvivalBot = false;
+	bool bSurvivalRunning = false;
+	bool bSurvivalEliminated = false;
+	float HullPercent = 100.0f;
+	float BotSkill = 0.75f;
+	float BotLaneOffsetM = 0.0f;
+	float BotBoostCooldown = 0.0f;
+	float ImpactDamageCooldown = 0.0f;
+	int32 BotSlot = INDEX_NONE;
 
 	// Automated flight test (-EXFlightTest): scripted inputs, screenshots and telemetry log.
-	bool bFlightTest = false, bTestWallPlaced = false, bDesertTest = false;
+	bool bFlightTest = false, bTestWallPlaced = false, bDesertTest = false, bHangarPreview = false;
 	int32 TestPathIndex = 0;
 	/** The map's own race line (a spline tagged EXRoute), sampled every 5 m, in metres; empty on maps without one. */
 	TArray<FVector2D> MapRoute;
@@ -198,6 +221,8 @@ private:
 
 	// Camera tour of the sector (-EXFlightTest -EXTour): fixed viewpoints of the geology, one screenshot each.
 	bool bTour = false;
+	float PreviewTime = 0.0f;
+	FVector HangarPreviewLocation = FVector::ZeroVector;
 	/** -EXLook="x,y,z,yaw,pitch;..." (Unreal metres, degrees): views that replace the S01 tour on any map. */
 	TArray<TPair<FVector, FRotator>> LookViews;
 	FVector TourCameraLocation = FVector::ZeroVector;

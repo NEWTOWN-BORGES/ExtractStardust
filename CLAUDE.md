@@ -158,7 +158,29 @@ Mapa de depuração (rocha, chão dos canyons, fendas, dunas, grelha de 500 m) p
 blender -b -P Scripts/debug_world_fields.py -- C:/rdd/mundo/world_fields.npz C:/rdd/mundo/canyon_field.json C:/rdd/mundo/dbg.png
 ```
 
-## CONTINUAR AQUI — o mundo já está no Unreal (2026-10-19, noite, PC de casa)
+## CONTINUAR AQUI — Expedição no Unreal, sem texturas e lisa (2026-10-20, noite, PC de casa)
+
+- **Mapa `/Game/Maps/Expedition`** (mapa de arranque do jogo). Cadeia completa, a 3 m:
+  1. `blender -b -P Scripts/sculpt_expedition_ab.py -- C:/rdd/ab 3 kit=C:/rdd/kit molds=C:/rdd/moldes plants=C:/rdd/plantas ship=C:/rdd/strix.fbx forunreal`
+     (`forunreal`: tetos das grutas, adereços e água, sem a malha de pré-visualização nem as fotos, que esgotam os 16 GB);
+  2. `blender -b -P Scripts/export_ab_unreal.py -- C:/rdd/ab` (escreve `C:/rdd/ab/ue` no formato do mundo);
+  3. `Scripts/import_world.py` no commandlet com `EX_WORLD_DIR=C:/rdd/ab/ue EX_MAP_DIR=C:/rdd/none EX_KIT_DIR=C:/rdd/kit EX_PLANT_DIR=C:/rdd/plantas`;
+  4. no editor completo: `unreal.EXDesertBuilder.build_world_map("C:/rdd/ab/ue", "Expedition")`.
+  O `Content/Maps/Expedition.umap` tem ~136 MB e está no `.gitignore` (o GitHub não aceita > 100 MB): refaz-se com estes passos.
+- O jogador **rejeitou todas as texturas** ("tudo quadriculado"). Agora não há nenhuma: `make_ground_material.py`
+  (chão: cor e relevo por inclinação, altura e ruído no shader; ondulações da areia; estrada nítida por campo de
+  distâncias) e `make_rock_material.py` (`M_Rock` refeito no mesmo sítio, com os mesmos parâmetros dos MI). Os dois
+  mapas de dados (`T_WorldTrack`, `T_WorldSurface`) vão sem compressão e sem streaming: a compressão em blocos 4×4 e
+  os limiares duros em máscaras de baixa resolução eram os quadrados.
+- Pediu **estradas largas** como na versão Unity (a maioria 50-80 m, algumas mais estreitas) e **curvas longas como
+  a Ferradura (S6, "estrada oval meia-lua"), que adorou**: larguras ×1,5 e meandros desligados exceto na gruta.
+- **"O túnel está horrível, impossível conduzir; as paredes do túnel e da pista têm triângulos salientes, tem de ser
+  liso"**: (5h) das bordas do chão sobe agora uma rampa lisa (25° → 70° em 24 m) e nada fica acima dela; a gruta S8
+  ficou com 52 m de chão, curvas de raio ≥ 220 m, abóbada lisa e luzes (postes baixos a cada 40 m e lâmpadas a cada
+  160 m); rochas soltas e falésias afastadas das bordas (≥ 12-30 m).
+- Ainda por fazer: os assets do Fab (lista abaixo), o céu do Desert III, e o deserto maior com estruturas soterradas.
+
+## Estado anterior — o mundo já está no Unreal (2026-10-19, noite, PC de casa)
 
 - **Mapa `/Game/Maps/RedDustDivide`** (10 × 8 km a 3 m), feito por código. Passos, depois dos passos 1-4 e do circuito:
   1. `blender -b -P Scripts/export_world_unreal.py -- C:/rdd/mundo` (altura em bruto, máscaras de superfície e de pista);

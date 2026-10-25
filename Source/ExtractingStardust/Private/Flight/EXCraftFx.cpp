@@ -2,9 +2,11 @@
 
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/AudioComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Math/RotationMatrix.h"
+#include "Sound/SoundWave.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace
@@ -24,10 +26,16 @@ UEXCraftFx::UEXCraftFx()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Glow(TEXT("/Game/FX/M_FX_Glow.M_FX_Glow"));
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Dust(TEXT("/Game/FX/M_FX_Dust.M_FX_Dust"));
+	static ConstructorHelpers::FObjectFinder<USoundWave> EngineSound(TEXT("/Game/Audio/SW_EngineLoop.SW_EngineLoop"));
+	static ConstructorHelpers::FObjectFinder<USoundWave> DriftSound(TEXT("/Game/Audio/SW_DriftLoop.SW_DriftLoop"));
+	static ConstructorHelpers::FObjectFinder<USoundWave> NitroSound(TEXT("/Game/Audio/SW_NitroBurst.SW_NitroBurst"));
 	SphereMesh = Sphere.Object;
 	CylinderMesh = Cylinder.Object;
 	GlowMaterial = Glow.Object;
 	DustMaterial = Dust.Object;
+	EngineLoopSound = EngineSound.Object;
+	DriftLoopSound = DriftSound.Object;
+	NitroBurstSound = NitroSound.Object;
 }
 
 UStaticMeshComponent* UEXCraftFx::MakeMesh(UStaticMesh* Mesh, UMaterialInterface* Material, USceneComponent* Parent, bool bWorldSpace)
@@ -57,7 +65,8 @@ void UEXCraftFx::Initialize(USceneComponent* ShipAttach)
 	}
 	bInitialized = true;
 
-	for (int32 Engine = 0; Engine < 2; ++Engine)
+	EngineAnchors = { FVector(-330.0f, -110.0f, 0.0f), FVector(-330.0f, 110.0f, 0.0f), FVector(-330.0f, 0.0f, 80.0f) };
+	for (int32 Engine = 0; Engine < 3; ++Engine)
 	{
 		for (int32 Layer = 0; Layer < 2; ++Layer)
 		{
@@ -74,6 +83,32 @@ void UEXCraftFx::Initialize(USceneComponent* ShipAttach)
 		Light->SetupAttachment(ShipAttach);
 		Light->RegisterComponent();
 		EngineLights.Add(Light);
+	}
+
+	auto CreateAudio = [this, ShipAttach](USoundWave* Sound, const TCHAR* Name, bool bAutoPlay)
+	{
+		if (!Sound)
+		{
+			return static_cast<UAudioComponent*>(nullptr);
+		}
+		UAudioComponent* Audio = NewObject<UAudioComponent>(GetOwner(), FName(Name));
+		Audio->SetSound(Sound);
+		Audio->bAutoActivate = false;
+		Audio->bAllowSpatialization = false;
+		Audio->SetupAttachment(ShipAttach);
+		Audio->RegisterComponent();
+		if (bAutoPlay)
+		{
+			Audio->Play();
+		}
+		return Audio;
+	};
+	EngineAudio = CreateAudio(EngineLoopSound, TEXT("EngineCueAudio"), false);
+	DriftAudio = CreateAudio(DriftLoopSound, TEXT("DriftLoopAudio"), false);
+	NitroAudio = CreateAudio(NitroBurstSound, TEXT("NitroBurstAudio"), false);
+	if (NitroAudio)
+	{
+		NitroAudio->SetVolumeMultiplier(0.22f);
 	}
 
 	USceneComponent* Root = GetOwner()->GetRootComponent();
@@ -170,10 +205,24 @@ void UEXCraftFx::UpdateSparks(float Dt)
 void UEXCraftFx::SetShipHalfSize(const FVector& HalfSizeCm)
 {
 	ShipHalfSize = HalfSizeCm;
-	// Two engines at the tail; the test models do not mark their nozzles.
-	EngineAnchors[0] = FVector(-HalfSizeCm.X * 0.92f, -HalfSizeCm.Y * 0.42f, -HalfSizeCm.Z * 0.1f);
-	EngineAnchors[1] = FVector(-HalfSizeCm.X * 0.92f, HalfSizeCm.Y * 0.42f, -HalfSizeCm.Z * 0.1f);
 	FlameRadiusCm = FMath::Clamp(HalfSizeCm.Y * 0.12f, 14.0f, 24.0f);
+}
+
+void UEXCraftFx::SetEngineAnchors(const TArray<FVector>& AnchorsCm)
+{
+	if (AnchorsCm.Num() > 0)
+	{
+		EngineAnchors = AnchorsCm;
+	}
+	for (int32 Engine = 0; Engine < EngineLights.Num(); ++Engine)
+	{
+		const bool bVisible = EngineAnchors.IsValidIndex(Engine);
+		EngineLights[Engine]->SetVisibility(bVisible);
+		for (int32 Layer = 0; Layer < 2; ++Layer)
+		{
+			FlameMeshes[Engine * 2 + Layer]->SetVisibility(bVisible);
+		}
+	}
 }
 
 void UEXCraftFx::UpdateFx(float Dt, const FEXCraftFxInput& Input)
@@ -183,6 +232,7 @@ void UEXCraftFx::UpdateFx(float Dt, const FEXCraftFxInput& Input)
 		return;
 	}
 	UpdateFlames(Dt, Input);
+	UpdateAudio(Input);
 	UpdateDust(Dt, Input);
 	UpdateStreaks(Dt, Input);
 	UpdateSparks(Dt);
@@ -198,8 +248,16 @@ void UEXCraftFx::UpdateFlames(float Dt, const FEXCraftFxInput& Input)
 	BoostBlend = FMath::FInterpTo(BoostBlend, Input.bBoosting ? 1.0f : 0.0f, Dt, 6.0f);
 	const FLinearColor OuterColor = FMath::Lerp(FlameColor, BoostFlameColor, BoostBlend);
 	const FLinearColor CoreColor = FMath::Lerp(FlameCoreColor, BoostCoreColor, BoostBlend);
-	for (int32 Engine = 0; Engine < 2; ++Engine)
+	for (int32 Engine = 0; Engine < EngineLights.Num(); ++Engine)
 	{
+		const bool bVisible = EngineAnchors.IsValidIndex(Engine);
+		EngineLights[Engine]->SetVisibility(bVisible);
+		FlameMeshes[Engine * 2]->SetVisibility(bVisible);
+		FlameMeshes[Engine * 2 + 1]->SetVisibility(bVisible);
+		if (!bVisible)
+		{
+			continue;
+		}
 		const float Flicker = 1.0f + 0.12f * FMath::Sin(FlickerTime * 37.0f + Engine * 1.7f) + 0.08f * FMath::Sin(FlickerTime * 61.0f + Engine * 0.9f);
 		// Short, hot flames like the tail glow in the reference video (the close chase camera sits only 2-3 m
 		// behind the tail): ~0.25 m idle, ~0.7 m flat out, ~1.2 m on nitro.
@@ -220,6 +278,42 @@ void UEXCraftFx::UpdateFlames(float Dt, const FEXCraftFxInput& Input)
 		EngineLights[Engine]->SetRelativeLocation(EngineAnchors[Engine] - FVector(60.0f, 0.0f, 0.0f));
 		EngineLights[Engine]->SetIntensity(FMath::Lerp(3.0f, 18.0f, FlamePower) * Flicker);
 	}
+}
+
+void UEXCraftFx::UpdateAudio(const FEXCraftFxInput& Input)
+{
+	const float SpeedAlpha = FMath::Clamp(Input.SpeedAlpha, 0.0f, 1.2f);
+	const bool bThrottleCue = Input.Throttle > 0.25f;
+	if (EngineAudio && bThrottleCue && !bAudioWasThrottling && Input.AudioScale > 0.0f)
+	{
+		EngineAudio->SetPitchMultiplier(0.9f + SpeedAlpha * 0.32f);
+		EngineAudio->SetVolumeMultiplier(Input.AudioScale * 0.16f);
+		EngineAudio->Play();
+	}
+	bAudioWasThrottling = bThrottleCue;
+	if (DriftAudio)
+	{
+		const bool bDriftSound = Input.bDrifting && Input.bGrounded && SpeedAlpha > 0.12f;
+		if (bDriftSound && !bAudioWasDrifting && Input.AudioScale > 0.0f)
+		{
+			DriftAudio->SetPitchMultiplier(0.9f + SpeedAlpha * 0.18f);
+			DriftAudio->SetVolumeMultiplier(Input.AudioScale * 0.12f);
+			DriftAudio->Play();
+		}
+		bAudioWasDrifting = bDriftSound;
+	}
+	if (NitroAudio && Input.bBoosting && !bAudioWasBoosting)
+	{
+		NitroAudio->Play();
+	}
+	bAudioWasBoosting = Input.bBoosting;
+}
+
+void UEXCraftFx::StopAudio()
+{
+	if (EngineAudio) { EngineAudio->Stop(); }
+	if (DriftAudio) { DriftAudio->Stop(); }
+	if (NitroAudio) { NitroAudio->Stop(); }
 }
 
 void UEXCraftFx::SpawnPuff(const FVector& Location, const FVector& Velocity, float Life, float StartSizeM, float EndSizeM, float Opacity)

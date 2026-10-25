@@ -109,39 +109,42 @@ def relax(p, rmin, fixed=None, iters=300, reach=30):
 # line is relaxed to the sector's tightest radius (GDD: tight 60-120 m, medium 120-250, fast 250-500, mega arc 500+).
 # Per sector: name, surface kind, floor half width m (GDD widths: open 24-35 m, main 14-24, technical 10-16),
 # tightest radius m, meander (amplitude, wavelength), control points.
+# Player, 2026-10-20: roads wide like the Unity version (most 50-80 m) and long clean arcs like the Horseshoe (the
+# sector the player liked most): the rhythmic meanders are off except in the cave.
 SECTORS = [
-    ("S1 The Basin", "top", 17.0, 180.0, (70.0, 1000.0),
+    ("S1 The Basin", "top", 26.0, 180.0, (0.0, 1.0),
      [(15300, 11300, 452), (14400, 10700, 446), (13300, 10900, 444), (12400, 10300, 448), (12600, 9300, 452),
       (13600, 9000, 455), (14400, 8300, 458), (13900, 7600, 462)]),
-    ("S2 Broken Mesa", "top", 12.0, 120.0, (130.0, 650.0),
+    ("S2 Broken Mesa", "top", 18.0, 120.0, (0.0, 1.0),
      [(13000, 7200, 466), (12600, 6300, 470), (13300, 5500, 474), (12700, 4800, 476), (11900, 5000, 478), (11450, 5650, 480),
       (11380, 6450, 478)]),
     # Switchbacks down the outer cliff to the bench: four legs 200 m apart, hairpins of ~100 m radius.
-    ("S3 Shafer Fall", "switchback", 10.0, 1.0, (0.0, 1.0),
+    ("S3 Shafer Fall", "switchback", 14.0, 1.0, (0.0, 1.0),
      [(11300, 6800, 470), (11300, 7500, 440), (11200, 7720, 432), (11100, 7500, 424), (11100, 6500, 382), (11000, 6280, 374),
       (10900, 6500, 366), (10900, 7500, 324), (10800, 7720, 316), (10700, 7500, 308), (10700, 6700, 274), (10550, 6350, 255)]),
     # A tributary born on the bench cuts down to the floor in one long left-hand sweep (radius ~700 -> ~250 m): the
     # Red Wall is its outer bank, steepening from a soft bank to a wall as the gorge deepens.
-    ("S4 The Red Wall", "gorge", 20.0, 250.0, (0.0, 1.0),
+    ("S4 The Red Wall", "gorge", 30.0, 250.0, (0.0, 1.0),
      [(10300, 5950, 240), (9800, 5450, 230), (9100, 5150, 212), (8400, 5300, 185), (7900, 5900, 150), (7650, 6700, 112),
       (7800, 7500, 78), (8150, 8150, 50), (8000, 8800, 42)]),
     # Down the main canyon past the slot canyons (fendas): the SAFE line; RACING and SKILL take the slots.
-    ("S5 Fendas", "floor", 16.0, 140.0, (110.0, 700.0),
+    ("S5 Fendas", "floor", 24.0, 140.0, (0.0, 1.0),
      [(7550, 9300, 40), (7400, 9950, 39), (6800, 10350, 39), (6050, 10200, 38), (5650, 9750, 37), (5250, 9300, 36)]),
     # Horseshoe: in heading south, 270 degrees round the rock spur, out heading north; SKILL jumps the neck.
-    ("S6 Horseshoe", "floor", 22.0, 1.0, (0.0, 1.0),
+    ("S6 Horseshoe", "floor", 32.0, 1.0, (0.0, 1.0),
      [(5150, 8750, 35), (5150, 8150, 34), (5050, 7650, 33), (4750, 7400, 33), (4400, 7550, 32), (4300, 7950, 31),
       (4450, 8450, 30), (4500, 8800, 30), (4300, 9350, 29), (4000, 9750, 29)]),
-    ("S7 The Wash", "wash", 28.0, 200.0, (140.0, 1100.0),
+    ("S7 The Wash", "wash", 40.0, 200.0, (0.0, 1.0),
      [(3500, 10000, 28), (2900, 9800, 27), (2250, 9150, 26), (1850, 8250, 25), (1800, 7250, 24), (2100, 6350, 22),
       (2400, 5650, 20)]),
-    ("S8 The Hollow", "cave", 14.0, 100.0, (60.0, 450.0),
-     [(2650, 5150, 16), (2400, 4800, 12), (2900, 4500, 8), (2600, 4100, 4), (2950, 3700, 8), (2500, 3450, 40),
+    # Player, 2026-10-20: the cave was impossible to drive: now wide, no meanders, gentle S-bends (radius >= 220 m).
+    ("S8 The Hollow", "cave", 26.0, 220.0, (0.0, 1.0),
+     [(2650, 5150, 16), (2500, 4800, 12), (2800, 4450, 8), (2650, 4050, 4), (2800, 3700, 8), (2500, 3450, 40),
       (2150, 3350, 70)]),
-    ("S9 Arches Run", "desert", 18.0, 160.0, (100.0, 800.0),
+    ("S9 Arches Run", "desert", 28.0, 160.0, (0.0, 1.0),
      [(1700, 2950, 45), (1150, 2450, 50), (850, 1550, 55), (1450, 750, 60), (2550, 550, 62), (3400, 1250, 64),
       (4350, 1000, 66), (5250, 1450, 64), (5900, 1150, 60)]),
-    ("S10 White Rim", "rim", 18.0, 300.0, (40.0, 1200.0),
+    ("S10 White Rim", "rim", 28.0, 300.0, (0.0, 1.0),
      [(6500, 1650, 62), (7250, 2150, 150), (7900, 2450, 238), (8650, 2650, 240), (9500, 2450, 238), (10300, 2650, 240),
       (10900, 2700, 241), (11400, 2650, 242)]),
 ]
@@ -267,7 +270,7 @@ BRANCHES = [
     ("S5 RACING Fenda Larga", "slot", 14.0, 160.0, [("@", 7450, 9600), (6900, 9600), (6300, 9700), ("@", 5800, 9850)]),
     ("S5 SKILL Fenda Estreita", "slot", 6.0, 60.0, [("@", 7520, 9420), (7000, 9250), (6400, 9200), (5900, 9300), ("@", 5450, 9500)]),
     ("S6 SKILL Istmo", "slot", 7.0, 50.0, [("@", 5150, 8400), (4850, 8500), ("@", 4500, 8600)]),
-    ("S8 Braço da Caverna", "cave", 10.0, 80.0, [("@", 2420, 4780), (2150, 4350), (2350, 3900), ("@", 2700, 3600)]),
+    ("S8 Braço da Caverna", "cave", 16.0, 160.0, [("@", 2480, 4780), (2200, 4350), (2350, 3900), ("@", 2700, 3600)]),
     ("S9 SKILL Arcos", "surface", 9.0, 90.0, [("@", 2500, 560), (3000, 300), (3700, 650), ("@", 4300, 980)]),
     ("S10 SAFE Contorno", "surface", 16.0, 200.0, [("@", 8350, 2560), (8700, 3050), (9200, 2950), ("@", 9450, 2480)]),
 ]
@@ -690,6 +693,7 @@ def section(lat, idx, bed_, w_, kinds_, bank_, curv_):
     z += np.where(kinds_ == "floor", 4.0 * t ** 2, 0.0)
     z += np.where(kinds_ == "wash", 16.0 * t ** 2, 0.0)  # the Wash: a half-pipe riverbed
     z += np.where(kinds_ == "rim", 1.0 * t ** 2, 0.0)
+    z += np.where(kinds_ == "cave", 6.0 * t ** 2, 0.0)  # the cave floor curls up into the foot of the vault
     outer = np.sign(lat) == -np.sign(curv_)  # outside of the bend
     z += np.where((bank_ > 0) & outer, u * np.tan(bank_), 0.0)
     return z
@@ -718,7 +722,7 @@ skip = gap | (kind == "desert")  # the hero gap stays open; the desert is driven
 H_rock = H.copy()  # the ground before any line was cut (cave roofs follow it)
 for name, b in branches.items():
     n_ = len(b["p"])
-    bk = np.full(n_, {"slot": "floor", "slabs": "top", "cave": "floor", "surface": "rim"}[b["kind"]])
+    bk = np.full(n_, {"slot": "floor", "slabs": "top", "cave": "cave", "surface": "rim"}[b["kind"]])
     if b["kind"] == "surface":
         continue
     bz = b["z"].copy()
@@ -736,6 +740,48 @@ for name, b in branches.items():
         H = np.where((idx >= 0) & (d > b["w"]) & (d < b["w"] + 40), np.minimum(H, wall), H)
 carve(main, bed, half_w, kind, bank, curv, skip=skip)  # last, so no branch lifts the main line at a junction
 print("ROUTE CARVED", "lips", len(lips))
+
+# 5h. Smooth banks. Player, 2026-10-20: "the walls of the track and of the tunnel have protruding triangles, it has to
+# be smooth": on the 3 m grid a steep wall along a curved floor edge was a row of saw teeth. From every floor edge the
+# ground now rises as one smooth bank, 25 degrees at the edge steepening to 70 degrees 24 m out (~30 m up), and is
+# never higher than that bank: walls only get lower, nothing new stands in front of a line, and no floor is touched.
+# Not in the caves (the vault is their wall), across the hero gap, in the desert (driven as it is) or on the branches
+# that run over the ground as it is.
+BANK_E, BANK_A, BANK_B = 24.0, math.radians(25.0), math.radians(45.0) / 24.0
+
+
+def bank_rise(e):
+    e1 = np.clip(e, 0.0, BANK_E)
+    return ((math.log(math.cos(BANK_A)) - np.log(np.cos(BANK_A + BANK_B * e1))) / BANK_B
+            + np.maximum(e - BANK_E, 0.0) * math.tan(math.radians(70.0)))
+
+
+bank_cap = np.full(H.shape, np.inf, np.float32)
+on_floor = np.zeros(H.shape, bool)
+
+
+def bank_line(pts, bed_, w_, kinds_, bank_, curv_, skip_, reach=90.0):
+    sub = pts[::2]
+    d, idx = nearest(sub, float(np.max(w_)) + reach)
+    i = np.clip(np.maximum(idx, 0) * 2, 0, len(pts) - 1)
+    e = d - w_[i]
+    np.logical_or(on_floor, (idx >= 0) & (e <= 0), out=on_floor)
+    use = (idx >= 0) & (e > 0) & (e < reach) & ~skip_[i]
+    lat = lateral(sub, idx)
+    edge_z = section(np.where(lat < 0, -1.0, 1.0) * w_[i], i, bed_[i], w_[i], kinds_[i], bank_[i], curv_[i])
+    np.minimum(bank_cap, np.where(use, edge_z + bank_rise(e), np.inf).astype(np.float32), out=bank_cap)
+
+
+for name, b in branches.items():
+    n_ = len(b["p"])
+    bk = np.full(n_, {"slot": "floor", "slabs": "top", "cave": "cave", "surface": "rim"}[b["kind"]])
+    bank_line(b["p"], b["z"], np.full(n_, float(b["w"])), bk, np.zeros(n_), curvature(b["p"], 61),
+              np.full(n_, b["kind"] in ("cave", "surface", "slabs")))
+bank_line(main, bed, half_w, kind, bank, curv, gap | (kind == "desert") | (kind == "cave"))
+lowered = ~on_floor & (bank_cap < H)
+H = np.where(lowered, bank_cap, H)
+print("BANKS lowered", round(float(lowered.mean() * 100), 2), "% of the map")
+del bank_cap, lowered
 
 # 5i. Lone spikes go (they render as sharp cones).
 # Three passes: a small cluster of spikes loses its outer cells first, then the rest.
@@ -1004,8 +1050,10 @@ terrain = bpy.data.objects.new("Expedition", me)
 scene.collection.objects.link(terrain)
 print("MESH", NX, NY)
 
-# Cave roofs (The Hollow): rock over the opened cave floor, its top following the ground that was there, its
-# underside a rough vault 14-26 m clear; skylights (gaps in the roof) every ~250 m let shafts of sun in.
+# Cave roofs (The Hollow): rock over the opened cave floor, its top following the ground that was there. Player,
+# 2026-10-20 (the walls had protruding triangles): the underside is one smooth vault, no roughness, from 2.5 m inside
+# each floor edge (the cut walls of the ground stay behind it) up to a crown 18 + 0.3 x half width m clear; the roof
+# slab reaches 6 m past the edge into the cut wall. Skylights (gaps in the roof) every ~250 m let shafts of sun in.
 os.makedirs(f"{OUT}/caves", exist_ok=True)
 caves = []
 
@@ -1016,23 +1064,26 @@ def cave_roof(name, p, w, bedv):
     t /= np.hypot(t[:, 0], t[:, 1])[:, None] + 1e-9
     nx_, ny_ = -t[:, 1], t[:, 0]
     q = np.arange(0, len(p), 3)
-    L = np.linspace(-1.0, 1.0, 41)
-    ww = w[q][:, None] + 4.0
+    L = np.linspace(-1.0, 1.0, 61)
+    wq = w[q][:, None]
+    ww = wq + 6.0
     x2 = p[q, None, 0] + L[None, :] * ww * nx_[q, None]
     y2 = p[q, None, 1] + L[None, :] * ww * ny_[q, None]
-    rough = 6.0 * fbm(x2.astype(np.float32), y2.astype(np.float32), 30, 2)
-    vault = 14.0 + 8.0 * np.clip(w[q] / 30.0, 0, 1)[:, None] + rough
-    under = bedv[q, None] + np.where(np.abs(L)[None, :] < 0.95, vault * np.sqrt(np.maximum(0.0, 1.0 - L[None, :] ** 2)) + 2.0, -1.0)
+    u = np.abs(L)[None, :] * ww  # metres from the centre line
+    floor_u = smooth1d(bedv, 31)[q, None] + 6.0 * np.clip(u / wq, 0, 1) ** 2  # the cave floor's half-pipe
+    wa = wq - 2.5
+    s_ = np.clip(u / wa, 0, 1)
+    under = floor_u + np.where(u < wa, (18.0 + 0.3 * wq) * np.sqrt(np.maximum(0.0, 1.0 - s_ ** 2)), -1.5)
     top = np.maximum(bilinear(H_rock, x2, y2) + 0.15, under + 4.0)
     ns, nl = top.shape
     verts = np.concatenate([np.stack([x2 - hx, y2 - hy, top], -1).reshape(-1, 3), np.stack([x2 - hx, y2 - hy, under], -1).reshape(-1, 3)])
-    sky = (np.arange(ns) * 3 % 150) < 12  # skylight rows
+    sky = (np.arange(ns) * 3 % 250) < 12  # skylight rows
     faces = []
     T = lambda i, j: i * nl + j
     B = lambda i, j: ns * nl + i * nl + j
     for i in range(ns - 1):
         for j in range(nl - 1):
-            if sky[i] and 14 <= j <= 26:
+            if sky[i] and abs(L[j] + L[j + 1]) < 0.5:
                 continue
             faces.append((T(i, j), T(i + 1, j), T(i + 1, j + 1), T(i, j + 1)))
             faces.append((B(i, j), B(i, j + 1), B(i + 1, j + 1), B(i + 1, j)))
@@ -1240,7 +1291,7 @@ for i in range(60, N - 60, step_i):
         sxy = float(prng.uniform(0.75, 1.35))
         yaw = math.degrees(math.atan2(tg[i, 1], tg[i, 0])) + (0.0 if side > 0 else 180.0) + float(prng.normal(0, 8))
         c = q + nrm2 * side * (10.0 * sxy)  # into the wall: its face stands at the foot
-        if not clear_at(c[0], c[1], 18.0):
+        if not clear_at(c[0], c[1], 30.0):  # beyond the smooth bank (5h): nothing to hit along the floor
             continue
         place(name, c[0], c[1], zf - 6.0 * sz, (float(prng.normal(0, 3)), float(prng.normal(0, 3)), yaw), (sxy, sxy * prng.uniform(0.8, 1.1), sz), "cliff")
         n_cliff += 1
@@ -1264,7 +1315,7 @@ def scatter(mask_, gap_m, count):
 
 BIG = ["SM_Kit_Boulder_Giant", "SM_Boulder_A", "SM_Boulder_B", "SM_Kit_FracturedBlock", "SM_Kit_Overhang", "SM_Kit_TableRock"]
 SMALL = ["SM_Kit_Stone_1", "SM_Kit_Stone_2", "SM_Kit_Stone_3", "SM_Kit_Stone_4", "SM_Boulder_C", "SM_Kit_FlatSlab"]
-talus_mask = (slope > 16) & (slope < 38) & (free_d > 10) & (d_main < 420)
+talus_mask = (slope > 16) & (slope < 38) & (free_d > 24) & (d_main < 420)  # off the smooth banks (5h)
 for x, y in scatter(talus_mask, 34.0, 1800):
     big = BIG[int(prng.integers(len(BIG)))]
     s = float(prng.uniform(0.8, 2.6)) * (0.6 if big == "SM_Boulder_B" else 1.0)
@@ -1274,14 +1325,14 @@ for x, y in scatter(talus_mask, 34.0, 1800):
     for _k in range(int(prng.integers(2, 7))):
         a_, r_ = prng.uniform(0, 2 * np.pi), prng.uniform(4.0, 16.0)
         x2, y2 = x + r_ * math.cos(a_), y + r_ * math.sin(a_)
-        if not clear_at(x2, y2, 4.0):
+        if not clear_at(x2, y2, 16.0):
             continue
         s2 = float(prng.uniform(0.6, 2.2))
         place(SMALL[int(prng.integers(len(SMALL)))], x2, y2, float(bilinear(H, x2, y2)) - 0.15 * s2,
               ground_tilt(x2, y2, prng.uniform(0, 360), 0.8, 14.0), tuple(s2 * prng.uniform(0.85, 1.2, 3)), "talus")
 
 # 4. Loose stones on the floors near the line.
-floor_mask = (slope < 12) & (free_d > 6) & (d_main < 260) & (H < 300)
+floor_mask = (slope < 12) & (free_d > 12) & (d_main < 260) & (H < 300)
 for x, y in scatter(floor_mask, 22.0, 2600):
     s = float(prng.uniform(0.5, 2.0))
     place(SMALL[int(prng.integers(4))], x, y, float(bilinear(H, x, y)) - 0.15 * s, ground_tilt(x, y, prng.uniform(0, 360), 0.9, 10.0),

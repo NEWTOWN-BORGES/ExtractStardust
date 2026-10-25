@@ -2,7 +2,7 @@
 # export_world_unreal.py) and builds its landscape material:
 #  - the rock kit (Nanite; rocks collide on their real surface, dead wood never collides);
 #  - the tunnel roofs of the core and of the grand circuit (Nanite, collide);
-#  - the surface map and M_World (make_desert_material.py reading the world's surface map).
+#  - the track and surface maps, M_Rock (make_rock_material.py) and M_World (make_ground_material.py), no textures.
 # Folders come from EX_WORLD_DIR (default C:/rdd/mundo), EX_KIT_DIR (C:/rdd/kit) and EX_MAP_DIR (C:/rdd/mapa).
 # Run in the editor or the commandlet; then UEXDesertBuilder::BuildWorldMap builds the map.
 import glob
@@ -89,8 +89,14 @@ for source, name in (("world_surface.png", "T_WorldSurface"), ("world_track.png"
     data.set_editor_property("srgb", False)
     data.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP)
     data.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
+    # Uncompressed and always at full size: block compression and low streamed mips drew squares on the ground.
+    data.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_GRAYSCALE if name == "T_WorldTrack"
+                             else unreal.TextureCompressionSettings.TC_VECTOR_DISPLACEMENTMAP)
+    data.set_editor_property("never_stream", True)
     eal.save_loaded_asset(data)
 
+# Materials with no textures (player, 2026-10-20): the ground (M_World) and the rocks (M_Rock, kept in place).
 scripts = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()) + "Scripts/"
-exec(open(scripts + "make_world_material.py").read(), {"__name__": "__main__"})
+exec(open(scripts + "make_rock_material.py").read(), {"__name__": "__main__"})
+exec(open(scripts + "make_ground_material.py").read(), {"__name__": "__main__"})
 unreal.log("WORLDIMPORT kit %d roofs %d failures=%s" % (len(kit), len(roofs), failures))

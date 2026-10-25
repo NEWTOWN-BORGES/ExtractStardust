@@ -2,6 +2,7 @@
 
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
+#include "EXGameMode.h"
 #include "Flight/EXHoverCraft.h"
 
 namespace
@@ -13,8 +14,46 @@ namespace
 void AEXHud::DrawHUD()
 {
 	Super::DrawHUD();
+	if (!Canvas)
+	{
+		return;
+	}
 	const AEXHoverCraft* Craft = Cast<AEXHoverCraft>(GetOwningPawn());
-	if (!Craft || !Canvas || Craft->GetMapRoute().Num() < AheadSamples * 2)
+	const AEXGameMode* GameMode = GetWorld() ? Cast<AEXGameMode>(GetWorld()->GetAuthGameMode()) : nullptr;
+	if (GameMode && GameMode->IsSurvivalModeSelected())
+	{
+		const float HudScale = Canvas->ClipY / 720.0f;
+		const int32 TotalSeconds = FMath::FloorToInt(GameMode->GetSurvivalElapsedSeconds());
+		DrawText(TEXT("CORRIDA DE SOBREVIVENCIA"), FLinearColor(1.0f, 0.58f, 0.18f), 32.0f * HudScale, 28.0f * HudScale, nullptr, 1.45f * HudScale);
+		DrawText(FString::Printf(TEXT("NAVES: %02d / 16    TEMPO: %02d:%02d"), GameMode->GetSurvivorCount(), TotalSeconds / 60, TotalSeconds % 60),
+			FLinearColor::White, 32.0f * HudScale, 58.0f * HudScale, nullptr, 1.1f * HudScale);
+		DrawText(FString::Printf(TEXT("CASCO: %d%%"), FMath::RoundToInt(GameMode->GetPlayerHullPercent())),
+			FLinearColor(0.8f, 0.9f, 1.0f), 32.0f * HudScale, 84.0f * HudScale, nullptr, 1.0f * HudScale);
+		const float BarWidth = 160.0f * HudScale;
+		const float Hull = FMath::Clamp(GameMode->GetPlayerHullPercent() / 100.0f, 0.0f, 1.0f);
+		DrawRect(FLinearColor(0.08f, 0.08f, 0.09f, 0.9f), 32.0f * HudScale, 106.0f * HudScale, BarWidth, 8.0f * HudScale);
+		DrawRect(FLinearColor::LerpUsingHSV(FLinearColor(0.9f, 0.12f, 0.06f), FLinearColor(0.2f, 0.9f, 0.35f), Hull),
+			32.0f * HudScale, 106.0f * HudScale, BarWidth * Hull, 8.0f * HudScale);
+
+		const int32 Countdown = GameMode->GetSurvivalCountdownSeconds();
+		if (Countdown > 0)
+		{
+			DrawText(FString::FromInt(Countdown), FLinearColor::White, Canvas->ClipX * 0.5f - 20.0f * HudScale,
+				Canvas->ClipY * 0.33f, nullptr, 5.0f * HudScale);
+		}
+		else if (GameMode->IsSurvivalRaceFinished())
+		{
+			const TCHAR* Result = GameMode->DidPlayerSurvive() ? TEXT("VENCESTE — ultimo piloto a voar") : TEXT("ELIMINADO — tenta outra vez");
+			DrawText(Result, GameMode->DidPlayerSurvive() ? FLinearColor(0.25f, 1.0f, 0.4f) : FLinearColor(1.0f, 0.2f, 0.1f),
+				Canvas->ClipX * 0.5f - 230.0f * HudScale, Canvas->ClipY * 0.25f, nullptr, 1.8f * HudScale);
+		}
+		else if (GameMode->GetSurvivalElapsedSeconds() < 1.0f && GameMode->GetSurvivorCount() == 16)
+		{
+			DrawText(TEXT("VAI!"), FLinearColor(1.0f, 0.82f, 0.25f), Canvas->ClipX * 0.5f - 60.0f * HudScale,
+				Canvas->ClipY * 0.33f, nullptr, 2.8f * HudScale);
+		}
+	}
+	if (!Craft || Craft->GetMapRoute().Num() < AheadSamples * 2)
 	{
 		return;
 	}

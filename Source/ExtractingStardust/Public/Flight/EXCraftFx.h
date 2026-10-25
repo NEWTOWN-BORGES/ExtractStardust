@@ -10,6 +10,8 @@ class UPointLightComponent;
 class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
+class USoundWave;
+class UAudioComponent;
 
 /** What the effects need from the craft each frame. Positions in cm, velocity in cm/s. */
 struct FEXCraftFxInput
@@ -22,6 +24,7 @@ struct FEXCraftFxInput
 	FVector CameraForward = FVector::ForwardVector;
 	float SpeedAlpha = 0.0f;
 	float Throttle = 0.0f;
+	float AudioScale = 1.0f;
 	float HeightM = 99.0f;
 	bool bGrounded = false;
 	bool bBoosting = false;
@@ -45,7 +48,10 @@ public:
 	void Initialize(USceneComponent* ShipAttach);
 	/** Half size of the current ship in the craft's frame (X length, Y width, Z height), in cm. */
 	void SetShipHalfSize(const FVector& HalfSizeCm);
+	/** Configure nozzle locations in craft-local centimetres; supports one, two or three engines. */
+	void SetEngineAnchors(const TArray<FVector>& AnchorsCm);
 	void UpdateFx(float Dt, const FEXCraftFxInput& Input);
+	void StopAudio();
 	void LandingBurst(const FVector& Point, const FVector& Up, float Strength);
 	/** Sparks thrown off a wall hit or scrape. */
 	void ImpactSparks(const FVector& Point, const FVector& Normal, const FVector& CraftVelocity, float Strength);
@@ -88,11 +94,18 @@ private:
 	void UpdateFlames(float Dt, const FEXCraftFxInput& Input);
 	void UpdateDust(float Dt, const FEXCraftFxInput& Input);
 	void UpdateStreaks(float Dt, const FEXCraftFxInput& Input);
+	void UpdateAudio(const FEXCraftFxInput& Input);
 
 	UPROPERTY() TObjectPtr<UStaticMesh> SphereMesh;
 	UPROPERTY() TObjectPtr<UStaticMesh> CylinderMesh;
 	UPROPERTY() TObjectPtr<UMaterialInterface> GlowMaterial;
 	UPROPERTY() TObjectPtr<UMaterialInterface> DustMaterial;
+	UPROPERTY() TObjectPtr<USoundWave> EngineLoopSound;
+	UPROPERTY() TObjectPtr<USoundWave> DriftLoopSound;
+	UPROPERTY() TObjectPtr<USoundWave> NitroBurstSound;
+	UPROPERTY(Transient) TObjectPtr<UAudioComponent> EngineAudio;
+	UPROPERTY(Transient) TObjectPtr<UAudioComponent> DriftAudio;
+	UPROPERTY(Transient) TObjectPtr<UAudioComponent> NitroAudio;
 	/** Per engine: outer flame, then core. */
 	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> FlameMeshes;
 	UPROPERTY(Transient) TArray<TObjectPtr<UMaterialInstanceDynamic>> FlameMaterials;
@@ -109,12 +122,15 @@ private:
 	float BoostBlend = 0.0f;
 	TArray<FVector> StreakLocations;
 	TArray<bool> StreakActive;
-	FVector EngineAnchors[2] = { FVector::ZeroVector, FVector::ZeroVector };
+	TArray<FVector> EngineAnchors;
 	FVector ShipHalfSize = FVector(330.0f, 160.0f, 60.0f);
 	float FlameRadiusCm = 30.0f;
 	float FlamePower = 0.0f;
 	float FlickerTime = 0.0f;
 	float SpawnAccumulator = 0.0f;
 	bool bInitialized = false;
+	bool bAudioWasThrottling = false;
+	bool bAudioWasBoosting = false;
+	bool bAudioWasDrifting = false;
 	FRandomStream Random = FRandomStream(1977);
 };
