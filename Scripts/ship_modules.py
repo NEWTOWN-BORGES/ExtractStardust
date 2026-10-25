@@ -157,8 +157,8 @@ class Builder:
         self.hover_bvh = mesh_bvh(self.meshes(lambda o: under(o, self.G["Hover"]))) if "Hover" in self.G else None
 
     # ------------------------------------------------------------ scene helpers
-    def is_wing(self, o):
-        return under(o, self.G["Wing_L"]) or under(o, self.G["Wing_R"])
+    def is_wing(self, o):               # (the BASTION has no wings, nor their groups)
+        return any(under(o, self.G[n]) for n in ("Wing_L", "Wing_R") if n in self.G)
 
     def is_decal(self, o):
         return under(o, self.G["Decals"])
@@ -208,7 +208,8 @@ class Builder:
     # ------------------------------------------------------------ 1. the split: core, stock wings, skeleton
     def split(self):
         self.export(self.meshes(lambda o: not self.is_wing(o)), "core")
-        self.export(self.meshes(self.is_wing), "wing_stock")
+        if self.meshes(self.is_wing):
+            self.export(self.meshes(self.is_wing), "wing_stock")
         glow = ensure_mat("Reactor_Glow", "#FF8A3D", rough=0.3, emit=8.0)
         for o in self.meshes(lambda o: under(o, self.G["Reactor"])):
             for i, m in enumerate(o.data.materials):
@@ -910,8 +911,9 @@ class Builder:
 
 
 def build_modules(ns, wings, palette, tail="above", scale=1.0, nozzle_r=0.15):
-    """wings: three of WING_KINDS; palette: (main paint, accent paint, edge paint) of the ship's wings;
-    tail: 'above' (fins on the rear deck) or 'below' (ventral fins, for ships with fins on top already)."""
+    """wings: three of WING_KINDS (none for a ship without a wing slot); palette: (main paint, accent paint, edge
+    paint) for the wings and the body kits; tail: 'above' (fins on the rear deck) or 'below' (ventral fins, for ships
+    with fins on top already)."""
     b = Builder(ns, wings, palette, tail, scale, nozzle_r)
     b.split()
     for kind in wings:

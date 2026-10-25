@@ -127,6 +127,9 @@ def piece(name):
     if name in LOADED:
         return LOADED[name]
     path = os.path.join(SRC, "%s_%s.fbx" % (SHIP, name))
+    if not os.path.exists(path):                # e.g. no wing_stock on a ship without wings
+        LOADED[name] = []
+        return []
     before = set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=path)
     objs = [o for o in bpy.data.objects if o not in before]
@@ -312,7 +315,7 @@ if "flames" in SHOTS:
         shot("flame_" + style, yaw_deg=65, pitch_deg=12, dist=7.0, target=(0, 2.2, 1.0), ship_yaw=0)
     flames(None)
 if "build" in SHOTS:
-    show(["core", "wing_" + wings[1], "armor_guard", "cooling_radiator", "tail_twin"])
+    show(["core", "wing_" + wings[1] if wings else "wing_stock", "armor_guard", "cooling_radiator", "tail_twin"])
     flames("burner")
     shot("build", yaw_deg=-60, pitch_deg=18, dist=8.6, ship_yaw=0)
     flames(None)

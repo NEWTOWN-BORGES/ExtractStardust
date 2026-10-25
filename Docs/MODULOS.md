@@ -125,7 +125,7 @@ mesmas ranhuras da carroçaria) e a parte de fora muda.
 | WRAITH | Blade, Vector, Glide (ponta dobrada para cima, bordo de ataque luminoso) |
 | NOMAD | Longspan, Brace (grossa, com escora até ao casco), Glide |
 | VORTEX | Blade, Vector, Glide |
-| BASTION | as asas entram quando a nave nova estiver feita |
+| BASTION | não tem asas (nem slot de asas): é toda um motor |
 
 **Ênfase** de cada tipo de asa (como no jogo antigo, todas podem dar manobra e estabilidade, até +9 cada; o tipo
 decide para onde vai a maior parte do budget):
@@ -291,7 +291,8 @@ Separadores (Q/E ou os gatilhos de ombro): **NAVE**, **EQUIPAR**, **CONSUMÍVEIS
 
   Tudo fica no referencial da nave: no Unreal, cada peça vai em cima da malha da nave sem deslocamento.
 - **`Scripts/render_modules.py`** faz as imagens de cada módulo na oficina.
-- **As peças das 4 naves** estão em `SourceArt/TestShips/modules/` (84 ficheiros, 14 MB). Para as refazer:
+- **As peças das 5 naves** estão em `SourceArt/TestShips/modules/` (101 ficheiros, ~16 MB; a BASTION não tem asas,
+  por isso tem 16 peças em vez de 20). Para as refazer:
   `python3 Scripts/build_<nave>.py <pasta> --no-render` e copiar `<pasta>/modules/` para lá.
 - **No Unreal:** as peças importam-se para `/Game/Ships/<NAVE>/SM_<NAVE>_<PEÇA>` com
   `Scripts/import_ship_modules.py` (o `casa_tudo.ps1` já o corre no passo 3c). No log, as linhas `MODULEBOUNDS`
@@ -320,7 +321,9 @@ Feito na nuvem, sem Unreal. A primeira coisa em casa é compilar (`Scripts\casa_
 compila.
 
 **Feito:**
-- as peças das 4 naves no Blender: 20 por nave, renders em `modulos.png` e `chamas.png`;
+- as peças das 5 naves no Blender: 20 por nave (16 na BASTION, que não tem asas), renders em `modulos.png` e
+  `chamas.png`;
+- a BASTION nova (2026-10-25), feita a partir da referência do jogador (`Docs/BASTION_CATEGORIA.md`);
 - o catálogo completo do jogo antigo;
 - o perfil novo;
 - o hangar com os 5 separadores;
@@ -343,7 +346,6 @@ utilitários passaram para dentro do nariz, visíveis só no esqueleto. Imagens 
 5. Correr no Pelotão 15 e ver o espólio no fim.
 
 **Falta:**
-- a BASTION nova (asas e peças);
 - os slots extra (Aux da NOMAD, Propulsão central da VORTEX, Blindagem 2 da BASTION);
 - as passivas das naves;
 - o efeito dos sensores;

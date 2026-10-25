@@ -8,12 +8,13 @@ espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde)
 
 O jogador fala português (PT). Responder em português.
 
-## NAVES NOVAS: falta pô-las no Unreal (2026-10-21)
+## NAVES NOVAS: falta pô-las no Unreal (2026-10-21; BASTION a 2026-10-25)
 
-As naves STRIX, WRAITH, NOMAD e VORTEX foram refeitas de dentro para fora (PR #3, ramo `ccr-6888126d-pxbtcg`) e
-substituem as antigas. Os FBX novos estão em `SourceArt/TestShips/<nave>.fbx`; as regras e cada nave estão em
-`Docs/NAVES_REGRAS.md` e `Docs/<NAVE>_CATEGORIA.md`. **Falta a BASTION**: será o contrário da VORTEX (a VORTEX tem
-tudo embutido numa asa; a BASTION terá tudo embutido num motor grande). O jogador manda as imagens de referência.
+As 5 naves (STRIX, WRAITH, NOMAD, VORTEX e BASTION) foram refeitas de dentro para fora (PR #3, ramo
+`ccr-6888126d-pxbtcg`) e substituem as antigas. Os FBX novos estão em `SourceArt/TestShips/<nave>.fbx`; as regras e
+cada nave estão em `Docs/NAVES_REGRAS.md` e `Docs/<NAVE>_CATEGORIA.md`. A **BASTION** é o contrário da VORTEX: a
+VORTEX é toda uma asa, a BASTION é toda um motor colossal, sem asas, com carapaça amarela, airbags de impacto e
+tomadas de aro laranja (referência do jogador, `Docs/BASTION_CATEGORIA.md`).
 
 Para aparecerem no jogo (no PC com o Unreal, depois do `git pull` desse ramo, ou do `extracting-stardust` quando o
 PR estiver fundido):
@@ -81,7 +82,7 @@ largo, rochas a 30 m ou mais da pista, estradas de 56-64 m (6-7 naves lado a lad
    túnel é só chão. Confirmar colisão (complexa) do teto, luz e claraboias (são aberturas na malha), e que a nave passa
    a ~500 km/h sem raspar. Se a malha der trabalho, aumentar `CAVE_EDGE` ou o número de pontos laterais do `cave_roof`.
 4. **Naves:** correr `Scripts/import_test_ships.py` (ver acima) e `Scripts/import_ship_modules.py` (os módulos, ver
-   `Docs/MODULOS.md` secção 13). Falta a BASTION (o jogador manda as imagens).
+   `Docs/MODULOS.md` secção 13). A BASTION já está feita (2026-10-25), com os módulos.
 5. **Modos de jogo:** implementar `Docs/MODOS_DE_JOGO.md` (solo, 15 bots, vidas por nave, kit médico de 3 usos só
    para o jogador), depois de perguntar o que está na secção 9 desse documento.
 6. **Mar de dunas** (pedido anterior, por fazer): ampliar o deserto e deixar estruturas de canyon soterradas na areia;
