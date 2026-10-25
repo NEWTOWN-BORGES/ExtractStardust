@@ -99,7 +99,7 @@ namespace
 		{ TEXT("WRAITH"), 0.17f, 3, { { 0.0f, 3.0f, 0.56f }, { -0.45f, 3.0f, 0.56f }, { 0.45f, 3.0f, 0.56f } } },
 		{ TEXT("NOMAD"), 0.16f, 3, { { 0.0f, 3.4f, 1.4f }, { -1.02f, 1.8f, 1.3f }, { 1.02f, 1.8f, 1.3f } } },
 		{ TEXT("VORTEX"), 0.20f, 1, { { 0.0f, 2.6f, 0.475f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } } },
-		{ TEXT("BASTION"), 0.34f, 1, { { 0.0f, 3.42f, 0.82f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } } },
+		{ TEXT("BASTION"), 0.30f, 1, { { 0.0f, 3.33f, 0.66f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } } },
 	};
 	/** The module pieces on the ship mesh (utility inside the nose), in the order of AEXHoverCraft::ModuleMeshes. */
 	const EEXFamily CraftExterior[] = { EEXFamily::Wings, EEXFamily::Tail, EEXFamily::Armor, EEXFamily::Cooling, EEXFamily::Utility };

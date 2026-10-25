@@ -8,7 +8,8 @@ namespace
 	constexpr int32 RarityBudget[RarityCount] = { 10, 13, 16, 20, 23 };
 	constexpr int32 RarityValue[RarityCount] = { 500, 1100, 3000, 7000, 18000 };
 
-	// Lives as in the prototype (Docs/MODOS_DE_JOGO.md); stats, mass and slots from doc 02 sec. 4 (the old chassis).
+	// Lives as in the prototype (Docs/MODOS_DE_JOGO.md); stats, mass and slots from doc 02 sec. 4 (the old chassis),
+	// but the new BASTION has wings (the player, 2026-10-25: set inside a wing, wings like the VORTEX's).
 	const FShipDef Ships[] = {
 		{ TEXT("STRIX"), { 72, 74, 76, 75, 66, 66, 68, 70 }, 1450, 3, { SizeM, SizeM, SizeAny, SizeM, SizeM, SizeM, SizeM, SizeAny },
 			TEXT("ADAPTIVE TRIM"), TEXT("Depois de aterrar ou sair de uma parede, recupera a estabilidade mais depressa.") },
@@ -16,7 +17,7 @@ namespace
 			TEXT("RAZOR LINE"), TEXT("Deitada em curva sem tocar em nada, corta o ar: menos arrasto enquanto mantiver a linha.") },
 		{ TEXT("NOMAD"), { 65, 63, 62, 77, 76, 92, 84, 60 }, 1650, 4, { SizeM | SizeL, SizeM, SizeAny, SizeM | SizeL, SizeM, SizeM | SizeL, SizeL, SizeAny },
 			TEXT("LONG HAUL"), TEXT("Fria durante muito tempo, fica mais eficiente.") },
-		{ TEXT("BASTION"), { 61, 54, 52, 92, 96, 65, 73, 55 }, 1950, 5, { SizeL, SizeL, 0, SizeL, SizeL, SizeL, SizeL, SizeAny },
+		{ TEXT("BASTION"), { 61, 54, 52, 92, 96, 65, 73, 55 }, 1950, 5, { SizeL, SizeL, SizeAny, SizeL, SizeL, SizeL, SizeL, SizeAny },
 			TEXT("INERTIAL ANCHOR"), TEXT("Os toques e a turbul\u00EAncia desviam-na menos.") },
 		{ TEXT("VORTEX"), { 75, 91, 68, 65, 61, 49, 55, 96 }, 1500, 2, { SizeM, SizeS | SizeM, SizeAny, SizeM, SizeS | SizeM, SizeM, SizeM, SizeAny },
 			TEXT("OVERDRIVE RECOVERY"), TEXT("Depois de um nitro longo, arrefece e recupera mais depressa.") },
@@ -193,6 +194,7 @@ namespace
 			{ TEXT("WRAITH"), { TEXT("blade"), TEXT("vector"), TEXT("glide") } },
 			{ TEXT("NOMAD"), { TEXT("longspan"), TEXT("brace"), TEXT("glide") } },
 			{ TEXT("VORTEX"), { TEXT("blade"), TEXT("vector"), TEXT("glide") } },
+			{ TEXT("BASTION"), { TEXT("longspan"), TEXT("brace"), TEXT("glide") } },
 		};
 		for (const FShipWings& SW : ShipWings)
 		{

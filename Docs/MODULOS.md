@@ -26,7 +26,7 @@ Os números são TARGETS DE TUNING, como nos documentos.
 | WRAITH | S/M | S | próprias | S | S | S/M | S | qualquer | — |
 | NOMAD | M/L | M | próprias | M/L | M | M/L | L | qualquer | Aux (utilidade) |
 | VORTEX | M | S/M | próprias | M | S/M | M | M | qualquer | Propulsão central S/M |
-| BASTION | L | L | — | L | L | L | L | qualquer | Blindagem 2 (L) |
+| BASTION | L | L | próprias | L | L | L | L | qualquer | Blindagem 2 (L) |
 
 ## 2. Famílias: o que se vê na nave
 
@@ -114,7 +114,7 @@ chegam ao vidro.
 | util_routeintel | Oryx Route Oracle | Oryx Reclamation | M | +5 | `utility_dome`: núcleo a brilhar num giroscópio, sobre um bloco com alhetas |
 | util_drone | Frontier Field Drone | Frontier Systems | M | +15 | `utility_drone`: drone dobrado no compartimento de lançamento, com a escotilha por cima |
 
-### 3.2 Asas próprias de cada nave (12)
+### 3.2 Asas próprias de cada nave (15)
 
 Cada nave tem três asas, desenhadas a partir da asa de série dela. A raiz é a mesma da asa de série (passa pelas
 mesmas ranhuras da carroçaria) e a parte de fora muda.
@@ -125,7 +125,7 @@ mesmas ranhuras da carroçaria) e a parte de fora muda.
 | WRAITH | Blade, Vector, Glide (ponta dobrada para cima, bordo de ataque luminoso) |
 | NOMAD | Longspan, Brace (grossa, com escora até ao casco), Glide |
 | VORTEX | Blade, Vector, Glide |
-| BASTION | não tem asas (nem slot de asas): é toda um motor |
+| BASTION | Longspan, Brace, Glide (a BASTION nova tem asas: o jogador quis-a metida numa asa, com asas como a VORTEX) |
 
 **Ênfase** de cada tipo de asa (como no jogo antigo, todas podem dar manobra e estabilidade, até +9 cada; o tipo
 decide para onde vai a maior parte do budget):
@@ -291,8 +291,7 @@ Separadores (Q/E ou os gatilhos de ombro): **NAVE**, **EQUIPAR**, **CONSUMÍVEIS
 
   Tudo fica no referencial da nave: no Unreal, cada peça vai em cima da malha da nave sem deslocamento.
 - **`Scripts/render_modules.py`** faz as imagens de cada módulo na oficina.
-- **As peças das 5 naves** estão em `SourceArt/TestShips/modules/` (101 ficheiros, ~16 MB; a BASTION não tem asas,
-  por isso tem 16 peças em vez de 20). Para as refazer:
+- **As peças das 5 naves** estão em `SourceArt/TestShips/modules/` (105 ficheiros, 18 MB). Para as refazer:
   `python3 Scripts/build_<nave>.py <pasta> --no-render` e copiar `<pasta>/modules/` para lá.
 - **No Unreal:** as peças importam-se para `/Game/Ships/<NAVE>/SM_<NAVE>_<PEÇA>` com
   `Scripts/import_ship_modules.py` (o `casa_tudo.ps1` já o corre no passo 3c). No log, as linhas `MODULEBOUNDS`
@@ -321,8 +320,7 @@ Feito na nuvem, sem Unreal. A primeira coisa em casa é compilar (`Scripts\casa_
 compila.
 
 **Feito:**
-- as peças das 5 naves no Blender: 20 por nave (16 na BASTION, que não tem asas), renders em `modulos.png` e
-  `chamas.png`;
+- as peças das 5 naves no Blender: 20 por nave, renders em `modulos.png` e `chamas.png`;
 - a BASTION nova (2026-10-25), feita a partir da referência do jogador (`Docs/BASTION_CATEGORIA.md`);
 - o catálogo completo do jogo antigo;
 - o perfil novo;

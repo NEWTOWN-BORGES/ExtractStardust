@@ -12,9 +12,9 @@ O jogador fala português (PT). Responder em português.
 
 As 5 naves (STRIX, WRAITH, NOMAD, VORTEX e BASTION) foram refeitas de dentro para fora (PR #3, ramo
 `ccr-6888126d-pxbtcg`) e substituem as antigas. Os FBX novos estão em `SourceArt/TestShips/<nave>.fbx`; as regras e
-cada nave estão em `Docs/NAVES_REGRAS.md` e `Docs/<NAVE>_CATEGORIA.md`. A **BASTION** é o contrário da VORTEX: a
-VORTEX é toda uma asa, a BASTION é toda um motor colossal, sem asas, com carapaça amarela, airbags de impacto e
-tomadas de aro laranja (referência do jogador, `Docs/BASTION_CATEGORIA.md`).
+cada nave estão em `Docs/NAVES_REGRAS.md` e `Docs/<NAVE>_CATEGORIA.md`. A **BASTION** (referência do jogador e depois o
+pedido dele, `Docs/BASTION_CATEGORIA.md`): achatada, metida dentro de uma asa de cinza-ardósia, com asas como a
+VORTEX (pontas dobradas), carapaça amarela com o motor colossal, airbags de impacto e tomadas de aro laranja.
 
 Para aparecerem no jogo (no PC com o Unreal, depois do `git pull` desse ramo, ou do `extracting-stardust` quando o
 PR estiver fundido):
