@@ -23,6 +23,13 @@ PR estiver fundido):
 2. No log, ver as linhas `SHIPBOUNDS`: nariz em −Y, comprimentos de ~5,8 a 7,3 m.
 3. Testar no jogo (trocar de nave) e fazer commit dos `.uasset` de `Content/TestShips`.
 
+## MENU E HANGAR (2026-10-25): `Docs/MENU_HANGAR.md`
+
+O menu e o hangar são a mesma oficina iluminada (`AEXHangarStage`), com a nave no prato giratório. Por cima ficam o
+menu (Solo, Pelotão 15, Hangar, Sair, briefing com mapa) e o hangar (naves, carga, lançar). Há carteira de STARDUST
+guardada e espólio na meta. Interface em UMG feita em código (`UI/EXUiStyle.h`). **A seguir:** módulos das naves,
+raridades, caixas e 4 consumíveis (pedido de 2026-10-25, ver `Docs/MODULOS.md` quando existir).
+
 ## SOM (2026-10-25): `Docs/SOM.md`
 
 O som é sintetizado ao vivo (`EXSoundSynth.h`, em C++ puro): motor por nave, vento, paredes, eventos e rivais com

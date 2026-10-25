@@ -9,6 +9,8 @@ class UCameraComponent;
 class UEXCraftFx;
 class UEXCraftAudio;
 struct FEXCraftAudioInput;
+class UEXProfileSave;
+class AEXHangarStage;
 class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
@@ -141,10 +143,37 @@ public:
 	void SetBot(int32 InShipIndex, float InSkill, float InLaneM);
 	/** Holds the craft on the grid (countdown, after the finish). */
 	void SetRaceHold(bool bHold) { bRaceHold = bHold; }
-	/** Hangar showroom mode: 360 orbit camera, stats and ship visualizer. */
+	/** Showroom: the craft stands on the turntable of the workshop (AEXHangarStage) under a slow orbit camera. The menu
+	 *  is drawn over it with the workshop in the dark (a spot on the ship); EnterHangar switches the lights on and lets
+	 *  the pilot pick the ship and the cargo for the expedition (bought with STARDUST from the profile). */
+	void EnterShowroom();
+	/** Back to where the craft stood before the showroom (the start of the race line). */
+	void ExitShowroom();
+	bool IsInShowroom() const { return bInShowroom; }
 	void EnterHangar();
-	void ExitHangar();
+	/** From the hangar back to the menu: the craft stays on the turntable and the lights go down. */
+	void LeaveHangar();
 	bool IsInHangar() const { return bInHangar; }
+	/** The ships this craft can be (the meshes found), for the hangar roster. */
+	int32 GetShipCount() const { return ShipMeshes.Num(); }
+	FString GetShipNameAt(int32 Index) const;
+	/** Top speed before the ship's multiplier, m/s. */
+	float GetBaseTopSpeedMps() const { return BaseMaxSpeedMps > 0.0f ? BaseMaxSpeedMps : MaxSpeedMps; }
+	/** Race stats of a ship by name: lives, top speed against the base, speed into a wall that costs a life (m/s). */
+	static void GetShipRaceStats(const FString& Name, int32& OutLives, float& OutSpeedMul, float& OutWallHitMps);
+	/** The pilot's saved profile (wallet, ship, cargo), loaded on first use; the player's craft only. */
+	UEXProfileSave* EnsureProfile();
+	UEXProfileSave* GetProfile() const { return Profile; }
+	/** Hangar cargo list: the highlighted row (an EEXItem) and the last notice ("Carga cheia", ...). */
+	int32 GetHangarRow() const { return HangarRow; }
+	const FString& GetHangarNotice() const { return HangarNotice; }
+	float GetHangarNoticeTime() const { return HangarNoticeTime; }
+	/** The cargo carried into the race: repair kits (H / Square), surges (F / D-pad up), shields (absorb one hit). */
+	void SetLoadout(int32 Repair, int32 Surge, int32 Shield);
+	int32 GetSurgeCharges() const { return SurgeCharges; }
+	int32 GetShieldCharges() const { return ShieldCharges; }
+	/** World time a shield last took a hit (the HUD flashes it), -1 if none. */
+	float GetLastShieldTime() const { return LastShieldTime; }
 	/** No more ship changes once the race is on. */
 	void LockShip() { bShipLocked = true; }
 	/** Puts the craft at a place and heading, at rest (grid slots, respawns). */
@@ -201,6 +230,7 @@ private:
 	void Ship5() { SelectShip(4); }
 	void CycleCamera() { CameraMode = (CameraMode + 1) % 4; bCamInitialized = false; }
 	void UseMedKit();
+	void UseSurge();
 	void MenuUp() { SendMenu(-1); }
 	void MenuDown() { SendMenu(1); }
 	void MenuConfirm() { SendMenu(0); }
@@ -211,6 +241,11 @@ private:
 	void HangarBack();
 	void HangarConfirm();
 	void InputHangarPitch(float Value) { HangarPitchInput = FMath::Clamp(Value, -1.0f, 1.0f); }
+	void InputHangarYaw(float Value) { HangarYawInput = FMath::Clamp(Value, -10.0f, 10.0f); }
+	void HangarChangeQuantity(int32 Delta);
+	void HangarTrimCargo();
+	void HangarLaunch();
+	void HangarNote(const FString& Notice);
 	void SendMenu(int32 Step);
 	void DriveBot(float Dt);
 	void LoseLife();
@@ -264,6 +299,19 @@ private:
 	float LastGroundZCm = 0.0f;
 	/** Wall closeness on each side (0 far, 1 touching), from the camera's wall probes; the sound uses them. */
 	float WallNearLeft = 0.0f, WallNearRight = 0.0f, AudioHitCooldown = 0.0f;
+	// Hangar and cargo.
+	UPROPERTY(Transient) TObjectPtr<UEXProfileSave> Profile;
+	UPROPERTY(Transient) TObjectPtr<AEXHangarStage> HangarStage;
+	FVector PreHangarLocation = FVector::ZeroVector;
+	FRotator PreHangarRotation = FRotator::ZeroRotator;
+	bool bInShowroom = false, bQtyArmed = true;
+	/** The orbit camera's distance now (it glides to HangarOrbitDist). */
+	float HangarCamDist = 1250.0f;
+	/** The frame the hangar was closed with Esc (the same press must not also quit from the menu). */
+	uint64 HangarBackFrame = 0;
+	int32 HangarRow = 0, SurgeCharges = 0, ShieldCharges = 0;
+	float HangarYawInput = 0.0f, HangarNoticeTime = -100.0f, LastShieldTime = -1.0f;
+	FString HangarNotice;
 	void FillAudioOthers(FEXCraftAudioInput& Sound) const;
 	float BotSkill = 1.0f, BotLaneM = 0.0f, BotPhase = 0.0f, BotStuckSeconds = 0.0f, BotTime = 0.0f;
 

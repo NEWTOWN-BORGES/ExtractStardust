@@ -5,6 +5,7 @@
 #include "Components/InputComponent.h"
 #include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "CoreGlobals.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/StaticMesh.h"
@@ -21,6 +22,8 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Race/EXRaceDirector.h"
+#include "Game/EXProfile.h"
+#include "World/EXHangarStage.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
 
@@ -72,6 +75,13 @@ namespace
 		{ TEXT("NOMAD"), 4, 0.96f, 28.0f, 31.0f },
 		{ TEXT("BASTION"), 5, 0.93f, 32.0f, 34.0f },
 	};
+
+	// Showroom camera (menu and hangar, AEXHangarStage): distance and pitch in the menu. Player, 2026-10-25: the menu
+	// shows the garage lit (no dark silhouette), so the exposure is left alone and the vignette stays light.
+	constexpr float ShowroomDistCm = 1250.0f;
+	constexpr float ShowroomPitchDeg = 8.0f;
+	constexpr float ShowroomExposureBias = 0.0f;
+	constexpr float ShowroomVignette = 0.25f;
 
 	/** The previous game used vertical FOV; Unreal cameras take horizontal FOV. */
 	float HorizontalFov(float VerticalDeg)
@@ -212,6 +222,8 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction(TEXT("MenuDown"), IE_Pressed, this, &AEXHoverCraft::MenuDown);
 	PlayerInputComponent->BindAction(TEXT("MenuConfirm"), IE_Pressed, this, &AEXHoverCraft::MenuConfirm);
 	PlayerInputComponent->BindAxis(TEXT("HangarPitch"), this, &AEXHoverCraft::InputHangarPitch);
+	PlayerInputComponent->BindAxis(TEXT("HangarYaw"), this, &AEXHoverCraft::InputHangarYaw);
+	PlayerInputComponent->BindAction(TEXT("Surge"), IE_Pressed, this, &AEXHoverCraft::UseSurge);
 	PlayerInputComponent->BindAction(TEXT("HangarZoomIn"), IE_Pressed, this, &AEXHoverCraft::HangarZoomIn);
 	PlayerInputComponent->BindAction(TEXT("HangarZoomOut"), IE_Pressed, this, &AEXHoverCraft::HangarZoomOut);
 	PlayerInputComponent->BindAction(TEXT("HangarToggleAuto"), IE_Pressed, this, &AEXHoverCraft::HangarToggleAutoRotate);
@@ -231,7 +243,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 		}
 		return;
 	}
-	if (bInHangar)
+	if (bInShowroom)
 	{
 		UpdateHangar(DeltaSeconds);
 		if (Audio)
@@ -828,6 +840,35 @@ void AEXHoverCraft::SelectShip(int32 Index)
 	{
 		ApplyShipStats();
 	}
+	if (Profile && !bBot)
+	{
+		Profile->ShipIndex = ShipIndex;
+		if (bInShowroom)
+		{
+			HangarTrimCargo();
+		}
+	}
+}
+
+FString AEXHoverCraft::GetShipNameAt(int32 Index) const
+{
+	return ShipMeshes.IsValidIndex(Index) && ShipMeshes[Index] ? ShipMeshes[Index]->GetName().Replace(TEXT("SM_"), TEXT("")) : FString();
+}
+
+void AEXHoverCraft::GetShipRaceStats(const FString& Name, int32& OutLives, float& OutSpeedMul, float& OutWallHitMps)
+{
+	const FShipRaceStats* Stats = &ShipRaceStats[2];
+	for (const FShipRaceStats& Candidate : ShipRaceStats)
+	{
+		if (Name.Equals(Candidate.Name, ESearchCase::IgnoreCase))
+		{
+			Stats = &Candidate;
+			break;
+		}
+	}
+	OutLives = Stats->Lives;
+	OutSpeedMul = Stats->SpeedMul;
+	OutWallHitMps = Stats->WallHitMps;
 }
 
 void AEXHoverCraft::ResetToStart()
@@ -910,6 +951,13 @@ void AEXHoverCraft::LoseLife()
 		return;
 	}
 	HitCooldown = 1.5f;   // one hit is one life, however many frames it scrapes
+	if (ShieldCharges > 0)
+	{
+		--ShieldCharges;
+		LastShieldTime = GetWorld()->GetTimeSeconds();
+		UE_LOG(LogTemp, Display, TEXT("EXRACE SHIELD %s shields=%d"), *GetShipName(), ShieldCharges);
+		return;
+	}
 	if (Audio)
 	{
 		Audio->Bang(1.0f);
@@ -980,7 +1028,11 @@ void AEXHoverCraft::SendMenu(int32 Step)
 	{
 		if (Step == 0)
 		{
-			HangarConfirm();
+			HangarLaunch();
+		}
+		else
+		{
+			HangarRow = (HangarRow + Step + EXEconomy::ItemCount) % EXEconomy::ItemCount;
 		}
 		return;
 	}
@@ -1081,6 +1133,11 @@ void AEXHoverCraft::QuitPressed()
 	if (bInHangar)
 	{
 		HangarBack();
+		return;
+	}
+	// Esc is HangarBack too: the press that just closed the hangar must not quit the game from the menu.
+	if (GFrameCounter == HangarBackFrame)
+	{
 		return;
 	}
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
@@ -1337,20 +1394,41 @@ void AEXHoverCraft::RunFlightTest(float Dt)
 }
 
 
-void AEXHoverCraft::EnterHangar()
+void AEXHoverCraft::EnterShowroom()
 {
-	bInHangar = true;
+	if (bInShowroom || bBot)
+	{
+		return;
+	}
+	HangarStage = AEXHangarStage::FindOrSpawn(GetWorld());
+	if (!HangarStage)
+	{
+		return;
+	}
+	EnsureProfile();
+	bInShowroom = true;
 	bRaceHold = true;
 	bShipLocked = false;
 	VelocityCmps = FVector::ZeroVector;
 	ForwardSpeedMps = 0.0f;
 	LateralSpeedMps = 0.0f;
-	HangarOrbitYaw = 40.0f;
-	HangarOrbitPitch = 14.0f;
-	HangarOrbitDist = 680.0f;
+	HangarOrbitYaw = 215.0f;
+	HangarOrbitPitch = ShowroomPitchDeg;
+	HangarOrbitDist = ShowroomDistCm;
+	HangarCamDist = ShowroomDistCm;
 	bHangarAutoRotate = true;
 	HangarIdleTime = 0.0f;
 	HoverBobTime = 0.0f;
+	if (Profile)
+	{
+		SelectShip(Profile->ShipIndex);
+	}
+	// Onto the turntable; back to the start of the race line when the showroom closes.
+	PreHangarLocation = GetActorLocation();
+	PreHangarRotation = GetActorRotation();
+	SetActorLocationAndRotation(HangarStage->GetPlatformTop() + FVector(0.0f, 0.0f, 110.0f), FRotator(0.0f, 35.0f, 0.0f), false, nullptr,
+		ETeleportType::TeleportPhysics);
+	HangarStage->SetLightTarget(1.0f);   // the workshop lights come on, row after row, when the game opens
 	if (Camera)
 	{
 		Camera->SetUsingAbsoluteLocation(true);
@@ -1358,42 +1436,118 @@ void AEXHoverCraft::EnterHangar()
 	}
 }
 
-void AEXHoverCraft::ExitHangar()
+void AEXHoverCraft::ExitShowroom()
 {
+	if (!bInShowroom)
+	{
+		return;
+	}
+	bInShowroom = false;
 	bInHangar = false;
 	bCamInitialized = false;
+	if (Profile)
+	{
+		Profile->ShipIndex = ShipIndex;
+		EXEconomy::Save(Profile);
+	}
+	SetActorLocationAndRotation(PreHangarLocation, PreHangarRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	Heading = PreHangarRotation.Vector();
+	SurfaceUp = FVector::UpVector;
+	VelocityCmps = FVector::ZeroVector;
 	if (VisualPivot)
 	{
 		VisualPivot->SetRelativeLocation(FVector::ZeroVector);
 		VisualPivot->SetRelativeRotation(FRotator::ZeroRotator);
 	}
+	if (Camera)
+	{
+		Camera->PostProcessSettings.bOverride_AutoExposureBias = false;
+	}
+}
+
+void AEXHoverCraft::EnterHangar()
+{
+	EnterShowroom();
+	if (!bInShowroom)
+	{
+		return;
+	}
+	bInHangar = true;
+	HangarRow = 0;
+	bQtyArmed = true;
+	HangarOrbitDist = 900.0f;
+	HangarOrbitPitch = 14.0f;
+	bHangarAutoRotate = true;
+	HangarIdleTime = 0.0f;
+	HangarTrimCargo();
+	if (HangarStage)
+	{
+		HangarStage->SetLightTarget(1.0f);
+	}
+}
+
+void AEXHoverCraft::LeaveHangar()
+{
+	if (!bInHangar)
+	{
+		return;
+	}
+	bInHangar = false;
+	HangarOrbitDist = ShowroomDistCm;
+	bHangarAutoRotate = true;
+	if (Profile)
+	{
+		Profile->ShipIndex = ShipIndex;
+		EXEconomy::Save(Profile);
+	}
 }
 
 void AEXHoverCraft::UpdateHangar(float Dt)
 {
-	const float YawDelta = SteerInput * 90.0f + LookYawInput * 120.0f;
-	const float PitchDelta = (ThrottleInput - BrakeInput + HangarPitchInput) * 50.0f;
-	if (!FMath::IsNearlyZero(YawDelta) || !FMath::IsNearlyZero(PitchDelta))
+	if (bInHangar)
 	{
-		bHangarAutoRotate = false;
-		HangarIdleTime = 0.0f;
-		HangarOrbitYaw += YawDelta * Dt;
-		HangarOrbitPitch = FMath::Clamp(HangarOrbitPitch + PitchDelta * Dt, -10.0f, 75.0f);
+		// Orbit: mouse, right stick or Q/E; zoom: wheel, PageUp/PageDown or the shoulders (HangarZoomIn/Out).
+		// W/S choose the cargo row (MenuUp/MenuDown), A/D or the left stick change its quantity, Tab / 1-5 / d-pad the ship.
+		const float YawDelta = LookYawInput * 120.0f * Dt + HangarYawInput * 0.6f;
+		const float PitchDelta = HangarPitchInput * 50.0f * Dt;
+		if (!FMath::IsNearlyZero(YawDelta) || !FMath::IsNearlyZero(PitchDelta))
+		{
+			bHangarAutoRotate = false;
+			HangarIdleTime = 0.0f;
+			HangarOrbitYaw += YawDelta;
+			HangarOrbitPitch += PitchDelta;
+		}
+		else
+		{
+			HangarIdleTime += Dt;
+			if (HangarIdleTime > 4.0f)
+			{
+				bHangarAutoRotate = true;
+			}
+		}
+		if (bHangarAutoRotate)
+		{
+			HangarOrbitYaw += 16.0f * Dt;
+		}
+		// Quantity: one step per push of A/D or the left stick.
+		if (FMath::Abs(SteerInput) > 0.6f && bQtyArmed)
+		{
+			bQtyArmed = false;
+			HangarChangeQuantity(SteerInput > 0.0f ? 1 : -1);
+		}
+		else if (FMath::Abs(SteerInput) < 0.3f)
+		{
+			bQtyArmed = true;
+		}
 	}
 	else
 	{
-		HangarIdleTime += Dt;
-		if (HangarIdleTime > 4.0f)
-		{
-			bHangarAutoRotate = true;
-		}
-	}
-
-	if (bHangarAutoRotate)
-	{
-		HangarOrbitYaw += 16.0f * Dt;
+		// The menu: a slow orbit from a low, heroic angle (the mouse belongs to the menu here).
+		HangarOrbitYaw += 9.0f * Dt;
+		HangarOrbitPitch = FMath::FInterpTo(HangarOrbitPitch, ShowroomPitchDeg, Dt, 1.5f);
 	}
 	HangarOrbitYaw = FMath::Fmod(HangarOrbitYaw, 360.0f);
+	HangarCamDist = FMath::FInterpTo(HangarCamDist, HangarOrbitDist, Dt, 3.0f);
 
 	HoverBobTime += Dt;
 	const float BobZ = FMath::Sin(HoverBobTime * 1.6f) * 4.0f;
@@ -1406,18 +1560,146 @@ void AEXHoverCraft::UpdateHangar(float Dt)
 		VisualPivot->SetRelativeRotation(FRotator::ZeroRotator);
 	}
 
-	const FRotator OrbitRot(HangarOrbitPitch, HangarOrbitYaw, 0.0f);
-	const FVector TargetFocus = GetActorLocation() + FVector(0.0f, 0.0f, 35.0f);
-	const FVector CamLoc = TargetFocus - OrbitRot.Vector() * HangarOrbitDist;
+	// The camera stays inside the room: above the floor and under the ceiling lights, whatever the pitch and zoom.
+	const FVector TargetFocus = GetActorLocation() + FVector(0.0f, 0.0f, 20.0f);
+	const float FocusZ = HangarStage ? TargetFocus.Z - HangarStage->GetActorLocation().Z : 155.0f;
+	const float LowDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp((60.0f - FocusZ) / HangarCamDist, -1.0f, 1.0f)));
+	const float HighDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp((900.0f - FocusZ) / HangarCamDist, -1.0f, 1.0f)));
+	HangarOrbitPitch = FMath::Clamp(HangarOrbitPitch, FMath::Max(-10.0f, LowDeg), FMath::Min(75.0f, HighDeg));
+	const FRotator OrbitRot(-HangarOrbitPitch, HangarOrbitYaw, 0.0f);
+	const FVector CamLoc = TargetFocus - OrbitRot.Vector() * HangarCamDist;
 	Camera->SetWorldLocationAndRotation(CamLoc, OrbitRot);
 	Camera->SetFieldOfView(58.0f);
+
+	// While the lights come on the exposure and vignette follow them; lit, the garage is shown as it is.
+	const float Lights = HangarStage ? HangarStage->GetLightLevel() : 1.0f;
+	Camera->PostProcessSettings.bOverride_AutoExposureBias = true;
+	Camera->PostProcessSettings.AutoExposureBias = FMath::Lerp(ShowroomExposureBias, 0.0f, Lights);
+	Camera->PostProcessSettings.VignetteIntensity = FMath::Lerp(ShowroomVignette, 0.15f, Lights);
+	Camera->PostProcessSettings.MotionBlurAmount = 0.0f;
+	Camera->PostProcessSettings.SceneFringeIntensity = 0.0f;
+}
+
+UEXProfileSave* AEXHoverCraft::EnsureProfile()
+{
+	if (!Profile && !bBot)
+	{
+		Profile = EXEconomy::Load();
+	}
+	return Profile;
+}
+
+void AEXHoverCraft::HangarNote(const FString& Notice)
+{
+	HangarNotice = Notice;
+	HangarNoticeTime = GetWorld()->GetTimeSeconds();
+}
+
+void AEXHoverCraft::HangarChangeQuantity(int32 Delta)
+{
+	if (!Profile)
+	{
+		return;
+	}
+	const EEXItem Item = static_cast<EEXItem>(FMath::Clamp(HangarRow, 0, EXEconomy::ItemCount - 1));
+	const EXEconomy::FItemDef& Def = EXEconomy::Item(Item);
+	if (!Def.bAvailable)
+	{
+		HangarNote(TEXT("Ainda n\u00E3o dispon\u00EDvel"));
+		return;
+	}
+	const int32 Have = Profile->Count(Item);
+	if (Delta > 0)
+	{
+		if (EXEconomy::CargoWeight(Profile) + Def.Weight > EXEconomy::ShipCapacity(GetShipName()))
+		{
+			HangarNote(TEXT("Carga cheia nesta nave"));
+			return;
+		}
+		if (Profile->Stardust < Def.Cost)
+		{
+			HangarNote(TEXT("STARDUST insuficiente"));
+			return;
+		}
+		Profile->Stardust -= Def.Cost;
+		Profile->SetCount(Item, Have + 1);
+	}
+	else if (Have > 0)
+	{
+		Profile->Stardust += Def.Cost;   // returned to the store at full value: it never left the hangar
+		Profile->SetCount(Item, Have - 1);
+	}
+}
+
+void AEXHoverCraft::HangarTrimCargo()
+{
+	// A smaller ship: the heaviest items go back to the store (refunded) until the cargo fits.
+	if (!Profile)
+	{
+		return;
+	}
+	const int32 Capacity = EXEconomy::ShipCapacity(GetShipName());
+	int32 Guard = 64;
+	while (EXEconomy::CargoWeight(Profile) > Capacity && Guard-- > 0)
+	{
+		int32 Heaviest = -1;
+		for (int32 Index = 0; Index < EXEconomy::ItemCount; ++Index)
+		{
+			const EEXItem Item = static_cast<EEXItem>(Index);
+			if (Profile->Count(Item) > 0 && (Heaviest < 0 || EXEconomy::Item(Item).Weight > EXEconomy::Item(static_cast<EEXItem>(Heaviest)).Weight))
+			{
+				Heaviest = Index;
+			}
+		}
+		if (Heaviest < 0)
+		{
+			break;
+		}
+		const EEXItem Item = static_cast<EEXItem>(Heaviest);
+		Profile->SetCount(Item, Profile->Count(Item) - 1);
+		Profile->Stardust += EXEconomy::Item(Item).Cost;
+		HangarNote(TEXT("Carga ajustada \u00E0 nave"));
+	}
+}
+
+void AEXHoverCraft::HangarLaunch()
+{
+	if (!bInHangar)
+	{
+		return;
+	}
+	// The director takes the craft back to the start (ExitShowroom) and sets the race up.
+	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
+	{
+		It->LaunchExpedition();
+		return;
+	}
+	ExitShowroom();
+}
+
+void AEXHoverCraft::SetLoadout(int32 Repair, int32 Surge, int32 Shield)
+{
+	MedKits = FMath::Max(0, Repair);
+	SurgeCharges = FMath::Max(0, Surge);
+	ShieldCharges = FMath::Max(0, Shield);
+}
+
+void AEXHoverCraft::UseSurge()
+{
+	if (!bRaceRules || bEliminated || bRaceHold || bInHangar || SurgeCharges <= 0 || Nitro > 0.95f)
+	{
+		return;
+	}
+	--SurgeCharges;
+	Nitro = 1.0f;
+	UE_LOG(LogTemp, Display, TEXT("EXRACE SURGE surges=%d"), SurgeCharges);
 }
 
 void AEXHoverCraft::HangarZoomIn()
 {
 	if (bInHangar)
 	{
-		HangarOrbitDist = FMath::Clamp(HangarOrbitDist - 40.0f, 320.0f, 1400.0f);
+		HangarOrbitDist = FMath::Clamp(HangarOrbitDist - 60.0f, 320.0f, ShowroomDistCm);
 	}
 }
 
@@ -1425,7 +1707,7 @@ void AEXHoverCraft::HangarZoomOut()
 {
 	if (bInHangar)
 	{
-		HangarOrbitDist = FMath::Clamp(HangarOrbitDist + 40.0f, 320.0f, 1400.0f);
+		HangarOrbitDist = FMath::Clamp(HangarOrbitDist + 60.0f, 320.0f, ShowroomDistCm);
 	}
 }
 
@@ -1444,7 +1726,8 @@ void AEXHoverCraft::HangarBack()
 	{
 		return;
 	}
-	ExitHangar();
+	LeaveHangar();
+	HangarBackFrame = GFrameCounter;
 	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
 	{
 		It->OpenMenu();
@@ -1454,14 +1737,5 @@ void AEXHoverCraft::HangarBack()
 
 void AEXHoverCraft::HangarConfirm()
 {
-	if (!bInHangar)
-	{
-		return;
-	}
-	ExitHangar();
-	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
-	{
-		It->OpenMenu();
-		break;
-	}
+	HangarLaunch();
 }

@@ -2,6 +2,8 @@
 
 #include "Engine/World.h"
 #include "Flight/EXHoverCraft.h"
+#include "Game/EXProfile.h"
+#include "GameFramework/PlayerController.h"
 #include "HAL/PlatformMisc.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
@@ -18,6 +20,11 @@ namespace
 	constexpr float FinishMarginM = 25.0f;  // the finish line: this far before the end of the race line (B)
 	constexpr float BotsAfterPlayerS = 60.0f;  // Bots mode: the race ends this long after the player is done
 	constexpr float TestTimeLimitS = 1500.0f;
+	constexpr int32 MenuItems = 4;          // 0 solo, 1 bots, 2 hangar, 3 quit
+	// Extraction rewards (Docs/VISAO_JOGO.md): every extractor gets the EXTRACTED bonus and a bonus by arrival order;
+	// the pool of cargo lost by the destroyed is shared by the extractors, the first taking the biggest part.
+	constexpr int32 ExtractBonus = 250;
+	constexpr int32 PlaceBonus = 30;
 	/** Bot pace against the ideal line, by bot (the tuning knob for how good the bots are). */
 	constexpr float BotSkills[] = { 0.95f, 0.94f, 0.93f, 0.92f, 0.91f, 0.90f, 0.89f, 0.88f, 0.87f, 0.87f, 0.86f, 0.85f, 0.84f, 0.83f, 0.82f };
 
@@ -39,10 +46,19 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (bMenu || Mode == EEXRaceMode::Hangar)
 	{
-		// The craft waits on the start while the player chooses (the ship can be changed from the menu too).
+		// The menu stands in the workshop: the chosen ship on the turntable, the lights down (the ship can be changed
+		// from the menu too). The hangar switches the lights on.
 		if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0)))
 		{
 			Player->SetRaceHold(true);
+			if (bMenu)
+			{
+				Player->EnterShowroom();
+			}
+			else if (!Player->IsInHangar())
+			{
+				Player->EnterHangar();
+			}
 		}
 		return;
 	}
@@ -127,27 +143,73 @@ void AEXRaceDirector::MenuInput(int32 Step)
 {
 	if (!bMenu)
 	{
+		// On the results: Enter / X goes back to the menu.
+		if (bOver && Step == 0 && OverTime > 1.5f)
+		{
+			ReturnToMenu();
+		}
 		return;
 	}
 	if (Step != 0)
 	{
-		MenuChoice = (MenuChoice + Step + 3) % 3;
+		MenuChoice = (MenuChoice + Step + MenuItems) % MenuItems;
+		return;
+	}
+	if (MenuChoice == 3)
+	{
+		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PlayerController->ConsoleCommand(TEXT("quit"));
+		}
 		return;
 	}
 	bMenu = false;
+	AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0));
 	if (MenuChoice == 2)
 	{
 		Mode = EEXRaceMode::Hangar;
-		if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0)))
+		if (Player)
 		{
 			Player->EnterHangar();
 		}
 		return;
 	}
+	if (Player)
+	{
+		Player->ExitShowroom();   // back to the start, before Setup puts it on the grid
+	}
 	Mode = MenuChoice == 0 ? EEXRaceMode::Solo : EEXRaceMode::Bots;
+	LastRaceMode = Mode;
 	if (Mode == EEXRaceMode::Bots)
 	{
 		BotCount = 15;
+	}
+}
+
+void AEXRaceDirector::LaunchExpedition()
+{
+	if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0)))
+	{
+		Player->ExitShowroom();
+	}
+	bMenu = false;
+	Mode = LastRaceMode;
+	if (Mode == EEXRaceMode::Bots)
+	{
+		BotCount = 15;
+	}
+}
+
+void AEXRaceDirector::ReturnToMenu()
+{
+	UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this, true)));
+}
+
+void AEXRaceDirector::HoverMenuChoice(int32 Choice)
+{
+	if (bMenu)
+	{
+		MenuChoice = FMath::Clamp(Choice, 0, MenuItems - 1);
 	}
 }
 
@@ -157,7 +219,7 @@ void AEXRaceDirector::StartMenuChoice(int32 Choice)
 	{
 		return;
 	}
-	MenuChoice = FMath::Clamp(Choice, 0, 2);
+	MenuChoice = FMath::Clamp(Choice, 0, MenuItems - 1);
 	MenuInput(0);
 }
 
@@ -174,7 +236,17 @@ void AEXRaceDirector::Setup()
 
 	// Solo: the front row, in the middle. Bots: the back row (the player has to fight through).
 	const int32 PlayerSlot = Mode == EEXRaceMode::Bots ? (GridRows - 1) * GridColumns + 2 : 2;
-	Player->SetRaceRules(3);
+	// The cargo from the hangar (Docs/VISAO_JOGO.md): repair kits, surges and shields, at risk until B.
+	Player->SetRaceRules(0);
+	int32 MyCargoValue = 0;
+	if (UEXProfileSave* Profile = Player->EnsureProfile())
+	{
+		StartRepair = Profile->Count(EEXItem::Repair);
+		StartSurge = Profile->Count(EEXItem::Surge);
+		StartShield = Profile->Count(EEXItem::Shield);
+		MyCargoValue = EXEconomy::CargoValue(Profile);
+	}
+	Player->SetLoadout(StartRepair, StartSurge, StartShield);
 	if (bTest)
 	{
 		Player->SetBot(Player->GetShipIndex(), 0.95f, 0.0f);
@@ -185,6 +257,7 @@ void AEXRaceDirector::Setup()
 	Me.Craft = Player;
 	Me.Name = TEXT("TU");
 	Me.bPlayer = true;
+	Me.CargoValue = MyCargoValue;
 
 	if (Mode == EEXRaceMode::Bots)
 	{
@@ -216,6 +289,7 @@ void AEXRaceDirector::Setup()
 			FEXRacer& Racer = Racers.AddDefaulted_GetRef();
 			Racer.Craft = Craft;
 			Racer.Name = FString::Printf(TEXT("%s #%d"), *Craft->GetShipName(), Bot + 2);
+			Racer.CargoValue = 300 + 100 * FMath::RandRange(0, 12);   // what this rival carries (the pool if it falls)
 		}
 	}
 	bReady = true;
@@ -293,14 +367,82 @@ void AEXRaceDirector::Finish()
 		}
 	}
 	UpdateStandings();
-	Post(TEXT("FIM DA CORRIDA"));
+	SettleExtraction();
+	UpdateStandings();
+	Post(FString::Printf(TEXT("FIM DA EXPEDI\u00C7\u00C3O  \u00B7  esp\u00F3lio %d STARDUST"), Pool));
 	for (int32 Place = 0; Place < Standings.Num(); ++Place)
 	{
 		const FEXRacer& Racer = Standings[Place];
 		const FString Result = Racer.bFinished ? DirectorClock(Racer.FinishTime)
 			: (Racer.bOut ? FString::Printf(TEXT("ficou no km %.1f"), Racer.OutAtM / 1000.0f)
 				: FString::Printf(TEXT("ainda no km %.1f"), IsValid(Racer.Craft) ? Racer.Craft->GetRaceProgressM() / 1000.0f : 0.0f));
-		UE_LOG(LogTemp, Display, TEXT("EXRACE RESULT %2d %s %s"), Place + 1, *Racer.Name, *Result);
+		static const TCHAR* States[4] = { TEXT("-"), TEXT("EXTRACTED"), TEXT("DESTROYED"), TEXT("STRANDED") };
+		UE_LOG(LogTemp, Display, TEXT("EXRACE RESULT %2d %s %s %s +%d"), Place + 1, *Racer.Name, *Result, States[FMath::Min<int32>(Racer.State, 3)],
+			Racer.Reward);
 	}
+}
+
+void AEXRaceDirector::SettleExtraction()
+{
+	// EXTRACTED: reached B alive. DESTROYED: no lives left (its cargo goes to the pool). STRANDED: still on the way.
+	Pool = 0;
+	TArray<int32> Extracted;
+	for (int32 Index = 0; Index < Racers.Num(); ++Index)
+	{
+		FEXRacer& Racer = Racers[Index];
+		Racer.State = Racer.bFinished ? 1 : (Racer.bOut ? 2 : 3);
+		Racer.Reward = 0;
+		if (Racer.bPlayer && IsValid(Racer.Craft))
+		{
+			// What the player still carries (used items are gone either way).
+			Racer.CargoValue = Racer.Craft->GetMedKits() * EXEconomy::Item(EEXItem::Repair).Cost
+				+ Racer.Craft->GetSurgeCharges() * EXEconomy::Item(EEXItem::Surge).Cost
+				+ Racer.Craft->GetShieldCharges() * EXEconomy::Item(EEXItem::Shield).Cost;
+		}
+		if (Racer.State == 2)
+		{
+			Pool += Racer.CargoValue;
+		}
+		else if (Racer.State == 1)
+		{
+			Extracted.Add(Index);
+		}
+	}
+	Extracted.Sort([this](int32 A, int32 B) { return Racers[A].FinishTime < Racers[B].FinishTime; });
+	const int32 Count = Extracted.Num();
+	const int32 WeightSum = Count * (Count + 1) / 2;
+	for (int32 K = 0; K < Count; ++K)
+	{
+		const int32 Share = WeightSum > 0 ? Pool * (Count - K) / WeightSum : 0;
+		Racers[Extracted[K]].Reward = ExtractBonus + (Racers.Num() - 1 - K) * PlaceBonus + Share;
+	}
+
+	// The player's profile: rewards in, cargo kept (what is left) or lost (destroyed); not in the automated test.
+	const int32 MeIndex = Racers.IndexOfByPredicate([](const FEXRacer& Racer) { return Racer.bPlayer; });
+	if (bTest || !Racers.IsValidIndex(MeIndex) || !IsValid(Racers[MeIndex].Craft))
+	{
+		return;
+	}
+	const FEXRacer& Me = Racers[MeIndex];
+	AEXHoverCraft* Player = Me.Craft;
+	UEXProfileSave* Profile = Player->GetProfile();
+	if (!Profile)
+	{
+		return;
+	}
+	const bool bDestroyed = Me.State == 2;
+	Profile->SetCount(EEXItem::Repair, bDestroyed ? 0 : Player->GetMedKits());
+	Profile->SetCount(EEXItem::Surge, bDestroyed ? 0 : Player->GetSurgeCharges());
+	Profile->SetCount(EEXItem::Shield, bDestroyed ? 0 : Player->GetShieldCharges());
+	Profile->Stardust += Me.Reward;
+	Profile->LastReward = bDestroyed ? -Me.CargoValue : Me.Reward;
+	++Profile->Expeditions;
+	if (Me.State == 1)
+	{
+		++Profile->Extractions;
+		const int32 Place = 1 + Extracted.IndexOfByKey(MeIndex);
+		Profile->BestPlace = Profile->BestPlace == 0 ? Place : FMath::Min(Profile->BestPlace, Place);
+	}
+	EXEconomy::Save(Profile);
 }
 

@@ -29,6 +29,12 @@ struct FEXRacer
 	bool bFinished = false;
 	bool bOut = false;
 	float FinishTime = 0.0f;
+	/** STARDUST value of the cargo carried (lost to the pool if destroyed). */
+	int32 CargoValue = 0;
+	/** Extraction result: 0 still racing, 1 EXTRACTED, 2 DESTROYED, 3 STRANDED. */
+	uint8 State = 0;
+	/** STARDUST earned at the end (bonus + share of the pool). */
+	int32 Reward = 0;
 	/** Where it dropped out (m along the race line). */
 	float OutAtM = 0.0f;
 };
@@ -50,11 +56,19 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	void Configure(EEXRaceMode InMode, int32 InBots) { Mode = InMode; BotCount = InBots; }
-	/** Start on the menu (the game opened without a mode): SOLO / PELOTÃO 15 / HANGAR. */
+	/** Start on the menu (the game opened without a mode): SOLO / PELOTÃO 15 / HANGAR / SAIR. */
 	void OpenMenu() { bMenu = true; }
 	void StartMenuChoice(int32 Choice);
+	/** The mouse over a menu line highlights it. */
+	void HoverMenuChoice(int32 Choice);
+	/** From the hangar: start the expedition (the Bots mode unless the menu picked Solo). */
+	void LaunchExpedition();
+	/** The mode the hangar's launch button starts. */
+	EEXRaceMode GetLaunchMode() const { return LastRaceMode; }
+	/** The pool of lost cargo shared by the extractors (known at the end). */
+	int32 GetPool() const { return Pool; }
 	bool IsInMenu() const { return bMenu; }
-	/** The highlighted menu line: 0 solo, 1 bots, 2 hangar. */
+	/** The highlighted menu line: 0 solo, 1 bots, 2 hangar, 3 quit. */
 	int32 GetMenuChoice() const { return MenuChoice; }
 	/** From the player's craft: -1 up, +1 down, 0 confirm. */
 	void MenuInput(int32 Step);
@@ -79,11 +93,16 @@ private:
 	void Post(const FString& Message);
 	void UpdateStandings();
 	void Finish();
+	void SettleExtraction();
+	void ReturnToMenu();
 
 	EEXRaceMode Mode = EEXRaceMode::Solo;
 	int32 BotCount = 15;
 	bool bReady = false, bStarted = false, bOver = false, bTest = false, bMenu = false;
 	int32 MenuChoice = 1;
+	int32 Pool = 0;
+	int32 StartRepair = 0, StartSurge = 0, StartShield = 0;
+	EEXRaceMode LastRaceMode = EEXRaceMode::Bots;
 	float Countdown = 4.0f, RaceTime = 0.0f, RouteLengthM = 0.0f, PlayerDoneTime = -1.0f, OverTime = 0.0f;
 	int32 PlayerPlace = 1;
 	TArray<FVector2D> Route;
