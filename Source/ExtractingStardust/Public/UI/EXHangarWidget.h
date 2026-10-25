@@ -96,6 +96,8 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> WalletText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> ShipTitle;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> ShipSubtitle;
+	/** The ship's seven star pips under its name, filled for the stars it has. */
+	UPROPERTY(Transient) TObjectPtr<UTextBlock> StarsText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> LeftTitle;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> LeftMore;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> RightTitle;

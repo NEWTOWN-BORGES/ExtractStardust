@@ -89,6 +89,8 @@ void UEXHangarWidget::BuildTree()
 	EXUi::AddV(Title, ShipTitle, FMargin(0.0f), HAlign_Center);
 	ShipSubtitle = EXUi::OutlinedText(Tree, TEXT("-"), 11, EXUi::Bone(), 300, 1, EXUi::Ink(0.75f));
 	EXUi::AddV(Title, ShipSubtitle, FMargin(0.0f, 4.0f, 0.0f, 0.0f), HAlign_Center);
+	StarsText = EXUi::OutlinedText(Tree, TEXT(""), 15, EXUi::Hex(255, 208, 64), 200, 1, EXUi::Ink(0.75f));
+	EXUi::AddV(Title, StarsText, FMargin(0.0f, 6.0f, 0.0f, 0.0f), HAlign_Center);
 	EXUi::AddO(Root, Title, HAlign_Center, VAlign_Top, FMargin(0.0f, 100.0f, 0.0f, 0.0f));
 
 	EXUi::AddO(Root, BuildLeftPanel(), HAlign_Left, VAlign_Top, FMargin(48.0f, 104.0f, 0.0f, 0.0f));
@@ -344,6 +346,7 @@ void UEXHangarWidget::Refresh()
 	const EEXHangarTab Tab = Model->GetTab();
 	EXUi::SetText(ShipTitle, ShipName);
 	EXUi::SetText(ShipSubtitle, UEXHangarModel::ShipSubtitle(ShipName));
+	EXUi::SetText(StarsText, UEXHangarModel::StarText(Profile ? Profile->StarsOf(ShipName) : 0));
 	EXUi::SetText(WalletText, EXUi::Thousands(Profile ? Profile->Stardust : 0));
 	for (int32 Index = 0; Index < TabFills.Num(); ++Index)
 	{

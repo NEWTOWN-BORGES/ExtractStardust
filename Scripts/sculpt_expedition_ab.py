@@ -739,17 +739,17 @@ for name, b in branches.items():
 carve(main, bed, half_w, kind, bank, curv, skip=skip)  # last, so no branch lifts the main line at a junction
 
 
-# Curve walls (player, 2026-10-25: the zig-zag was hard to drive without leaving the track): on the OUTSIDE of every
-# bend a wall grows out of the floor edge, joined to it with no step. Its profile is a quarter of an oval (tangent to
-# the floor, steepening to ~80 degrees at the top), so a craft can ride up it and round the bend on the wall. Its
-# height follows the bend (full below WALL_R_FULL m of radius, none above WALL_R_NONE m) and sinks back to nothing on
-# the short straights between the bends. A flat rim and a back slope at ~40 degrees finish it, so the heightfield
-# shows no cliff. Not in the tunnel, the switchbacks, the Red Wall (it has its own bank) or the open desert.
+# Curve walls (player, 2026-10-25: the zig-zag was hard to drive without leaving the track, and only there): on the
+# OUTSIDE of every hairpin of the Shafer Fall switchbacks a wall grows out of the floor edge, joined to it with no step.
+# Its profile is a quarter of an oval (tangent to the floor, steepening to ~80 degrees at the top), so a craft can ride
+# up it and round the bend on the wall. Its height follows the bend (full below WALL_R_FULL m of radius, none above
+# WALL_R_NONE m) and sinks back to nothing on the short straights between the bends. A flat rim and a back slope at ~40
+# degrees finish it, so the heightfield shows no cliff. WALL_KINDS lists the sectors that get walls.
 WALL_H = 13.0         # m, at the tightest bends
 WALL_RUN = 1.8        # horizontal run of the oval = this x its height
 WALL_RIM = 6.0        # m of flat top
 WALL_R_FULL, WALL_R_NONE = 200.0, 520.0
-WALL_KINDS = ["top", "floor", "wash", "rim"]
+WALL_KINDS = ["switchback"]  # only the Shafer Fall zig-zag (player, 2026-10-25); add "top", "floor"... for more
 wall_k = np.abs(curvature(main, 41))
 wall_h = WALL_H * smoothstep(1.0 / WALL_R_NONE, 1.0 / WALL_R_FULL, wall_k)
 wall_h = smooth1d(wall_h, 61) * np.isin(kind, WALL_KINDS) * ~skip
@@ -775,7 +775,10 @@ def curve_walls():
     tgt = base + np.where(s_ <= run, oval, behind)
     foot = run + WALL_RIM + h / math.tan(math.radians(40.0))
     zone = (idx >= 0) & outer_ & (h > 0.5) & (s_ > 0.0) & (s_ < foot)
-    H = np.where(zone & (tgt > H), tgt, H).astype(H.dtype)
+    # The oval and its rim replace what stood there (a natural bank can be steeper than the oval and would trap the craft
+    # against a face); the back slope only adds ground.
+    on_oval = zone & (s_ <= run + WALL_RIM)
+    H = np.where(on_oval | (zone & (tgt > H)), tgt, H).astype(H.dtype)
     WALL = zone | WALL
     print("CURVE WALLS: %.1f km of wall, tallest %.1f m, %d bends over 4 m" % (
         float(np.sum(wall_h > 0.5)) / 1000.0, float(wall_h.max()),

@@ -11,11 +11,14 @@ O jogador fala português (PT). Responder em português.
 ## PEDIDOS DE 2026-10-25 (noite), por testar em casa
 
 - **Estrelas das naves** (`Docs/MODULOS.md` secção 8b): cada cópia de uma nave dá 1 estrela, até 7, e cada estrela dá
-  +2 nos 8 stats base da nave. A cópia só sai na ELITE CACHE (6%). Só código (`EXMeta`, `EXProfile`, `EXHangarModel`,
+  +2 nos 8 stats base da nave. A cópia só sai na ELITE CACHE (6%). Código em `EXMeta`, `EXProfile`, `EXHangarModel`, `EXHangarWidget`,
   `EXHoverCraft::ApplyShipStats`): compilar e abrir uma ELITE no COFRE (para testar mais depressa, subir
   `EXMeta::ShipCopyChance` a 1).
-- **Paredes nas curvas da pista** (`Docs/PISTA_AB_RED_DUST_DIVIDE.md`): meio-oval do lado de fora de cada curva, que
-  cresce nas curvas e desce nas retas. Testado a 10 m; gerar a pista a 3 m e ver no Unreal que se pode subir por ela.
+- **Paredes nas curvas do ziguezague** (`Docs/PISTA_AB_RED_DUST_DIVIDE.md`): meio-oval do lado de fora de cada curva em
+  U do Shafer Fall (só aí), que cresce na curva e desce nas retas. Testado a 10 m; gerar a pista a 3 m e ver no Unreal
+  que se pode subir por ela.
+- **Estrelas no hangar:** as 7 estrelas aparecem por baixo do nome da nave (cheias as que tem, vazias as que faltam) e
+  em cada nave da lista NAVE.
 
 ## NAVES NOVAS: falta pô-las no Unreal (2026-10-21; BASTION a 2026-10-25)
 

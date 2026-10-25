@@ -37,17 +37,6 @@ namespace
 		return HangarShipWords[0];
 	}
 
-	/** Seven pips, one filled per star, then "3/7 ESTRELAS". */
-	FString StarPips(int32 Stars)
-	{
-		FString Out;
-		for (int32 Index = 0; Index < EXMeta::MaxStars; ++Index)
-		{
-			Out += Index < Stars ? TEXT("\u25C6") : TEXT("\u25C7");
-		}
-		return Out + FString::Printf(TEXT("  %d/%d ESTRELAS"), Stars, EXMeta::MaxStars);
-	}
-
 	const TCHAR* const HangarQuickKeys[EXMeta::QuickSlots] = { TEXT("1  \u00B7  \u25B2"), TEXT("2  \u00B7  \u25BC"), TEXT("3  \u00B7  \u25C0"), TEXT("4  \u00B7  \u25B6") };
 
 	FString HangarDust(int32 Value)
@@ -105,6 +94,16 @@ FString UEXHangarModel::TabName(EEXHangarTab Tab)
 FString UEXHangarModel::ShipRole(const FString& Ship)
 {
 	return HangarWordsFor(Ship).Role;
+}
+
+FString UEXHangarModel::StarText(int32 Stars)
+{
+	FString Out;
+	for (int32 Index = 0; Index < EXMeta::MaxStars; ++Index)
+	{
+		Out += Index < Stars ? TEXT("\u25C6") : TEXT("\u25C7");
+	}
+	return Out + FString::Printf(TEXT("  %d/%d ESTRELAS"), Stars, EXMeta::MaxStars);
 }
 
 FString UEXHangarModel::ShipSubtitle(const FString& Ship)
@@ -676,7 +675,7 @@ void UEXHangarModel::OpenCache(int32 Index)
 		if (Profile->AddStar(ShipName))
 		{
 			const int32 Stars = Profile->StarsOf(ShipName);
-			Card.Sub = FString::Printf(TEXT("%s  \u00B7  +%d em todos os stats base"), *StarPips(Stars), EXMeta::StarBonus(Stars) - EXMeta::StarBonus(Stars - 1));
+			Card.Sub = FString::Printf(TEXT("%s  \u00B7  +%d em todos os stats base"), *UEXHangarModel::StarText(Stars), EXMeta::StarBonus(Stars) - EXMeta::StarBonus(Stars - 1));
 			Card.Right = FString::Printf(TEXT("%d/%d"), Stars, EXMeta::MaxStars);
 			Card.Tag = TEXT("NOVA ESTRELA");
 			Note(FString::Printf(TEXT("C\u00F3pia da %s: agora com %d estrelas"), *ShipName, Stars));
@@ -791,7 +790,7 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			FEXHangarRow& R = Out.AddDefaulted_GetRef();
 			R.Label = ShipRole(Name);
 			R.Title = Name;
-			R.Sub = Profile ? StarPips(Profile->StarsOf(Name)) : FString();
+			R.Sub = Profile ? UEXHangarModel::StarText(Profile->StarsOf(Name)) : FString();
 			R.Right = FString::Printf(TEXT("%d VIDAS"), ShipLives);
 			R.Colour = FLinearColor(1.0f, 0.34f, 0.10f);
 		}

@@ -240,7 +240,8 @@ Como as cópias do Dragon Ball Legends: cada **cópia de uma nave** dá-lhe **1 
   também (+15 de casco).
 - **Repetidas:** com as 7 estrelas, a cópia paga **8 000 STARDUST**.
 - **Só o jogador:** os bots não têm estrelas.
-- **No hangar:** o separador NAVE mostra `◆◆◆◇◇◇◇  3/7 ESTRELAS` em cada nave e os stats já com o bónus.
+- **No hangar:** as 7 estrelas aparecem por baixo do nome da nave (douradas, `◆◆◆◇◇◇◇  3/7 ESTRELAS`: cheias as que tem,
+  vazias as que faltam) e também em cada nave da lista do separador NAVE. Os stats já mostram o bónus.
 - **No código:** `UEXProfileSave::ShipStars` (por nome, sem mudar a versão do perfil, por isso os perfis atuais
   guardam-se), `EXMeta::StarBonus`, `Resolve(..., Stars)` e `OpenCache(..., &ShipCopy)`.
 

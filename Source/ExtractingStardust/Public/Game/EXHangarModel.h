@@ -96,6 +96,8 @@ public:
 	static FString TabName(EEXHangarTab Tab);
 	static FString ShipRole(const FString& Ship);
 	static FString ShipSubtitle(const FString& Ship);
+	/** Seven pips, one filled per star (the empty ones show too), then "3/7 ESTRELAS". */
+	static FString StarText(int32 Stars);
 
 private:
 	int32& Row() { return Rows[static_cast<int32>(CurrentTab)]; }

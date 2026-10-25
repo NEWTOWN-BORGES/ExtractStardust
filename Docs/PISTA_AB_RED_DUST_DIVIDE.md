@@ -98,19 +98,19 @@ O jogador achou o túnel "horrível, impossível conduzir": as paredes tinham pl
 
 Falta, no PC com o Unreal: ver o túnel dentro do jogo (as claraboias da caverna são aberturas na malha do teto).
 
-## Paredes nas curvas (pedido do jogador, 2026-10-25)
+## Paredes nas curvas do ziguezague (pedido do jogador, 2026-10-25)
 
-O ziguezague era difícil de fazer sem sair da pista. Do lado de **fora de cada curva** nasce agora uma parede,
-colada ao chão da pista sem degrau (`curve_walls` em `Scripts/sculpt_expedition_ab.py`):
-- **Perfil:** um quarto de oval, tangente ao chão e a subir até ~80° no topo (corre-se por ela, é uma parabólica
-  natural), depois 6 m de topo plano e uma encosta atrás a 40°. O heightfield nunca mostra um penhasco.
-- **Altura:** segue a curva. Raio de 200 m ou menos: 13 m (a parede tem 23 m de largura); a 520 m ou mais: nada. Nas
-  mini-retas entre curvas afunda até desaparecer. No total, ~15 km de parede em 59 km, 59 curvas com mais de 4 m.
-- **Onde não há:** túnel (já tem o arco), os ziguezagues da descida do Shafer Fall, a Red Wall (tem a sua inclinação),
-  o deserto e os ramais. As rochas e as plantas ficam fora da parede.
-- **Ajustar:** `WALL_H`, `WALL_RUN`, `WALL_R_FULL`, `WALL_R_NONE` no topo da função. O log escreve
-  `CURVE WALLS ...` e um corte da parede mais alta (`CURVE WALL PROFILE`). A 10 m (testado) o topo mede ~12 m; a 3 m
-  fica mais fino.
+O ziguezague do **Shafer Fall** (as curvas em U da descida) era difícil de fazer sem sair da pista. Do lado de **fora
+de cada curva em U** nasce agora uma parede, colada ao chão da pista sem degrau (`curve_walls` em
+`Scripts/sculpt_expedition_ab.py`). **Só nessa zona**: o resto da pista fica como estava.
+- **Perfil:** um quarto de oval, tangente ao chão e a subir até ~80° no topo (corre-se por ela), depois 6 m de topo plano
+  e uma encosta atrás a 40°. A oval substitui o que lá estava (um talude natural mais a pique prendia a nave contra uma
+  face); a encosta de trás só acrescenta terreno.
+- **Altura:** segue a curva. Raio de 200 m ou menos: 13 m (23 m de largura); a 520 m ou mais: nada. Nas retas entre as
+  curvas afunda até desaparecer. Dá ~1 km de parede, nas 4 pontas dos U (ver `paredes_zigzag.png` na conversa).
+- **Ajustar:** `WALL_H`, `WALL_RUN`, `WALL_R_FULL`, `WALL_R_NONE` e `WALL_KINDS` (a lista de setores com parede: pôr
+  `"top"`, `"floor"`, `"wash"`, `"rim"` leva paredes às curvas do resto da pista). O log escreve `CURVE WALLS ...` e um corte
+  da parede mais alta. Testado a 10 m; a 3 m a forma fica mais fina.
 - **Por ver no Unreal:** que a nave sobe pela parede e volta sem bater no topo, e a cor (hoje é a da inclinação).
 
 ## Gerar
