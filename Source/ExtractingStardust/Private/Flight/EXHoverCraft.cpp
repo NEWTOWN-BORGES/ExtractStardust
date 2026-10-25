@@ -237,6 +237,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 		if (Audio)
 		{
 			FEXCraftAudioInput In;
+			In.ShipName = GetShipName();
 			In.bHangar = true;
 			In.bGrounded = true;
 			In.bViewer = true;
@@ -245,6 +246,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 		return;
 	}
 	HitCooldown = FMath::Max(0.0f, HitCooldown - DeltaSeconds);
+	AudioHitCooldown = FMath::Max(0.0f, AudioHitCooldown - DeltaSeconds);
 	MedKitCooldown = FMath::Max(0.0f, MedKitCooldown - DeltaSeconds);
 	const bool bViewer = IsPlayerControlled();
 	if (bBot)
@@ -366,6 +368,14 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	if (Audio)
 	{
 		FEXCraftAudioInput Sound;
+		Sound.ShipName = GetShipName();
+		Sound.TopSpeedMps = BaseMaxSpeedMps > 0.0f ? BaseMaxSpeedMps : MaxSpeedMps;
+		Sound.WallLeft = WallNearLeft * FMath::Clamp(ForwardSpeedMps / 60.0f, 0.0f, 1.0f);
+		Sound.WallRight = WallNearRight * FMath::Clamp(ForwardSpeedMps / 60.0f, 0.0f, 1.0f);
+		if (bViewer)
+		{
+			FillAudioOthers(Sound);
+		}
 		Sound.SpeedMps = ForwardSpeedMps;
 		Sound.Throttle = ThrottleInput;
 		Sound.Steer = SteerInput;
@@ -570,6 +580,10 @@ void AEXHoverCraft::StepFlight(float Dt)
 		if (LandingSpeed > 3.0f)
 		{
 			Fx->LandingBurst(GroundPointCm, SurfaceUp, FMath::Clamp(LandingSpeed / 15.0f, 0.3f, 1.0f));
+			if (Audio)
+			{
+				Audio->Landing(FMath::Clamp(LandingSpeed / 20.0f, 0.2f, 1.0f));
+			}
 		}
 		if (LandingSpeed > LandingHitMps)
 		{
@@ -618,6 +632,11 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 				VelocityCmps *= 1.0f - FMath::Clamp(WallScrapeLoss * (-IntoSpeed / CmPerM) / 20.0f, 0.0f, 0.5f);
 			}
 			ImpactShake = FMath::Max(ImpactShake, FMath::Clamp(-IntoSpeed / CmPerM / 25.0f, 0.0f, 1.0f));
+			if ((bWall || IsValid(OtherCraft)) && Audio && AudioHitCooldown <= 0.0f && -IntoSpeed / CmPerM > 8.0f)
+			{
+				AudioHitCooldown = 0.15f;
+				Audio->Bang(FMath::Clamp((-IntoSpeed / CmPerM - 8.0f) / 25.0f, 0.15f, 0.9f));
+			}
 			if (bWall || IsValid(OtherCraft))
 			{
 				const float DamageThresholdMps = IsValid(OtherCraft) ? WallHitMps * 0.6f : WallHitMps;
@@ -710,16 +729,19 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	float NearWall = 0.0f;
 	{
 		FCollisionQueryParams WallParams(SCENE_QUERY_STAT(EXWallThreat), false, this);
-		const FVector Side = FVector::CrossProduct(CamSmoothUp, CamSmoothHeading).GetSafeNormal();
+		const FVector Side = FVector::CrossProduct(CamSmoothUp, CamSmoothHeading).GetSafeNormal();   // to the right
 		for (int32 Sign : { -1, 1 })
 		{
 			FHitResult WallHit;
+			float Near = 0.0f;
 			const FVector Start = CraftLocation + CamSmoothUp * 80.0f;
 			if (GetWorld()->SweepSingleByChannel(WallHit, Start, Start + Side * Sign * 900.0f, FQuat::Identity, ECC_Visibility,
 				FCollisionShape::MakeSphere(20.0f), WallParams))
 			{
-				NearWall = FMath::Max(NearWall, 1.0f - FMath::Clamp(WallHit.Distance / 900.0f, 0.0f, 1.0f));
+				Near = 1.0f - FMath::Clamp(WallHit.Distance / 900.0f, 0.0f, 1.0f);
 			}
+			NearWall = FMath::Max(NearWall, Near);
+			(Sign < 0 ? WallNearLeft : WallNearRight) = Near;
 		}
 	}
 	WallThreat = FMath::FInterpTo(WallThreat, NearWall * SpeedAlpha, Dt, 8.0f);
@@ -909,6 +931,47 @@ void AEXHoverCraft::Eliminate()
 	ThrottleInput = 0.0f;
 	SetActorHiddenInGame(true);
 	SetActorEnableCollision(false);
+}
+
+void AEXHoverCraft::FillAudioOthers(FEXCraftAudioInput& Sound) const
+{
+	// The nearest racers as heard from the camera: distance attenuation, pan, Doppler (a stylised speed of sound,
+	// 420 m/s, so a pass at 500 km/h bends the pitch without going cartoonish) and air muffling far away.
+	const FVector Ear = Camera->GetComponentLocation();
+	const FVector Right = Camera->GetRightVector();
+	TArray<TPair<float, const AEXHoverCraft*>, TInlineAllocator<32>> Near;
+	for (TActorIterator<AEXHoverCraft> It(GetWorld()); It; ++It)
+	{
+		const AEXHoverCraft* Other = *It;
+		if (Other == this || Other->IsEliminated() || Other->IsHidden() || Other->IsInHangar())
+		{
+			continue;
+		}
+		const float DistM = FVector::Dist(Other->GetActorLocation(), Ear) / CmPerM;
+		if (DistM < 500.0f)
+		{
+			Near.Add(TPair<float, const AEXHoverCraft*>(DistM, Other));
+		}
+	}
+	Near.Sort([](const TPair<float, const AEXHoverCraft*>& A, const TPair<float, const AEXHoverCraft*>& B) { return A.Key < B.Key; });
+	constexpr float SoundSpeedMps = 420.0f;
+	for (int32 K = 0; K < FMath::Min(Near.Num(), 8); ++K)
+	{
+		const AEXHoverCraft* Other = Near[K].Value;
+		const float DistM = FMath::Max(1.0f, Near[K].Key);
+		const FVector ToOther = (Other->GetActorLocation() - Ear).GetSafeNormal();
+		const float SourceToward = -FVector::DotProduct(Other->GetFlightVelocity(), ToOther) / CmPerM;
+		const float ListenerToward = FVector::DotProduct(VelocityCmps, ToOther) / CmPerM;
+		FEXCraftAudioOther& Out = Sound.Others.AddDefaulted_GetRef();
+		Out.ShipName = Other->GetShipName();
+		Out.Speed01 = FMath::Max(0.0f, Other->GetSpeedKmh() / 3.6f) / FMath::Max(1.0f, BaseMaxSpeedMps > 0.0f ? BaseMaxSpeedMps : MaxSpeedMps);
+		Out.Throttle = Other->GetThrottle();
+		Out.bBoosting = Other->IsBoosting();
+		Out.Gain = 1.0f / (1.0f + FMath::Pow(DistM / 15.0f, 1.4f));
+		Out.Pan = FMath::Clamp(FVector::DotProduct(ToOther, Right), -1.0f, 1.0f);
+		Out.PitchMul = FMath::Clamp((SoundSpeedMps + ListenerToward) / FMath::Max(60.0f, SoundSpeedMps - SourceToward), 0.6f, 1.7f);
+		Out.Muffle = FMath::Clamp(DistM / 250.0f, 0.0f, 1.0f);
+	}
 }
 
 void AEXHoverCraft::SendMenu(int32 Step)

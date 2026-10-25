@@ -8,6 +8,7 @@ class UBoxComponent;
 class UCameraComponent;
 class UEXCraftFx;
 class UEXCraftAudio;
+struct FEXCraftAudioInput;
 class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
@@ -164,6 +165,8 @@ public:
 	int32 GetRouteIndex() const { return RouteIndex; }
 	FVector GetHeading() const { return Heading; }
 	FVector GetFlightVelocity() const { return VelocityCmps; }
+	float GetThrottle() const { return ThrottleInput; }
+	bool IsBoosting() const { return bBoosting; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -259,6 +262,9 @@ private:
 	float BaseMaxSpeedMps = 0.0f, WallHitMps = 1.0e6f, LandingHitMps = 1.0e6f;
 	float HitCooldown = 0.0f, MedKitCooldown = 0.0f, LastHitTime = -1.0f, RaceProgressM = 0.0f;
 	float LastGroundZCm = 0.0f;
+	/** Wall closeness on each side (0 far, 1 touching), from the camera's wall probes; the sound uses them. */
+	float WallNearLeft = 0.0f, WallNearRight = 0.0f, AudioHitCooldown = 0.0f;
+	void FillAudioOthers(FEXCraftAudioInput& Sound) const;
 	float BotSkill = 1.0f, BotLaneM = 0.0f, BotPhase = 0.0f, BotStuckSeconds = 0.0f, BotTime = 0.0f;
 
 	// Hangar mode state.

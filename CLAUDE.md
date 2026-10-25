@@ -23,6 +23,12 @@ PR estiver fundido):
 2. No log, ver as linhas `SHIPBOUNDS`: nariz em −Y, comprimentos de ~5,8 a 7,3 m.
 3. Testar no jogo (trocar de nave) e fazer commit dos `.uasset` de `Content/TestShips`.
 
+## SOM (2026-10-25): `Docs/SOM.md`
+
+O som é sintetizado ao vivo (`EXSoundSynth.h`, em C++ puro): motor por nave, vento, paredes, eventos e rivais com
+Doppler. Antes de compilar ouve-se com `Scripts/audio/render_sound_preview.cpp`, que escreve WAVs. **Os binários Win64
+pré-compilados que estão no repositório ficam desatualizados**: compilar com `Scripts\casa_tudo.ps1 -SemPista`.
+
 ## PARA FAZER EM CASA / NO PC COM O UNREAL (lista da sessão da nuvem, 2026-10-21)
 
 **Atalho (poucos tokens):** `powershell -ExecutionPolicy Bypass -File Scripts\casa_tudo.ps1`. Compila o C++ dos modos

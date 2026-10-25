@@ -1,19 +1,33 @@
 #include "Flight/EXCraftAudio.h"
 
 #include "Components/AudioComponent.h"
+#include "Flight/EXSoundSynth.h"
 #include "Sound/SoundWaveProcedural.h"
 
 namespace
 {
-	constexpr int32 kRate = 24000;
-	constexpr int32 kAhead = kRate / 12;
+	constexpr int32 SynthRate = 48000;
+	constexpr int32 FramesAhead = SynthRate / 12;   // ~83 ms queued: low latency, no gaps on a frame hitch
 
-	float NextNoise(uint32& State)
+	EXSynth::EShip ShipFromName(const FString& Name)
 	{
-		State ^= State << 13;
-		State ^= State >> 17;
-		State ^= State << 5;
-		return (State & 0xFFFF) / 32768.0f - 1.0f;
+		if (Name.Contains(TEXT("WRAITH")))
+		{
+			return EXSynth::EShip::Wraith;
+		}
+		if (Name.Contains(TEXT("NOMAD")))
+		{
+			return EXSynth::EShip::Nomad;
+		}
+		if (Name.Contains(TEXT("BASTION")))
+		{
+			return EXSynth::EShip::Bastion;
+		}
+		if (Name.Contains(TEXT("VORTEX")))
+		{
+			return EXSynth::EShip::Vortex;
+		}
+		return EXSynth::EShip::Strix;
 	}
 }
 
@@ -22,15 +36,23 @@ UEXCraftAudio::UEXCraftAudio()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
+void UEXCraftAudio::BeginDestroy()
+{
+	delete Mixer;
+	Mixer = nullptr;
+	Super::BeginDestroy();
+}
+
 void UEXCraftAudio::BeginAudio()
 {
 	if (bReady)
 	{
 		return;
 	}
+	Mixer = new EXSynth::FMixer(static_cast<float>(SynthRate));
 	Wave = NewObject<USoundWaveProcedural>(this);
-	Wave->SetSampleRate(kRate);
-	Wave->NumChannels = 1;
+	Wave->SetSampleRate(SynthRate);
+	Wave->NumChannels = 2;
 	Wave->bLooping = false;
 	Wave->SoundGroup = SOUNDGROUP_Default;
 	Wave->Volume = 1.0f;
@@ -38,6 +60,7 @@ void UEXCraftAudio::BeginAudio()
 	Voice->SetupAttachment(GetOwner()->GetRootComponent());
 	Voice->bAutoActivate = false;
 	Voice->bAutoDestroy = false;
+	Voice->bAllowSpatialization = false;   // the mix is already stereo (pan, Doppler and distance done in the synth)
 	Voice->SetSound(Wave);
 	Voice->RegisterComponent();
 	bReady = true;
@@ -54,7 +77,18 @@ void UEXCraftAudio::EnsurePlaying()
 
 void UEXCraftAudio::Bang(float Strength)
 {
-	BangEnv = FMath::Max(BangEnv, FMath::Clamp(Strength, 0.0f, 1.0f));
+	if (Mixer)
+	{
+		Mixer->Impact(Strength);
+	}
+}
+
+void UEXCraftAudio::Landing(float Strength)
+{
+	if (Mixer)
+	{
+		Mixer->Landing(Strength);
+	}
 }
 
 void UEXCraftAudio::UpdateAudio(float Dt, const FEXCraftAudioInput& Input)
@@ -69,52 +103,56 @@ void UEXCraftAudio::UpdateAudio(float Dt, const FEXCraftAudioInput& Input)
 	}
 	BeginAudio();
 	EnsurePlaying();
-	ScrapeEnv = FMath::FInterpTo(ScrapeEnv, FMath::Clamp(Input.Impact, 0.0f, 1.0f), Dt, 14.0f);
-	BoostEnv = FMath::FInterpTo(BoostEnv, Input.bBoosting ? 1.0f : 0.0f, Dt, 8.0f);
-	const float Want = (Input.bHangar || Input.bRaceHold) ? 0.22f : 1.0f;
-	Master = FMath::FInterpTo(Master, Want, Dt, 3.0f);
-	BangEnv = FMath::Max(0.0f, BangEnv - Dt * 4.5f);
 
-	const int32 Queued = Wave ? Wave->GetAvailableAudioByteCount() / 2 : 0;
-	int32 Need = kAhead - Queued;
-	if (Need < kRate / 40)
+	EXSynth::FListener& Me = Mixer->Me;
+	Me.Ship = ShipFromName(Input.ShipName);
+	Me.Speed01 = Input.bHangar ? 0.0f : FMath::Max(0.0f, Input.SpeedMps) / FMath::Max(1.0f, Input.TopSpeedMps);
+	Me.Throttle = Input.bHangar ? 0.0f : Input.Throttle;
+	Me.Boost = Input.bBoosting ? 1.0f : 0.0f;
+	Me.Grounded = (Input.bGrounded || Input.bHangar) ? 1.0f : 0.0f;
+	Me.Drift = Input.bDrifting ? 1.0f : 0.0f;
+	Me.HeightM = Input.HeightM;
+	Me.WallLeft = Input.WallLeft;
+	Me.WallRight = Input.WallRight;
+	Me.Scrape = FMath::Clamp(Input.Impact, 0.0f, 1.0f);
+	Me.Master = Input.bHangar ? 0.35f : (Input.bRaceHold ? 0.6f : 1.0f);
+	if (Input.bBoosting && !bWasBoosting)
+	{
+		Mixer->BoostKick(1.0f);
+	}
+	bWasBoosting = Input.bBoosting;
+	for (int32 K = 0; K < EXSynth::kMaxOthers; ++K)
+	{
+		EXSynth::FOther& O = Mixer->Others[K];
+		O.bActive = K < Input.Others.Num();
+		if (!O.bActive)
+		{
+			continue;
+		}
+		const FEXCraftAudioOther& In = Input.Others[K];
+		O.Ship = ShipFromName(In.ShipName);
+		O.Speed01 = In.Speed01;
+		O.Throttle = In.Throttle;
+		O.Boost = In.bBoosting ? 1.0f : 0.0f;
+		O.Gain = In.Gain;
+		O.Pan = In.Pan;
+		O.PitchMul = In.PitchMul;
+		O.Muffle = In.Muffle;
+	}
+
+	const int32 Queued = Wave ? Wave->GetAvailableAudioByteCount() / (2 * sizeof(int16)) : 0;
+	int32 Need = FramesAhead - Queued;
+	if (Need < SynthRate / 60)
 	{
 		return;
 	}
-	Need = FMath::Min(Need, kRate / 8);
-	Render(Need, Input);
-}
-
-void UEXCraftAudio::Render(int32 Frames, const FEXCraftAudioInput& Input)
-{
-	TArray<int16> Pcm;
-	Pcm.SetNumUninitialized(Frames);
-	const float Speed01 = FMath::Clamp(Input.SpeedMps / 118.0f, 0.0f, 1.35f);
-	const float EngineHz = Input.bHangar ? 28.0f : (34.0f + Speed01 * 72.0f + Input.Throttle * 18.0f + BoostEnv * 22.0f);
-	const float HoverHz = 21.0f + Speed01 * 6.0f;
-	const float EngineGain = Input.bHangar ? 0.10f : (0.12f + 0.28f * FMath::Max(Input.Throttle, Speed01 * 0.65f));
-	const float WindGain = Input.bHangar ? 0.04f : (Speed01 * Speed01 * 0.42f + FMath::Abs(Input.Steer) * Speed01 * 0.08f);
-	const float HoverGain = (Input.bGrounded || Input.bHangar) ? (0.07f + 0.04f * Speed01) : 0.02f;
-	const float DriftGain = Input.bDrifting ? 0.10f : 0.0f;
-
-	for (int32 I = 0; I < Frames; ++I)
+	Need = FMath::Min(Need, SynthRate / 6);
+	Scratch.SetNumUninitialized(Need * 2, EAllowShrinking::No);
+	Pcm.SetNumUninitialized(Need * 2, EAllowShrinking::No);
+	Mixer->Render(Scratch.GetData(), Need);
+	for (int32 I = 0; I < Need * 2; ++I)
 	{
-		const float N = NextNoise(Noise);
-		EnginePhase = FMath::Fmod(EnginePhase + EngineHz / kRate, 1.0f);
-		HoverPhase = FMath::Fmod(HoverPhase + HoverHz / kRate, 1.0f);
-		const float TwoPi = 2.0f * PI;
-		const float E = FMath::Sin(EnginePhase * TwoPi) * 0.55f
-			+ FMath::Sin(EnginePhase * TwoPi * 2.03f) * 0.28f
-			+ FMath::Sin(EnginePhase * TwoPi * 3.07f) * 0.12f;
-		IntakeHp += 0.18f * (N - IntakeHp);
-		const float Intake = (N - IntakeHp) * (0.07f + Input.Throttle * 0.16f);
-		WindHp += 0.08f * (N - WindHp);
-		const float Wind = (N - WindHp) * WindGain;
-		const float Hover = FMath::Sin(HoverPhase * TwoPi) * HoverGain;
-		const float Scrape = ScrapeEnv * N * 0.35f;
-		const float Bang = BangEnv * N * 0.85f;
-		const float Sample = (E * EngineGain + Intake + Wind + Hover + Scrape + Bang + DriftGain * N * 0.2f) * Master * 0.55f;
-		Pcm[I] = static_cast<int16>(FMath::Clamp(Sample, -1.0f, 1.0f) * 30000.0f);
+		Pcm[I] = static_cast<int16>(FMath::Clamp(Scratch[I], -1.0f, 1.0f) * 32000.0f);
 	}
-	Wave->QueueAudio(reinterpret_cast<uint8*>(Pcm.GetData()), Frames * sizeof(int16));
+	Wave->QueueAudio(reinterpret_cast<const uint8*>(Pcm.GetData()), Need * 2 * sizeof(int16));
 }
