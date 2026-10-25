@@ -17,10 +17,11 @@ struct FEXHangarRow;
 /**
  * The hangar (Docs/MODULOS.md sec. 10, mock-ups equip_wing.png, equip_engine.png, consumiveis.png and cofre.png): the
  * workshop with the ship on the turntable and five tabs over it. NAVE: the ships and the launch button. EQUIPAR: the
- * slots on the left, the pieces for the slot on the right (the ship wears the one looked at; engine, propulsion and
- * reactor show the skeleton with the engine running), the stats now and with it at the bottom. CONSUMIVEIS: the four
- * quick slots and the stock. LOJA: caches and the rotation of modules. COFRE: caches to open (the cards turn over one
- * by one) and the modules owned, to sell. The state is in UEXHangarModel; this widget only shows it. Built in code.
+ * slots on the left, the pieces for the slot on the right (the ship wears the one looked at; engine, propulsion,
+ * reactor and utility show the skeleton with the engine running), the stats now and with it at the bottom.
+ * CONSUMIVEIS: the four quick slots and the stock. LOJA: caches and the rotation of modules. COFRE: caches to open (the
+ * cards turn over one by one) and the modules owned, to sell. The state is in UEXHangarModel; this widget only shows
+ * it. Built in code.
  */
 UCLASS()
 class EXTRACTINGSTARDUST_API UEXHangarWidget : public UUserWidget

@@ -193,8 +193,8 @@ public:
 	/** The last quick slot used and when (world time), for the HUD; -1 if none. */
 	int32 GetLastQuickSlot() const { return LastQuickSlot; }
 	float GetLastQuickTime() const { return LastQuickTime; }
-	/** Hangar preview: the craft wears this build. Looking at a slot inside the hull (engine, propulsion, reactor) the
-	 *  bodywork goes, the skeleton shows and the engine runs with its flame. */
+	/** Hangar preview: the craft wears this build. Looking at a slot inside the hull (engine, propulsion, reactor,
+	 *  utility) the bodywork goes, the skeleton shows and the engine runs with its flame. */
 	void PreviewModules(const TArray<FEXItem>& InModules, EEXFamily Focus);
 	/** No more ship changes once the race is on. */
 	void LockShip() { bShipLocked = true; }
@@ -342,12 +342,14 @@ private:
 	bool bOverheated = false, bRedline = false, bXRay = false;
 	int32 LastQuickSlot = -1, AppliedHangarVersion = -1, AppliedHangarShip = -1;
 	float PreviewEnginePower = 0.0f, HangarOrbitInput = 0.0f, HangarZoomInput = 0.0f;
-	/** The exterior pieces on the hull: wings, tail, armour, cooling, utility (attached to ShipMesh, no offset). */
+	/** The module pieces on the hull: wings, tail, armour (the body kit), cooling, and the utility module inside the
+	 *  nose, which only the x-ray view shows (attached to ShipMesh, no offset). */
 	UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> ModuleMeshes;
 	/** The x-ray view: structure, engines, reactor, cockpit, without the bodywork. */
 	UPROPERTY() TObjectPtr<UStaticMeshComponent> SkeletonMesh;
 	UPROPERTY() TObjectPtr<UMaterialInterface> GlowMaterial;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> ReactorGlow;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> UtilityGlow;
 	/** /Game/Ships/<SHIP>/SM_<SHIP>_<piece>, loaded once (a missing piece is remembered as null). */
 	UPROPERTY(Transient) TMap<FString, TObjectPtr<UStaticMesh>> PieceCache;
 	UPROPERTY(Transient) TObjectPtr<UEXHangarModel> HangarModel;

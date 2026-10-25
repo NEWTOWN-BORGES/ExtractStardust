@@ -33,16 +33,21 @@ Os números são TARGETS DE TUNING, como nos documentos.
 | Família | Por fora? | Onde (pontos de encaixe das naves novas) | No hangar, ao escolher |
 | --- | --- | --- | --- |
 | Asas | sim | `Socket_Wing_L/R`; substituem as asas de série | a asa aparece montada |
-| Blindagem | sim | `Socket_Armor_L/R`; placas no costado | as placas aparecem |
+| Blindagem | sim | kit de carroçaria na pintura da nave: saias no fundo do casco, lâmina à volta do nariz e, nos kits pesados, aletas debaixo da cauda; sempre abaixo da cintura (longe do cockpit) e por baixo das asas | o kit aparece montado |
 | Refrigeração | sim | `Socket_Cooling`: grelhas laterais ou radiadores no dorso | os radiadores aparecem |
 | Cauda | sim | `Socket_Tail`: barbatanas atrás (por baixo na WRAITH, que já tem barbatanas em cima) | aparecem |
-| Utilidade | sim | `Socket_Utility`: mastro, cúpula ou drone | aparece |
+| Utilidade | não (por dentro) | no nariz, à frente do cockpit (na WRAITH, no nariz da cápsula: as longarinas levam as condutas de ar) | esqueleto, com o módulo a brilhar a ciano |
 | Motor | não (por dentro) | nos motores de plasma | vista em **esqueleto**, com o motor ligado e as **chamas** do motor escolhido |
 | Propulsão | não | os bocais | esqueleto, com as chamas do boost |
 | Reator | não | o núcleo do reator | esqueleto, com o reator a brilhar na cor do módulo |
 
-**Vista em esqueleto:** a carroçaria desaparece e fica o chassis com motores, reator, cockpit e longarinas, como nos
-renders `*_inside.jpg` das naves.
+**Vista em esqueleto:** a carroçaria desaparece e fica o chassis com motores, reator, cockpit, longarinas e o módulo
+de utilidade, como nos renders `*_inside.jpg` das naves.
+
+**Blindagem = kit de carroçaria** (pedido do jogador, 2026-10-25): faz parte da nave, muda-lhe um pouco as linhas e
+continua aerodinâmica. Nada de placas cinzentas nem de peças a sair do casco. As peças têm as cores da própria nave
+(cor principal, friso na cor de destaque, rebordo na cor escura), as pontas são afiladas e nunca passam da cintura nem
+chegam ao vidro.
 
 ## 3. Catálogo
 
@@ -67,14 +72,14 @@ renders `*_inside.jpg` das naves.
 | prop_vector | Meridian Vector M | Meridian Engineering | M | +15 | aceleração |
 | prop_heavy | Frontier Heavy Thrust | Frontier Systems | L | +60 | boost e aceleração |
 
-**Blindagem (por fora):**
+**Blindagem (por fora, kit de carroçaria):**
 
 | Id | Nome | Fabricante | Classe | Massa (kg) | Visual |
 | --- | --- | --- | --- | --- | --- |
-| arm_skin | APEX Light Skin | APEX Dynamics | S | +30 | `armor_light` |
-| arm_guard | Meridian Guard Plates | Meridian Engineering | M | +90 | `armor_guard` |
-| arm_plate | Frontier Bulwark | Frontier Systems | L | +180 | `armor_bulwark` |
-| arm_shell | Oryx Shell Lattice | Oryx Reclamation | M | +70 | `armor_shell` |
+| arm_skin | APEX Light Skin | APEX Dynamics | S | +30 | `armor_light`: saias finas (3,6 cm) com friso de destaque, lâmina pequena no nariz |
+| arm_guard | Meridian Guard Plates | Meridian Engineering | M | +90 | `armor_guard`: saias em 3 painéis (6 cm), friso largo, lâmina, 2 aletas atrás |
+| arm_plate | Frontier Bulwark | Frontier Systems | L | +180 | `armor_bulwark`: saias grossas (10 cm) com faixa escura de borracha, lâmina grande, aletas |
+| arm_shell | Oryx Shell Lattice | Oryx Reclamation | M | +70 | `armor_shell`: carapaça arredondada com nervuras e junta a brilhar a ciano |
 
 **Reatores (por dentro; cor do brilho):**
 
@@ -101,13 +106,13 @@ renders `*_inside.jpg` das naves.
 | tail_twin | Meridian Twin Tail | Meridian Engineering | M | +20 | `tail_twin` |
 | tail_long | Frontier Long Keel | Frontier Systems | L | +40 | `tail_keel` |
 
-**Utilidade (por fora):**
+**Utilidade (por dentro, no nariz; só se vê no esqueleto):**
 
 | Id | Nome | Fabricante | Classe | Massa (kg) | Visual |
 | --- | --- | --- | --- | --- | --- |
-| util_scanner | Meridian Scanner Mast | Meridian Engineering | M | +8 | `utility_mast` |
-| util_routeintel | Oryx Route Oracle | Oryx Reclamation | M | +5 | `utility_dome` |
-| util_drone | Frontier Field Drone | Frontier Systems | M | +15 | `utility_drone` |
+| util_scanner | Meridian Scanner Mast | Meridian Engineering | M | +8 | `utility_mast`: radar de prato virado para a frente, sobre a caixa da eletrónica |
+| util_routeintel | Oryx Route Oracle | Oryx Reclamation | M | +5 | `utility_dome`: núcleo a brilhar num giroscópio, sobre um bloco com alhetas |
+| util_drone | Frontier Field Drone | Frontier Systems | M | +15 | `utility_drone`: drone dobrado no compartimento de lançamento, com a escotilha por cima |
 
 ### 3.2 Asas próprias de cada nave (12)
 
@@ -139,7 +144,7 @@ Têm rolls controlados, perk e número de série, que se mantêm quando mudam de
 | --- | --- | --- | --- | --- |
 | HELIOS V-9 | reator | energia +17%, boost +11%, refrigeração +8 | combustível +6% | brilho dourado claro |
 | REDLINE-X | motor | acima de 90% da velocidade máxima, +3% de velocidade | calor do boost +15% | chama vermelha de núcleo branco, com faíscas |
-| AEGIS FRAME | blindagem | dano de impacto −25% (na prática, choques mais fortes antes de perder vida) | massa +120 kg | placas grossas com friso dourado |
+| AEGIS FRAME | blindagem | dano de impacto −25% (na prática, choques mais fortes antes de perder vida) | massa +120 kg | kit largo, que abre em baixo, com banda de destaque entre frisos dourados, junta incandescente, lâmina maior e aletas |
 
 ## 4. Raridades e rolls (Doc 02, secção 7)
 
@@ -264,8 +269,9 @@ Separadores (Q/E ou os gatilhos de ombro): **NAVE**, **EQUIPAR**, **CONSUMÍVEIS
 - **EQUIPAR:**
   - à esquerda, os slots da nave com o módulo montado e a cor da raridade;
   - à direita, as peças compatíveis que tens (A/D passam por elas);
-  - a nave mostra a peça em que estás: asas, blindagem e o resto por fora; para motor, reator e propulsão, a vista em
-    esqueleto, com o motor ligado e as chamas dele (o reator brilha na cor do módulo);
+  - a nave mostra a peça em que estás: asas, blindagem (o kit), refrigeração e cauda por fora; para motor, reator,
+    propulsão e utilidade, a vista em esqueleto, com o motor ligado e as chamas dele (o reator brilha na cor do
+    módulo, o utilitário a ciano);
   - em baixo, as barras de stats, com o atual e o candidato, e as vidas;
   - Enter monta a peça, Backspace (X/Quadrado) volta à peça de série, T (Y/Triângulo) segura a peça do slot.
 - **CONSUMÍVEIS:** os 4 slots: A/D mudam a quantidade (0 a 2; se faltar no stock, compra uma), Enter troca o
@@ -278,12 +284,14 @@ Separadores (Q/E ou os gatilhos de ombro): **NAVE**, **EQUIPAR**, **CONSUMÍVEIS
 
 - **`Scripts/ship_modules.py`** corre no fim de cada `build_<nave>.py` e escreve em `<saída>/modules/`:
   - `<nave>_core` (a nave sem asas), `<nave>_wing_stock` e `<nave>_skeleton`;
-  - as 3 asas próprias e as peças universais encostadas à carroçaria da nave (encontrada por raios);
+  - as 3 asas próprias e as peças universais ajustadas à carroçaria da nave (encontrada por raios): o kit de
+    carroçaria segue o fundo do casco, foge das asas e nunca passa da cintura; o utilitário vai para o maior espaço
+    livre dentro do nariz, à frente do cockpit, sem tocar na estrutura nem nos sistemas (o log diz `UTILITY BAY`);
   - `<nave>_modules.json`, com as peças e os bocais dos motores, para as chamas.
 
   Tudo fica no referencial da nave: no Unreal, cada peça vai em cima da malha da nave sem deslocamento.
 - **`Scripts/render_modules.py`** faz as imagens de cada módulo na oficina.
-- **As peças das 4 naves** estão em `SourceArt/TestShips/modules/` (84 ficheiros, 13 MB). Para as refazer:
+- **As peças das 4 naves** estão em `SourceArt/TestShips/modules/` (84 ficheiros, 14 MB). Para as refazer:
   `python3 Scripts/build_<nave>.py <pasta> --no-render` e copiar `<pasta>/modules/` para lá.
 - **No Unreal:** as peças importam-se para `/Game/Ships/<NAVE>/SM_<NAVE>_<PEÇA>` com
   `Scripts/import_ship_modules.py` (o `casa_tudo.ps1` já o corre no passo 3c). No log, as linhas `MODULEBOUNDS`
@@ -320,11 +328,17 @@ compila.
 - as perdas e o espólio com peças reais (os bots levam peças a sério);
 - o HUD novo.
 
+**Refeito a pedido do jogador (2026-10-25, tarde):** a blindagem é agora um kit de carroçaria (secção 2) e os
+utilitários passaram para dentro do nariz, visíveis só no esqueleto. Imagens em `SourceArt/TestShips/previews/`:
+`kit_<nave>.jpg` (a nave sem kit e com os 5) e `utilidade.jpg`.
+
 **A testar no Unreal:**
 1. Importar as peças e ver no log as linhas `MODULEBOUNDS`.
-2. No hangar, trocar de asa e de blindagem: as peças têm de encaixar na nave sem deslocamento.
+2. No hangar, trocar de asa e de blindagem: as peças têm de encaixar na nave sem deslocamento. O kit não pode
+   tocar no vidro nem atravessar as asas.
 3. Ver o esqueleto e as chamas, que saem dos bocais (se saírem do nariz, o eixo Y dos bocais em `EXHoverCraft.cpp`,
-   tabela `ShipNozzles`, está ao contrário).
+   tabela `ShipNozzles`, está ao contrário). No slot de utilidade, o módulo tem de aparecer no nariz, a brilhar, e
+   desaparecer ao sair do esqueleto.
 4. Abrir a STANDARD CACHE inicial no COFRE.
 5. Correr no Pelotão 15 e ver o espólio no fim.
 

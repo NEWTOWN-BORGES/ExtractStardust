@@ -100,7 +100,7 @@ namespace
 		{ TEXT("NOMAD"), 0.16f, 3, { { 0.0f, 3.4f, 1.4f }, { -1.02f, 1.8f, 1.3f }, { 1.02f, 1.8f, 1.3f } } },
 		{ TEXT("VORTEX"), 0.20f, 1, { { 0.0f, 2.6f, 0.475f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } } },
 	};
-	/** The pieces on the hull, in the order of AEXHoverCraft::ModuleMeshes. */
+	/** The module pieces on the ship mesh (utility inside the nose), in the order of AEXHoverCraft::ModuleMeshes. */
 	const EEXFamily CraftExterior[] = { EEXFamily::Wings, EEXFamily::Tail, EEXFamily::Armor, EEXFamily::Cooling, EEXFamily::Utility };
 	const TCHAR* const CraftExteriorNames[] = { TEXT("ModuleWings"), TEXT("ModuleTail"), TEXT("ModuleArmor"), TEXT("ModuleCooling"), TEXT("ModuleUtility") };
 
@@ -1890,9 +1890,9 @@ void AEXHoverCraft::PreviewModules(const TArray<FEXItem>& InModules, EEXFamily F
 {
 	Modules = InModules;
 	Modules.SetNum(EXMeta::FamilyCount);
-	// Engine, propulsion and reactor sit inside the hull: the x-ray view, with the engine running (the nitro colour
-	// shows on the propulsion slot).
-	bXRay = Focus == EEXFamily::Engine || Focus == EEXFamily::Propulsion || Focus == EEXFamily::Reactor;
+	// Engine, propulsion, reactor and the utility module sit inside the hull: the x-ray view, with the engine running
+	// (the nitro colour shows on the propulsion slot).
+	bXRay = Focus == EEXFamily::Engine || Focus == EEXFamily::Propulsion || Focus == EEXFamily::Reactor || Focus == EEXFamily::Utility;
 	PreviewEnginePower = Focus == EEXFamily::Engine ? 0.85f : (Focus == EEXFamily::Propulsion ? 1.0f : (bXRay ? 0.35f : 0.0f));
 	RefreshModuleVisuals();
 }
@@ -1945,9 +1945,30 @@ void AEXHoverCraft::RefreshModuleVisuals()
 			}
 		}
 		ModuleMeshes[K]->SetStaticMesh(Mesh);
-		ModuleMeshes[K]->SetVisibility(Mesh != nullptr && !bShowSkeleton);
+		ModuleMeshes[K]->EmptyOverrideMaterials();
+		// The utility module sits inside the nose (Scripts/ship_modules.py): only the x-ray view shows it, glowing.
+		const bool bInside = CraftExterior[K] == EEXFamily::Utility;
+		ModuleMeshes[K]->SetVisibility(Mesh != nullptr && bShowSkeleton == bInside);
+		if (bInside && Mesh && GlowMaterial)
+		{
+			if (!UtilityGlow)
+			{
+				UtilityGlow = UMaterialInstanceDynamic::Create(GlowMaterial, this);
+				UtilityGlow->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.37f, 0.89f, 1.0f));
+				UtilityGlow->SetScalarParameterValue(TEXT("Intensity"), 20.0f);
+			}
+			const TArray<FStaticMaterial>& Slots = Mesh->GetStaticMaterials();
+			for (int32 Slot = 0; Slot < Slots.Num(); ++Slot)
+			{
+				if (Slots[Slot].MaterialSlotName.ToString().Contains(TEXT("Utility_Glow")))
+				{
+					ModuleMeshes[K]->SetMaterial(Slot, UtilityGlow);
+				}
+			}
+		}
 	}
 	SkeletonMesh->SetStaticMesh(Skeleton);
+	SkeletonMesh->EmptyOverrideMaterials();   // the glow slots differ from ship to ship
 	SkeletonMesh->SetVisibility(bShowSkeleton);
 	if (Skeleton && GlowMaterial)
 	{

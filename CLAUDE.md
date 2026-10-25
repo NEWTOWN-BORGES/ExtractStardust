@@ -34,11 +34,16 @@ LOJA e COFRE. Há carteira de STARDUST guardada e espólio na meta. Interface em
 
 Os módulos do jogo antigo (a demo Unity das 5 naves antigas) foram trazidos para as naves novas, com as regras de
 `Catalog.cs`, `Items.cs` e `Economy.cs` do `main`.
-- **Peças:** 3 asas próprias por nave e as peças universais encostadas à carroçaria, feitas por
+- **Peças:** 3 asas próprias por nave e as peças universais ajustadas à carroçaria, feitas por
   `Scripts/ship_modules.py`. Ficam em `SourceArt/TestShips/modules/` e importam-se com
   `Scripts/import_ship_modules.py` (passo 3c do `casa_tudo.ps1`).
-- **Hangar:** no EQUIPAR a nave mostra a peça escolhida. Motor, reator e propulsão mostram-se em esqueleto, com as
-  chamas de cada motor.
+- **Blindagem = kit de carroçaria** (pedido do jogador, 2026-10-25): faz parte da nave, na pintura dela (saias no
+  fundo do casco, lâmina no nariz, aletas atrás nos kits pesados), muda-lhe um pouco as linhas e continua
+  aerodinâmica. Nada de placas cinzentas, nada a sair do casco, nada perto do cockpit.
+- **Utilidade por dentro:** o scanner, o oracle e o drone ficam dentro do nariz e só se veem no esqueleto, a brilhar.
+  Nada de sondas no nariz.
+- **Hangar:** no EQUIPAR a nave mostra a peça escolhida. Motor, reator, propulsão e utilidade mostram-se em
+  esqueleto, com as chamas de cada motor.
 - **Consumíveis:** 4 slots, nas teclas 1-4 e nas setas do comando (cima, baixo, esquerda, direita).
 - **Combustível e calor:** são sistemas novos.
 - **Caixas:** STANDARD, ADVANCED e ELITE.

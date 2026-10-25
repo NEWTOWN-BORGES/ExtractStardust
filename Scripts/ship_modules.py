@@ -3,10 +3,11 @@
 # - wings of the ship's own: three per ship, grown from its stock wing (the same root section, so they go through the
 #   same slots in the bodywork): short and swept with a tip fin, long with end plates, a second vector surface, braced
 #   and thick, or a glider with folded tips and a glowing leading edge;
-# - universal pieces that sit on the ship's own bodywork (found with ray casts): armour plates, vents and radiators,
-#   tail fins, a scanner mast, a sensor dome, a field drone;
+# - universal pieces fitted to the ship's own bodywork (found with ray casts): the armour as a body kit in the ship's
+#   paint (side skirts, a blade round the nose, fins under the tail), vents and radiators, tail fins; and the utility
+#   modules inside the nose (a scanner array, a route oracle, a field drone), seen only in the x-ray view;
 # - the ship split for the game: the core (everything but the wings), the stock wings, and the skeleton (structure and
-#   systems without the bodywork: the hangar's x-ray view of the engines and the reactor).
+#   systems without the bodywork: the hangar's x-ray view of the engines, the reactor and the utility module).
 # Called at the end of build_<ship>.py, after finish_ship:  build_modules(globals(), wings=..., palette=..., ...)
 # Writes <out>/modules/<ship>_<piece>.fbx, all in the ship's frame (front -Y, up +Z, metres), so in Unreal every piece
 # goes on the ship mesh with no offset; and <ship>_modules.json (the pieces and the engine nozzles, for the flames).
@@ -15,6 +16,7 @@ import math
 import os
 
 import bpy
+import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
@@ -29,7 +31,27 @@ WING_KINDS = {
     "brace": dict(span=1.15, sweep=0.90, chord=1.30, anh=0.8, th=1.8),      # Frontier Brace Wings: wall-ride, heavy
     "glide": dict(span=1.45, sweep=1.15, chord=0.85, anh=0.5, th=1.0),      # Oryx Glide Array: air control, relic
 }
-ARMOUR_KINDS = ("light", "guard", "bulwark", "shell", "aegis")
+# Body kits (the armour), in the ship's own paint: skirt thickness and height up the side, how far the lip hangs
+# under the hull's lowest line, panels along the skirt, how far the nose blade sticks out and how far back it runs,
+# the height of the fins under the tail (0: none); all in metres, times the ship's scale.
+ARMOUR_KITS = {
+    "light": dict(T=0.036, h=0.17, drop=0.0, panels=1, lip=0.045, lip_len=1.0, fins=0.0),        # APEX Light Skin
+    "guard": dict(T=0.060, h=0.23, drop=0.015, panels=3, lip=0.07, lip_len=1.2, fins=0.06),      # Meridian Guard Plates
+    "bulwark": dict(T=0.100, h=0.30, drop=0.030, panels=1, lip=0.10, lip_len=1.35, fins=0.08),   # Frontier Bulwark
+    "shell": dict(T=0.080, h=0.28, drop=0.020, panels=1, lip=0.06, lip_len=1.1, fins=0.0),       # Oryx Shell Lattice
+    "aegis": dict(T=0.090, h=0.30, drop=0.032, panels=1, lip=0.12, lip_len=1.5, fins=0.10),      # AEGIS FRAME
+}
+ARMOUR_KINDS = tuple(ARMOUR_KITS)
+# The bands across each skirt (0 at the seam on the side, 1 at the lip) that are not the main paint: an accent
+# pinstripe, the lip and a rub strip in the edge paint, the shell's ribs and glowing seam, the AEGIS gold and hot seam.
+ARMOUR_LOOK = {
+    "light": [(0.48, 0.56, "accent"), (0.88, 1.0, "edge")],
+    "guard": [(0.28, 0.38, "accent"), (0.84, 1.0, "edge")],
+    "bulwark": [(0.16, 0.21, "accent"), (0.52, 0.80, "edge"), (0.90, 1.0, "edge")],
+    "shell": [(0.36, 0.42, "Emit_Hover"), (0.52, 0.88, "rib"), (0.90, 1.0, "edge")],
+    "aegis": [(0.14, 0.18, "Gold"), (0.40, 0.44, "Emit_Hot"), (0.44, 0.78, "accent"), (0.78, 0.82, "Gold"),
+              (0.88, 1.0, "edge")],
+}
 COOLING_KINDS = ("vents", "radiator", "grid")
 TAIL_KINDS = ("compact", "twin", "keel")
 UTILITY_KINDS = ("mast", "dome", "drone")
@@ -47,6 +69,33 @@ def ensure_mat(name, col, metal=0.0, rough=0.45, emit=0.0):
     if name not in K.MAT:
         K.material(name, col, metal=metal, rough=rough, emit=emit)
     return name
+
+
+def smooth(t):
+    t = min(1.0, max(0.0, t))
+    return t * t * (3 - 2 * t)
+
+
+def interp(plan, y):
+    """The (z, height) of a skirt plan [(y, z, height)] at y."""
+    for a, b in zip(plan, plan[1:]):
+        if y <= b[0]:
+            f = min(1.0, max(0.0, (y - a[0]) / (b[0] - a[0])))
+            return a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f
+    return plan[-1][1], plan[-1][2]
+
+
+def mesh_bvh(objs):
+    dg = bpy.context.evaluated_depsgraph_get()
+    verts, polys = [], []
+    for o in objs:
+        ev = o.evaluated_get(dg)
+        me = ev.to_mesh()
+        base = len(verts)
+        verts.extend(o.matrix_world @ v.co for v in me.vertices)
+        polys.extend([base + i for i in p.vertices] for p in me.polygons)
+        ev.to_mesh_clear()
+    return BVHTree.FromPolygons(verts, polys) if polys else None
 
 
 def frame_of(n, along=Vector((0, 1, 0))):
@@ -88,6 +137,24 @@ class Builder:
                          if not (p.material_index < len(glass) and glass[p.material_index]))
             ev.to_mesh_clear()
         self.bvh = BVHTree.FromPolygons(verts, polys)   # the bodywork, for placing pieces on it
+        self.y_min, self.y_max = min(v.y for v in verts), max(v.y for v in verts)
+        self.z_low, self.z_high = min(v.z for v in verts), max(v.z for v in verts)
+        self.nose_y = self.y_min
+        self.z_steps = [self.z_low - 0.01 + 0.01 * k for k in range(int((self.z_high - self.z_low) / 0.01) + 3)]
+        self.cache, self.bay = {}, None
+        # the front of the canopy: its glass high on the hull (a lens low on the nose is not it)
+        mid, glass = (self.z_low + self.z_high) / 2, []
+        for o in K.SHIP.objects:
+            if o.type != 'MESH':
+                continue
+            mats = [bool(sl.material) and "Glass" in sl.material.name for sl in o.material_slots]
+            glass.extend((o.matrix_world @ o.data.vertices[i].co) for p in o.data.polygons
+                         if o.name.startswith("Canopy") or (p.material_index < len(mats) and mats[p.material_index])
+                         for i in p.vertices)
+        glass = [v for v in glass if v.z > mid]
+        self.canopy_y = min(v.y for v in glass) if glass else self.y_min + 0.4 * (self.y_max - self.y_min)
+        self.wing_bvh = mesh_bvh(self.meshes(self.is_wing))
+        self.hover_bvh = mesh_bvh(self.meshes(lambda o: under(o, self.G["Hover"]))) if "Hover" in self.G else None
 
     # ------------------------------------------------------------ scene helpers
     def is_wing(self, o):
@@ -287,101 +354,302 @@ class Builder:
         self.export(made, "wing_" + kind)
         self.drop(made)
 
-    # ------------------------------------------------------------ 3. armour plates on the ship's sides
-    def wrap_hit(self, s, y, zc, th):
-        """The bodywork round the hull's side at angle th (0 = level with the side, + towards the deck)."""
-        d = Vector((s * math.cos(th), 0, math.sin(th)))
-        return self.hit(Vector((0, y, zc)) + d * 4.0, -d, 8.0)
+    # ------------------------------------------------------------ 3. body kits (the armour)
+    def side_x(self, s, y, z):
+        """How far out the bodywork is at (y, z) on side s, seen from outside, or None (past the hull there)."""
+        key = (s, round(y, 4), round(z, 4))
+        if key not in self.cache:
+            loc, _ = self.side_hit(s, y, z)
+            self.cache[key] = abs(loc.x) if loc is not None else None
+        return self.cache[key]
+
+    def side_span(self, s, y):
+        """The lowest and the highest point of the hull side at y, or None."""
+        zs = [z for z in self.z_steps if self.side_x(s, y, z) is not None]
+        return (zs[0], zs[-1]) if zs else None
+
+    def wing_floor(self, s, y, x0, reach):
+        """The lowest underside of the stock wing from x0 out to x0 + reach at y, or None (or no wings at all)."""
+        if self.wing_bvh is None:
+            return None
+        zs = []
+        for k in range(6):
+            loc, _, _, _ = self.wing_bvh.ray_cast(Vector((s * (x0 + reach * k / 5), y, self.z_low - 1.0)),
+                                                  Vector((0, 0, 1)), 5.0)
+            if loc is not None:
+                zs.append(loc.z)
+        return min(zs) if zs else None
+
+    def footprint(self, y):
+        """The hull's underside across y, its lowest stretch only: one [(x, z), ...] per body (one hull, or two
+        booms). Narrow gaps (the hover emitters' cut-outs) do not split a body."""
+        hits = []
+        for k in range(321):
+            x = -1.6 + 0.01 * k
+            loc, _ = self.hit((x, y, self.z_low - 1.0), (0, 0, 1), 5.0)
+            hits.append((x, loc.z) if loc is not None else None)
+        zs = [h[1] for h in hits if h]
+        if not zs:
+            return []
+        top = min(zs) + 0.10
+        bodies = []
+        for h in hits:
+            if h is None or h[1] > top:
+                continue
+            if bodies and h[0] - bodies[-1][-1][0] < 0.45:
+                bodies[-1].append(h)
+            else:
+                bodies.append([h])
+        return [b for b in bodies if len(b) >= 3]
+
+    def skirt_plans(self, s, kit, y_start):
+        """Where the skirt runs on side s: [(y, lowest z of the side, height up it)] along the longest stretch behind
+        y_start where the side is tall enough and the stock wing leaves room over it (it goes on under a low wing,
+        lower). The seam line never climbs or drops faster than 30 cm a metre, so it eases down before a wing
+        instead of stepping. Never up past the waist."""
+        sc, T, dy = self.scale, kit["T"] * self.scale, 0.04
+        rows = []
+        y = y_start
+        while y < self.y_max - 0.05 * (self.y_max - self.y_min):
+            span = self.side_span(s, y)
+            row = None
+            if span:
+                z_b, z_t = span
+                h = min(kit["h"] * sc, 0.5 * (z_t - z_b))
+                x0 = self.side_x(s, y, z_b + 0.01) or 0.0
+                near = self.wing_floor(s, y, x0, 0.02)          # over the seam
+                out = self.wing_floor(s, y, x0, T + 0.06)       # over the lip
+                if near is not None:
+                    h = min(h, near - z_b - 0.02)
+                if h >= 0.05 * sc and (out is None or out > z_b + 0.04):
+                    row = [y, z_b, h, self.side_x(s, y, z_b + 0.5 * h) or 0.0]
+            rows.append(row)
+            y += dy
+        for i in range(1, len(rows) - 1):               # one or two odd stations (a ray down a panel gap) are bridged
+            if rows[i] is None and rows[i - 1] is not None:
+                j = next((j for j in (i + 1, i + 2) if j < len(rows) and rows[j] is not None), None)
+                if j is not None:
+                    for k in range(i, j):
+                        f = (k - i + 1) / (j - i + 1)
+                        rows[k] = [a + (b - a) * f for a, b in zip(rows[i - 1], rows[j])]
+        runs, cur = [], []
+        for row in rows:
+            # a step in the side or in its bottom line (an intake, a wing glove) ends the stretch too
+            if row is None or (cur and (abs(row[3] - cur[-1][3]) > 0.03 or abs(row[1] - cur[-1][1]) > 0.025)):
+                runs, cur = runs + [cur], []
+            if row is not None:
+                cur.append(row)
+        run = max(runs + [cur], key=len)
+        if len(run) * dy < 0.5 * sc:
+            return []
+        hs = [r[2] for r in run]
+        for i in range(1, len(hs)):                     # the seam's slope, both ways
+            hs[i] = min(hs[i], hs[i - 1] + 0.3 * dy)
+        for i in range(len(hs) - 2, -1, -1):
+            hs[i] = min(hs[i], hs[i + 1] + 0.3 * dy)
+        zb = [r[1] for r in run]                        # the bottom line: the lowest round each station, averaged
+        lo = [min(zb[max(0, i - 2):i + 3]) for i in range(len(zb))]
+        for i, r in enumerate(run):
+            w, v = lo[max(0, i - 3):i + 4], hs[max(0, i - 2):i + 3]
+            r[1], r[2] = sum(w) / len(w), sum(v) / len(v)
+        return [r[:3] for r in run] and [[r[:3] for r in run]]
+
+    def skirt_grid(self, s, plan, us, Lf):
+        """The bodywork under a skirt, station by station: the heights of the section, how far out the hull is at
+        each (raw, and smoothed along the skirt, hanging straight over the lower chamfer, so the panel is clean),
+        and a safe point just inside it."""
+        ya = plan[0][0]
+        grid = []
+        for y, z_b, h in plan:
+            h *= 0.55 + 0.45 * smooth((y - ya) / Lf)             # the seam sweeps down to the point at the front
+            zs = [z_b + h + (0.004 - h) * u for u in us]
+            raw = []
+            for z in zs:
+                x = self.side_x(s, y, z)
+                raw.append(x if x is not None else (raw[-1] if raw else 0.0))
+            env, m = [], 0.0
+            for x in raw:
+                m = max(m, x)
+                env.append(m)
+            grid.append([y, zs, raw, env])
+        n, M = len(grid), len(us)
+        smo = [[0.0] * M for _ in range(n)]
+        ins = [[0.0] * M for _ in range(n)]
+        for k in range(M):                      # along the skirt: the highest round each station, then averaged
+            hi = [max(grid[j][3][k] for j in range(max(0, i - 1), min(n, i + 2))) for i in range(n)]
+            for i in range(n):
+                w = hi[max(0, i - 3):i + 4]
+                smo[i][k] = sum(w) / len(w)
+                ins[i][k] = min(grid[j][2][k] for j in range(max(0, i - 1), min(n, i + 2))) - 0.006
+        return [(g[0], g[1], g[2], smo[i], ins[i]) for i, g in enumerate(grid)]
+
+    @staticmethod
+    def grid_at(grid, y):
+        for a, b in zip(grid, grid[1:]):
+            if y <= b[0]:
+                f = min(1.0, max(0.0, (y - a[0]) / (b[0] - a[0])))
+                return [[p + (q - p) * f for p, q in zip(u, v)] for u, v in zip(a[1:], b[1:])]
+        return [list(v) for v in grid[-1][1:]]
+
+    def skirts(self, part, kind, kit, y_start):
+        sc = self.scale
+        T, drop, Lf, Lr = kit["T"] * sc, kit["drop"] * sc, 0.80 * sc, 0.30 * sc
+        bands = ARMOUR_LOOK[kind]
+        us = sorted({k / 12 for k in range(13)} | {u for a, b, _ in bands for u in (a, b)})
+        us = [u for i, u in enumerate(us) if i == 0 or u - us[i - 1] > 0.012]
+        b0 = 0.004 / T                                               # the seam stands 4 mm off the bodywork
+        shape = {"shell": lambda u: 1 - (1 - u) ** 2.2, "aegis": lambda u: u ** 1.7,
+                 "bulwark": lambda u: smooth(min(1.0, 1.25 * u))}.get(kind, smooth)
+
+        def look(u, y):
+            for a, b, m in bands:
+                if a <= u <= b:
+                    if m == "rib":                                   # the shell's ribs, 4 cm every 16 cm
+                        return self.accent if int(round((y - self.y_min) / 0.04)) % 4 == 0 else self.main
+                    return {"accent": self.accent, "edge": self.edge}.get(m, m)
+            return self.main
+
+        M = len(us)
+        for s in (1, -1):
+            for plan in self.skirt_plans(s, kit, y_start):
+                grid = self.skirt_grid(s, plan, us, Lf)
+                ya, yb = plan[0][0], plan[-1][0]
+                n = kit["panels"] if yb - ya > 1.2 * sc else 1
+                cuts = [ya + (yb - ya) * k / n for k in range(n + 1)]
+                for k in range(n):
+                    pa, pb = cuts[k] + (0.01 if k else 0.0), cuts[k + 1] - (0.01 if k < n - 1 else 0.0)
+                    ys = [pa] + [r[0] for r in plan if pa + 0.015 < r[0] < pb - 0.015] + [pb]
+                    rows = []
+                    for y in ys:
+                        zs, raw, smo, ins = self.grid_at(grid, y)
+                        ramp = smooth((y - ya) / Lf) * smooth((yb - y) / Lr)
+                        out = [Vector((s * (r + ramp * (m - r) + T * ramp * (b0 + (1 - b0) * shape(u))), y,
+                                       z - drop * ramp * u * u)) for r, m, z, u in zip(raw, smo, zs, us)]
+                        under = Vector((s * (ins[-1] - 0.014), y, out[-1].z))
+                        rows.append(out + [under] + [Vector((s * x, y, z)) for x, z in zip(ins[::-1], zs[::-1])])
+
+                    def m_fn(i, j, ys=ys):
+                        if j < M - 1:
+                            return look((us[j] + us[j + 1]) / 2, ys[i])
+                        return self.edge if j < M + 1 else self.main
+                    part.loft(rows, m_fn, closed_u=True, cap0=self.edge, cap1=self.edge)
+
+    def splitter(self, part, kit):
+        """A blade round the bottom of the nose (round each boom's nose on a twin-boom ship), sticking out past the
+        hull by kit['lip'] at the tip and fading into the bodywork kit['lip_len'] further back."""
+        sc = self.scale
+        D, Ls, tk0, w_in = kit["lip"] * sc, kit["lip_len"] * sc, (0.016 + 0.1 * kit["T"]) * sc, 0.04
+        y0 = self.y_min
+        while y0 < self.y_min + 1.0 and not self.footprint(y0):
+            y0 += 0.02
+        chains = []                               # per body: rows of (y, left x, left z, right x, right z)
+        y = y0
+        while y <= y0 + Ls:
+            for b in self.footprint(y):
+                row = (y, b[0][0], b[0][1], b[-1][0], b[-1][1])
+                c = (row[1] + row[3]) / 2
+                near = [ch for ch in chains if ch[-1][0] > y - 0.08 and abs((ch[-1][1] + ch[-1][3]) / 2 - c) < 0.3]
+                if near:
+                    near[0].append(row)
+                elif y < y0 + 0.15:
+                    chains.append([row])
+            y += 0.05
+        chains = [ch for ch in chains if len(ch) >= 4]
+        if not chains:
+            return
+        x_min = min(ch[0][1] for ch in chains)
+        x_max = max(ch[0][3] for ch in chains)
+        for ch in chains:
+            ya = ch[0][0]
+            pts = []                              # (x, y, z, side or None at the tip, the ship's outermost edge?)
+            for y, xl, zl, xr, zr in reversed(ch):
+                pts.append((xl, y, zl, -1, ch[0][1] <= x_min + 1e-6))
+            cx, half, zf = (ch[0][1] + ch[0][3]) / 2, (ch[0][3] - ch[0][1]) / 2, (ch[0][2] + ch[0][4]) / 2
+            arc = []
+            for k in range(1, 8):                 # the tip, a flat half-ellipse ahead of the first station
+                a = math.pi * k / 8
+                arc.append((cx - half * math.cos(a), ya - 0.5 * max(half, 0.05) * math.sin(a), zf, None, True))
+            pts += arc
+            for y, xl, zl, xr, zr in ch:
+                pts.append((xr, y, zr, 1, ch[0][3] >= x_max - 1e-6))
+            # the outline smoothed (the underside is found on a 1 cm grid, the chamfers are faceted)
+            sm = []
+            for k in range(len(pts)):
+                w = pts[max(0, k - 2):k + 3]
+                sm.append((sum(p[0] for p in w) / len(w), sum(p[1] for p in w) / len(w), sum(p[2] for p in w) / len(w)))
+            ds = []
+            for k, (x, y, z, side, outer) in enumerate(pts):
+                f = min(1.0, max(0.0, (y - ya) / Ls))
+                d = D * (1 - f) ** 1.2
+                if side is not None and outer:    # just past the hull's widest point near the bottom
+                    wide = max([self.side_x(side, y, z + dz) or 0.0 for dz in (0.0, 0.015, 0.03)])
+                    d = min(max(d, wide - abs(x) + 0.5 * d), d + 0.05 * sc)
+                elif side is not None:
+                    d *= 0.6
+                ds.append(d * (1 - smooth((f - 0.7) / 0.3)))
+            ds = [sum(ds[max(0, k - 3):k + 4]) / len(ds[max(0, k - 3):k + 4]) for k in range(len(ds))]
+            rows = []
+            for k, (x, y, z) in enumerate(sm):
+                p0, p1 = sm[max(k - 1, 0)], sm[min(k + 1, len(sm) - 1)]
+                tan = Vector((p1[0] - p0[0], p1[1] - p0[1], 0)).normalized()
+                n = Vector((-tan.y, tan.x, 0))
+                if n.dot(Vector((x - cx, y - (ya + 0.3), 0))) < 0:
+                    n = -n
+                f = min(1.0, max(0.0, (y - ya) / Ls))
+                d, tk = ds[k], tk0 * (0.35 + 0.65 * (1 - f))
+                c = Vector((x, y, z))
+                rows.append([c - n * w_in + Vector((0, 0, 0.004)), c + n * d + Vector((0, 0, 0.004)),
+                             c + n * (d + 0.35 * tk) + Vector((0, 0, -0.5 * tk)), c + n * d + Vector((0, 0, -tk)),
+                             c - n * w_in + Vector((0, 0, -tk))])
+            part.loft(rows, lambda i, j: self.accent if j in (1, 2) else self.edge, closed_u=True, cap0=self.edge,
+                      cap1=self.edge)
+
+    def diffuser(self, part, kit):
+        """Two fins under the end of the hull's lowest part, growing towards the tail, clear of the hover emitters."""
+        sc = self.scale
+        hd, Lf, tf = kit["fins"] * sc, 0.62 * sc, 0.016 * sc
+        y = self.y_max - 0.02
+        while y > self.y_min and not any(b for b in self.footprint(y) if min(z for _, z in b) < self.z_low + 0.12):
+            y -= 0.03
+        bodies = self.footprint(y - 0.04)
+        if not bodies:
+            return
+        y_end = y - 0.01
+        xs = [min(b[0][0] for b in bodies) + 0.07 * sc, max(b[-1][0] for b in bodies) - 0.07 * sc]
+        for x0 in xs:
+            for x in (x0, x0 - math.copysign(0.05, x0), x0 - math.copysign(0.10, x0)):
+                rows, clash = [], False
+                for k in range(9):
+                    yy = y_end - Lf + Lf * k / 8
+                    loc, _ = self.hit((x, yy, self.z_low - 1.0), (0, 0, 1), 5.0)
+                    if loc is None or loc.z > self.z_low + 0.16:
+                        rows = []
+                        break
+                    top, hgt = loc.z + 0.004, hd * max(0.06, (k / 8) ** 1.3)
+                    pad, _, _, _ = self.hover_bvh.ray_cast(Vector((x, yy, self.z_low - 1.0)), Vector((0, 0, 1)), 5.0) \
+                        if self.hover_bvh else (None, None, None, None)
+                    if pad is not None and pad.z < top + 0.01:
+                        clash = True
+                        break
+                    rows.append([Vector((x - tf / 2, yy, top)), Vector((x + tf / 2, yy, top)),
+                                 Vector((x + tf / 2, yy, top - hgt)), Vector((x - tf / 2, yy, top - hgt))])
+                if rows and not clash:
+                    part.loft(rows, lambda i, j: self.accent if j == 2 else self.edge, closed_u=True,
+                              cap0=self.edge, cap1=self.edge)
+                    break
 
     def armour(self, kind):
-        sc = self.scale
-        # length, angles round the hull (degrees: below the side wall, up onto the deck), thickness, panels along
-        L, th0, th1, thick, panels = {"light": (1.25, -12, 22, 0.010, 1), "guard": (1.75, -22, 42, 0.018, 3),
-                                      "bulwark": (2.05, -26, 44, 0.038, 2), "shell": (1.65, -24, 46, 0.014, 1),
-                                      "aegis": (2.15, -28, 46, 0.042, 1)}[kind]
-        L *= sc
-        plate = {"light": "Metal_Bright", "guard": self.edge, "bulwark": "Graphite", "shell": "Graphite",
-                 "aegis": "Graphite"}[kind]
-        gap, stand = 0.035, 0.014                    # between panels; off the bodywork
-        reach = 0.42 * max(1.0, sc)                  # how far round the hull a plate may wrap from the side wall
-        made = []
-        for s, side in ((1, "R"), (-1, "L")):
-            c = self.sock.get("Socket_Armor_" + side)
-            if c is None:
-                continue
-            zs = [z for z in (c.z + d * 0.02 for d in range(-30, 31)) if self.side_hit(s, c.y, z)[0] is not None]
-            if not zs:
-                continue
-            zc = (max(zs) + min(zs)) / 2
-            edge, _ = self.side_hit(s, c.y, zc)
-            half = abs(edge.x) if edge is not None else abs(c.x)
-            g = self.group("Module_Armor_%s_%s" % (kind, side))
-            part = K.Part("Armor_%s_%s" % (kind.capitalize(), side))
-            grids = []
-            seg = (L - gap * (panels - 1)) / panels
-            for k in range(panels):
-                y0 = c.y - L / 2 + k * (seg + gap)
-                ths = [math.radians(th0 + (th1 - th0) * j / 6) for j in range(7)]
-                mid = min(range(7), key=lambda j: abs(ths[j]))
-                grid = [[None] * 9 for _ in range(7)]
-                for i in range(9):
-                    y = y0 + seg * i / 8
-                    side = Vector((s * half, y, zc))
-                    col = []
-                    for th in ths:
-                        loc, nor = self.wrap_hit(s, y, zc, th)
-                        ok = loc is not None and s * loc.x >= 0.3 * half and (loc - side).length <= reach
-                        col.append((loc, nor.normalized()) if ok else None)
-                    if col[mid] is None:
-                        col[mid] = (side, Vector((s, 0, 0)))
-                    for j in range(mid - 1, -1, -1):           # past the hull's curve (a fin, the belly, the canopy):
-                        col[j] = col[j] or col[j + 1]           # the plate stops at the last good row
-                    for j in range(mid + 1, 7):
-                        col[j] = col[j] or col[j - 1]
-                    for j in range(7):
-                        grid[j][i] = col[j]
-                part.loft([[lc + nr * (stand + thick) for lc, nr in row] for row in grid], lambda i, j: plate)
-                grids.append(grid)
-            K.orient_out(part, lambda cc: Vector((0, cc.y, zc)))
-            made.append(K.shell(part, g, thick=thick, bevel=0.004 if thick > 0.03 else 0.003))
-            bits = K.Part("Armor_%s_Bits_%s" % (kind.capitalize(), side))
-            top = stand + thick
-            for grid in grids:
-                for loc, nor in (grid[0][0], grid[0][-1], grid[-1][0], grid[-1][-1], grid[3][0], grid[3][-1]):
-                    p0 = loc + nor * top                                                  # bolts
-                    bits.cyl(p0 - nor * 0.004, p0 + nor * 0.010, 0.016 if thick > 0.03 else 0.012, "Metal_Bright", 8)
-            if kind in ("bulwark", "aegis"):                                              # shock absorbers on the deck
-                for grid in grids:
-                    for i in (2, 4, 6):
-                        loc, nor = grid[-1][i]
-                        bits.box(loc + nor * (top + 0.025), (0.12, 0.06, 0.05), "Metal", frame_of(nor))
-                for grid in grids:                                                        # steel edge strips
-                    for j in (0, 6):
-                        loc, nor = grid[j][4]
-                        bits.box(loc + nor * (top + 0.004), (seg * 0.96, 0.03, 0.012), "Metal", frame_of(nor))
-            if kind == "guard":                                                           # a dark band per panel
-                for grid in grids:
-                    loc, nor = grid[3][4]
-                    bits.box(loc + nor * (top + 0.003), (seg * 0.9, 0.05, 0.008), "Graphite", frame_of(nor))
-            if kind == "shell":                                                           # lattice studs, a glowing seam
-                for j in range(0, 7, 2):
-                    for i in range(0, 9, 2):
-                        loc, nor = grids[0][j][i]
-                        bits.box(loc + nor * (top + 0.008), (0.07, 0.07, 0.016), "Metal_Bright", frame_of(nor))
-                loc, nor = grids[0][3][4]
-                bits.box(loc + nor * (top + 0.003), (L * 0.9, 0.012, 0.008), "Emit_Hover", frame_of(nor))
-            if kind == "aegis":                                                           # gold frame and a hot seam
-                for j in (0, 6):
-                    loc, nor = grids[0][j][4]
-                    bits.box(loc + nor * (top + 0.006), (L * 0.97, 0.035, 0.014), "Gold", frame_of(nor))
-                for i in (0, 8):                                                          # the ends follow the hull
-                    col = [grids[0][j][i] for j in range(7)]
-                    for j, (loc, nor) in enumerate(col):
-                        step = (col[min(j + 1, 6)][0] - col[max(j - 1, 0)][0]).length / (2 if 0 < j < 6 else 1)
-                        bits.box(loc + nor * (top + 0.006), (0.035, step * 1.1, 0.014), "Gold", frame_of(nor))
-                loc, nor = grids[0][3][4]
-                bits.box(loc + nor * (top + 0.003), (L * 0.82, 0.012, 0.010), "Emit_Hot", frame_of(nor))
-            made.append(bits.finish(g, bevel=0.0015))
+        """A body kit in the ship's own paint: it changes the lines a little and stays clean. Side skirts along the
+        bottom of the hull (under the waist, never near the canopy, under the wings), a blade round the nose, and
+        on the heavier kits fins under the tail."""
+        kit = ARMOUR_KITS[kind]
+        g = self.group("Module_Armor_" + kind)
+        part = K.Part("Armor_" + kind.capitalize())
+        self.splitter(part, kit)
+        self.skirts(part, kind, kit, self.nose_y + (kit["lip_len"] - 0.35) * self.scale)
+        if kit["fins"]:
+            self.diffuser(part, kit)
+        made = [part.finish(g, smooth_angle=40)] if part.bm.faces else []
         self.export(made, "armor_" + kind)
         self.drop(made)
 
@@ -475,53 +743,167 @@ class Builder:
         self.export(made, "tail_" + kind)
         self.drop(made)
 
-    # ------------------------------------------------------------ 6. utility: mast, dome, drone
+    # ------------------------------------------------------------ 6. utility: inside the nose, seen in the x-ray view
+    def utility_bay(self):
+        """The room inside the nose, ahead of the cockpit, for the utility module: (centre, half sizes) of the largest
+        box clear of the structure and the systems (the skeleton) and 2 cm inside the bodywork. Off the centre line
+        (one in each boom) only when the centre has no room."""
+        if self.bay:
+            return self.bay
+        dg = bpy.context.evaluated_depsgraph_get()
+        skins = set(K.SKINS)
+        verts, polys = [], []
+        for o in self.meshes(lambda o: o not in skins and not self.is_decal(o) and not self.is_wing(o)):
+            ev = o.evaluated_get(dg)
+            me = ev.to_mesh()
+            base = len(verts)
+            verts.extend(o.matrix_world @ v.co for v in me.vertices)
+            polys.extend([base + i for i in p.vertices] for p in me.polygons)
+            ev.to_mesh_clear()
+        systems = BVHTree.FromPolygons(verts, polys)
+        P = np.array([tuple(v) for v in verts]) if verts else np.zeros((0, 3))
+
+        def inside(p):                          # (not downwards: the belly has the hover emitters' cut-outs)
+            loc, _, _, dist = self.bvh.find_nearest(p)
+            if loc is None or dist < 0.02:
+                return False
+            return all(self.bvh.ray_cast(p, Vector(d), 3.0)[0] is not None for d in ((0, 0, 1), (1, 0, 0), (-1, 0, 0)))
+
+        def clear(c, hs):
+            lo, hi = np.array(c - hs) - 0.015, np.array(c + hs) + 0.015
+            if np.any(np.all((P > lo) & (P < hi), axis=1)):
+                return False
+            # the faces and edges of the box, its corners a little in (the pieces do not fill them)
+            if not all(inside(c + Vector((hs.x * i, hs.y * j, hs.z * k)) * (0.8 if i and j and k else 1.0))
+                       for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1) if (i, j, k) != (0, 0, 0)):
+                return False
+            bv = [c + Vector((hs.x * i, hs.y * j, hs.z * k)) for i in (-1, 1) for j in (-1, 1) for k in (-1, 1)]
+            box = BVHTree.FromPolygons(bv, [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4),
+                                            (1, 5, 7, 3)])
+            return not systems.overlap(box)
+
+        sc = self.scale
+
+        def search(xs_at, sizes):
+            for f in sizes:
+                hx, hy = 0.21 * f * sc, 0.30 * f * sc
+                y = self.canopy_y - 0.06 - hy
+                while y - hy > self.nose_y + 0.25:          # from just ahead of the cockpit towards the tip
+                    for x in xs_at(y):
+                        bots = [self.hit((x + dx, y, self.z_low - 1.0), (0, 0, 1))[0] for dx in (-0.1, 0.0, 0.1)]
+                        bots = [b.z for b in bots if b is not None]
+                        top = self.hit((x, y, self.z_high + 1.0), (0, 0, -1))[0]
+                        if not bots or top is None or top.z <= min(bots):
+                            continue
+                        hs = Vector((hx, hy, min(0.11 * sc, (top.z - min(bots)) / 2 - 0.035)))
+                        z = min(bots) + 0.035 + hs.z
+                        while hs.z >= 0.045 and z + hs.z <= top.z - 0.035:
+                            c = Vector((x, y, z))
+                            if clear(c, hs) and (x == 0 or clear(Vector((-x, y, z)), hs)):
+                                return c, hs
+                            z += 0.02
+                    y -= 0.04
+            return None
+
+        def booms(y):                           # off the centre line: the middle of each boom (twin-boom ships)
+            return sorted({round(abs(sum(p[0] for p in b) / len(b)), 2) for b in self.footprint(y)
+                           if abs(sum(p[0] for p in b) / len(b)) > 0.25})
+
+        bay = (search(lambda y: [0.0], (1.0, 0.86, 0.74, 0.64, 0.55)) or search(booms, (0.74, 0.64, 0.55, 0.47))
+               or search(lambda y: [0.0], (0.47, 0.40, 0.34, 0.30, 0.26)))
+        if bay:
+            self.bay = bay
+            print("UTILITY BAY %s centre (%.2f, %.2f, %.2f) half (%.2f, %.2f, %.2f)%s" % (
+                K.NAME, *bay[0], *bay[1], " and its mirror" if bay[0].x else ""))
+            return bay
+        c = self.sock.get("Socket_Utility", Vector((0, self.nose_y + 0.8, self.z_low + 0.15)))
+        self.bay = (Vector((0, c.y + 0.4, c.z + 0.08)), Vector((0.09, 0.13, 0.05)) * sc)
+        print("UTILITY BAY %s: no clear room, fallback under the utility socket" % K.NAME)
+        return self.bay
+
     def utility(self, kind):
-        c = self.sock.get("Socket_Utility")
-        if c is None:
-            return
-        loc, nor = self.top_hit(0.0, c.y)
-        if loc is None:
-            loc = c
-        b = loc + Vector((0, 0, 0.005))
-        u = 2.0 * self.scale                          # big enough to read from the hangar camera
-        made = []
+        """The utility modules sit inside the nose, ahead of the cockpit: hidden in flight, seen in the hangar's x-ray
+        view, where they glow. mast: the scanner array (a dish looking ahead, over its electronics); dome: the route
+        oracle (a glowing data core in gimbal bands, over a finned block); drone: the field drone folded in its
+        launch bay. On a twin-boom ship with the room off the centre line, one in each boom."""
+        bay, hs = self.utility_bay()
+        glow = ensure_mat("Utility_Glow", "#5FE3FF", rough=0.3, emit=8.0)
         g = self.group("Module_Utility_" + kind)
         part = K.Part("Utility_" + kind.capitalize())
-
-        def at(x, y, z):
-            return b + Vector((x, y, z)) * u
-
-        if kind == "mast":
-            part.box(at(0, 0, 0.02), (0.08 * u, 0.14 * u, 0.04 * u), "Metal")
-            part.cyl(at(0, 0, 0.03), at(0, 0, 0.46), 0.012 * u, "Metal_Bright", 10)
-            part.box(at(0, 0, 0.32), (0.18 * u, 0.02 * u, 0.02 * u), "Metal")
-            part.box(at(0, 0.01, 0.40), (0.06 * u, 0.08 * u, 0.05 * u), "Graphite")
-            part.sphere(at(0, 0, 0.47), 0.016 * u, "Emit_Hot", segs=10, rings=6)
-        elif kind == "dome":
-            part.cyl(at(0, 0, 0), at(0, 0, 0.04), 0.12 * u, "Metal", 24)
-            part.cyl(at(0, 0, 0.04), at(0, 0, 0.052), 0.125 * u, "Emit_Hover", 24)
-            part.sphere(at(0, 0, 0.052), 0.11 * u, "Glass", scale=(1, 1, 0.75), segs=20, rings=10)
-        else:  # drone docked in a cradle
-            for dy in (-0.07, 0.07):
-                part.box(at(0, dy, 0.025), (0.20 * u, 0.03 * u, 0.05 * u), "Metal")
-            d = at(0, 0, 0.08)
-            part.box(d, (0.20 * u, 0.16 * u, 0.05 * u), self.main)
-            part.box(d + Vector((0, -0.085, 0.0)) * u, (0.08 * u, 0.012 * u, 0.025 * u), "Emit_Hover")
-            for sx in (-1, 1):
-                for sy in (-1, 1):
-                    r = d + Vector((sx * 0.13, sy * 0.10, 0.02)) * u
-                    part.cyl(r, r + Vector((0, 0, 0.006 * u)), 0.055 * u, "Graphite", 16)
-                    part.box(d + Vector((sx * 0.07, sy * 0.05, 0.015)) * u, (0.10 * u, 0.012 * u, 0.01 * u), "Metal", None)
-        made.append(part.finish(g, bevel=0.0012))
+        for c in [bay] + ([Vector((-bay.x, bay.y, bay.z))] if bay.x else []):   # one in each boom when off-centre
+            self.utility_piece(part, kind, c, hs, glow)
+        made = [part.finish(g, bevel=0.0012)]
         self.export(made, "utility_" + kind)
         self.drop(made)
+
+    def utility_piece(self, part, kind, c, hs, glow):
+        def at(x, y, z):
+            return c + Vector((x * hs.x, y * hs.y, z * hs.z))
+
+        def ring(centre, u, v, R, r, m, n=32):
+            rows = []
+            for i in range(n):
+                a = 2 * math.pi * i / n
+                p, out = centre + (u * math.cos(a) + v * math.sin(a)) * R, u * math.cos(a) + v * math.sin(a)
+                rows.append([p + (out * math.cos(b) + u.cross(v).normalized() * math.sin(b)) * r
+                             for b in (2 * math.pi * j / 8 for j in range(8))])
+            part.loft(rows, lambda i, j: m, closed_u=True, closed_v=True)
+
+        r = min(hs.x, hs.z)
+        X, Y, Z = Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))
+        if kind == "mast":
+            part.box(at(0, 0.05, -0.92), (1.7 * hs.x, 1.8 * hs.y, 0.16 * hs.z), "Metal")             # sled
+            part.box(at(0, 0.48, -0.25), (1.3 * hs.x, 0.85 * hs.y, 1.2 * hs.z), "Graphite")           # electronics
+            for k in range(3):                                                                        # status lights
+                part.box(at(-0.35 + 0.35 * k, 0.48, 0.37), (0.18 * hs.x, 0.6 * hs.y, 0.05 * hs.z), glow)
+            part.cyl(at(0, -0.30, -0.84), at(0, -0.30, -0.10), 0.22 * r, "Metal", 12)                  # turning post
+            head = at(0, -0.55, 0.05)
+            part.cyl(head + Y * 0.02, head - Y * 0.03, 0.92 * r, "Metal_Bright", 24)                  # the dish
+            ring(head - Y * 0.035, X, Z, 0.92 * r, 0.012, glow)                                       # glowing rim
+            part.sphere(head - Y * 0.05, 0.18 * r, glow, segs=12, rings=6)                            # emitter
+            for dx in (-0.25, 0.25):
+                part.tube([at(dx, 0.05, 0.0), at(dx, -0.25, 0.05), head + X * (dx * hs.x) + Y * 0.04], 0.010,
+                          "Black", 6)
+        elif kind == "dome":                    # the route oracle: a glowing data core lying along the nose
+            part.box(at(0, 0, -0.84), (1.5 * hs.x, 1.6 * hs.y, 0.30 * hs.z), "Graphite")              # base block
+            for k in range(8):                                                                        # heat fins
+                part.box(at(0, -0.7 + 0.2 * k, -0.58), (1.3 * hs.x, 0.04 * hs.y, 0.26 * hs.z), "Metal")
+            rc = min(0.62 * hs.z, 0.5 * hs.x)
+            a, b = at(0, -0.62, 0.22), at(0, 0.62, 0.22)
+            part.cyl(a, b, rc, glow, 20)                                                              # the core
+            part.sphere(a, rc, glow, segs=20, rings=10)
+            part.sphere(b, rc, glow, segs=20, rings=10)
+            for f, m in ((-0.42, "Metal_Bright"), (0.0, "Gold"), (0.42, "Metal_Bright")):             # gimbal bands
+                ring(at(0, f, 0.22), X, Z, rc + 0.012, 0.009, m)
+            for f in (-0.42, 0.42):                                                                   # cradle
+                part.box(at(0, f, -0.42), (0.25 * hs.x, 0.08 * hs.y, 0.55 * hs.z), "Metal")
+        else:
+            for dx in (-0.62, 0.62):                                                                  # launch rails
+                part.box(at(dx, 0, -0.9), (0.12 * hs.x, 1.9 * hs.y, 0.12 * hs.z), "Metal")
+            body = at(0, 0, -0.25)
+            part.box(body, (0.70 * hs.x, 1.0 * hs.y, 0.55 * hs.z), self.accent)
+            part.box(at(0, 0, 0.04), (0.5 * hs.x, 0.7 * hs.y, 0.06 * hs.z), self.edge)                 # top cover
+            part.box(at(0, -0.52, -0.25), (0.36 * hs.x, 0.05 * hs.y, 0.22 * hs.z), glow)              # the eye
+            rr = 0.34 * min(hs.x, hs.y)
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    hub = at(0.62 * sx, 0.58 * sy, -0.10)
+                    part.tube([body + Vector((0.2 * sx * hs.x, 0.3 * sy * hs.y, 0)), hub], 0.012, "Graphite", 6)
+                    part.cyl(hub, hub + Z * (0.06 * hs.z), rr, "Graphite", 20)                        # rotor
+                    ring(hub + Z * (0.07 * hs.z), X, Y, rr, 0.006, glow, 24)                          # its guard
+                    part.cyl(hub + Z * (0.06 * hs.z), hub + Z * (0.10 * hs.z), 0.18 * rr, "Metal_Bright", 10)
+            for dy in (-0.95, 0.95):                                                                  # the hatch
+                part.box(at(0, dy, 0.92), (1.9 * hs.x, 0.06 * hs.y, 0.10 * hs.z), "Metal")
+            for dx in (-0.95, 0.95):
+                part.box(at(dx, 0, 0.92), (0.06 * hs.x, 1.9 * hs.y, 0.10 * hs.z), "Metal")
 
     # ------------------------------------------------------------ the list for the game
     def manifest(self):
         nozzles = [[round(v.x, 4), round(v.y, 4), round(v.z, 4), self.nozzle_r]
                    for n, v in sorted(self.sock.items()) if n.startswith("Socket_Propulsion")]
         data = {"ship": K.NAME, "pieces": self.pieces, "wings": list(self.wings), "tail": self.tail, "nozzles": nozzles}
+        if self.bay:
+            data["utility_bay"] = [round(v, 3) for v in (*self.bay[0], *self.bay[1])]
         with open(os.path.join(self.dir, "%s_modules.json" % self.stem), "w") as f:
             json.dump(data, f, indent=1)
         print("MODULES %s %d pieces, nozzles %s" % (K.NAME, len(self.pieces), nozzles))

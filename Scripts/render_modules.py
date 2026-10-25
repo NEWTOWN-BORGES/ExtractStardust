@@ -2,7 +2,8 @@
 # the skeleton (x-ray) with the reactor and the engine flames, and a full build. Reads the pieces that ship_modules.py
 # writes (<modules_dir>/<ship>_<piece>.fbx and <ship>_modules.json).
 # Usage: python3 Scripts/render_modules.py <modules_dir> <ship> <out_dir> [shot ...]
-#   shots: stock, wings, armor, cooling, tail, utility, skeleton, flames, build (default: all)
+#   shots: stock, wings, armor, cooling, tail, utility, skeleton, flames, build (default: all); and close looks at
+#   the body kits: armorclose (the nose), armorside (from the side), armorrear (the tail, from behind and below)
 import json
 import math
 import os
@@ -224,13 +225,21 @@ sc.collection.objects.link(cam)
 sc.camera = cam
 sc.render.engine = "CYCLES"
 sc.cycles.device = "CPU"
-sc.cycles.samples = 16
+sc.cycles.samples = int(os.environ.get("MODULE_SAMPLES", "16"))      # fewer for quick looks
 sc.cycles.use_denoising = True
 sc.cycles.max_bounces, sc.cycles.diffuse_bounces, sc.cycles.glossy_bounces = 4, 2, 2
 sc.cycles.transmission_bounces, sc.cycles.transparent_max_bounces = 2, 4
 sc.render.resolution_x, sc.render.resolution_y = 1000, 560
+sc.render.resolution_percentage = int(os.environ.get("MODULE_RES", "100"))
 sc.view_settings.view_transform = "AgX"
 sc.view_settings.exposure = -0.3
+
+
+def ship_frame():
+    """How much further the camera stands for a ship longer than the STRIX (6.3 m), from the core's length; and
+    where its nose is."""
+    ys = [(o.matrix_world @ Vector(c)).y for o in piece("core") if o.type == "MESH" for c in o.bound_box]
+    return (max(1.0, (max(ys) - min(ys)) / 6.3), min(ys)) if ys else (1.0, -3.2)
 
 
 def shot(name, yaw_deg=-80, pitch_deg=14, dist=8.0, target=(0, 0, 1.0), lens=40, ship_yaw=-35):
@@ -238,6 +247,7 @@ def shot(name, yaw_deg=-80, pitch_deg=14, dist=8.0, target=(0, 0, 1.0), lens=40,
     ROOT.rotation_euler = (0, 0, math.radians(ship_yaw))
     yaw, pitch = math.radians(yaw_deg), math.radians(pitch_deg)
     tgt = Vector(target)
+    dist *= FRAME
     cam.location = tgt + Vector((math.cos(yaw) * math.cos(pitch), math.sin(yaw) * math.cos(pitch), math.sin(pitch))) * dist
     cam.rotation_euler = (tgt - cam.location).to_track_quat("-Z", "Y").to_euler()
     cam.data.lens = lens
@@ -247,6 +257,7 @@ def shot(name, yaw_deg=-80, pitch_deg=14, dist=8.0, target=(0, 0, 1.0), lens=40,
 
 
 wings = MAN["wings"]
+FRAME, NOSE = ship_frame()
 if "stock" in SHOTS:
     show(["core", "wing_stock"])
     flames(None)
@@ -255,10 +266,23 @@ if "wings" in SHOTS:
     for w in wings:
         show(["core", "wing_" + w])
         shot("wing_" + w, yaw_deg=55, pitch_deg=36, dist=6.8, target=(0, 0.9, 0.9), ship_yaw=0)
-if "armor" in SHOTS:
+if "armor" in SHOTS:                         # the body kits, and the ship without one to compare
+    for k in ("none", "light", "guard", "bulwark", "shell", "aegis"):
+        show(["core", "wing_stock"] + ([] if k == "none" else ["armor_" + k]))
+        shot("armor_" + k, yaw_deg=-32, pitch_deg=12, dist=7.8, target=(0, -0.5, 0.85), ship_yaw=0)
+if "armorclose" in SHOTS:                    # close: the nose blade and the skirt from low at the front
     for k in ("light", "guard", "bulwark", "shell", "aegis"):
         show(["core", "wing_stock", "armor_" + k])
-        shot("armor_" + k, yaw_deg=-18, pitch_deg=22, dist=7.4, target=(0, -0.2, 1.0), ship_yaw=0)
+        shot("armorclose_" + k, yaw_deg=-55, pitch_deg=6, dist=3.6, target=(0, NOSE + 1.6, 0.85), ship_yaw=0)
+if "armorside" in SHOTS:                     # straight from the side: the kit's lines along the whole ship
+    for k in ("light", "bulwark", "aegis"):
+        show(["core", "wing_stock", "armor_" + k])
+        shot("armorside_" + k, yaw_deg=0, pitch_deg=4, dist=7.6, target=(0, 0, 0.75), ship_yaw=0)
+if "armorrear" in SHOTS:                     # close: the skirt's back end and the fins under the tail
+    for k in ("bulwark", "aegis"):
+        show(["core", "wing_stock", "armor_" + k])
+        shot("armorrear_" + k, yaw_deg=25, pitch_deg=4, dist=3.8, target=(0, 0.9, 0.75), ship_yaw=0)
+        shot("armorunder_" + k, yaw_deg=60, pitch_deg=-5, dist=4.2, target=(0, 1.8, 0.75), ship_yaw=0)
 if "cooling" in SHOTS:
     for k in ("vents", "radiator", "grid"):
         show(["core", "wing_stock", "cooling_" + k])
@@ -268,10 +292,14 @@ if "tail" in SHOTS:
         show(["core", "wing_stock", "tail_" + k])
         shot("tail_" + k, yaw_deg=60, pitch_deg=-3 if MAN.get("tail") == "below" else 14, dist=6.2,
              target=(0, 1.8, 0.9), ship_yaw=0)
-if "utility" in SHOTS:
+if "utility" in SHOTS:                       # inside the nose: the x-ray view, the engine idling
+    bay = MAN.get("utility_bay", [0, -1.5, 0.5])
     for k in ("mast", "dome", "drone"):
-        show(["core", "wing_stock", "utility_" + k])
-        shot("utility_" + k, yaw_deg=-55, pitch_deg=30, dist=5.2, target=(0, -1.2, 1.2), ship_yaw=0)
+        show(["skeleton", "utility_" + k])
+        flames("stock", 0.35)
+        shot("utility_" + k, yaw_deg=-48, pitch_deg=30, dist=3.6, target=(bay[0], bay[1] + 0.3, bay[2] + LIFT),
+             ship_yaw=0)
+    flames(None)
 if "skeleton" in SHOTS:
     show(["skeleton"])
     flames("sprint")
@@ -284,7 +312,7 @@ if "flames" in SHOTS:
         shot("flame_" + style, yaw_deg=65, pitch_deg=12, dist=7.0, target=(0, 2.2, 1.0), ship_yaw=0)
     flames(None)
 if "build" in SHOTS:
-    show(["core", "wing_" + wings[1], "armor_guard", "cooling_radiator", "tail_twin", "utility_mast"])
+    show(["core", "wing_" + wings[1], "armor_guard", "cooling_radiator", "tail_twin"])
     flames("burner")
     shot("build", yaw_deg=-60, pitch_deg=18, dist=8.6, ship_yaw=0)
     flames(None)

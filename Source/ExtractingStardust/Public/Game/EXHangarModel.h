@@ -76,7 +76,7 @@ public:
 	int32 GetVersion() const { return Version; }
 	/** The build the ship wears now: what it flies with, with the piece the pilot is looking at in its slot. */
 	TArray<FEXItem> GetPreviewBuild() const;
-	/** The slot looked at (engine, propulsion and reactor show the skeleton with the engine running). */
+	/** The slot looked at (engine, propulsion, reactor and utility show the skeleton with the engine running). */
 	EEXFamily GetFocus() const;
 	void BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32& Selected) const;
 	void BuildRight(FString& Title, TArray<FEXHangarRow>& Out, int32& Selected, FString& Detail) const;
