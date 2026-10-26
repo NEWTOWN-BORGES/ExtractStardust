@@ -479,7 +479,8 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 		Sound.bViewer = bViewer;
 		Audio->UpdateAudio(DeltaSeconds, Sound);
 	}
-	if (bViewer)
+	// The telemetry lines are for the tests only (player, 2026-10-26: "não quero nada a poluir o jogo").
+	if (bViewer && (bFlightTest || bDesertTest || bTour || FParse::Param(FCommandLine::Get(), TEXT("EXDebugText"))))
 	{
 		ShowTelemetry();
 	}

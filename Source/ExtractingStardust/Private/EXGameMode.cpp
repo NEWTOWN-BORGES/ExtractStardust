@@ -26,6 +26,13 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 	{
 		return;
 	}
+	// Nothing on the screen but the game (player, 2026-10-26: the engine's small red warnings polluted it): the
+	// engine's on-screen messages are off; -EXDebugText brings them back for testing.
+	if (GEngine && !FParse::Param(FCommandLine::Get(), TEXT("EXDebugText")))
+	{
+		GEngine->bEnableOnScreenDebugMessages = false;
+		GEngine->Exec(World, TEXT("DisableAllScreenMessages"));
+	}
 	// Lumen is the default (Config/DefaultEngine.ini). -EXLow turns it off for more fps on a weak GPU (Jogar Leve.bat);
 	// -EXUltra still forces it on.
 	if (GEngine)
