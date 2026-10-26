@@ -21,6 +21,7 @@
 namespace
 {
 	constexpr float GaugeWidth = 248.0f;
+	constexpr float HullBarWidth = 300.0f;
 	constexpr float BarWidth = 760.0f;       // the race bar along the top, A to B
 	constexpr int32 MaxRivals = 24;
 	constexpr int32 SpeedSegmentCount = 30;
@@ -85,24 +86,33 @@ void UEXRaceHudWidget::BuildTree()
 	EXUi::AddO(Root, EXUi::Sized(Tree, 300.0f, 0.0f, HudPlate(Tree, Place, true, FMargin(22.0f, 12.0f, 18.0f, 12.0f))), HAlign_Left, VAlign_Top,
 		FMargin(34.0f, 26.0f, 0.0f, 0.0f));
 
-	// Top right: VIDAS and the diamonds, EM RISCO.
-	UVerticalBox* Lives = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	EXUi::AddV(Lives, EXUi::WeightText(Tree, TEXT("VIDAS"), 11, EXUi::Rust(), 800, 200), FMargin(0.0f), HAlign_Right);
-	UHorizontalBox* Pips = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	for (int32 Index = 0; Index < 6; ++Index)
+	// Top right: the hull bar (CASCO, as in the Unity version) and what is at risk.
+	UVerticalBox* Hull = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	UHorizontalBox* HullHead = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	EXUi::AddH(HullHead, EXUi::WeightText(Tree, TEXT("CASCO"), 11, EXUi::Rust(), 800, 200), FMargin(0.0f), true, VAlign_Bottom);
+	HullText = EXUi::TitleText(Tree, TEXT("100%"), 20, EXUi::Bone(), 20);
+	EXUi::AddH(HullHead, HullText, FMargin(0.0f), false, VAlign_Bottom);
+	EXUi::AddV(Hull, HullHead);
+	UOverlay* HullTrack = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
+	EXUi::AddO(HullTrack, EXUi::Sized(Tree, HullBarWidth, 16.0f, EXUi::Box(Tree, EXUi::Bone(0.1f))), HAlign_Left, VAlign_Center);
+	HullLoss = EXUi::Sized(Tree, HullBarWidth, 16.0f, EXUi::Box(Tree, EXUi::Hex(255, 230, 200, 0.8f)));   // the damage just taken, draining
+	EXUi::AddO(HullTrack, HullLoss, HAlign_Left, VAlign_Center);
+	HullColour = EXUi::Box(Tree, EXUi::Ok());
+	HullFill = EXUi::Sized(Tree, HullBarWidth, 16.0f, HullColour);
+	EXUi::AddO(HullTrack, HullFill, HAlign_Left, VAlign_Center);
+	// Quarter marks over the bar.
+	for (int32 Quarter = 1; Quarter < 4; ++Quarter)
 	{
-		LifePips[Index] = EXUi::Box(Tree, EXUi::Ok());
-		USizeBox* Pip = EXUi::Sized(Tree, 19.0f, 19.0f, LifePips[Index]);
-		Pip->SetRenderTransformAngle(45.0f);
-		EXUi::AddH(Pips, Pip, FMargin(Index > 0 ? 9.0f : 0.0f, 0.0f, 0.0f, 0.0f));
+		EXUi::AddO(HullTrack, EXUi::Sized(Tree, 2.0f, 16.0f, EXUi::Box(Tree, EXUi::Ink(0.55f))), HAlign_Left, VAlign_Center,
+			FMargin(HullBarWidth * Quarter / 4.0f - 1.0f, 0.0f, 0.0f, 0.0f));
 	}
-	EXUi::AddV(Lives, Pips, FMargin(0.0f, 9.0f, 4.0f, 8.0f), HAlign_Right);
+	EXUi::AddV(Hull, HullTrack, FMargin(0.0f, 6.0f, 0.0f, 8.0f));
 	UHorizontalBox* Risk = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	RiskText = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Bone(), 800, 120);
 	EXUi::AddH(Risk, RiskText);
 	EXUi::AddH(Risk, EXUi::GemImage(Tree, 9.0f), FMargin(5.0f, 0.0f, 0.0f, 0.0f));
-	EXUi::AddV(Lives, Risk, FMargin(0.0f), HAlign_Right);
-	EXUi::AddO(Root, EXUi::Sized(Tree, 190.0f, 0.0f, HudPlate(Tree, Lives, false, FMargin(16.0f, 12.0f, 20.0f, 12.0f))), HAlign_Right, VAlign_Top,
+	EXUi::AddV(Hull, Risk, FMargin(0.0f), HAlign_Right);
+	EXUi::AddO(Root, EXUi::Sized(Tree, HullBarWidth + 40.0f, 0.0f, HudPlate(Tree, Hull, false, FMargin(18.0f, 12.0f, 22.0f, 12.0f))), HAlign_Right, VAlign_Top,
 		FMargin(0.0f, 26.0f, 34.0f, 0.0f));
 
 	// Bottom left: the speed in Orbitron, KM/H, then the nitro, the heat and the fuel.
@@ -262,11 +272,18 @@ void UEXRaceHudWidget::Refresh()
 		RouteKm).Replace(TEXT("."), TEXT(",")));
 	EXUi::SetText(SectorText, bBots ? FString(TEXT("PELOTÃO 15  ·  RED DUST DIVIDE")) : FString(TEXT("EXPEDIÇÃO SOLO  ·  RED DUST DIVIDE")));
 
-	for (int32 Index = 0; Index < 6; ++Index)
-	{
-		LifePips[Index]->SetBrushColor(Index < Craft->GetLives() ? EXUi::Ok() : EXUi::Bone(0.14f));
-		LifePips[Index]->GetParent()->SetVisibility(Index < Craft->GetMaxLives() ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
-	}
+	// The hull: green, yellow-green, orange, red, as in the Unity version; the white part drains down to it after a hit.
+	const float HullFrac = Craft->GetHullFrac();
+	const float Dt = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.016f;
+	HullShown = HullFrac >= HullShown ? HullFrac : FMath::Max(HullFrac, HullShown - Dt * 0.35f);
+	HullFill->SetWidthOverride(HullBarWidth * HullFrac);
+	HullLoss->SetWidthOverride(HullBarWidth * HullShown);
+	const FLinearColor HullCol = HullFrac > 0.75f ? EXUi::Hex(115, 255, 140) : (HullFrac > 0.5f ? EXUi::Hex(215, 255, 100)
+		: (HullFrac > 0.25f ? EXUi::Hex(255, 190, 75) : EXUi::Hex(255, 75, 60)));
+	const float HullNow = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	HullColour->SetBrushColor(HullFrac <= 0.25f ? HullCol * (0.7f + 0.3f * FMath::Sin(HullNow * 9.0f)) : HullCol);
+	EXUi::SetText(HullText, FString::Printf(TEXT("%d%%"), FMath::RoundToInt(HullFrac * 100.0f)));
+	HullText->SetColorAndOpacity(FSlateColor(HullCol));
 	const UEXProfileSave* Profile = Craft->GetProfile();
 	EXUi::SetText(RiskText, FString::Printf(TEXT("EM RISCO %s"), *EXUi::Thousands(Profile ? EXEconomy::RiskValue(Profile, Craft->GetShipName()) : 0)));
 

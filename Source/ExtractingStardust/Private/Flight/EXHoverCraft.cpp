@@ -13,6 +13,7 @@
 #include "EngineUtils.h"
 #include "Flight/EXCraftAudio.h"
 #include "Flight/EXCraftFx.h"
+#include "Flight/EXExplosion.h"
 #include "GameFramework/PlayerStart.h"
 #include "World/EXDesertTerrain.h"
 #include "GameFramework/PlayerController.h"
@@ -291,8 +292,11 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	{
 		if (Audio)
 		{
+			// The explosion rings out for the player who blew up, then silence.
 			FEXCraftAudioInput Silent;
-			Silent.bViewer = false;
+			Silent.ShipName = GetShipName();
+			Silent.bViewer = IsPlayerControlled() && GetWorld()->GetTimeSeconds() - EliminatedAt < 2.5f;
+			Silent.bRaceHold = true;
 			Audio->UpdateAudio(DeltaSeconds, Silent);
 		}
 		return;
@@ -378,7 +382,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 			{
 				// In a race a fall out of the world costs a life; the craft comes back on the line.
 				HitCooldown = 0.0f;
-				LoseLife();
+				ApplyHullDamage(HullMax * 0.25f, true);
 				if (!bEliminated)
 				{
 					RespawnOnRoute();
@@ -674,9 +678,9 @@ void AEXHoverCraft::StepFlight(float Dt)
 				Audio->Landing(FMath::Clamp(LandingSpeed / 20.0f, 0.2f, 1.0f));
 			}
 		}
-		if (LandingSpeed > LandingHitMps)
+		if (LandingSpeed > 17.0f)
 		{
-			LoseLife();   // a landing too hard for this ship (race rules only)
+			ApplyHullDamage((LandingSpeed - 17.0f) * 1.4f);   // a hard landing (race rules only)
 		}
 	}
 
@@ -728,10 +732,11 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 			}
 			if (bWall || IsValid(OtherCraft))
 			{
-				const float DamageThresholdMps = IsValid(OtherCraft) ? WallHitMps * 0.6f : WallHitMps;
-				if (-IntoSpeed / CmPerM > DamageThresholdMps)
+				// As in the Unity version: what the impact speed has above 12 m/s, a little more, less against a craft.
+				const float ImpactMps = -IntoSpeed / CmPerM;
+				if (ImpactMps > 12.0f)
 				{
-					LoseLife();
+					ApplyHullDamage((ImpactMps - 12.0f) * 1.1f * (IsValid(OtherCraft) ? 0.6f : 1.0f));
 				}
 			}
 			if (bWall)
@@ -1030,6 +1035,8 @@ void AEXHoverCraft::ApplyShipStats()
 	const float MassFactor = FMath::Sqrt(Ship.MassKg / FMath::Max(1.0f, Ship.MassKg + static_cast<float>(ResolvedStats[static_cast<int32>(EEXStat::Mass)])));
 	MaxLives = EXMeta::Lives(Name, ResolvedStats[static_cast<int32>(EEXStat::Hull)]);
 	Lives = MaxLives;
+	HullMax = FMath::Max(70.0f, 100.0f * MaxLives / 3.0f);
+	Hull = HullMax;
 	MaxSpeedMps = BaseMaxSpeedMps * Stats->SpeedMul * (1.0f + 0.0057f * Delta(EEXStat::Speed));
 	AccelerationMps2 = BaseAccelMps2 * (1.0f + 0.006f * Delta(EEXStat::Accel)) * MassFactor;
 	BoostAccelerationMps2 = BaseBoostAccelMps2 * (1.0f + 0.004f * Delta(EEXStat::Boost)) * MassFactor;
@@ -1053,6 +1060,7 @@ void AEXHoverCraft::ApplyShipStats()
 	Heat = 0.0f;
 	bOverheated = false;
 	RepairLeft = RepairTotal = RepairSlow = StabLeft = 0.0f;
+	RaceSeconds = 0.0f;
 }
 
 void AEXHoverCraft::SetBot(int32 InShipIndex, float InSkill, float InLaneM)
@@ -1066,20 +1074,31 @@ void AEXHoverCraft::SetBot(int32 InShipIndex, float InSkill, float InLaneM)
 
 void AEXHoverCraft::LoseLife()
 {
-	if (!bRaceRules || bEliminated || bRaceHold || HitCooldown > 0.0f)
+	ApplyHullDamage(HullMax / FMath::Max(1, MaxLives), true);
+}
+
+void AEXHoverCraft::ApplyHullDamage(float Amount, bool bForce)
+{
+	// No damage on the grid, after the finish, in the first 10 s of the race (the pack sorts itself out) or twice in one
+	// scrape; a fall out of the world always counts.
+	if (!bRaceRules || bEliminated || bRaceHold || Amount <= 0.0f || (!bForce && (RaceSeconds < 10.0f || HitCooldown > 0.0f)))
 	{
 		return;
 	}
-	HitCooldown = 1.5f;   // one hit is one life, however many frames it scrapes
-	if (Audio)
+	HitCooldown = 0.25f;
+	Hull = FMath::Max(0.0f, Hull - Amount);
+	Lives = Hull <= 0.0f ? 0 : FMath::Max(1, FMath::CeilToInt(Hull / HullMax * MaxLives));
+	if (Amount >= 5.0f)
 	{
-		Audio->Bang(1.0f);
+		LastHitTime = GetWorld()->GetTimeSeconds();   // the red flash
+		if (Audio)
+		{
+			Audio->Bang(FMath::Clamp(Amount / 40.0f, 0.3f, 1.0f));
+		}
 	}
-	Lives = FMath::Max(0, Lives - 1);
-	LastHitTime = GetWorld()->GetTimeSeconds();
-	UE_LOG(LogTemp, Display, TEXT("EXRACE HIT %s%s lives=%d at %.1f km"), *GetShipName(), bBot ? TEXT("") : TEXT(" (jogador)"), Lives,
+	UE_LOG(LogTemp, Display, TEXT("EXRACE HIT %s%s -%.0f hull=%.0f/%.0f at %.1f km"), *GetShipName(), bBot ? TEXT("") : TEXT(" (jogador)"), Amount, Hull, HullMax,
 		RaceProgressM / 1000.0f);
-	if (Lives == 0)
+	if (Hull <= 0.0f)
 	{
 		Eliminate();
 	}
@@ -1087,6 +1106,19 @@ void AEXHoverCraft::LoseLife()
 
 void AEXHoverCraft::Eliminate()
 {
+	// The hull is gone: the craft blows up (fireball, flash, debris, smoke) where it was, carried on by its speed.
+	FActorSpawnParameters BlastParams;
+	BlastParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	if (AEXExplosion* Blast = GetWorld()->SpawnActor<AEXExplosion>(GetActorLocation(), FRotator::ZeroRotator, BlastParams))
+	{
+		Blast->Ignite(VelocityCmps, 1.0f);
+	}
+	if (Audio)
+	{
+		Audio->Bang(1.0f);
+		Audio->Landing(1.0f);
+	}
+	EliminatedAt = GetWorld()->GetTimeSeconds();
 	bEliminated = true;
 	VelocityCmps = FVector::ZeroVector;
 	ThrottleInput = 0.0f;
@@ -1183,10 +1215,11 @@ void AEXHoverCraft::UseQuick(int32 Slot)
 		break;
 	case EEXConsumable::Foam:
 	case EEXConsumable::Nanogel:
-		bUsed = Lives < MaxLives && RepairLeft <= 0.0f;
+		bUsed = Hull < HullMax && RepairLeft <= 0.0f;
 		if (bUsed)
 		{
 			const bool bFoam = Kind == EEXConsumable::Foam;
+			RepairAmount = HullMax * (bFoam ? 0.5f : 0.25f);   // half the hull back over 8 s, or a quarter over 2.5 s
 			RepairTotal = RepairLeft = (bFoam ? 8.0f : 2.5f) * RepairTimeMul;
 			RepairSlow = (bFoam ? 0.10f : 0.25f) * RepairTimeMul;
 		}
@@ -2089,6 +2122,7 @@ void AEXHoverCraft::UpdateRaceSystems(float Dt)
 	{
 		return;
 	}
+	RaceSeconds += Dt;
 	// Fuel by distance, more flat out and on nitro (efficiency sets the rate); heat from the nitro, cooled by the
 	// cooling stat; repairs and the stabiliser run out.
 	const float DistanceKm = VelocityCmps.Size() * Dt / CmPerM / 1000.0f;
@@ -2105,12 +2139,13 @@ void AEXHoverCraft::UpdateRaceSystems(float Dt)
 	}
 	if (RepairLeft > 0.0f)
 	{
+		Hull = FMath::Min(HullMax, Hull + RepairAmount / FMath::Max(0.1f, RepairTotal) * FMath::Min(Dt, RepairLeft));
+		Lives = FMath::Max(1, FMath::CeilToInt(Hull / HullMax * MaxLives));
 		RepairLeft -= Dt;
 		if (RepairLeft <= 0.0f)
 		{
 			RepairLeft = RepairTotal = RepairSlow = 0.0f;
-			Lives = FMath::Min(MaxLives, Lives + 1);
-			UE_LOG(LogTemp, Display, TEXT("EXRACE REPAIRED %s lives=%d"), *GetShipName(), Lives);
+			UE_LOG(LogTemp, Display, TEXT("EXRACE REPAIRED %s hull=%.0f"), *GetShipName(), Hull);
 		}
 	}
 	StabLeft = FMath::Max(0.0f, StabLeft - Dt);

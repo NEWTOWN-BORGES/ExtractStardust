@@ -109,42 +109,42 @@ def relax(p, rmin, fixed=None, iters=300, reach=30):
 # line is relaxed to the sector's tightest radius (GDD: tight 60-120 m, medium 120-250, fast 250-500, mega arc 500+).
 # Per sector: name, surface kind, floor half width m (GDD widths: open 24-35 m, main 14-24, technical 10-16),
 # tightest radius m, meander (amplitude, wavelength), control points.
-# Player, 2026-10-20: roads wide like the Unity version (most 50-80 m) and long clean arcs like the Horseshoe (the
-# sector the player liked most): the rhythmic meanders are off except in the cave.
+# Player, 2026-10-26: back to the original widths and meanders (the wider, oval version of 2026-10-20 was not liked);
+# only the cave keeps its smooth, wide fix (it was impossible to drive).
 SECTORS = [
-    ("S1 The Basin", "top", 26.0, 180.0, (0.0, 1.0),
+    ("S1 The Basin", "top", 17.0, 180.0, (70.0, 1000.0),
      [(15300, 11300, 452), (14400, 10700, 446), (13300, 10900, 444), (12400, 10300, 448), (12600, 9300, 452),
       (13600, 9000, 455), (14400, 8300, 458), (13900, 7600, 462)]),
-    ("S2 Broken Mesa", "top", 18.0, 120.0, (0.0, 1.0),
+    ("S2 Broken Mesa", "top", 12.0, 120.0, (130.0, 650.0),
      [(13000, 7200, 466), (12600, 6300, 470), (13300, 5500, 474), (12700, 4800, 476), (11900, 5000, 478), (11450, 5650, 480),
       (11380, 6450, 478)]),
     # Switchbacks down the outer cliff to the bench: four legs 200 m apart, hairpins of ~100 m radius.
-    ("S3 Shafer Fall", "switchback", 14.0, 1.0, (0.0, 1.0),
+    ("S3 Shafer Fall", "switchback", 10.0, 1.0, (0.0, 1.0),
      [(11300, 6800, 470), (11300, 7500, 440), (11200, 7720, 432), (11100, 7500, 424), (11100, 6500, 382), (11000, 6280, 374),
       (10900, 6500, 366), (10900, 7500, 324), (10800, 7720, 316), (10700, 7500, 308), (10700, 6700, 274), (10550, 6350, 255)]),
     # A tributary born on the bench cuts down to the floor in one long left-hand sweep (radius ~700 -> ~250 m): the
     # Red Wall is its outer bank, steepening from a soft bank to a wall as the gorge deepens.
-    ("S4 The Red Wall", "gorge", 30.0, 250.0, (0.0, 1.0),
+    ("S4 The Red Wall", "gorge", 20.0, 250.0, (0.0, 1.0),
      [(10300, 5950, 240), (9800, 5450, 230), (9100, 5150, 212), (8400, 5300, 185), (7900, 5900, 150), (7650, 6700, 112),
       (7800, 7500, 78), (8150, 8150, 50), (8000, 8800, 42)]),
     # Down the main canyon past the slot canyons (fendas): the SAFE line; RACING and SKILL take the slots.
-    ("S5 Fendas", "floor", 24.0, 140.0, (0.0, 1.0),
+    ("S5 Fendas", "floor", 16.0, 140.0, (110.0, 700.0),
      [(7550, 9300, 40), (7400, 9950, 39), (6800, 10350, 39), (6050, 10200, 38), (5650, 9750, 37), (5250, 9300, 36)]),
     # Horseshoe: in heading south, 270 degrees round the rock spur, out heading north; SKILL jumps the neck.
-    ("S6 Horseshoe", "floor", 32.0, 1.0, (0.0, 1.0),
+    ("S6 Horseshoe", "floor", 22.0, 1.0, (0.0, 1.0),
      [(5150, 8750, 35), (5150, 8150, 34), (5050, 7650, 33), (4750, 7400, 33), (4400, 7550, 32), (4300, 7950, 31),
       (4450, 8450, 30), (4500, 8800, 30), (4300, 9350, 29), (4000, 9750, 29)]),
-    ("S7 The Wash", "wash", 40.0, 200.0, (0.0, 1.0),
+    ("S7 The Wash", "wash", 28.0, 200.0, (140.0, 1100.0),
      [(3500, 10000, 28), (2900, 9800, 27), (2250, 9150, 26), (1850, 8250, 25), (1800, 7250, 24), (2100, 6350, 22),
       (2400, 5650, 20)]),
     # Player, 2026-10-20: the cave was impossible to drive: now wide, no meanders, gentle S-bends (radius >= 220 m).
     ("S8 The Hollow", "cave", 26.0, 220.0, (0.0, 1.0),
      [(2650, 5150, 16), (2500, 4800, 12), (2800, 4450, 8), (2650, 4050, 4), (2800, 3700, 8), (2500, 3450, 40),
       (2150, 3350, 70)]),
-    ("S9 Arches Run", "desert", 28.0, 160.0, (0.0, 1.0),
+    ("S9 Arches Run", "desert", 18.0, 160.0, (100.0, 800.0),
      [(1700, 2950, 45), (1150, 2450, 50), (850, 1550, 55), (1450, 750, 60), (2550, 550, 62), (3400, 1250, 64),
       (4350, 1000, 66), (5250, 1450, 64), (5900, 1150, 60)]),
-    ("S10 White Rim", "rim", 28.0, 300.0, (0.0, 1.0),
+    ("S10 White Rim", "rim", 18.0, 300.0, (40.0, 1200.0),
      [(6500, 1650, 62), (7250, 2150, 150), (7900, 2450, 238), (8650, 2650, 240), (9500, 2450, 238), (10300, 2650, 240),
       (10900, 2700, 241), (11400, 2650, 242)]),
 ]
@@ -747,13 +747,17 @@ carve(main, bed, half_w, kind, bank, curv, skip=skip)  # last, so no branch lift
 # up it and round the bend on the wall. Its height follows the bend (full below WALL_R_FULL m of radius, none above
 # WALL_R_NONE m) and sinks back to nothing on the short straights between the bends. A flat rim and a back slope at ~40
 # degrees finish it, so the heightfield shows no cliff. WALL_KINDS lists the sectors that get walls.
-WALL_H = 13.0         # m, at the tightest bends
-WALL_RUN = 1.8        # horizontal run of the oval = this x its height
+# Player, 2026-10-26: the craft still flew out of the zig-zag over the 13 m walls: 32 m on the outside of the bends,
+# steeper, over more of each bend, and a 10 m wall on both sides along the whole zig-zag.
+WALL_H = 32.0         # m, at the tightest bends
+WALL_SIDE_H = 10.0    # m, both sides, everywhere in WALL_KINDS
+WALL_RUN = 1.3        # horizontal run of the oval = this x its height
 WALL_RIM = 6.0        # m of flat top
-WALL_R_FULL, WALL_R_NONE = 200.0, 520.0
+WALL_R_FULL, WALL_R_NONE = 260.0, 800.0
 WALL_KINDS = ["switchback"]  # only the Shafer Fall zig-zag (player, 2026-10-25); add "top", "floor"... for more
 wall_k = np.abs(curvature(main, 41))
 wall_h = WALL_H * smoothstep(1.0 / WALL_R_NONE, 1.0 / WALL_R_FULL, wall_k)
+wall_in = smooth1d((np.isin(kind, WALL_KINDS) & ~skip).astype(float), 61)  # 0..1, easing in and out at the sector ends
 wall_h = smooth1d(wall_h, 61) * np.isin(kind, WALL_KINDS) * ~skip
 WALL = np.zeros(H.shape, bool)  # where a wall stands (props keep out of it)
 
@@ -766,7 +770,8 @@ def curve_walls():
     i = np.clip(np.maximum(idx, 0) * 2, 0, N - 1)
     lat = lateral(sub, idx)
     outer_ = np.sign(lat) == -np.sign(curv[i])
-    h = wall_h[i].astype(np.float32)
+    side = (WALL_SIDE_H * wall_in[i]).astype(np.float32)
+    h = np.where(outer_, np.maximum(wall_h[i], side), side).astype(np.float32)
     s_ = d - half_w[i]
     run = WALL_RUN * h
     # Start at the floor edge's own height (the floor profile rises a little toward its edges).
@@ -776,7 +781,7 @@ def curve_walls():
     behind = np.maximum(h - np.maximum(s_ - run - WALL_RIM, 0.0) * math.tan(math.radians(40.0)), 0.0)  # rim, then back slope
     tgt = base + np.where(s_ <= run, oval, behind)
     foot = run + WALL_RIM + h / math.tan(math.radians(40.0))
-    zone = (idx >= 0) & outer_ & (h > 0.5) & (s_ > 0.0) & (s_ < foot)
+    zone = (idx >= 0) & (h > 0.5) & (s_ > 0.0) & (s_ < foot)
     # The oval and its rim replace what stood there (a natural bank can be steeper than the oval and would trap the craft
     # against a face); the back slope only adds ground.
     on_oval = zone & (s_ <= run + WALL_RIM)
@@ -855,7 +860,7 @@ for name, b in branches.items():
     bank_line(b["p"], b["z"], np.full(n_, float(b["w"])), bk, np.zeros(n_), curvature(b["p"], 61),
               np.full(n_, b["kind"] in ("cave", "surface", "slabs")))
 bank_line(main, bed, half_w, kind, bank, curv, gap | (kind == "desert") | (kind == "cave"))
-lowered = ~on_floor & (bank_cap < H)
+lowered = ~on_floor & ~WALL & (bank_cap < H)   # the curve walls stay as built
 H = np.where(lowered, bank_cap, H)
 print("BANKS lowered", round(float(lowered.mean() * 100), 2), "% of the map")
 del bank_cap, lowered

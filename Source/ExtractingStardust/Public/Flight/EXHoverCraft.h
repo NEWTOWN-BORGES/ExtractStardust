@@ -207,6 +207,10 @@ public:
 	bool IsBot() const { return bBot; }
 	bool IsEliminated() const { return bEliminated; }
 	int32 GetLives() const { return Lives; }
+	/** The hull (player, 2026-10-26: a health bar as in the Unity version, not lives): 0..1 of the ship's maximum. */
+	float GetHullFrac() const { return HullMax > 0.0f ? FMath::Clamp(Hull / HullMax, 0.0f, 1.0f) : 0.0f; }
+	float GetHull() const { return Hull; }
+	float GetHullMax() const { return HullMax; }
 	int32 GetMaxLives() const { return MaxLives; }
 	/** World time of the last life lost (the HUD flashes it), -1 if none. */
 	float GetLastHitTime() const { return LastHitTime; }
@@ -331,6 +335,10 @@ private:
 	// Race rules state.
 	bool bRaceRules = false, bBot = false, bRaceHold = false, bShipLocked = false, bEliminated = false;
 	int32 Lives = 0, MaxLives = 0;
+	/** Hull points: 100 for a three-life ship, more for the sturdy ones. Damage as in the Unity version: (impact speed - 12
+	 *  m/s) x 1.1 into a wall (x 0.6 into another craft), (landing speed - 17 m/s) x 1.4; none in the first 10 s. */
+	float Hull = 100.0f, HullMax = 100.0f, RaceSeconds = 0.0f, RepairAmount = 0.0f, EliminatedAt = -1.0f;
+	void ApplyHullDamage(float Amount, bool bForce = false);
 	float BaseMaxSpeedMps = 0.0f, WallHitMps = 1.0e6f, LandingHitMps = 1.0e6f;
 	float HitCooldown = 0.0f, LastHitTime = -1.0f, RaceProgressM = 0.0f;
 	// The tuned handling before the modules (BeginPlay), so the module stats never compound.

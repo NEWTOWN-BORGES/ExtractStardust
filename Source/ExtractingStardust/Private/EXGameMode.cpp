@@ -26,14 +26,24 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 	{
 		return;
 	}
-	// -EXUltra: Lumen global illumination and reflections (light bouncing off the sand onto the rocks). Off by default:
-	// the GTX 1650 runs the game without it.
-	if (FParse::Param(FCommandLine::Get(), TEXT("EXUltra")) && GEngine)
+	// Lumen is the default (Config/DefaultEngine.ini). -EXLow turns it off for more fps on a weak GPU (Jogar Leve.bat);
+	// -EXUltra still forces it on.
+	if (GEngine)
 	{
-		for (const TCHAR* Command : { TEXT("r.DynamicGlobalIlluminationMethod 1"), TEXT("r.ReflectionMethod 1"), TEXT("r.Lumen.TraceMeshSDFs 0"),
-			TEXT("r.Shadow.Virtual.Enable 1"), TEXT("r.VolumetricFog.GridPixelSize 8") })
+		if (FParse::Param(FCommandLine::Get(), TEXT("EXLow")))
 		{
-			GEngine->Exec(World, Command);
+			for (const TCHAR* Command : { TEXT("r.DynamicGlobalIlluminationMethod 0"), TEXT("r.ReflectionMethod 2"), TEXT("r.Shadow.Virtual.Enable 0"),
+				TEXT("r.VolumetricFog.GridPixelSize 16") })
+			{
+				GEngine->Exec(World, Command);
+			}
+		}
+		else if (FParse::Param(FCommandLine::Get(), TEXT("EXUltra")))
+		{
+			for (const TCHAR* Command : { TEXT("r.DynamicGlobalIlluminationMethod 1"), TEXT("r.ReflectionMethod 1"), TEXT("r.Shadow.Virtual.Enable 1") })
+			{
+				GEngine->Exec(World, Command);
+			}
 		}
 	}
 	FActorSpawnParameters Params;

@@ -1,6 +1,7 @@
 #include "UI/EXResultsWidget.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "Components/BackgroundBlur.h"
 #include "Components/Border.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
@@ -57,13 +58,18 @@ namespace
 	}
 
 	/** One line of the ledger: what, then the amount on the right. */
-	UWidget* LedgerLine(UWidgetTree* Tree, const FString& What, const FString& Amount, const FLinearColor& Colour, bool bTotal = false)
+	UWidget* LedgerLine(UWidgetTree* Tree, const FString& What, const FString& Amount, const FLinearColor& Colour, bool bTotal = false,
+		UTextBlock** OutAmount = nullptr)
 	{
 		UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		EXUi::AddH(Line, EXUi::WeightText(Tree, What, bTotal ? 15 : 13, bTotal ? EXUi::Bone() : EXUi::Sand(), bTotal ? 800 : 600, bTotal ? 150 : 0),
 			FMargin(0.0f), true, VAlign_Center);
-		EXUi::AddH(Line, bTotal ? static_cast<UWidget*>(EXUi::TitleText(Tree, Amount, 26, Colour, 20)) : EXUi::WeightText(Tree, Amount, 14, Colour, 800),
-			FMargin(16.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
+		UTextBlock* AmountText = bTotal ? EXUi::TitleText(Tree, Amount, 30, Colour, 20) : EXUi::WeightText(Tree, Amount, 14, Colour, 800);
+		if (OutAmount)
+		{
+			*OutAmount = AmountText;
+		}
+		EXUi::AddH(Line, AmountText, FMargin(16.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
 		if (bTotal)
 		{
 			EXUi::AddH(Line, EXUi::GemImage(Tree, 14.0f), FMargin(8.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
@@ -90,14 +96,30 @@ TSharedRef<SWidget> UEXResultsWidget::RebuildWidget()
 void UEXResultsWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
-	// The screen comes in: a short fade and a slide up.
+	// The screen comes in piece by piece: the verdict, the ledger, the classification, then the cards one by one.
 	Age += InDeltaTime;
-	if (Panel)
+	for (const FReveal& Item : Reveals)
 	{
-		const float T = FMath::Clamp(Age / 0.45f, 0.0f, 1.0f);
+		const float T = FMath::Clamp((Age - Item.Delay) / 0.4f, 0.0f, 1.0f);
 		const float Ease = 1.0f - FMath::Square(1.0f - T);
-		Panel->SetRenderOpacity(Ease);
-		Panel->SetRenderTranslation(FVector2D(0.0f, 40.0f * (1.0f - Ease)));
+		Item.Widget->SetRenderOpacity(Ease);
+		Item.Widget->SetRenderTranslation(FVector2D(0.0f, 36.0f * (1.0f - Ease)));
+	}
+	// The total counts up once the ledger is in.
+	if (TotalText)
+	{
+		const float T = FMath::Clamp((Age - 0.9f) / 1.3f, 0.0f, 1.0f);
+		const int32 Shown = FMath::RoundToInt(TotalTarget * (1.0f - FMath::Pow(1.0f - T, 3.0f)));
+		EXUi::SetText(TotalText, FString::Printf(TEXT("%s%s"), bTotalLoss ? TEXT("-") : (TotalTarget > 0 ? TEXT("+") : TEXT("")), *EXUi::Thousands(Shown)));
+	}
+}
+
+void UEXResultsWidget::Reveal(UWidget* Widget, float Delay)
+{
+	if (Widget)
+	{
+		Widget->SetRenderOpacity(0.0f);
+		Reveals.Add({ Widget, Delay });
 	}
 }
 
@@ -112,23 +134,33 @@ void UEXResultsWidget::BuildTree()
 	}
 	const FEXRaceSummary& Summary = RaceDirector->GetSummary();
 	const FLinearColor Colour = VerdictColour(Summary.State);
-	EXUi::AddO(Root, EXUi::Box(Tree, EXUi::Ink(0.78f)), HAlign_Fill, VAlign_Fill);
+	// The race blurred behind, darkened, the verdict's colour along the top and a soft glow of it from the left.
+	UBackgroundBlur* Blur = Tree->ConstructWidget<UBackgroundBlur>(UBackgroundBlur::StaticClass());
+	Blur->SetBlurStrength(9.0f);
+	EXUi::AddO(Root, Blur, HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Root, EXUi::Box(Tree, EXUi::Ink(0.66f)), HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Root, EXUi::Fade(Tree, FLinearColor(Colour.R, Colour.G, Colour.B, 1.0f), 0.16f, 0.0f, 24), HAlign_Fill, VAlign_Fill);
 	EXUi::AddO(Root, EXUi::Sized(Tree, 0.0f, 6.0f, EXUi::Box(Tree, Colour)), HAlign_Fill, VAlign_Top);
 
 	UVerticalBox* Page = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UHorizontalBox* Columns = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	UVerticalBox* Left = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	EXUi::AddV(Left, BuildVerdict(Tree));
-	EXUi::AddV(Left, BuildLedger(Tree), FMargin(0.0f, 26.0f, 0.0f, 0.0f));
+	UWidget* Verdict = BuildVerdict(Tree);
+	UWidget* Ledger = BuildLedger(Tree);
+	EXUi::AddV(Left, Verdict);
+	EXUi::AddV(Left, Ledger, FMargin(0.0f, 26.0f, 0.0f, 0.0f));
 	EXUi::AddH(Columns, EXUi::Sized(Tree, 600.0f, 0.0f, Left));
 	EXUi::AddH(Columns, BuildPieces(Tree), FMargin(36.0f, 0.0f, 0.0f, 0.0f), true);
-	EXUi::AddH(Columns, EXUi::Sized(Tree, 520.0f, 0.0f, BuildStandings(Tree)), FMargin(36.0f, 0.0f, 0.0f, 0.0f));
+	UWidget* Table = BuildStandings(Tree);
+	EXUi::AddH(Columns, EXUi::Sized(Tree, 520.0f, 0.0f, Table), FMargin(36.0f, 0.0f, 0.0f, 0.0f));
 	EXUi::AddV(Page, Columns);
 	UHorizontalBox* Keys = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	EXUi::AddH(Keys, EXUi::Hint(Tree, { TEXT("Enter"), TEXT("X") }, Summary.State == 1 ? TEXT("RECOLHER E CONTINUAR") : TEXT("CONTINUAR")));
 	EXUi::AddV(Page, Keys, FMargin(0.0f, 30.0f, 0.0f, 0.0f), HAlign_Right);
-	Panel = Page;
-	Panel->SetRenderOpacity(0.0f);
+	Reveal(Verdict, 0.0f);
+	Reveal(Ledger, 0.35f);
+	Reveal(Table, 0.55f);
+	Reveal(Keys, 1.6f);
 	EXUi::AddO(Root, Page, HAlign_Fill, VAlign_Center, FMargin(70.0f, 40.0f));
 }
 
@@ -139,7 +171,19 @@ UWidget* UEXResultsWidget::BuildVerdict(UWidgetTree* Tree)
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	EXUi::AddV(Column, EXUi::WeightText(Tree, TEXT("EXPEDIÇÃO  ·  RED DUST DIVIDE"), 11, EXUi::Rust(), 800, 300));
 	const FString Title = Summary.State == 1 ? TEXT("EXTRAÍDO") : (Summary.State == 2 ? TEXT("DESTRUÍDO") : TEXT("ENCALHADO"));
-	EXUi::AddV(Column, EXUi::OutlinedText(Tree, Title, 64, Colour, 80, 2, EXUi::Ink()), FMargin(0.0f, 6.0f, 0.0f, 0.0f));
+	UHorizontalBox* TitleLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	EXUi::AddH(TitleLine, EXUi::OutlinedText(Tree, Title, 64, Colour, 80, 2, EXUi::Ink()), FMargin(0.0f), false, VAlign_Center);
+	if (Summary.State == 1 && Summary.Place >= 1 && Summary.Place <= 3)
+	{
+		// The podium: a medal in gold, silver or bronze beside the verdict.
+		const FLinearColor Medal = Summary.Place == 1 ? EXUi::Hex(255, 205, 70) : (Summary.Place == 2 ? EXUi::Hex(210, 215, 225) : EXUi::Hex(215, 135, 70));
+		const TCHAR* const MedalName = Summary.Place == 1 ? TEXT("OURO") : (Summary.Place == 2 ? TEXT("PRATA") : TEXT("BRONZE"));
+		UVerticalBox* Badge = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		EXUi::AddV(Badge, EXUi::TitleText(Tree, FString::Printf(TEXT("%d.º"), Summary.Place), 34, EXUi::Ink(), 0), FMargin(0.0f), HAlign_Center);
+		EXUi::AddV(Badge, EXUi::WeightText(Tree, MedalName, 10, EXUi::Ink(), 800, 250), FMargin(0.0f), HAlign_Center);
+		EXUi::AddH(TitleLine, EXUi::Box(Tree, Medal, FMargin(16.0f, 6.0f), Badge), FMargin(24.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
+	}
+	EXUi::AddV(Column, TitleLine, FMargin(0.0f, 6.0f, 0.0f, 0.0f));
 	FString Sub;
 	if (Summary.State == 1)
 	{
@@ -192,7 +236,8 @@ UWidget* UEXResultsWidget::BuildLedger(UWidgetTree* Tree)
 				EXUi::Hex(255, 200, 80)));
 		}
 		Add(EXUi::Sized(Tree, 0.0f, 1.0f, EXUi::Box(Tree, EXUi::Bone(0.15f))), 14.0f);
-		Add(LedgerLine(Tree, TEXT("TOTAL EM STARDUST"), FString::Printf(TEXT("+%s"), *EXUi::Thousands(Summary.Total)), Gain, true), 12.0f);
+		Add(LedgerLine(Tree, TEXT("TOTAL EM STARDUST"), TEXT("+0"), Gain, true, &TotalText), 12.0f);
+		TotalTarget = Summary.Total;
 	}
 	else
 	{
@@ -214,8 +259,9 @@ UWidget* UEXResultsWidget::BuildLedger(UWidgetTree* Tree)
 			Add(LedgerLine(Tree, TEXT("Os checkpoints só pagam na extração"), FString::Printf(TEXT("%d / %d"), Summary.Checkpoints, Summary.CheckpointCount), EXUi::Sand()));
 		}
 		Add(EXUi::Sized(Tree, 0.0f, 1.0f, EXUi::Box(Tree, EXUi::Bone(0.15f))), 14.0f);
-		Add(LedgerLine(Tree, TEXT("TOTAL EM STARDUST"), Summary.State == 2 ? FString::Printf(TEXT("-%s"), *EXUi::Thousands(LostValue)) : FString(TEXT("0")),
-			Summary.State == 2 ? Loss : EXUi::Bone(), true), 12.0f);
+		Add(LedgerLine(Tree, TEXT("TOTAL EM STARDUST"), TEXT("0"), Summary.State == 2 ? Loss : EXUi::Bone(), true, &TotalText), 12.0f);
+		TotalTarget = Summary.State == 2 ? LostValue : 0;
+		bTotalLoss = Summary.State == 2 && LostValue > 0;
 	}
 	return ResultPlate(Tree, Lines, Summary.State == 1 ? EXUi::Ok() : (Summary.State == 2 ? Loss : EXUi::Rust()), FMargin(26.0f, 20.0f, 26.0f, 22.0f));
 }
@@ -277,7 +323,9 @@ UWidget* UEXResultsWidget::BuildPieces(UWidgetTree* Tree)
 			Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 			EXUi::AddV(Column, Row, FMargin(0.0f, 16.0f, 0.0f, 0.0f), HAlign_Left);
 		}
-		EXUi::AddH(Row, MakeCard(Tree, Cards[Index].Key, Cards[Index].Value == 1, Cards[Index].Value == 2), FMargin(Index % 3 > 0 ? 16.0f : 0.0f, 0.0f, 0.0f, 0.0f));
+		UWidget* Card = MakeCard(Tree, Cards[Index].Key, Cards[Index].Value == 1, Cards[Index].Value == 2);
+		Reveal(Card, 0.8f + 0.18f * Index);   // the cards turn up one by one
+		EXUi::AddH(Row, Card, FMargin(Index % 3 > 0 ? 16.0f : 0.0f, 0.0f, 0.0f, 0.0f));
 	}
 	if (Cards.Num() > MaxCards)
 	{

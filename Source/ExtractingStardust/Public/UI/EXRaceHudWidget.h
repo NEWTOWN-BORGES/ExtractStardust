@@ -59,7 +59,12 @@ private:
 	UTextBlock* FieldText = nullptr;
 	UTextBlock* ClockText = nullptr;
 	UTextBlock* SectorText = nullptr;
-	UBorder* LifePips[6] = {};
+	// The hull (CASCO), as in the Unity version: a bar from green to red with the percentage.
+	USizeBox* HullFill = nullptr;
+	UBorder* HullColour = nullptr;
+	UTextBlock* HullText = nullptr;
+	float HullShown = 1.0f;
+	USizeBox* HullLoss = nullptr;
 	UTextBlock* RiskText = nullptr;
 	UTextBlock* SpeedText = nullptr;
 	FGaugeView Gauges[3];

@@ -321,7 +321,7 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 	}
 	if (Craft->GetRepairProgress() >= 0.0f)
 	{
-		Centred(FString::Printf(TEXT("A REPARAR  %d%%  \u00B7  +1 VIDA"), FMath::RoundToInt(Craft->GetRepairProgress() * 100.0f)),
+		Centred(FString::Printf(TEXT("A REPARAR O CASCO  %d%%"), FMath::RoundToInt(Craft->GetRepairProgress() * 100.0f)),
 			FLinearColor(0.48f, 0.88f, 0.54f), ToastY, 1.1f * Scale);
 		ToastY += 28.0f * Scale;
 	}

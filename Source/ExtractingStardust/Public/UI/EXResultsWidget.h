@@ -38,7 +38,20 @@ private:
 	UWidget* BuildStandings(UWidgetTree* Tree);
 	UWidget* MakeCard(UWidgetTree* Tree, const FEXItem& Item, bool bLost, bool bSaved);
 
+	/** Shows Widget from Delay seconds on: a short fade and slide up. */
+	void Reveal(UWidget* Widget, float Delay);
+
+	struct FReveal
+	{
+		UWidget* Widget = nullptr;
+		float Delay = 0.0f;
+	};
+
 	UPROPERTY(Transient) TObjectPtr<AEXRaceDirector> RaceDirector;
-	UWidget* Panel = nullptr;
+	TArray<FReveal> Reveals;
+	/** The total counts up (or down, a loss) once the ledger is in. */
+	class UTextBlock* TotalText = nullptr;
+	int32 TotalTarget = 0;
+	bool bTotalLoss = false;
 	float Age = 0.0f;
 };
