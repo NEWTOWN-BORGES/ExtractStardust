@@ -115,6 +115,7 @@ void UEXCraftAudio::UpdateAudio(float Dt, const FEXCraftAudioInput& Input)
 	Me.WallLeft = Input.WallLeft;
 	Me.WallRight = Input.WallRight;
 	Me.Scrape = FMath::Clamp(Input.Impact, 0.0f, 1.0f);
+	Me.Music = Input.Music;
 	Me.Master = Input.bHangar ? 0.35f : (Input.bRaceHold ? 0.6f : 1.0f);
 	if (Input.bBoosting && !bWasBoosting)
 	{

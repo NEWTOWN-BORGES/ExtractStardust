@@ -36,6 +36,7 @@ struct FEXCraftAudioInput
 	bool bGrounded = false;
 	bool bDrifting = false;
 	bool bHangar = false;
+	float Music = 0.0f;       // menu and hangar music (0..1)
 	bool bRaceHold = false;
 	bool bViewer = true;
 	TArray<FEXCraftAudioOther, TInlineAllocator<8>> Others;

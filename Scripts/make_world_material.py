@@ -167,7 +167,7 @@ xy = mask(world, r=True, g=True)
 # Surface map and track map over the real (unpadded) world.
 world_uv = div(sub(xy, vec2(*meta["surface_origin_cm"])), vec2(*meta["surface_size_cm"]))
 surface = sample("/Game/World/T_WorldSurface", world_uv, LINEAR)
-track_map = mask(sample("/Game/World/T_WorldTrack", world_uv, LINEAR), r=True)
+track_map = mask(sample("/Game/World/T_WorldTrack", world_uv, unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_GRAYSCALE), r=True)
 rock_map, deep_map, gravel_map = mask(surface, r=True), mask(surface, g=True), mask(surface, b=True)
 green_map = mask(surface, a=True, out="RGBA")
 macro = mask(sample("/Game/Desert/Textures/T_Macro_D", div(xy, 40000.0), LINEAR), r=True)

@@ -537,7 +537,7 @@ dec.finish(G["Decals"], recalc=False, smooth_angle=10)
 for name, loc in (("Socket_Reactor", (0, -0.20, 0.62)), ("Socket_Propulsion", (0, EXIT, ENG_Z)),
                   ("Socket_Wing_L", (-1.20, 1.25, 0.365)), ("Socket_Wing_R", (1.20, 1.25, 0.365)),
                   ("Socket_Tail", (0, Y_END, ENG_Z - SH_HH)), ("Socket_Armor_L", (-1.30, -0.60, 0.36)),
-                  ("Socket_Armor_R", (1.30, -0.60, 0.36)), ("Socket_Cooling", (0, 1.40, 1.09)),
+                  ("Socket_Armor_R", (1.30, -0.60, 0.36)), ("Socket_Cooling", (0, 1.30, 1.09)),
                   ("Socket_Utility", (0, -2.90, 0.55))):
     group(name, G["Sockets"], loc)
 

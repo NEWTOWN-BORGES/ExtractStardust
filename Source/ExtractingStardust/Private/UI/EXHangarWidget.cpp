@@ -38,8 +38,8 @@ namespace
 void UEXHangarWidget::InitializeHangar(AEXRaceDirector* InRaceDirector)
 {
 	RaceDirector = InRaceDirector;
-	// The mouse turns the ship (game input): the widget never takes it.
-	SetVisibility(ESlateVisibility::HitTestInvisible);
+	// The widget takes the clicks (tabs, slots, pieces); a click on nothing goes on to the game.
+	SetVisibility(ESlateVisibility::Visible);
 }
 
 TSharedRef<SWidget> UEXHangarWidget::RebuildWidget()
@@ -331,6 +331,99 @@ void UEXHangarWidget::ShowRow(const FRowView& View, const FEXHangarRow* Row, boo
 	}
 }
 
+bool UEXHangarWidget::IsUnder(const UWidget* Widget, const FPointerEvent& MouseEvent)
+{
+	if (!Widget || !Widget->IsVisible())
+	{
+		return false;
+	}
+	// Screen space on both sides (the mouse and the widget's last geometry).
+	const FGeometry& Geometry = Widget->GetCachedGeometry();
+	const FVector2D Mouse = MouseEvent.GetScreenSpacePosition();
+	const FVector2D Top = Geometry.GetAbsolutePosition();
+	const FVector2D Size = Geometry.GetAbsoluteSize();
+	return Size.X > 1.0 && Mouse.X >= Top.X && Mouse.Y >= Top.Y && Mouse.X < Top.X + Size.X && Mouse.Y < Top.Y + Size.Y;
+}
+
+int32 UEXHangarWidget::RowUnder(const TArray<FRowView>& Views, const FPointerEvent& MouseEvent)
+{
+	for (int32 Index = 0; Index < Views.Num(); ++Index)
+	{
+		if (IsUnder(Views[Index].Root, MouseEvent))
+		{
+			return Index;
+		}
+	}
+	return INDEX_NONE;
+}
+
+FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	AEXHoverCraft* Craft = GetPlayerCraft();
+	UEXHangarModel* Model = Craft ? Craft->GetHangarModel() : nullptr;
+	if (!Model || InMouseEvent.GetEffectingButton() != EKeys::LeftMouseButton)
+	{
+		return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+	}
+	if (Model->IsOpening())
+	{
+		// A cache being opened: a click turns the next card over, and closes it at the end (as Enter does).
+		Model->Confirm();
+		return FReply::Handled();
+	}
+	const EEXHangarTab Tab = Model->GetTab();
+	// The tabs.
+	for (int32 Index = 0; Index < TabFills.Num(); ++Index)
+	{
+		if (IsUnder(TabFills[Index], InMouseEvent))
+		{
+			Model->Tab(Index - static_cast<int32>(Tab) + TabFills.Num());
+			return FReply::Handled();
+		}
+	}
+	// The launch button of the ship tab.
+	if (Tab == EEXHangarTab::Ship && IsUnder(LaunchPanel, InMouseEvent))
+	{
+		Model->Confirm();
+		return FReply::Handled();
+	}
+	// The list on the left: the first click picks the row, a second click on it does what Enter does (buy, open,
+	// sell, change the consumable); in EQUIPAR and NAVE a click only picks (the piece is chosen on the right).
+	const int32 Left = RowUnder(LeftRows, InMouseEvent);
+	if (Left != INDEX_NONE)
+	{
+		const int32 RowIndex = LeftFirst + Left;
+		if (RowIndex != LeftSelected)
+		{
+			Model->Move(RowIndex - LeftSelected);
+		}
+		else if (Tab != EEXHangarTab::Equip && Tab != EEXHangarTab::Ship)
+		{
+			Model->Confirm();
+		}
+		return FReply::Handled();
+	}
+	// The pieces on the right (EQUIPAR): the first click looks at the piece on the ship, a second click fits it.
+	const int32 Right = RowUnder(RightRows, InMouseEvent);
+	if (Right != INDEX_NONE)
+	{
+		const int32 RowIndex = RightFirst + Right;
+		if (Tab == EEXHangarTab::Equip)
+		{
+			if (RowIndex != RightSelected)
+			{
+				Model->Change(RowIndex - RightSelected);
+			}
+			else
+			{
+				Model->Confirm();
+			}
+		}
+		return FReply::Handled();
+	}
+	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+}
+
 void UEXHangarWidget::Refresh()
 {
 	AEXHoverCraft* Craft = GetPlayerCraft();
@@ -359,6 +452,8 @@ void UEXHangarWidget::Refresh()
 	Model->BuildLeft(Title, Rows, Selected);
 	EXUi::SetText(LeftTitle, Title);
 	const int32 First = FMath::Clamp(Selected - HangarLeftRows / 2, 0, FMath::Max(0, Rows.Num() - HangarLeftRows));
+	LeftFirst = First;
+	LeftSelected = Selected;
 	for (int32 Index = 0; Index < LeftRows.Num(); ++Index)
 	{
 		const int32 RowIndex = First + Index;
@@ -370,7 +465,8 @@ void UEXHangarWidget::Refresh()
 	FString Detail;
 	Model->BuildRight(Title, Rows, Selected, Detail);
 	EXUi::SetText(RightTitle, Title);
-	const int32 RightFirst = Selected >= 0 ? FMath::Clamp(Selected - HangarRightRows / 2, 0, FMath::Max(0, Rows.Num() - HangarRightRows)) : 0;
+	RightFirst = Selected >= 0 ? FMath::Clamp(Selected - HangarRightRows / 2, 0, FMath::Max(0, Rows.Num() - HangarRightRows)) : 0;
+	RightSelected = Selected;
 	for (int32 Index = 0; Index < RightRows.Num(); ++Index)
 	{
 		const int32 RowIndex = RightFirst + Index;

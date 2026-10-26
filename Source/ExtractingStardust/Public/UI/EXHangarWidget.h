@@ -34,6 +34,8 @@ public:
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	/** Player, 2026-10-25: the pieces could only be chosen with W/S/A/D/Enter; now the mouse clicks tabs, slots and pieces. */
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 
 private:
 	/** One list line: a colour bar, small label, title, sub-line, right text and tag. */
@@ -84,6 +86,9 @@ private:
 	void RefreshCards(const UEXHangarModel* Model);
 	void RefreshHints(const UEXHangarModel* Model);
 	AEXHoverCraft* GetPlayerCraft() const;
+	/** Index of the first widget in Views that is shown and under the mouse (INDEX_NONE if none). */
+	static int32 RowUnder(const TArray<FRowView>& Views, const FPointerEvent& MouseEvent);
+	static bool IsUnder(const UWidget* Widget, const FPointerEvent& MouseEvent);
 
 	UPROPERTY(Transient) TObjectPtr<AEXRaceDirector> RaceDirector;
 	// Plain pointers into the widget tree (it owns the widgets and lives as long as this widget).
@@ -111,4 +116,9 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UWidget> RightPanel;
 	UPROPERTY(Transient) TObjectPtr<UHorizontalBox> KeyBar;
 	FString ShownHints;
+	// What the lists showed at the last Refresh: the first row of each window and the selected row (for the clicks).
+	int32 LeftFirst = 0;
+	int32 LeftSelected = 0;
+	int32 RightFirst = 0;
+	int32 RightSelected = -1;
 };

@@ -306,6 +306,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 			FEXCraftAudioInput In;
 			In.ShipName = GetShipName();
 			In.bHangar = true;
+			In.Music = 1.0f;   // the menu and the hangar play the ambient music
 			In.bGrounded = true;
 			In.bViewer = true;
 			Audio->UpdateAudio(DeltaSeconds, In);
@@ -1668,8 +1669,20 @@ void AEXHoverCraft::UpdateHangar(float Dt)
 	{
 		// Orbit: mouse or right stick; zoom: wheel, PageUp/PageDown or the triggers. Q/E or the shoulders change the tab,
 		// W/S the row (MenuUp/MenuDown), A/D or the left stick the choice in it; Tab, 1-5 and the d-pad sides the ship.
-		const float YawDelta = HangarOrbitInput * 120.0f * Dt + HangarYawInput * 0.6f;
-		const float PitchDelta = HangarPitchInput * 50.0f * Dt;
+		// With the mouse cursor on (the tabs and pieces are clicked) the mouse turns the ship only while the right button
+		// is held, so reaching for a piece does not spin it; the gamepad stick always does.
+		float MouseYaw = HangarYawInput;
+		float MousePitch = HangarPitchInput;
+		if (const APlayerController* Pc = Cast<APlayerController>(GetController()))
+		{
+			if (Pc->bShowMouseCursor && !Pc->IsInputKeyDown(EKeys::RightMouseButton))
+			{
+				MouseYaw = 0.0f;
+				MousePitch = FMath::Abs(Pc->GetInputAnalogKeyState(EKeys::Gamepad_RightY)) > 0.1f ? MousePitch : 0.0f;
+			}
+		}
+		const float YawDelta = HangarOrbitInput * 120.0f * Dt + MouseYaw * 0.6f;
+		const float PitchDelta = MousePitch * 50.0f * Dt;
 		if (!FMath::IsNearlyZero(YawDelta) || !FMath::IsNearlyZero(PitchDelta))
 		{
 			bHangarAutoRotate = false;

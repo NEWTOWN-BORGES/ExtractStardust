@@ -194,12 +194,12 @@ void AEXHud::ShowScreens(AEXRaceDirector* Race, bool bMenu, bool bHangar)
 		HangarWidget->RemoveFromParent();
 		HangarWidget = nullptr;
 	}
-	// The menu takes the mouse (its lines are clicked); the hangar and the race give it to the game.
-	const int32 Wanted = bMenu ? 1 : 0;
+	// The menu and the hangar take the mouse (their lines, tabs and pieces are clicked); the race gives it to the game.
+	const int32 Wanted = (bMenu || bHangar) ? 1 : 0;
 	if (Wanted != InputScreen)
 	{
 		InputScreen = Wanted;
-		if (bMenu)
+		if (bMenu || bHangar)
 		{
 			PlayerController->bShowMouseCursor = true;
 			FInputModeGameAndUI InputMode;
