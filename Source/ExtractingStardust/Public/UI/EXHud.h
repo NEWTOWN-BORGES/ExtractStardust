@@ -7,6 +7,7 @@
 class UEXHangarWidget;
 class UEXMainMenuWidget;
 class UEXRaceHudWidget;
+class UEXResultsWidget;
 
 /**
  * Race HUD on maps with a route (spline tagged EXRoute):
@@ -50,6 +51,10 @@ private:
 	/** The race panels (mock-up hud.png): place and time, lives, speed and gauges, the quick slots. */
 	UPROPERTY(Transient)
 	TObjectPtr<UEXRaceHudWidget> RaceHudWidget;
+
+	/** The end of the expedition: victory or defeat, the ledger, the pieces, the classification. */
+	UPROPERTY(Transient)
+	TObjectPtr<UEXResultsWidget> ResultsWidget;
 
 	/** The input set last: -1 none yet, 0 the game only, 1 the menu (game and UI, cursor shown). */
 	int32 InputScreen = -1;

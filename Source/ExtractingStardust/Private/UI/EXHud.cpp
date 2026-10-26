@@ -10,6 +10,7 @@
 #include "UI/EXHangarWidget.h"
 #include "UI/EXMainMenuWidget.h"
 #include "UI/EXRaceHudWidget.h"
+#include "UI/EXResultsWidget.h"
 
 namespace
 {
@@ -56,6 +57,22 @@ void AEXHud::DrawHUD()
 	{
 		RaceHudWidget->RemoveFromParent();
 		RaceHudWidget = nullptr;
+	}
+	// The results screen, once the race is over.
+	const bool bResults = bRacing && Race->IsOver();
+	if (bResults && !IsValid(ResultsWidget) && GetOwningPlayerController())
+	{
+		ResultsWidget = CreateWidget<UEXResultsWidget>(GetOwningPlayerController());
+		if (ResultsWidget)
+		{
+			ResultsWidget->InitializeResults(Race);
+			ResultsWidget->AddToViewport(50);
+		}
+	}
+	else if (!bResults && ResultsWidget)
+	{
+		ResultsWidget->RemoveFromParent();
+		ResultsWidget = nullptr;
 	}
 	if (bMenu || bHangar || Craft->IsInShowroom())
 	{
@@ -286,8 +303,8 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 		DrawRect(FLinearColor(0.03f, 0.02f, 0.01f, 0.6f), Mid - W * 0.5f - 12.0f, AtY - 4.0f, W + 24.0f, H + 8.0f);
 		DrawText(Text, Colour, Mid - W * 0.5f, AtY, nullptr, TextScale);
 	};
-	// Countdown: 3, 2, 1, VAI!
-	if (Race->GetCountdown() > 0.0f)
+	// Countdown: 3, 2, 1, VAI! (the race widget shows the start lights instead)
+	if (Race->GetCountdown() > 0.0f && !RaceHudWidget)
 	{
 		const int32 Count = FMath::CeilToInt(Race->GetCountdown() - 1.0f);
 		DrawText(Count > 0 ? FString::FromInt(Count) : FString(TEXT("VAI!")), Count > 0 ? FLinearColor(1.0f, 0.85f, 0.2f)
@@ -337,6 +354,7 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 	}
 	if (Craft->IsEliminated() && !Race->IsOver())
 	{
+		DrawText(TEXT("Enter / X: ver o resultado"), FLinearColor(1.0f, 0.85f, 0.6f), Mid - 120.0f * Scale, Canvas->ClipY * 0.36f + 44.0f * Scale, nullptr, 1.2f * Scale);
 		DrawText(TEXT("DESTRU\u00CDDA - AT\u00C9 3 M\u00D3DULOS V\u00C3O PARA QUEM EXTRAIR"), Red, Mid - 330.0f * Scale, Canvas->ClipY * 0.36f, nullptr, 1.8f * Scale);
 	}
 	// Messages of the last 6 s (left, under the panel).
@@ -359,7 +377,7 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 	}
 	// The extraction: who reached B (EXTRACTED), who was destroyed (up to three of its modules are the pool) and who
 	// was still on the way; then what the player won and lost.
-	if (Race->IsOver())
+	if (Race->IsOver() && !ResultsWidget)
 	{
 		const TArray<FString>& News = Race->GetPlayerNews();
 		const float W = 700.0f * Scale;

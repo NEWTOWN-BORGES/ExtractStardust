@@ -15,7 +15,10 @@ namespace
 	constexpr float RaceCmPerM = 100.0f;
 	constexpr int32 GridRows = 3;
 	constexpr int32 GridColumns = 6;
-	constexpr float GridFrontM = 80.0f;     // the front row stands this far along the race line from A
+	constexpr float GridFrontM = 90.0f;     // the front row stands this far along the race line from A
+	constexpr float CheckpointEveryM = 2500.0f;  // checkpoints along the line, as in the Unity version
+	constexpr int32 CheckpointPrize = 40;         // STARDUST per checkpoint, paid on extraction
+	constexpr int32 AllCheckpointsPrize = 300;    // and this on top for all of them
 	constexpr float RowGapM = 14.0f;
 	constexpr float ColumnGapM = 8.0f;      // 6 abreast in 48 m: the road at the start is 60 m wide
 	constexpr float FinishMarginM = 25.0f;  // the finish line: this far before the end of the race line (B)
@@ -114,8 +117,29 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 		{
 			Racer.bFinished = true;
 			Racer.FinishTime = RaceTime;
+			Racer.Checkpoint = CheckpointCount;   // B is the last checkpoint
+			if (Racer.bPlayer)
+			{
+				PlayerCheckpoint = CheckpointCount;
+				LastCheckpointTime = RaceTime;
+			}
 			Craft->SetRaceHold(true);
 			Post(FString::Printf(TEXT("%s chegou a B em %s"), *Racer.Name, *DirectorClock(RaceTime)));
+		}
+		// Checkpoints: any line counts by the distance along the race (as in the Unity version).
+		const int32 Reached = FMath::Clamp(FMath::FloorToInt(Craft->GetRaceProgressM() / FMath::Max(1.0f, RouteLengthM) * CheckpointCount), 0, CheckpointCount);
+		if (!Racer.bOut && Reached > Racer.Checkpoint)
+		{
+			Racer.Checkpoint = Reached;
+			if (Racer.bPlayer)
+			{
+				PlayerCheckpoint = Reached;
+				LastCheckpointTime = RaceTime;
+				if (Reached < CheckpointCount)
+				{
+					Post(FString::Printf(TEXT("CHECKPOINT %d / %d  ·  %s  ·  +%d STARDUST"), Reached, CheckpointCount, *DirectorClock(RaceTime), CheckpointPrize));
+				}
+			}
 		}
 		if (Racer.bPlayer && (Racer.bOut || Racer.bFinished))
 		{
@@ -236,6 +260,10 @@ void AEXRaceDirector::Setup()
 	}
 	Route = Player->GetMapRoute();
 	RouteLengthM = (Route.Num() - 1) * 5.0f;
+	CheckpointCount = FMath::Clamp(FMath::RoundToInt(RouteLengthM / CheckpointEveryM), 4, 40);
+	PlayerCheckpoint = 0;
+	LastCheckpointTime = -100.0f;
+	Summary = FEXRaceSummary();
 
 	// Solo: the front row, in the middle. Bots: the back row (the player has to fight through).
 	const int32 PlayerSlot = Mode == EEXRaceMode::Bots ? (GridRows - 1) * GridColumns + 2 : 2;
@@ -294,7 +322,7 @@ void AEXRaceDirector::Setup()
 			// 82 % of the ideal pace; the weaker wander more in their lane and misjudge more bends. Each keeps roughly
 			// to its grid column (lanes 4 m apart round the line).
 			const float Skill = BotSkills[Bot % static_cast<int32>(UE_ARRAY_COUNT(BotSkills))];
-			const float Lane = ((Slot % GridColumns) - (GridColumns - 1) * 0.5f) * 4.0f;
+			const float Lane = ((Slot % GridColumns) - (GridColumns - 1) * 0.5f) * ColumnGapM;   // its grid column
 			Craft->SetRaceRules();
 			Craft->SetBot(Bot % 5, Skill, Lane);
 			// Real pieces (doc 03): what a destroyed bot loses is real loot for the extractors. Better bots, better gear.
@@ -318,12 +346,13 @@ void AEXRaceDirector::Setup()
 
 void AEXRaceDirector::PlaceOnGrid(AEXHoverCraft* Craft, int32 Slot)
 {
+	// Player, 2026-10-26: the grid in straight rows, every craft facing the same way. The rows stand behind the front
+	// row along the direction of the line there (not along its curve), the columns square to it.
 	const int32 Row = Slot / GridColumns;
 	const int32 Column = Slot % GridColumns;
-	const float AlongM = FMath::Max(10.0f, GridFrontM - Row * RowGapM);
-	const int32 I = FMath::Clamp(FMath::RoundToInt(AlongM / 5.0f), 1, Route.Num() - 3);
-	const FVector2D Dir = (Route[I + 2] - Route[I - 1]).GetSafeNormal();
-	const FVector2D Spot = Route[I] + FVector2D(-Dir.Y, Dir.X) * ((Column - (GridColumns - 1) * 0.5f) * ColumnGapM);
+	const int32 I = FMath::Clamp(FMath::RoundToInt(GridFrontM / 5.0f), 4, Route.Num() - 5);
+	const FVector2D Dir = (Route[I + 4] - Route[I - 4]).GetSafeNormal();
+	const FVector2D Spot = Route[I] - Dir * (Row * RowGapM) + FVector2D(-Dir.Y, Dir.X) * ((Column - (GridColumns - 1) * 0.5f) * ColumnGapM);
 	FVector Location(Spot.X * RaceCmPerM, Spot.Y * RaceCmPerM, Craft->GetActorLocation().Z);
 	// The ground under the slot (the craft ignore the Visibility channel once the race rules are on).
 	FHitResult Hit;
@@ -373,9 +402,28 @@ void AEXRaceDirector::UpdateStandings()
 	PlayerPlace = 1 + FMath::Max(0, Standings.IndexOfByPredicate([](const FEXRacer& Racer) { return Racer.bPlayer; }));
 }
 
+int32 AEXRaceDirector::GetCheckpointPrize()
+{
+	return CheckpointPrize;
+}
+
 void AEXRaceDirector::Finish()
 {
 	bOver = true;
+	// The bots still racing get a finishing time from their pace so far (as in the Unity version): a full classification.
+	for (FEXRacer& Racer : Racers)
+	{
+		if (Racer.bPlayer || Racer.bFinished || Racer.bOut || !IsValid(Racer.Craft))
+		{
+			continue;
+		}
+		const float Progress = Racer.Craft->GetRaceProgressM();
+		const float Pace = FMath::Max(60.0f, Progress / FMath::Max(1.0f, RaceTime));
+		Racer.FinishTime = RaceTime + FMath::Max(0.0f, RouteLengthM - Progress) / Pace;
+		Racer.bFinished = true;
+		Racer.bProjected = true;
+		Racer.Checkpoint = CheckpointCount;
+	}
 	for (FEXRacer& Racer : Racers)
 	{
 		if (IsValid(Racer.Craft))
@@ -386,6 +434,7 @@ void AEXRaceDirector::Finish()
 	UpdateStandings();
 	SettleExtraction();
 	UpdateStandings();
+	Summary.Place = PlayerPlace;
 	Post(FString::Printf(TEXT("FIM DA EXPEDI\u00C7\u00C3O  \u00B7  esp\u00F3lio %d STARDUST"), Pool));
 	for (int32 Place = 0; Place < Standings.Num(); ++Place)
 	{
@@ -431,7 +480,9 @@ void AEXRaceDirector::SettleExtraction()
 	Extracted.Sort([this](int32 A, int32 B) { return Racers[A].FinishTime < Racers[B].FinishTime; });
 	for (int32 K = 0; K < Extracted.Num(); ++K)
 	{
-		Racers[Extracted[K]].Reward = EXMeta::PlaceReward(K + 1) + EXMeta::ExtractedBonus;
+		FEXRacer& Racer = Racers[Extracted[K]];
+		Racer.Reward = EXMeta::PlaceReward(K + 1) + EXMeta::ExtractedBonus + CheckpointPrize * Racer.Checkpoint
+			+ (Racer.Checkpoint >= CheckpointCount ? AllCheckpointsPrize : 0);
 	}
 	// The pool in serpentine by value: the first extractor takes the most valuable piece, the second the next...; the
 	// order turns round every round. The pieces run out, the sharing stops.
@@ -446,6 +497,44 @@ void AEXRaceDirector::SettleExtraction()
 
 	// The player's profile: not in the automated test.
 	const int32 MeIndex = Racers.IndexOfByPredicate([](const FEXRacer& Racer) { return Racer.bPlayer; });
+	// The results screen's summary: what the expedition paid and what changed hands.
+	Summary = FEXRaceSummary();
+	if (Racers.IsValidIndex(MeIndex))
+	{
+		const FEXRacer& Mine = Racers[MeIndex];
+		Summary.bValid = true;
+		Summary.State = Mine.State;
+		Summary.Field = Racers.Num();
+		Summary.Time = Mine.bFinished ? Mine.FinishTime : RaceTime;
+		Summary.DistanceM = Mine.bFinished ? RouteLengthM : (Mine.bOut ? Mine.OutAtM : (IsValid(Mine.Craft) ? Mine.Craft->GetRaceProgressM() : 0.0f));
+		Summary.Checkpoints = Mine.Checkpoint;
+		Summary.CheckpointCount = CheckpointCount;
+		Summary.PoolValue = Pool;
+		Summary.Won = Mine.Won;
+		const int32 Place = Extracted.IndexOfByKey(MeIndex);
+		if (Mine.State == 1 && Place != INDEX_NONE)
+		{
+			Summary.PlaceReward = EXMeta::PlaceReward(Place + 1);
+			Summary.ExtractBonus = EXMeta::ExtractedBonus;
+			Summary.CheckpointReward = CheckpointPrize * Mine.Checkpoint + (Mine.Checkpoint >= CheckpointCount ? AllCheckpointsPrize : 0);
+		}
+		for (const FEXItem& Item : Mine.Modules)
+		{
+			if (!Item.IsValid())
+			{
+				continue;
+			}
+			if (Mine.State == 2 && Loot.ContainsByPredicate([&Item](const FEXItem& L) { return L.Serial == Item.Serial; }))
+			{
+				Summary.Lost.Add(Item);
+			}
+			else if (Item.Serial == Mine.Insured)
+			{
+				Summary.Saved = Item;
+			}
+		}
+		Summary.Total = Mine.Reward;
+	}
 	if (bTest || !Racers.IsValidIndex(MeIndex) || !IsValid(Racers[MeIndex].Craft))
 	{
 		return;
@@ -486,6 +575,8 @@ void AEXRaceDirector::SettleExtraction()
 		{
 			Profile->bFirstExtractionPaid = true;
 			Gained += EXMeta::FirstExtractionBonus;
+			Summary.FirstBonus = EXMeta::FirstExtractionBonus;
+			Summary.Total = Gained;
 			PlayerNews.Add(FString::Printf(TEXT("Primeira extra\u00E7\u00E3o: +%d STARDUST"), EXMeta::FirstExtractionBonus));
 		}
 		for (const FEXItem& Won : Me.Won)

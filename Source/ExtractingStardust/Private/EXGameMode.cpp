@@ -1,6 +1,7 @@
 #include "EXGameMode.h"
 
 #include "Arena/EXTestArena.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Flight/EXHoverCraft.h"
@@ -24,6 +25,16 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 	if (!World)
 	{
 		return;
+	}
+	// -EXUltra: Lumen global illumination and reflections (light bouncing off the sand onto the rocks). Off by default:
+	// the GTX 1650 runs the game without it.
+	if (FParse::Param(FCommandLine::Get(), TEXT("EXUltra")) && GEngine)
+	{
+		for (const TCHAR* Command : { TEXT("r.DynamicGlobalIlluminationMethod 1"), TEXT("r.ReflectionMethod 1"), TEXT("r.Lumen.TraceMeshSDFs 0"),
+			TEXT("r.Shadow.Virtual.Enable 1"), TEXT("r.VolumetricFog.GridPixelSize 8") })
+		{
+			GEngine->Exec(World, Command);
+		}
 	}
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;

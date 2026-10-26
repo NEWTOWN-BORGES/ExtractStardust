@@ -43,6 +43,27 @@ struct FEXRacer
 	TArray<FEXItem> Won;
 	/** Where it dropped out (m along the race line). */
 	float OutAtM = 0.0f;
+	/** Checkpoints passed (one every ~2.5 km of the race line). */
+	int32 Checkpoint = 0;
+	/** Bots still racing when the race ends get a finishing time from their pace (as in the Unity version). */
+	bool bProjected = false;
+};
+
+/** The player's expedition for the results screen: victory (EXTRACTED) or defeat (DESTROYED / STRANDED), what it paid
+ *  and what changed hands. Filled when the race ends. */
+struct FEXRaceSummary
+{
+	bool bValid = false;
+	/** 1 EXTRACTED, 2 DESTROYED, 3 STRANDED. */
+	uint8 State = 0;
+	int32 Place = 0, Field = 0;
+	float Time = 0.0f, DistanceM = 0.0f;
+	int32 PlaceReward = 0, ExtractBonus = 0, CheckpointReward = 0, FirstBonus = 0, Total = 0;
+	int32 Checkpoints = 0, CheckpointCount = 0;
+	/** Pieces won from the pool, pieces lost to it, the insured module kept. */
+	TArray<FEXItem> Won, Lost;
+	FEXItem Saved;
+	int32 PoolValue = 0;
 };
 
 /**
@@ -92,6 +113,14 @@ public:
 	bool IsPlayerDone() const { return PlayerDoneTime >= 0.0f; }
 	float GetPlayerDoneTime() const { return PlayerDoneTime; }
 	float GetRouteLengthM() const { return RouteLengthM; }
+	/** Checkpoints along the line (every ~2.5 km) and how many the player has passed; the race time of the last one. */
+	int32 GetCheckpointCount() const { return CheckpointCount; }
+	int32 GetPlayerCheckpoint() const { return PlayerCheckpoint; }
+	float GetLastCheckpointTime() const { return LastCheckpointTime; }
+	/** STARDUST each checkpoint is worth on extraction. */
+	static int32 GetCheckpointPrize();
+	/** The player's expedition, for the results screen (valid once the race is over). */
+	const FEXRaceSummary& GetSummary() const { return Summary; }
 	/** Racers in race order (index 0 leads); refreshed every frame. */
 	const TArray<FEXRacer>& GetStandings() const { return Standings; }
 	/** The player's place (1-based) among all racers. */
@@ -120,6 +149,9 @@ private:
 	EEXRaceMode LastRaceMode = EEXRaceMode::Bots;
 	float Countdown = 4.0f, RaceTime = 0.0f, RouteLengthM = 0.0f, PlayerDoneTime = -1.0f, OverTime = 0.0f;
 	int32 PlayerPlace = 1;
+	int32 CheckpointCount = 1, PlayerCheckpoint = 0;
+	float LastCheckpointTime = -100.0f;
+	FEXRaceSummary Summary;
 	TArray<FVector2D> Route;
 
 	UPROPERTY()

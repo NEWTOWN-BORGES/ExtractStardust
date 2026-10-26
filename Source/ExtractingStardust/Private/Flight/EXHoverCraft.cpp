@@ -165,9 +165,9 @@ AEXHoverCraft::AEXHoverCraft()
 	// Blur mostly smears nearby scenery (as in the reference video); kept moderate because heavy full-screen
 	// blur measurably lowers the perceived speed.
 	Camera->PostProcessSettings.bOverride_MotionBlurAmount = true;
-	Camera->PostProcessSettings.MotionBlurAmount = 0.55f;
+	Camera->PostProcessSettings.MotionBlurAmount = 0.5f;
 	Camera->PostProcessSettings.bOverride_MotionBlurMax = true;
-	Camera->PostProcessSettings.MotionBlurMax = 12.0f;
+	Camera->PostProcessSettings.MotionBlurMax = 8.0f;
 	Camera->PostProcessSettings.bOverride_SceneFringeIntensity = true;
 	Camera->PostProcessSettings.SceneFringeIntensity = 0.0f;
 	Camera->PostProcessSettings.bOverride_VignetteIntensity = true;
@@ -332,6 +332,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	{
 		RunFlightTest(DeltaSeconds);
 	}
+	bGridLock = bGridLock && bRaceHold;   // the grid lock ends with the start (a respawn never re-arms it)
 	if (bRaceHold)
 	{
 		// On the grid (countdown) or past the finish: the craft hovers where it is.
@@ -339,6 +340,10 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 		BrakeInput = 1.0f;
 		bBoostHeld = false;
 		bDriftHeld = false;
+		if (bGridLock)
+		{
+			SteerInput = 0.0f;   // bots too: nobody turns on the grid
+		}
 	}
 	if (bRaceRules && !bRaceHold)
 	{
@@ -353,6 +358,17 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 			const float Step = FMath::Min(Remaining, 1.0f / 60.0f);
 			StepFlight(Step);
 			Remaining -= Step;
+		}
+		if (bRaceHold && bGridLock)
+		{
+			// Player, 2026-10-26: the crafts stood scattered at the start. On the grid each stays on its slot, in line,
+			// facing down the track, hovering; all go at the same instant when the director lets go.
+			const FVector Here = GetActorLocation();
+			SetActorLocation(FVector(StartLocation.X, StartLocation.Y, Here.Z), false, nullptr, ETeleportType::TeleportPhysics);
+			VelocityCmps = FVector(0.0f, 0.0f, VelocityCmps.Z);
+			YawRate = 0.0f;
+			Heading = FVector::VectorPlaneProject(StartRotation.Vector(), SurfaceUp).GetSafeNormal(UE_SMALL_NUMBER, StartRotation.Vector());
+			SetActorRotation(FRotationMatrix::MakeFromXZ(Heading, SurfaceUp).ToQuat());
 		}
 		if (GetActorLocation().Z < LostBelowZCm)
 		{
@@ -737,8 +753,8 @@ void AEXHoverCraft::UpdateVisuals(float Dt)
 	HoverBobTime += Dt;
 	SteerVisual = FMath::FInterpTo(SteerVisual, SteerInput, Dt, 6.0f);
 	const float SpeedAlpha = FMath::Clamp(FMath::Abs(ForwardSpeedMps) / MaxSpeedMps, 0.0f, 1.0f);
-	const float DriftExtra = bDrifting ? 1.45f : 1.0f;
-	const float TargetRoll = SteerVisual * BankMaxDeg * FMath::Lerp(0.45f, 1.0f, SpeedAlpha) * DriftExtra + FMath::Sin(HoverBobTime * 1.7f) * 0.6f;
+	const float DriftExtra = bDrifting ? 1.35f : 1.0f;
+	const float TargetRoll = SteerVisual * BankMaxDeg * FMath::Lerp(0.35f, 1.0f, SpeedAlpha) * DriftExtra + FMath::Sin(HoverBobTime * 1.7f) * 0.6f;
 	const float TargetPitch = FMath::Clamp(LongAccelMps2 * PitchFromAccel, -6.0f, 5.0f);
 	const float TargetYaw = SteerVisual * NoseLeadMaxDeg * DriftExtra;
 	VisualRoll = FMath::FInterpTo(VisualRoll, TargetRoll, Dt, VisualResponse);
@@ -854,11 +870,11 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 
 	// The camera leans a little with the craft's bank, and vibrates lightly near top speed.
 	Rotation.Roll += VisualRoll * CameraBankFollow;
-	const float Shake = ShakeScale * (TopSpeedShakeDeg * FMath::Clamp((SpeedAlpha - 0.72f) / 0.28f, 0.0f, 1.0f) * (bBoosting ? 1.6f : 1.0f)
-		+ WallThreat * 0.9f);
+	// Player, 2026-10-26: the camera and the feel of 2026-10-20 (before the apex camera and the deep lean): the light
+	// top-speed vibration only, no wall shake.
+	const float Shake = ShakeScale * TopSpeedShakeDeg * FMath::Clamp((SpeedAlpha - 0.85f) / 0.15f, 0.0f, 1.0f) * (bBoosting ? 1.6f : 1.0f);
 	Rotation.Pitch += FMath::Sin(HoverBobTime * 31.0f) * Shake;
 	Rotation.Yaw += FMath::Sin(HoverBobTime * 23.0f + 1.3f) * Shake;
-	Rotation.Roll += FMath::Sin(HoverBobTime * 19.0f) * WallThreat * 0.7f;
 	// Short, sharp jolt after a hard landing or a wall hit.
 	CamJoltTime += Dt;
 	if (CamJolt > 0.0f)
@@ -875,9 +891,11 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	const float TargetFovV = FMath::Lerp(FovMinV, FovMaxV, 0.3f * SpeedAlpha + 0.7f * Vertigo) + (bBoosting ? FovBoostV : 0.0f);
 	CamFovV = FMath::Lerp(CamFovV, TargetFovV, Damp(3.0f, Dt));
 	Camera->SetFieldOfView(HorizontalFov(CamFovV + 7.0f * CamBoostPunch * CamBoostPunch));
-	Camera->PostProcessSettings.MotionBlurAmount = 0.45f + 0.55f * Vertigo + 0.25f * CamBoostPunch;
-	Camera->PostProcessSettings.SceneFringeIntensity = 0.35f * Vertigo + 0.55f * CamBoostPunch;
-	Camera->PostProcessSettings.VignetteIntensity = 0.28f + 0.22f * Vertigo;
+	// The race view as on 2026-10-20 (the hangar changes these while it is open).
+	Camera->PostProcessSettings.MotionBlurAmount = 0.5f;
+	Camera->PostProcessSettings.SceneFringeIntensity = 0.0f;
+	Camera->PostProcessSettings.VignetteIntensity = 0.35f;
+	Camera->PostProcessSettings.bOverride_AutoExposureBias = false;
 }
 
 void AEXHoverCraft::SelectShip(int32 Index)
@@ -960,6 +978,7 @@ void AEXHoverCraft::PlaceAt(const FVector& Location, float YawDeg)
 	LastGroundZCm = Location.Z - 300.0f;
 	VelocityCmps = FVector::ZeroVector;
 	Heading = StartRotation.Vector();
+	bGridLock = true;
 	SurfaceUp = FVector::UpVector;
 	YawRate = 0.0f;
 	AirTimeSeconds = 0.0f;
@@ -1241,7 +1260,8 @@ void AEXHoverCraft::DriveBot(float Dt)
 	const FVector Location = GetActorLocation();
 	const int32 Aim = FMath::Min(RouteIndex + 7, Count - 2);
 	const FVector2D Dir = (MapRoute[Aim + 1] - MapRoute[Aim]).GetSafeNormal();
-	const float Lane = BotLaneM + (1.1f - BotSkill) * 25.0f * FMath::Sin(BotTime * 0.15f + BotPhase);  // weaker bots wander
+	// Weaker bots wander in their lane, but only once the pack has spread out (not off the grid).
+	const float Lane = BotLaneM + (1.1f - BotSkill) * 25.0f * FMath::Sin(BotTime * 0.15f + BotPhase) * FMath::Clamp(RaceProgressM / 1500.0f, 0.0f, 1.0f);
 	const FVector2D Target = MapRoute[Aim] + FVector2D(-Dir.Y, Dir.X) * Lane;
 	const FVector ToTarget = FVector(Target.X * CmPerM - Location.X, Target.Y * CmPerM - Location.Y, 0.0f).GetSafeNormal();
 	const FVector Flat = Heading.GetSafeNormal2D();
