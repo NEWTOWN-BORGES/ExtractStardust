@@ -1060,7 +1060,10 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 		}
 		const bool bKit = !Folder.EndsWith(TEXT("Plants"));  // rocks of any kind
 		const bool bWood = Group.Key.Contains(TEXT("Dead"));
-		AddInstances(World, Mesh, Group.Value, bKit && !bWood, bKit ? 0.0f : PlantCullM(Group.Key), bKit ? TEXT("World/Rocks") : TEXT("World/Plants"));
+		// The arches over the line (Arches Run, the finish) are landmarks to fly through, never walls to die on
+		// (player, 2026-10-26: "tem obstáculos que chocamos").
+		const bool bArch = Group.Key.Contains(TEXT("Arch"));
+		AddInstances(World, Mesh, Group.Value, bKit && !bWood && !bArch, bKit ? 0.0f : PlantCullM(Group.Key), bKit ? TEXT("World/Rocks") : TEXT("World/Plants"));
 		Placed += Group.Value.Num();
 	}
 	UE_LOG(LogTemp, Display, TEXT("EXWORLD props placed %d in %d meshes"), Placed, ByMesh.Num());

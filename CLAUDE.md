@@ -8,6 +8,29 @@ espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde)
 
 O jogador fala português (PT). Responder em português.
 
+## FEITO EM CASA A 2026-10-26 (ramo ccr-6888126d-pxbtcg, commits locais; builds `Builds\Naves*`)
+
+- **Câmara e condução de 2026-10-20 repostas** (valores de c79fecb). O jogador rejeitou a câmara de ápice e a
+  inclinação funda feitas no outro PC (a6ba938). Não mexer na câmara nem na condução sem perguntar.
+- **Corrida:** largada em filas retas e presa até à partida (luzes 3-2-1); checkpoints a cada ~2,5 km (+40 cada,
+  +300 todos, pagos na extração); HUD em barra (A→B no topo, velocidade segmentada); **casco em barra** como na Unity
+  (dano: impacto acima de 16 m/s × 0,85, metade contra naves, no máximo 40 % por pancada, 10 s sem dano no início);
+  **explosão** (`AEXExplosion`) quando o casco acaba; ecrã de resultados `UEXResultsWidget` (vitória/derrota, ganhos,
+  cartas, medalha, classificação); fim garantido (meta a 45 m do último ponto, resultados 15 s depois ou com Enter).
+- **Porquinho** (pool ao vivo) de volta no HUD com os adversários em prova; **bots com carga** (2-6 peças,
+  `EXMeta::RollBotCargo`); **espólio de vitória**: o 1.º tira 3 peças da carga dos que venceu, o 2.º 2, o 3.º 1.
+- **Gráficos:** Lumen por defeito (`Jogar Leve.bat` = `-EXLow` desliga), nuvens volumétricas, atmosfera com poeira,
+  sol baixo, névoa volumétrica, gradação de cor. **Fotorrealista** (escolha do jogador, "tipo Call of Duty"):
+  `make_ground_material.py` (fotos CC0 Poly Haven sem repetição, triplanar nas falésias, areia com ondulações em 3
+  escalas e brilho do quartzo) e `make_rock_material.py` (arenito triplanar, só nós de textura: as rochas são Nanite);
+  naves com `make_ship_materials.py` (pintura, riscos, pó, carbono, metal escovado; passo 3e do `casa_tudo.ps1`).
+  Plano e regras: `Docs/PLANO_TEXTURAS.md`. Fotos de prova: `-EXFlightTest -EXLook="x,y,z,yaw,pitch;..."` (vistas em
+  `C:\rdd\look_views.txt`).
+- **Pista:** larguras e curvas originais (a versão larga/oval foi rejeitada); estrada **natural** (borda que vagueia,
+  taludes de 6-22 m e depois falésia; nada "cavado"); ziguezague S3 com paredes de 32 m; túnel liso e largo, aberto
+  nas bifurcações do braço (havia um degrau de 4 m e paredes cruzadas); arcos sem colisão; hoodoos a 48 m da borda.
+- Atenção: no PowerShell, `Start-Process -ArgumentList` não põe aspas em caminhos com espaços (usar `&` ou aspas).
+
 ## PEDIDOS DE 2026-10-25 (noite), por testar em casa
 
 - **Estrelas das naves** (`Docs/MODULOS.md` secção 8b): cada cópia de uma nave dá 1 estrela, até 7, e cada estrela dá

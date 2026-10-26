@@ -678,9 +678,9 @@ void AEXHoverCraft::StepFlight(float Dt)
 				Audio->Landing(FMath::Clamp(LandingSpeed / 20.0f, 0.2f, 1.0f));
 			}
 		}
-		if (LandingSpeed > 17.0f)
+		if (LandingSpeed > 20.0f)
 		{
-			ApplyHullDamage((LandingSpeed - 17.0f) * 1.4f);   // a hard landing (race rules only)
+			ApplyHullDamage((LandingSpeed - 20.0f) * 1.0f);   // a hard landing (race rules only)
 		}
 	}
 
@@ -732,11 +732,12 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 			}
 			if (bWall || IsValid(OtherCraft))
 			{
-				// As in the Unity version: what the impact speed has above 12 m/s, a little more, less against a craft.
+				// What the impact speed has above 16 m/s (player, 2026-10-26: destroyed too easily), half against a craft;
+				// ApplyHullDamage caps one hit at 40 % of the hull.
 				const float ImpactMps = -IntoSpeed / CmPerM;
-				if (ImpactMps > 12.0f)
+				if (ImpactMps > 16.0f)
 				{
-					ApplyHullDamage((ImpactMps - 12.0f) * 1.1f * (IsValid(OtherCraft) ? 0.6f : 1.0f));
+					ApplyHullDamage((ImpactMps - 16.0f) * 0.85f * (IsValid(OtherCraft) ? 0.5f : 1.0f));
 				}
 			}
 			if (bWall)
@@ -1086,6 +1087,10 @@ void AEXHoverCraft::ApplyHullDamage(float Amount, bool bForce)
 		return;
 	}
 	HitCooldown = 0.25f;
+	if (!bForce)
+	{
+		Amount = FMath::Min(Amount, HullMax * 0.4f);   // no single knock takes more than 40 %
+	}
 	Hull = FMath::Max(0.0f, Hull - Amount);
 	Lives = Hull <= 0.0f ? 0 : FMath::Max(1, FMath::CeilToInt(Hull / HullMax * MaxLives));
 	if (Amount >= 5.0f)
