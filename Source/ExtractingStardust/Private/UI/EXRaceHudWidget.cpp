@@ -185,6 +185,7 @@ void UEXRaceHudWidget::BuildTree()
 	EXUi::AddO(Root, Cross, HAlign_Right, VAlign_Bottom, FMargin(0.0f, 0.0f, 48.0f, 36.0f));
 
 	EXUi::AddO(Root, BuildProgressBar(Tree), HAlign_Center, VAlign_Top, FMargin(0.0f, 22.0f, 0.0f, 0.0f));
+	EXUi::AddO(Root, EXUi::Sized(Tree, 300.0f, 0.0f, BuildPiggy(Tree)), HAlign_Left, VAlign_Top, FMargin(34.0f, 172.0f, 0.0f, 0.0f));
 	EXUi::AddO(Root, BuildStartLights(Tree), HAlign_Center, VAlign_Center, FMargin(0.0f, 0.0f, 0.0f, 220.0f));
 }
 
@@ -235,6 +236,51 @@ UWidget* UEXRaceHudWidget::BuildProgressBar(UWidgetTree* Tree)
 	CheckpointCall = Call;
 	EXUi::AddV(Column, Call, FMargin(0.0f, 54.0f, 0.0f, 0.0f), HAlign_Center);
 	return Column;
+}
+
+UWidget* UEXRaceHudWidget::BuildPiggy(UWidgetTree* Tree)
+{
+	// Player, 2026-10-26: the piggy bank of the old game back on the race screen. The icon glows gold and jumps when a
+	// racer is destroyed and its pieces fall in; the value counts up; under it the rivals still racing, one pip each.
+	const FLinearColor Gold = EXUi::Hex(255, 200, 80);
+	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	UHorizontalBox* Top = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	UOverlay* Icon = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
+	EXUi::AddO(Icon, EXUi::Glow(Tree, FLinearColor(Gold.R, Gold.G, Gold.B, 0.45f)), HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Icon, EXUi::Image(Tree, EXUi::Icon(TEXT("piggy")), Gold), HAlign_Fill, VAlign_Fill, FMargin(6.0f));
+	PiggyIconBox = EXUi::Sized(Tree, 64.0f, 64.0f, Icon);
+	PiggyIconBox->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
+	EXUi::AddH(Top, PiggyIconBox, FMargin(0.0f), false, VAlign_Center);
+	UVerticalBox* Text = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	EXUi::AddV(Text, EXUi::WeightText(Tree, TEXT("PORQUINHO"), 11, EXUi::Rust(), 800, 220));
+	UHorizontalBox* Value = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	PiggyValue = EXUi::TitleText(Tree, TEXT("0"), 24, Gold, 10);
+	EXUi::AddH(Value, PiggyValue, FMargin(0.0f), false, VAlign_Center);
+	EXUi::AddH(Value, EXUi::GemImage(Tree, 11.0f), FMargin(6.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
+	PiggyGain = EXUi::WeightText(Tree, TEXT(""), 14, EXUi::Ok(), 800);
+	EXUi::AddH(Value, PiggyGain, FMargin(10.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
+	EXUi::AddV(Text, Value, FMargin(0.0f, 2.0f, 0.0f, 0.0f));
+	PiggySub = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 700, 60);
+	EXUi::AddV(Text, PiggySub, FMargin(0.0f, 2.0f, 0.0f, 0.0f));
+	EXUi::AddH(Top, Text, FMargin(12.0f, 0.0f, 0.0f, 0.0f), true, VAlign_Center);
+	EXUi::AddV(Column, Top);
+	EXUi::AddV(Column, EXUi::Sized(Tree, 0.0f, 1.0f, EXUi::Box(Tree, EXUi::Bone(0.12f))), FMargin(0.0f, 10.0f, 0.0f, 8.0f));
+	UHorizontalBox* Rivals = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	EXUi::AddH(Rivals, EXUi::WeightText(Tree, TEXT("ADVERS\u00C1RIOS EM PROVA"), 10, EXUi::Rust(), 800, 160), FMargin(0.0f), true, VAlign_Center);
+	RivalsText = EXUi::TitleText(Tree, TEXT(""), 15, EXUi::Bone(), 10);
+	EXUi::AddH(Rivals, RivalsText, FMargin(0.0f), false, VAlign_Center);
+	EXUi::AddV(Column, Rivals);
+	UHorizontalBox* Pips = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	for (int32 Index = 0; Index < 24; ++Index)
+	{
+		UBorder* Pip = EXUi::Box(Tree, EXUi::Bone(0.8f));
+		RivalPips.Add(Pip);
+		EXUi::AddH(Pips, EXUi::Sized(Tree, 11.0f, 11.0f, Pip), FMargin(Index > 0 ? 4.0f : 0.0f, 0.0f, 0.0f, 0.0f));
+	}
+	EXUi::AddV(Column, Pips, FMargin(0.0f, 6.0f, 0.0f, 0.0f));
+	CargoText = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 700, 60);
+	EXUi::AddV(Column, CargoText, FMargin(0.0f, 6.0f, 0.0f, 0.0f));
+	return HudPlate(Tree, Column, true, FMargin(18.0f, 12.0f, 16.0f, 12.0f));
 }
 
 UWidget* UEXRaceHudWidget::BuildStartLights(UWidgetTree* Tree)
@@ -329,6 +375,46 @@ void UEXRaceHudWidget::Refresh()
 	}
 	RefreshProgress(Craft);
 	RefreshStart();
+	RefreshPiggy(GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.016f);
+}
+
+void UEXRaceHudWidget::RefreshPiggy(float Dt)
+{
+	const int32 Pool = RaceDirector->GetPool();
+	PiggyShown = FMath::Abs(Pool - PiggyShown) < 1.0f ? static_cast<float>(Pool) : PiggyShown + (Pool - PiggyShown) * FMath::Min(1.0f, Dt * 4.0f);
+	EXUi::SetText(PiggyValue, EXUi::Thousands(FMath::RoundToInt(PiggyShown)));
+	const int32 Total = RaceDirector->GetRivalsTotal();
+	const int32 Left = RaceDirector->GetRivalsLeft();
+	EXUi::SetText(PiggySub, FString::Printf(TEXT("%d PE\u00C7AS  \u00B7  %d DESTRU\u00CDDOS"), RaceDirector->GetPoolCount(), Total - Left));
+	// A drop: the gain shows beside the value and the piggy jumps.
+	const float Since = RaceDirector->GetRaceTime() - RaceDirector->GetLastPoolTime();
+	const bool bGain = Since >= 0.0f && Since < 2.5f && RaceDirector->GetLastPoolGain() > 0;
+	PiggyGain->SetVisibility(bGain ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	if (bGain)
+	{
+		EXUi::SetText(PiggyGain, FString::Printf(TEXT("+%s"), *EXUi::Thousands(RaceDirector->GetLastPoolGain())));
+		PiggyGain->SetRenderOpacity(FMath::Clamp((2.5f - Since) / 0.6f, 0.0f, 1.0f));
+	}
+	const float Jump = bGain ? FMath::Max(0.0f, 1.0f - Since / 0.5f) : 0.0f;
+	PiggyIconBox->SetRenderScale(FVector2D(1.0f + 0.35f * Jump * FMath::Abs(FMath::Sin(Since * 18.0f))));
+	EXUi::SetText(RivalsText, FString::Printf(TEXT("%d / %d"), Left, Total));
+	// One pip per rival: racing (bone), extracted (gold), destroyed (red).
+	int32 Pip = 0;
+	for (const FEXRacer& Racer : RaceDirector->GetStandings())
+	{
+		if (Racer.bPlayer || Pip >= RivalPips.Num())
+		{
+			continue;
+		}
+		RivalPips[Pip]->SetBrushColor(Racer.bOut ? EXUi::Hex(255, 75, 60, 0.85f) : (Racer.bFinished ? EXUi::Hex(255, 200, 80) : EXUi::Bone(0.85f)));
+		RivalPips[Pip]->GetParent()->SetVisibility(ESlateVisibility::HitTestInvisible);
+		++Pip;
+	}
+	for (; Pip < RivalPips.Num(); ++Pip)
+	{
+		RivalPips[Pip]->GetParent()->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	EXUi::SetText(CargoText, FString::Printf(TEXT("CARGA DOS RIVAIS  %s"), *EXUi::Thousands(RaceDirector->GetCargoInPlay())));
 }
 
 void UEXRaceHudWidget::RefreshProgress(const AEXHoverCraft* Craft)

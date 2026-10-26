@@ -358,7 +358,7 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 		DrawText(TEXT("DESTRU\u00CDDA - AT\u00C9 3 M\u00D3DULOS V\u00C3O PARA QUEM EXTRAIR"), Red, Mid - 330.0f * Scale, Canvas->ClipY * 0.36f, nullptr, 1.8f * Scale);
 	}
 	// Messages of the last 6 s (left, under the panel).
-	float FeedY = (RaceHudWidget ? 128.0f : (bBots ? 130.0f : 106.0f)) * Scale;
+	float FeedY = (RaceHudWidget ? 252.0f : (bBots ? 130.0f : 106.0f)) * Scale;   // under the piggy bank's panel
 	for (const TPair<float, FString>& Line : Race->GetFeed())
 	{
 		if (Race->GetRaceTime() - Line.Key < 6.0f || Race->GetCountdown() > 0.0f)

@@ -12,6 +12,7 @@
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
+#include "Components/VolumetricCloudComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
@@ -666,7 +667,25 @@ namespace
 			SunLight->SetAtmosphereSunLight(true);
 			SunLight->SetDynamicShadowDistanceMovableLight(60000.0f);
 		}
-		World->SpawnActor<ASkyAtmosphere>(FVector::ZeroVector, FRotator::ZeroRotator);
+		// The sky: a dusty desert atmosphere (more aerosol, so the low sun burns orange and the distance goes hazy) and
+		// real volumetric clouds high up, lit by the sun and seen by Lumen (player, 2026-10-26: cinematic).
+		if (ASkyAtmosphere* Atmosphere = World->SpawnActor<ASkyAtmosphere>(FVector::ZeroVector, FRotator::ZeroRotator))
+		{
+			if (USkyAtmosphereComponent* Air = Atmosphere->GetComponent())
+			{
+				Air->SetMieScatteringScale(0.0075f);
+				Air->SetMieAnisotropy(0.82f);
+				Air->SetRayleighScatteringScale(0.031f);
+			}
+		}
+		if (AVolumetricCloud* Clouds = World->SpawnActor<AVolumetricCloud>(FVector::ZeroVector, FRotator::ZeroRotator))
+		{
+			if (UVolumetricCloudComponent* Cloud = Clouds->FindComponentByClass<UVolumetricCloudComponent>())
+			{
+				Cloud->SetLayerBottomAltitude(4.5f);
+				Cloud->SetLayerHeight(6.0f);
+			}
+		}
 		ASkyLight* Sky = World->SpawnActor<ASkyLight>(FVector(0.0f, 0.0f, 20000.0f), FRotator::ZeroRotator);
 		if (USkyLightComponent* SkyLight = Sky->GetLightComponent())
 		{
@@ -715,6 +734,11 @@ namespace
 		Post->Settings.SceneFringeIntensity = 0.6f;
 		Post->Settings.bOverride_FilmGrainIntensity = true;
 		Post->Settings.FilmGrainIntensity = 0.07f;
+		// Lumen: a little sky light into the deep shade (the cave, the slot canyons), and lens flares off the sun.
+		Post->Settings.bOverride_LumenSkylightLeaking = true;
+		Post->Settings.LumenSkylightLeaking = 0.12f;
+		Post->Settings.bOverride_LensFlareIntensity = true;
+		Post->Settings.LensFlareIntensity = 0.35f;
 	}
 
 	/** Invisible walls around an area (cm), 1.2 km tall around CenterZ: the map edge can never be crossed. */

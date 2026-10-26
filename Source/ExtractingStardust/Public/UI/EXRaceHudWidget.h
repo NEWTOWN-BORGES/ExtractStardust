@@ -50,6 +50,8 @@ private:
 	void BuildTree();
 	UWidget* BuildProgressBar(UWidgetTree* Tree);
 	UWidget* BuildStartLights(UWidgetTree* Tree);
+	UWidget* BuildPiggy(UWidgetTree* Tree);
+	void RefreshPiggy(float Dt);
 	void Refresh();
 	void RefreshProgress(const class AEXHoverCraft* Craft);
 	void RefreshStart();
@@ -82,6 +84,15 @@ private:
 	UTextBlock* CheckpointCallPrize = nullptr;
 	// The segmented speed bar under the number.
 	TArray<UBorder*> SpeedSegments;
+	// The piggy bank (o porquinho): what the destroyed dropped, live, and the rivals still racing.
+	UWidget* PiggyIconBox = nullptr;
+	UTextBlock* PiggyValue = nullptr;
+	UTextBlock* PiggyGain = nullptr;
+	UTextBlock* PiggySub = nullptr;
+	UTextBlock* CargoText = nullptr;
+	UTextBlock* RivalsText = nullptr;
+	TArray<UBorder*> RivalPips;
+	float PiggyShown = 0.0f;
 	// The start: three lights that turn red one by one, then all green.
 	UWidget* StartPanel = nullptr;
 	UBorder* StartLights[3] = {};

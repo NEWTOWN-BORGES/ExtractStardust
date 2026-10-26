@@ -47,6 +47,13 @@ struct FEXRacer
 	int32 Checkpoint = 0;
 	/** Bots still racing when the race ends get a finishing time from their pace (as in the Unity version). */
 	bool bProjected = false;
+	/** A bot's cargo: loose modules it carries (EXMeta::RollBotCargo). */
+	TArray<FEXItem> Cargo;
+	/** What it dropped into the piggy bank when destroyed (up to three modules and all its cargo). */
+	TArray<FEXItem> Dropped;
+	bool bDropped = false;
+	/** The victory spoils: the best of the cargo of the racers it beat (top three extractors: 3, 2 and 1 pieces). */
+	TArray<FEXItem> Spoils;
 };
 
 /** The player's expedition for the results screen: victory (EXTRACTED) or defeat (DESTROYED / STRANDED), what it paid
@@ -62,6 +69,8 @@ struct FEXRaceSummary
 	int32 Checkpoints = 0, CheckpointCount = 0;
 	/** Pieces won from the pool, pieces lost to it, the insured module kept. */
 	TArray<FEXItem> Won, Lost;
+	/** The victory spoils (from the cargo of the racers beaten), for the podium. */
+	TArray<FEXItem> Spoils;
 	FEXItem Saved;
 	int32 PoolValue = 0;
 };
@@ -93,8 +102,16 @@ public:
 	void LaunchExpedition();
 	/** The mode the hangar's launch button starts. */
 	EEXRaceMode GetLaunchMode() const { return LastRaceMode; }
-	/** The value of the pool (the real pieces lost by the destroyed, shared by the extractors), known at the end. */
+	/** The piggy bank (o porquinho): the real pieces the destroyed dropped (modules and cargo), live during the race and
+	 *  shared by the extractors at the end. Its STARDUST value, how many pieces, the last drop and when. */
 	int32 GetPool() const { return Pool; }
+	int32 GetPoolCount() const { return PoolItems.Num(); }
+	int32 GetLastPoolGain() const { return LastPoolGain; }
+	float GetLastPoolTime() const { return LastPoolTime; }
+	/** The rivals: how many started, how many are still racing, and the value of the cargo they still carry. */
+	int32 GetRivalsTotal() const;
+	int32 GetRivalsLeft() const;
+	int32 GetCargoInPlay() const;
 	/** What happened to the player's things at the end (reward, pieces won and lost), for the results. */
 	const TArray<FString>& GetPlayerNews() const { return PlayerNews; }
 	bool IsInMenu() const { return bMenu; }
@@ -135,6 +152,8 @@ private:
 	void UpdateStandings();
 	void Finish();
 	void SettleExtraction();
+	/** A destroyed racer's drop into the piggy bank (once). */
+	void DropToPool(FEXRacer& Racer);
 	void ReturnToMenu();
 
 	EEXRaceMode Mode = EEXRaceMode::Solo;
@@ -150,6 +169,9 @@ private:
 	float Countdown = 4.0f, RaceTime = 0.0f, RouteLengthM = 0.0f, PlayerDoneTime = -1.0f, OverTime = 0.0f;
 	int32 PlayerPlace = 1;
 	int32 CheckpointCount = 1, PlayerCheckpoint = 0;
+	TArray<FEXItem> PoolItems;
+	int32 LastPoolGain = 0;
+	float LastPoolTime = -100.0f;
 	float LastCheckpointTime = -100.0f;
 	FEXRaceSummary Summary;
 	TArray<FVector2D> Route;

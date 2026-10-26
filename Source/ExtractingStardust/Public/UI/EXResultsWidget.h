@@ -36,7 +36,8 @@ private:
 	UWidget* BuildLedger(UWidgetTree* Tree);
 	UWidget* BuildPieces(UWidgetTree* Tree);
 	UWidget* BuildStandings(UWidgetTree* Tree);
-	UWidget* MakeCard(UWidgetTree* Tree, const FEXItem& Item, bool bLost, bool bSaved);
+	/** Kind: 0 from the piggy bank, 1 lost, 2 insured and kept, 3 victory spoils. */
+	UWidget* MakeCard(UWidgetTree* Tree, const FEXItem& Item, int32 Kind);
 
 	/** Shows Widget from Delay seconds on: a short fade and slide up. */
 	void Reveal(UWidget* Widget, float Delay);

@@ -281,6 +281,10 @@ namespace EXMeta
 	void RollShop(FRandomStream& Random, int32& NextSerial, TArray<FEXItem>& Out);
 	/** A bot's garage: real pieces (skill 0-2), so what a destroyed bot loses is real loot. Out is by EEXFamily. */
 	void RollBotBuild(const FString& ShipName, int32 Skill, FRandomStream& Random, int32& NextSerial, TArray<FEXItem>& Out);
+	/** A bot's cargo (player, 2026-10-26: "os bots têm de estar cheios de espólio"): Count loose modules of any family,
+	 *  a little richer than what the bots fit (skill 0-2). It goes to the piggy bank if the bot is destroyed, and the top
+	 *  three extractors take the best of it from the racers they beat. */
+	void RollBotCargo(int32 Skill, FRandomStream& Random, int32& NextSerial, int32 Count, TArray<FEXItem>& Out);
 	/** STARDUST for a finishing place (1-based), already scaled for a 10-15 minute expedition. */
 	int32 PlaceReward(int32 Place);
 	/** Losses of a destroyed craft: up to three modules, drawn by value, never the insured one. */

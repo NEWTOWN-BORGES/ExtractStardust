@@ -18,7 +18,7 @@
 
 namespace
 {
-	constexpr int32 MaxCards = 6;
+	constexpr int32 MaxCards = 8;
 	constexpr int32 MaxRows = 16;
 
 	FString ResultClock(float Seconds)
@@ -149,10 +149,10 @@ void UEXResultsWidget::BuildTree()
 	UWidget* Ledger = BuildLedger(Tree);
 	EXUi::AddV(Left, Verdict);
 	EXUi::AddV(Left, Ledger, FMargin(0.0f, 26.0f, 0.0f, 0.0f));
-	EXUi::AddH(Columns, EXUi::Sized(Tree, 600.0f, 0.0f, Left));
+	EXUi::AddH(Columns, EXUi::Sized(Tree, 520.0f, 0.0f, Left));
 	EXUi::AddH(Columns, BuildPieces(Tree), FMargin(36.0f, 0.0f, 0.0f, 0.0f), true);
 	UWidget* Table = BuildStandings(Tree);
-	EXUi::AddH(Columns, EXUi::Sized(Tree, 520.0f, 0.0f, Table), FMargin(36.0f, 0.0f, 0.0f, 0.0f));
+	EXUi::AddH(Columns, EXUi::Sized(Tree, 470.0f, 0.0f, Table), FMargin(36.0f, 0.0f, 0.0f, 0.0f));
 	EXUi::AddV(Page, Columns);
 	UHorizontalBox* Keys = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	EXUi::AddH(Keys, EXUi::Hint(Tree, { TEXT("Enter"), TEXT("X") }, Summary.State == 1 ? TEXT("RECOLHER E CONTINUAR") : TEXT("CONTINUAR")));
@@ -225,14 +225,25 @@ UWidget* UEXResultsWidget::BuildLedger(UWidgetTree* Tree)
 		{
 			Add(LedgerLine(Tree, TEXT("Primeira extração"), FString::Printf(TEXT("+%s"), *EXUi::Thousands(Summary.FirstBonus)), Gain));
 		}
+		// The pieces: the victory spoils (the cargo of the racers beaten) and the share of the piggy bank, by value.
+		int32 SpoilsValue = 0;
 		int32 WonValue = 0;
+		for (const FEXItem& Item : Summary.Spoils)
+		{
+			SpoilsValue += Item.Value;
+		}
 		for (const FEXItem& Item : Summary.Won)
 		{
 			WonValue += Item.Value;
 		}
+		if (SpoilsValue > 0)
+		{
+			Add(LedgerLine(Tree, FString::Printf(TEXT("Espólio de vitória  ·  %d peças (valor)"), Summary.Spoils.Num()), FString::Printf(TEXT("+%s"), *EXUi::Thousands(SpoilsValue)),
+				EXUi::Hex(255, 200, 80)));
+		}
 		if (WonValue > 0)
 		{
-			Add(LedgerLine(Tree, FString::Printf(TEXT("Espólio  ·  %d peças (valor)"), Summary.Won.Num()), FString::Printf(TEXT("+%s"), *EXUi::Thousands(WonValue)),
+			Add(LedgerLine(Tree, FString::Printf(TEXT("Do porquinho  ·  %d peças (valor)"), Summary.Won.Num()), FString::Printf(TEXT("+%s"), *EXUi::Thousands(WonValue)),
 				EXUi::Hex(255, 200, 80)));
 		}
 		Add(EXUi::Sized(Tree, 0.0f, 1.0f, EXUi::Box(Tree, EXUi::Bone(0.15f))), 14.0f);
@@ -266,9 +277,12 @@ UWidget* UEXResultsWidget::BuildLedger(UWidgetTree* Tree)
 	return ResultPlate(Tree, Lines, Summary.State == 1 ? EXUi::Ok() : (Summary.State == 2 ? Loss : EXUi::Rust()), FMargin(26.0f, 20.0f, 26.0f, 22.0f));
 }
 
-UWidget* UEXResultsWidget::MakeCard(UWidgetTree* Tree, const FEXItem& Item, bool bLost, bool bSaved)
+UWidget* UEXResultsWidget::MakeCard(UWidgetTree* Tree, const FEXItem& Item, int32 Kind)
 {
 	// A module card: the rarity's band on top, the family icon, the rarity, the name and the value; lost ones in red.
+	// Kind: 0 from the piggy bank, 1 lost, 2 insured and kept, 3 victory spoils.
+	const bool bLost = Kind == 1;
+	const bool bSaved = Kind == 2;
 	const EEXRarity Rarity = static_cast<EEXRarity>(Item.Rarity);
 	const FLinearColor RarityColour = EXMeta::RarityColour(Rarity);
 	const EXMeta::FModuleDef* Def = EXMeta::Find(Item);
@@ -286,11 +300,11 @@ UWidget* UEXResultsWidget::MakeCard(UWidgetTree* Tree, const FEXItem& Item, bool
 	EXUi::AddV(Column, Name, FMargin(0.0f, 4.0f, 0.0f, 0.0f), HAlign_Center);
 	EXUi::AddV(Column, EXUi::WeightText(Tree, FString::Printf(TEXT("%s%s"), bLost ? TEXT("-") : TEXT(""), *EXUi::Thousands(Item.Value)), 14,
 		bLost ? EXUi::Hex(255, 90, 70) : EXUi::Hex(255, 200, 80), 800), FMargin(0.0f, 8.0f, 0.0f, 0.0f), HAlign_Center);
-	const FString Tag = bLost ? TEXT("PERDIDA") : (bSaved ? TEXT("SEGURA  ·  FICOU CONTIGO") : TEXT("NOVA"));
-	EXUi::AddV(Column, EXUi::Box(Tree, bLost ? EXUi::Hex(255, 70, 50, 0.85f) : (bSaved ? EXUi::Hex(80, 230, 255, 0.8f) : EXUi::Rust(0.9f)), FMargin(10.0f, 3.0f),
-		EXUi::WeightText(Tree, Tag, 9, EXUi::Ink(), 800, 150)), FMargin(0.0f, 10.0f, 0.0f, 0.0f), HAlign_Center);
-	EXUi::AddO(Card, Column, HAlign_Fill, VAlign_Fill, FMargin(14.0f, 18.0f, 14.0f, 14.0f));
-	return EXUi::Sized(Tree, 196.0f, 250.0f, Card);
+	const FString Tag = bLost ? TEXT("PERDIDA") : (bSaved ? TEXT("SEGURA  ·  FICOU CONTIGO") : (Kind == 3 ? TEXT("VITÓRIA") : TEXT("PORQUINHO")));
+	const FLinearColor TagColour = bLost ? EXUi::Hex(255, 70, 50, 0.85f) : (bSaved ? EXUi::Hex(80, 230, 255, 0.8f) : (Kind == 3 ? EXUi::Hex(255, 200, 80, 0.95f) : EXUi::Rust(0.9f)));
+	EXUi::AddV(Column, EXUi::Box(Tree, TagColour, FMargin(10.0f, 3.0f), EXUi::WeightText(Tree, Tag, 9, EXUi::Ink(), 800, 150)), FMargin(0.0f, 8.0f, 0.0f, 0.0f), HAlign_Center);
+	EXUi::AddO(Card, Column, HAlign_Fill, VAlign_Fill, FMargin(12.0f, 16.0f, 12.0f, 12.0f));
+	return EXUi::Sized(Tree, 168.0f, 236.0f, Card);
 }
 
 UWidget* UEXResultsWidget::BuildPieces(UWidgetTree* Tree)
@@ -298,9 +312,20 @@ UWidget* UEXResultsWidget::BuildPieces(UWidgetTree* Tree)
 	const FEXRaceSummary& Summary = RaceDirector->GetSummary();
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	const bool bWon = Summary.State == 1;
-	EXUi::AddV(Column, EXUi::WeightText(Tree, bWon ? TEXT("ESPÓLIO GANHO") : (Summary.State == 2 ? TEXT("PEÇAS PERDIDAS PARA O ESPÓLIO") : TEXT("AS TUAS PEÇAS")),
-		11, bWon ? EXUi::Hex(255, 200, 80) : EXUi::Hex(255, 90, 70), 800, 300));
-	TArray<TPair<FEXItem, int32>> Cards;   // 0 won, 1 lost, 2 insured and kept
+	UHorizontalBox* Head = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	EXUi::AddH(Head, EXUi::Sized(Tree, 26.0f, 26.0f, EXUi::Image(Tree, EXUi::Icon(TEXT("piggy")), bWon ? EXUi::Hex(255, 200, 80) : EXUi::Hex(255, 90, 70))),
+		FMargin(0.0f, 0.0f, 10.0f, 0.0f), false, VAlign_Center);
+	EXUi::AddH(Head, EXUi::WeightText(Tree, bWon ? TEXT("ESPÓLIO GANHO  ·  VITÓRIA E PORQUINHO") : (Summary.State == 2 ? TEXT("PEÇAS QUE CAÍRAM NO PORQUINHO") : TEXT("AS TUAS PEÇAS")),
+		11, bWon ? EXUi::Hex(255, 200, 80) : EXUi::Hex(255, 90, 70), 800, 300), FMargin(0.0f), false, VAlign_Center);
+	EXUi::AddV(Column, Head);
+	TArray<TPair<FEXItem, int32>> Cards;   // 0 from the piggy bank, 1 lost, 2 insured and kept, 3 victory spoils
+	if (bWon)
+	{
+		for (const FEXItem& Item : Summary.Spoils)
+		{
+			Cards.Add(TPair<FEXItem, int32>(Item, 3));
+		}
+	}
 	for (const FEXItem& Item : bWon ? Summary.Won : Summary.Lost)
 	{
 		Cards.Add(TPair<FEXItem, int32>(Item, bWon ? 0 : 1));
@@ -318,14 +343,14 @@ UWidget* UEXResultsWidget::BuildPieces(UWidgetTree* Tree)
 	UHorizontalBox* Row = nullptr;
 	for (int32 Index = 0; Index < FMath::Min(Cards.Num(), MaxCards); ++Index)
 	{
-		if (Index % 3 == 0)
+		if (Index % 4 == 0)
 		{
 			Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-			EXUi::AddV(Column, Row, FMargin(0.0f, 16.0f, 0.0f, 0.0f), HAlign_Left);
+			EXUi::AddV(Column, Row, FMargin(0.0f, 14.0f, 0.0f, 0.0f), HAlign_Left);
 		}
-		UWidget* Card = MakeCard(Tree, Cards[Index].Key, Cards[Index].Value == 1, Cards[Index].Value == 2);
-		Reveal(Card, 0.8f + 0.18f * Index);   // the cards turn up one by one
-		EXUi::AddH(Row, Card, FMargin(Index % 3 > 0 ? 16.0f : 0.0f, 0.0f, 0.0f, 0.0f));
+		UWidget* Card = MakeCard(Tree, Cards[Index].Key, Cards[Index].Value);
+		Reveal(Card, 0.8f + 0.16f * Index);   // the cards turn up one by one
+		EXUi::AddH(Row, Card, FMargin(Index % 4 > 0 ? 12.0f : 0.0f, 0.0f, 0.0f, 0.0f));
 	}
 	if (Cards.Num() > MaxCards)
 	{
@@ -333,7 +358,7 @@ UWidget* UEXResultsWidget::BuildPieces(UWidgetTree* Tree)
 	}
 	if (Summary.PoolValue > 0)
 	{
-		EXUi::AddV(Column, EXUi::WeightText(Tree, FString::Printf(TEXT("Espólio da expedição: %s STARDUST em peças dos destruídos, repartido por quem extraiu"),
+		EXUi::AddV(Column, EXUi::WeightText(Tree, FString::Printf(TEXT("Porquinho da expedição: %s STARDUST em peças dos destruídos, repartido por quem extraiu"),
 			*EXUi::Thousands(Summary.PoolValue)), 11, EXUi::Sand(), 600), FMargin(0.0f, 14.0f, 0.0f, 0.0f));
 	}
 	return Column;

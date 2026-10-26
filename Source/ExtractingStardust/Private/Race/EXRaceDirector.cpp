@@ -110,7 +110,7 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 		{
 			Racer.bOut = true;
 			Racer.OutAtM = Craft->GetRaceProgressM();
-			Post(FString::Printf(TEXT("%s ficou pelo caminho (km %.1f)"), *Racer.Name, Racer.OutAtM / 1000.0f));
+			DropToPool(Racer);
 		}
 		else if (Craft->GetRaceProgressM() >= RouteLengthM - FinishMarginM
 			|| (Route.Num() > 0 && FVector2D::Distance(FVector2D(Craft->GetActorLocation().X, Craft->GetActorLocation().Y) / 100.0, FVector2D(Route.Last())) < FinishRadiusM))
@@ -261,6 +261,10 @@ void AEXRaceDirector::Setup()
 	Route = Player->GetMapRoute();
 	RouteLengthM = (Route.Num() - 1) * 5.0f;
 	CheckpointCount = FMath::Clamp(FMath::RoundToInt(RouteLengthM / CheckpointEveryM), 4, 40);
+	Pool = 0;
+	PoolItems.Reset();
+	LastPoolGain = 0;
+	LastPoolTime = -100.0f;
 	PlayerCheckpoint = 0;
 	LastCheckpointTime = -100.0f;
 	Summary = FEXRaceSummary();
@@ -329,12 +333,16 @@ void AEXRaceDirector::Setup()
 			TArray<FEXItem> BotModules;
 			EXMeta::RollBotBuild(Craft->GetShipName(), Skill >= 0.92f ? 2 : (Skill >= 0.87f ? 1 : 0), LootRandom, BotSerial, BotModules);
 			Craft->SetModules(BotModules);
+			const int32 Tier = Skill >= 0.92f ? 2 : (Skill >= 0.87f ? 1 : 0);
+			TArray<FEXItem> BotCargo;
+			EXMeta::RollBotCargo(Tier, LootRandom, BotSerial, 2 + Tier + LootRandom.RandRange(0, 2), BotCargo);
 			Craft->SetRaceHold(true);
 			PlaceOnGrid(Craft, Slot);
 			FEXRacer& Racer = Racers.AddDefaulted_GetRef();
 			Racer.Craft = Craft;
 			Racer.Name = FString::Printf(TEXT("%s #%d"), *Craft->GetShipName(), Bot + 2);
 			Racer.Modules = BotModules;
+			Racer.Cargo = BotCargo;
 		}
 	}
 	bReady = true;
@@ -448,29 +456,82 @@ void AEXRaceDirector::Finish()
 	}
 }
 
+int32 AEXRaceDirector::GetRivalsTotal() const
+{
+	return FMath::Max(0, Racers.Num() - 1);
+}
+
+int32 AEXRaceDirector::GetRivalsLeft() const
+{
+	int32 Left = 0;
+	for (const FEXRacer& Racer : Racers)
+	{
+		Left += !Racer.bPlayer && !Racer.bOut ? 1 : 0;
+	}
+	return Left;
+}
+
+int32 AEXRaceDirector::GetCargoInPlay() const
+{
+	int32 Value = 0;
+	for (const FEXRacer& Racer : Racers)
+	{
+		if (!Racer.bPlayer && !Racer.bOut)
+		{
+			for (const FEXItem& Item : Racer.Cargo)
+			{
+				Value += Item.Value;
+			}
+		}
+	}
+	return Value;
+}
+
+void AEXRaceDirector::DropToPool(FEXRacer& Racer)
+{
+	// Destroyed: up to three of its modules (never the insured one) and all its cargo fall into the piggy bank.
+	if (Racer.bDropped)
+	{
+		return;
+	}
+	Racer.bDropped = true;
+	Racer.Dropped.Reset();
+	for (const int32 Lost : EXMeta::SelectLosses(Racer.Modules, Racer.Insured, LootRandom))
+	{
+		Racer.Dropped.Add(Racer.Modules[Lost]);
+	}
+	Racer.Dropped.Append(Racer.Cargo);
+	Racer.Cargo.Reset();
+	int32 Value = 0;
+	for (const FEXItem& Item : Racer.Dropped)
+	{
+		Value += Item.Value;
+	}
+	Racer.LostValue = Value;
+	PoolItems.Append(Racer.Dropped);
+	Pool += Value;
+	LastPoolGain = Value;
+	LastPoolTime = RaceTime;
+	Post(Value > 0 ? FString::Printf(TEXT("%s DESTRU\u00CDDO  \u00B7  +%s no porquinho (%d pe\u00E7as)"), *Racer.Name, *FString::FromInt(Value), Racer.Dropped.Num())
+		: FString::Printf(TEXT("%s DESTRU\u00CDDO (km %.1f)"), *Racer.Name, Racer.OutAtM / 1000.0f));
+}
+
 void AEXRaceDirector::SettleExtraction()
 {
-	// EXTRACTED: reached B alive. DESTROYED: no lives left (up to three of its modules go to the pool, never the insured
-	// one). STRANDED: still on the way (keeps everything, wins nothing).
-	Pool = 0;
+	// EXTRACTED: reached B alive. DESTROYED: dropped up to three modules and its cargo into the piggy bank (never the
+	// insured module). STRANDED: still on the way (keeps everything, wins nothing).
 	PlayerNews.Reset();
-	TArray<FEXItem> Loot;
 	TArray<int32> Extracted;
 	for (int32 Index = 0; Index < Racers.Num(); ++Index)
 	{
 		FEXRacer& Racer = Racers[Index];
 		Racer.State = Racer.bFinished ? 1 : (Racer.bOut ? 2 : 3);
 		Racer.Reward = 0;
-		Racer.LostValue = 0;
 		Racer.Won.Reset();
+		Racer.Spoils.Reset();
 		if (Racer.State == 2)
 		{
-			for (const int32 Lost : EXMeta::SelectLosses(Racer.Modules, Racer.Insured, LootRandom))
-			{
-				Loot.Add(Racer.Modules[Lost]);
-				Racer.LostValue += Racer.Modules[Lost].Value;
-			}
-			Pool += Racer.LostValue;
+			DropToPool(Racer);
 		}
 		else if (Racer.State == 1)
 		{
@@ -484,8 +545,42 @@ void AEXRaceDirector::SettleExtraction()
 		Racer.Reward = EXMeta::PlaceReward(K + 1) + EXMeta::ExtractedBonus + CheckpointPrize * Racer.Checkpoint
 			+ (Racer.Checkpoint >= CheckpointCount ? AllCheckpointsPrize : 0);
 	}
-	// The pool in serpentine by value: the first extractor takes the most valuable piece, the second the next...; the
-	// order turns round every round. The pieces run out, the sharing stops.
+	// The victory spoils: the first three extractors take the best pieces of the cargo of the racers they beat (the
+	// extractors behind them and the ones still on the way): three, two and one.
+	for (int32 K = 0; K < FMath::Min(3, Extracted.Num()); ++K)
+	{
+		FEXRacer& Winner = Racers[Extracted[K]];
+		for (int32 Take = 0; Take < 3 - K; ++Take)
+		{
+			FEXRacer* Holder = nullptr;
+			int32 Best = INDEX_NONE;
+			for (FEXRacer& Beaten : Racers)
+			{
+				const bool bBehind = (Beaten.State == 1 && Beaten.FinishTime > Winner.FinishTime) || Beaten.State == 3;
+				if (&Beaten == &Winner || !bBehind)
+				{
+					continue;
+				}
+				for (int32 Index = 0; Index < Beaten.Cargo.Num(); ++Index)
+				{
+					if (!Holder || Beaten.Cargo[Index].Value > Holder->Cargo[Best].Value)
+					{
+						Holder = &Beaten;
+						Best = Index;
+					}
+				}
+			}
+			if (!Holder)
+			{
+				break;
+			}
+			Winner.Spoils.Add(Holder->Cargo[Best]);
+			Holder->Cargo.RemoveAt(Best);
+		}
+	}
+	// The piggy bank in serpentine by value: the first extractor takes the most valuable piece, the second the next...;
+	// the order turns round every round. The pieces run out, the sharing stops.
+	TArray<FEXItem> Loot = PoolItems;
 	Loot.Sort([](const FEXItem& A, const FEXItem& B) { return A.Value > B.Value; });
 	const int32 Count = Extracted.Num();
 	for (int32 K = 0; K < Loot.Num() && Count > 0; ++K)
@@ -511,6 +606,7 @@ void AEXRaceDirector::SettleExtraction()
 		Summary.CheckpointCount = CheckpointCount;
 		Summary.PoolValue = Pool;
 		Summary.Won = Mine.Won;
+		Summary.Spoils = Mine.Spoils;
 		const int32 Place = Extracted.IndexOfByKey(MeIndex);
 		if (Mine.State == 1 && Place != INDEX_NONE)
 		{
@@ -518,17 +614,13 @@ void AEXRaceDirector::SettleExtraction()
 			Summary.ExtractBonus = EXMeta::ExtractedBonus;
 			Summary.CheckpointReward = CheckpointPrize * Mine.Checkpoint + (Mine.Checkpoint >= CheckpointCount ? AllCheckpointsPrize : 0);
 		}
+		if (Mine.State == 2)
+		{
+			Summary.Lost = Mine.Dropped;
+		}
 		for (const FEXItem& Item : Mine.Modules)
 		{
-			if (!Item.IsValid())
-			{
-				continue;
-			}
-			if (Mine.State == 2 && Loot.ContainsByPredicate([&Item](const FEXItem& L) { return L.Serial == Item.Serial; }))
-			{
-				Summary.Lost.Add(Item);
-			}
-			else if (Item.Serial == Mine.Insured)
+			if (Item.IsValid() && Item.Serial == Mine.Insured)
 			{
 				Summary.Saved = Item;
 			}
@@ -551,13 +643,10 @@ void AEXRaceDirector::SettleExtraction()
 	if (bDestroyed)
 	{
 		// The lost pieces leave the profile; the consumables carried are gone (they left the stock at the start).
-		for (const FEXItem& Item : Me.Modules)
+		for (const FEXItem& Item : Me.Dropped)
 		{
-			if (Item.IsValid() && Loot.ContainsByPredicate([&Item](const FEXItem& L) { return L.Serial == Item.Serial; }))
-			{
-				PlayerNews.Add(FString::Printf(TEXT("Perdeste: %s"), *EXMeta::ItemLabel(Item)));
-				Profile->RemoveItem(Item.Serial);
-			}
+			PlayerNews.Add(FString::Printf(TEXT("Perdeste: %s"), *EXMeta::ItemLabel(Item)));
+			Profile->RemoveItem(Item.Serial);
 		}
 	}
 	else
@@ -579,20 +668,24 @@ void AEXRaceDirector::SettleExtraction()
 			Summary.Total = Gained;
 			PlayerNews.Add(FString::Printf(TEXT("Primeira extra\u00E7\u00E3o: +%d STARDUST"), EXMeta::FirstExtractionBonus));
 		}
-		for (const FEXItem& Won : Me.Won)
+		// The pieces change hands with their rolls and value; each takes a serial of this profile.
+		for (const TArray<FEXItem>* List : { &Me.Spoils, &Me.Won })
 		{
-			// The piece changes hands with its rolls and value; it takes a serial of this profile.
-			FEXItem Item = Won;
-			Item.Serial = Profile->NextSerial++;
-			Profile->Items.Add(Item);
-			PlayerNews.Add(FString::Printf(TEXT("Esp\u00F3lio: %s (%s)"), *EXMeta::ItemLabel(Item), *EXMeta::RarityName(static_cast<EEXRarity>(Item.Rarity))));
+			for (const FEXItem& Got : *List)
+			{
+				FEXItem Item = Got;
+				Item.Serial = Profile->NextSerial++;
+				Profile->Items.Add(Item);
+				PlayerNews.Add(FString::Printf(TEXT("%s: %s (%s)"), List == &Me.Spoils ? TEXT("Esp\u00F3lio de vit\u00F3ria") : TEXT("Do porquinho"),
+					*EXMeta::ItemLabel(Item), *EXMeta::RarityName(static_cast<EEXRarity>(Item.Rarity))));
+			}
 		}
 		++Profile->Extractions;
 		Profile->BestPlace = Profile->BestPlace == 0 ? Place : FMath::Min(Profile->BestPlace, Place);
 	}
 	else if (bDestroyed)
 	{
-		PlayerNews.Insert(FString(TEXT("DESTRU\u00CDDA: as pe\u00E7as perdidas foram para quem extraiu")), 0);
+		PlayerNews.Insert(FString(TEXT("DESTRU\u00CDDA: as pe\u00E7as perdidas foram para o porquinho")), 0);
 	}
 	else
 	{

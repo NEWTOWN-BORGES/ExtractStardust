@@ -9,9 +9,9 @@
 
 namespace
 {
-	const FName ColorParam(TEXT("Color"));
-	const FName IntensityParam(TEXT("Intensity"));
-	const FName OpacityParam(TEXT("Opacity"));
+	const FName BlastColorParam(TEXT("Color"));
+	const FName BlastIntensityParam(TEXT("Intensity"));
+	const FName BlastOpacityParam(TEXT("Opacity"));
 	constexpr float BlastLife = 4.5f;
 	constexpr float GravityCmps2 = 1470.0f;   // debris falls a little faster than real: it reads better at race speed
 }
@@ -80,7 +80,7 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 		Bit.Life = 0.9f + 0.35f * Layer;
 		if (Bit.Material)
 		{
-			Bit.Material->SetVectorParameterValue(ColorParam, FireColours[Layer]);
+			Bit.Material->SetVectorParameterValue(BlastColorParam, FireColours[Layer]);
 		}
 		Bit.Mesh->SetWorldLocation(Origin);
 		Fireball.Add(Bit);
@@ -95,7 +95,7 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 		Bit.Life = 0.55f;
 		if (Bit.Material)
 		{
-			Bit.Material->SetVectorParameterValue(ColorParam, FLinearColor(1.0f, 0.6f, 0.25f));
+			Bit.Material->SetVectorParameterValue(BlastColorParam, FLinearColor(1.0f, 0.6f, 0.25f));
 		}
 		Bit.Mesh->SetWorldLocation(Origin - FVector(0.0f, 0.0f, 120.0f));
 		Ring.Add(Bit);
@@ -114,7 +114,7 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 		Bit.Life = Random.FRandRange(1.6f, 2.8f);
 		if (Bit.Material)
 		{
-			Bit.Material->SetVectorParameterValue(ColorParam, FLinearColor(1.0f, 0.4f, 0.1f));
+			Bit.Material->SetVectorParameterValue(BlastColorParam, FLinearColor(1.0f, 0.4f, 0.1f));
 		}
 		Bit.Mesh->SetWorldLocationAndRotation(Origin + Out * 150.0f, Random.GetUnitVector().Rotation());
 		Bit.Mesh->SetWorldScale3D(FVector(Bit.Size, Bit.Size * 0.6f, Bit.Size * 0.15f));
@@ -132,7 +132,7 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 		Bit.Life = Random.FRandRange(0.4f, 1.1f);
 		if (Bit.Material)
 		{
-			Bit.Material->SetVectorParameterValue(ColorParam, FLinearColor(1.0f, 0.75f, 0.35f));
+			Bit.Material->SetVectorParameterValue(BlastColorParam, FLinearColor(1.0f, 0.75f, 0.35f));
 		}
 		Bit.Mesh->SetWorldLocation(Origin);
 		Sparks.Add(Bit);
@@ -150,8 +150,8 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 		Bit.Life = Random.FRandRange(2.8f, 4.3f);
 		if (Bit.Material)
 		{
-			Bit.Material->SetVectorParameterValue(ColorParam, FLinearColor(0.05f, 0.04f, 0.035f));
-			Bit.Material->SetScalarParameterValue(OpacityParam, 0.0f);
+			Bit.Material->SetVectorParameterValue(BlastColorParam, FLinearColor(0.05f, 0.04f, 0.035f));
+			Bit.Material->SetScalarParameterValue(BlastOpacityParam, 0.0f);
 		}
 		Bit.Mesh->SetWorldLocation(Origin + Out * 200.0f);
 		Smoke.Add(Bit);
@@ -189,7 +189,7 @@ void AEXExplosion::Tick(float DeltaSeconds)
 		Bit.Mesh->SetVisibility(T < 1.0f);
 		if (Bit.Material)
 		{
-			Bit.Material->SetScalarParameterValue(IntensityParam, Bit.Intensity * FMath::Square(1.0f - T));
+			Bit.Material->SetScalarParameterValue(BlastIntensityParam, Bit.Intensity * FMath::Square(1.0f - T));
 		}
 	}
 	for (FBit& Bit : Ring)
@@ -201,7 +201,7 @@ void AEXExplosion::Tick(float DeltaSeconds)
 		Bit.Mesh->SetVisibility(T < 1.0f);
 		if (Bit.Material)
 		{
-			Bit.Material->SetScalarParameterValue(IntensityParam, Bit.Intensity * (1.0f - T));
+			Bit.Material->SetScalarParameterValue(BlastIntensityParam, Bit.Intensity * (1.0f - T));
 		}
 	}
 	for (FBit& Bit : Debris)
@@ -215,7 +215,7 @@ void AEXExplosion::Tick(float DeltaSeconds)
 		if (Bit.Material)
 		{
 			// Cools from orange-hot to a dull ember.
-			Bit.Material->SetScalarParameterValue(IntensityParam, FMath::Max(0.15f, Bit.Intensity * FMath::Exp(-T * 3.0f)));
+			Bit.Material->SetScalarParameterValue(BlastIntensityParam, FMath::Max(0.15f, Bit.Intensity * FMath::Exp(-T * 3.0f)));
 		}
 	}
 	for (FBit& Bit : Sparks)
@@ -229,7 +229,7 @@ void AEXExplosion::Tick(float DeltaSeconds)
 		Bit.Mesh->SetVisibility(T < 1.0f);
 		if (Bit.Material)
 		{
-			Bit.Material->SetScalarParameterValue(IntensityParam, Bit.Intensity * (1.0f - T));
+			Bit.Material->SetScalarParameterValue(BlastIntensityParam, Bit.Intensity * (1.0f - T));
 		}
 	}
 	for (FBit& Bit : Smoke)
@@ -243,8 +243,8 @@ void AEXExplosion::Tick(float DeltaSeconds)
 		if (Bit.Material)
 		{
 			// Fades in behind the fireball, then thins out.
-			Bit.Material->SetScalarParameterValue(OpacityParam, Bit.Intensity * FMath::Clamp(Age / 0.35f, 0.0f, 1.0f) * FMath::Square(1.0f - T));
-			Bit.Material->SetVectorParameterValue(ColorParam, FMath::Lerp(FLinearColor(0.35f, 0.14f, 0.05f), FLinearColor(0.05f, 0.04f, 0.035f), FMath::Clamp(Age / 0.8f, 0.0f, 1.0f)));
+			Bit.Material->SetScalarParameterValue(BlastOpacityParam, Bit.Intensity * FMath::Clamp(Age / 0.35f, 0.0f, 1.0f) * FMath::Square(1.0f - T));
+			Bit.Material->SetVectorParameterValue(BlastColorParam, FMath::Lerp(FLinearColor(0.35f, 0.14f, 0.05f), FLinearColor(0.05f, 0.04f, 0.035f), FMath::Clamp(Age / 0.8f, 0.0f, 1.0f)));
 		}
 	}
 }
