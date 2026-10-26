@@ -1000,7 +1000,8 @@ void AEXHoverCraft::ApplyShipStats()
 	{
 		Fitted.Add(Item.IsValid() ? &Item : nullptr);
 	}
-	EXMeta::Resolve(Name, Fitted, ResolvedStats);
+	// The player's ship counts its stars (a copy of the ship from an ELITE CACHE each); the bots have none.
+	EXMeta::Resolve(Name, Fitted, ResolvedStats, Profile && !bBot ? Profile->StarsOf(Name) : 0);
 	const EXMeta::FShipDef& Ship = EXMeta::Ship(Name);
 	auto Delta = [this, &Ship](EEXStat Stat)
 	{
@@ -1014,10 +1015,12 @@ void AEXHoverCraft::ApplyShipStats()
 	AccelerationMps2 = BaseAccelMps2 * (1.0f + 0.006f * Delta(EEXStat::Accel)) * MassFactor;
 	BoostAccelerationMps2 = BaseBoostAccelMps2 * (1.0f + 0.004f * Delta(EEXStat::Boost)) * MassFactor;
 	NitroSeconds = BaseNitroSeconds * (1.0f + 0.006f * Delta(EEXStat::Boost));
-	TurnRateLow = BaseTurnLow * (1.0f + 0.005f * Delta(EEXStat::Handling));
-	TurnRateHigh = BaseTurnHigh * (1.0f + 0.005f * Delta(EEXStat::Handling));
-	GripRedirect = BaseGripRedirect * (1.0f + 0.005f * Delta(EEXStat::Stability));
-	GripLateralMax = BaseGripLateralMax * (1.0f + 0.005f * Delta(EEXStat::Stability));
+	// Wings and tails (player, 2026-10-26: "caudas e asas se sintam de verdade"): 2% of turn and of side grip per point,
+	// so a wing at its +9 ceiling turns ~18% better. With nothing fitted the handling is the original one.
+	TurnRateLow = BaseTurnLow * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Handling));
+	TurnRateHigh = BaseTurnHigh * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Handling));
+	GripRedirect = BaseGripRedirect * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Stability));
+	GripLateralMax = BaseGripLateralMax * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Stability));
 	const float HullMul = (1.0f + 0.006f * Delta(EEXStat::Hull)) * (EXMeta::HasPerk(Fitted, TEXT("aegis")) ? 1.25f : 1.0f);
 	WallHitMps = Stats->WallHitMps * HullMul;
 	LandingHitMps = Stats->LandingHitMps * HullMul;
@@ -1898,6 +1901,41 @@ void AEXHoverCraft::SetQuickSlots(const TArray<FEXQuickSlot>& InSlots)
 	QuickSlots.SetNum(EXMeta::QuickSlots);
 	LastQuickSlot = -1;
 	LastQuickTime = -100.0f;
+}
+
+bool AEXHoverCraft::GetModuleAnchor(EEXFamily Family, FVector& OutWorld) const
+{
+	const int32 K = static_cast<int32>(Family);
+	if (ModuleMeshes.IsValidIndex(K) && ModuleMeshes[K] && ModuleMeshes[K]->IsVisible() && ModuleMeshes[K]->GetStaticMesh())
+	{
+		OutWorld = ModuleMeshes[K]->Bounds.Origin;
+		return true;
+	}
+	const UStaticMeshComponent* Body = bXRay && SkeletonMesh && SkeletonMesh->IsVisible() ? SkeletonMesh.Get() : ShipMesh.Get();
+	if (!Body || !VisualPivot)
+	{
+		return false;
+	}
+	const FVector Forward = VisualPivot->GetForwardVector();
+	const FVector Up = VisualPivot->GetUpVector();
+	const FBoxSphereBounds& Bounds = Body->Bounds;
+	const float Half = FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y);
+	switch (Family)
+	{
+	case EEXFamily::Engine:
+	case EEXFamily::Propulsion:
+		OutWorld = Bounds.Origin - Forward * Half * 0.85f;
+		return true;
+	case EEXFamily::Reactor:
+		OutWorld = Bounds.Origin - Forward * Half * 0.2f + Up * Bounds.BoxExtent.Z * 0.3f;
+		return true;
+	case EEXFamily::Utility:
+		OutWorld = Bounds.Origin + Forward * Half * 0.6f;
+		return true;
+	default:
+		OutWorld = Bounds.Origin;
+		return true;
+	}
 }
 
 void AEXHoverCraft::PreviewModules(const TArray<FEXItem>& InModules, EEXFamily Focus)

@@ -58,7 +58,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float NitroAirRegen = 0.15f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateLow = 2.4f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateHigh = 1.05f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateHigh = 0.8f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float SteerResponse = 10.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float AirTurnMul = 0.35f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float BrakeTurnMul = 1.35f;
@@ -90,7 +90,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallScrapeLoss = 0.2f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float BankMaxDeg = 38.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float NoseLeadMaxDeg = 8.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float NoseLeadMaxDeg = 5.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float PitchFromAccel = 0.16f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float VisualResponse = 9.0f;
 
@@ -196,6 +196,9 @@ public:
 	/** Hangar preview: the craft wears this build. Looking at a slot inside the hull (engine, propulsion, reactor,
 	 *  utility) the bodywork goes, the skeleton shows and the engine runs with its flame. */
 	void PreviewModules(const TArray<FEXItem>& InModules, EEXFamily Focus);
+	/** Where a module sits on the ship, in the world (the hangar pins its notes there): the piece on the hull, else a
+	 *  point of the hull for the parts inside it (engine and propulsion at the back, the reactor in the middle). */
+	bool GetModuleAnchor(EEXFamily Family, FVector& OutWorld) const;
 	/** No more ship changes once the race is on. */
 	void LockShip() { bShipLocked = true; }
 	/** Puts the craft at a place and heading, at rest (grid slots, respawns). */

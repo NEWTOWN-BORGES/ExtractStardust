@@ -8,6 +8,27 @@ espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde)
 
 O jogador fala português (PT). Responder em português.
 
+## PEDIDOS DE 2026-10-25 (noite), por testar em casa
+
+- **Estrelas das naves** (`Docs/MODULOS.md` secção 8b): cada cópia de uma nave dá 1 estrela, até 7, e cada estrela dá
+  +2 nos 8 stats base da nave. A cópia só sai na ELITE CACHE (6%). Código em `EXMeta`, `EXProfile`, `EXHangarModel`, `EXHangarWidget`,
+  `EXHoverCraft::ApplyShipStats`): compilar e abrir uma ELITE no COFRE (para testar mais depressa, subir
+  `EXMeta::ShipCopyChance` a 1).
+- **Paredes nas curvas do ziguezague** (`Docs/PISTA_AB_RED_DUST_DIVIDE.md`): meio-oval do lado de fora de cada curva em
+  U do Shafer Fall (só aí), que cresce na curva e desce nas retas. Testado a 10 m; gerar a pista a 3 m e ver no Unreal
+  que se pode subir por ela.
+- **Estrelas no hangar:** as 7 estrelas aparecem por baixo do nome da nave (cheias as que tem, vazias as que faltam) e
+  em cada nave da lista NAVE.
+
+- **Interface igual às maquetes** (2026-10-26, `Docs/MENU_HANGAR.md`): fontes Inter e Orbitron, ícones, brilhos,
+  fotos de cada nave com cada módulo nas cartas (`SourceArt/UI/Thumbs`), HUD da corrida em UMG. Importar com o passo
+  3d do `casa_tudo.ps1` e compilar.
+
+- **Condução como antes** (2026-10-26): o Cursor (commit `a6ba938`, 23/10) tinha subido `TurnRateHigh` de 0,8 para 1,05
+  e `NoseLeadMaxDeg` de 5 para 8, e a nave escorregava de lado. Voltaram aos valores da Phase 1. A câmara e a nave a
+  deitar-se nas curvas ficaram como o Cursor as deixou (o jogador gostou). Asas e caudas valem agora 2 % por ponto de
+  Manobra/Estabilidade (eram 0,5 %); sem módulos a condução é a original.
+
 ## NAVES NOVAS: falta pô-las no Unreal (2026-10-21; BASTION a 2026-10-25)
 
 As 5 naves (STRIX, WRAITH, NOMAD, VORTEX e BASTION) foram refeitas de dentro para fora (PR #3, ramo

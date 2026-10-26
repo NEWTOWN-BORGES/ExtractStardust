@@ -40,6 +40,13 @@ public:
 	UPROPERTY() int32 NextSerial = 1;
 	UPROPERTY() int32 Seed = 0;
 	UPROPERTY() bool bFirstExtractionPaid = false;
+	/** Stars of each ship (by upper-case name, 0-7): a copy of a ship from an ELITE CACHE adds one. They raise the ship's
+	 *  own stats, before any module (EXMeta::StarBonus). A ship missing here has none. */
+	UPROPERTY() TMap<FString, int32> ShipStars;
+
+	int32 StarsOf(const FString& Ship) const;
+	/** Adds a star; false (and nothing changes) when the ship already has all seven. */
+	bool AddStar(const FString& Ship);
 
 	FEXBuild& BuildFor(const FString& Ship);
 	const FEXBuild* FindBuild(const FString& Ship) const;

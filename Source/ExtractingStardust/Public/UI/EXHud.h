@@ -6,6 +6,7 @@
 
 class UEXHangarWidget;
 class UEXMainMenuWidget;
+class UEXRaceHudWidget;
 
 /**
  * Race HUD on maps with a route (spline tagged EXRoute):
@@ -45,6 +46,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UEXHangarWidget> HangarWidget;
+
+	/** The race panels (mock-up hud.png): place and time, lives, speed and gauges, the quick slots. */
+	UPROPERTY(Transient)
+	TObjectPtr<UEXRaceHudWidget> RaceHudWidget;
 
 	/** The input set last: -1 none yet, 0 the game only, 1 the menu (game and UI, cursor shown). */
 	int32 InputScreen = -1;

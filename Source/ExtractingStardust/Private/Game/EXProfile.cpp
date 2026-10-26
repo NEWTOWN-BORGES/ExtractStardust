@@ -108,6 +108,23 @@ TArray<const FEXItem*> UEXProfileSave::Equipped(const FString& Ship) const
 	return Out;
 }
 
+int32 UEXProfileSave::StarsOf(const FString& Ship) const
+{
+	const int32* Stars = ShipStars.Find(Ship.ToUpper());
+	return Stars ? FMath::Clamp(*Stars, 0, EXMeta::MaxStars) : 0;
+}
+
+bool UEXProfileSave::AddStar(const FString& Ship)
+{
+	const int32 Stars = StarsOf(Ship);
+	if (Stars >= EXMeta::MaxStars)
+	{
+		return false;
+	}
+	ShipStars.Add(Ship.ToUpper(), Stars + 1);
+	return true;
+}
+
 TArray<FEXItem> UEXProfileSave::EquippedCopy(const FString& Ship) const
 {
 	TArray<FEXItem> Out;

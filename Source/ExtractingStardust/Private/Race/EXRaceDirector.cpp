@@ -19,7 +19,8 @@ namespace
 	constexpr float RowGapM = 14.0f;
 	constexpr float ColumnGapM = 8.0f;      // 6 abreast in 48 m: the road at the start is 60 m wide
 	constexpr float FinishMarginM = 25.0f;  // the finish line: this far before the end of the race line (B)
-	constexpr float BotsAfterPlayerS = 60.0f;  // Bots mode: the race ends this long after the player is done
+	constexpr float BotsAfterPlayerS = 15.0f;  // Bots mode: the race ends this long after the player is done (Enter ends it at once)
+	constexpr float FinishRadiusM = 45.0f;      // reaching the last point of the line also counts as the finish
 	constexpr float TestTimeLimitS = 1500.0f;
 	constexpr int32 MenuItems = 4;          // 0 solo, 1 bots, 2 hangar, 3 quit
 	/** Bot pace against the ideal line, by bot (the tuning knob for how good the bots are). */
@@ -108,7 +109,8 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 			Racer.OutAtM = Craft->GetRaceProgressM();
 			Post(FString::Printf(TEXT("%s ficou pelo caminho (km %.1f)"), *Racer.Name, Racer.OutAtM / 1000.0f));
 		}
-		else if (Craft->GetRaceProgressM() >= RouteLengthM - FinishMarginM)
+		else if (Craft->GetRaceProgressM() >= RouteLengthM - FinishMarginM
+			|| (Route.Num() > 0 && FVector2D::Distance(FVector2D(Craft->GetActorLocation().X, Craft->GetActorLocation().Y) / 100.0, FVector2D(Route.Last())) < FinishRadiusM))
 		{
 			Racer.bFinished = true;
 			Racer.FinishTime = RaceTime;
@@ -140,10 +142,14 @@ void AEXRaceDirector::MenuInput(int32 Step)
 {
 	if (!bMenu)
 	{
-		// On the results: Enter / X goes back to the menu.
+		// On the results: Enter / X goes back to the menu. Past the line, before the results: it shows them at once.
 		if (bOver && Step == 0 && OverTime > 1.5f)
 		{
 			ReturnToMenu();
+		}
+		else if (!bOver && Step == 0 && PlayerDoneTime >= 0.0f && RaceTime - PlayerDoneTime > 1.0f)
+		{
+			Finish();
 		}
 		return;
 	}

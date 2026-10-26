@@ -48,6 +48,7 @@ if (-not $SemPista) {
 }
 Step "3b. Importar as naves novas" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/import_test_ships.py", "-unattended")
 Step "3c. Importar os modulos das naves" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/import_ship_modules.py", "-unattended")
+Step "3d. Importar os icones e as fotos do hangar" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/import_ui_icons.py", "-unattended")
 if (-not $SemPista) {
     Step "4. Montar o mapa Expedition" $Editor @($Project, "-ExecutePythonScript=$RootFwd/Scripts/build_expedition_map.py")
 }

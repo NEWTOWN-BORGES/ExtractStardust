@@ -346,6 +346,16 @@ namespace
 		return Find(Item.Def);
 	}
 
+	int32 ShipCount()
+	{
+		return UE_ARRAY_COUNT(Ships);
+	}
+
+	const FShipDef& ShipAt(int32 Index)
+	{
+		return Ships[FMath::Clamp(Index, 0, ShipCount() - 1)];
+	}
+
 	const FShipDef& Ship(const FString& Name)
 	{
 		for (const FShipDef& Def : Ships)
@@ -389,6 +399,14 @@ namespace
 		return Names[FMath::Clamp(static_cast<int32>(Stat), 0, StatCount - 1)];
 	}
 
+	FString StatCard(EEXStat Stat)
+	{
+		// The cards' chips (mock-up cofre.png): "+8 Estab.", "+1 Refrig.", "+5 Sensores".
+		static const TCHAR* Names[] = { TEXT("Veloc."), TEXT("Acel."), TEXT("Manobra"), TEXT("Estab."), TEXT("Casco"), TEXT("Efic."), TEXT("Refrig."),
+			TEXT("Nitro"), TEXT("kg"), TEXT("Repar."), TEXT("Sensores") };
+		return Names[FMath::Clamp(static_cast<int32>(Stat), 0, StatCount - 1)];
+	}
+
 	FString RarityName(EEXRarity Rarity)
 	{
 		static const TCHAR* Names[] = { TEXT("COMUM"), TEXT("INCOMUM"), TEXT("RARO"), TEXT("\u00C9PICO"), TEXT("LEND\u00C1RIO") };
@@ -397,9 +415,9 @@ namespace
 
 	FLinearColor RarityColour(EEXRarity Rarity)
 	{
-		// White, green, blue, purple, gold (doc 02 sec. 7).
-		static const FColor Colours[] = { FColor(0xE6, 0xE6, 0xE6), FColor(0x5C, 0xD3, 0x6B), FColor(0x4C, 0x9D, 0xFF), FColor(0xB4, 0x6B, 0xFF),
-			FColor(0xFF, 0xC2, 0x3A) };
+		// White, green, blue, purple, gold (doc 02 sec. 7), as the mock-ups draw them.
+		static const FColor Colours[] = { FColor(0xE9, 0xE4, 0xDA), FColor(0x5F, 0xD1, 0x7A), FColor(0x4A, 0xA3, 0xFF), FColor(0xB5, 0x6C, 0xFF),
+			FColor(0xFF, 0xC2, 0x3D) };
 		return FLinearColor(Colours[FMath::Clamp(static_cast<int32>(Rarity), 0, RarityCount - 1)]);
 	}
 
@@ -551,12 +569,13 @@ namespace
 		return Item;
 	}
 
-	void Resolve(const FString& ShipName, const TArray<const FEXItem*>& Modules, int32 (&Out)[StatCount])
+	void Resolve(const FString& ShipName, const TArray<const FEXItem*>& Modules, int32 (&Out)[StatCount], int32 Stars)
 	{
 		const FShipDef& Def = Ship(ShipName);
+		const int32 Bonus = StarBonus(Stars);
 		for (int32 Stat = 0; Stat < StatCount; ++Stat)
 		{
-			Out[Stat] = Stat < CoreStats ? Def.Stats[Stat] : 0;
+			Out[Stat] = Stat < CoreStats ? Def.Stats[Stat] + Bonus : 0;
 		}
 		for (const FEXItem* Item : Modules)
 		{
@@ -573,6 +592,12 @@ namespace
 		{
 			Out[Stat] = FMath::Clamp(Out[Stat], 0, 100);
 		}
+	}
+
+	int32 StarBonus(int32 Stars)
+	{
+		Stars = FMath::Clamp(Stars, 0, MaxStars);
+		return Stars * 2 + (Stars == MaxStars ? 1 : 0);
 	}
 
 	int32 Lives(const FString& ShipName, int32 HullStat)
@@ -613,6 +638,11 @@ namespace
 		return Style;
 	}
 
+	int32 FlameLook(const FEXItem* Engine)
+	{
+		return FlameIndex(Engine);
+	}
+
 	FLinearColor NitroColour(const FEXItem* Propulsion)
 	{
 		const FModuleDef* Def = Propulsion ? Find(*Propulsion) : nullptr;
@@ -625,8 +655,13 @@ namespace
 		return ReactorColours[Def ? FMath::Clamp(Def->Look, 0, static_cast<int32>(UE_ARRAY_COUNT(ReactorColours)) - 1) : 0];
 	}
 
-	void OpenCache(EEXCache Kind, FRandomStream& Random, int32& NextSerial, TArray<FEXItem>& OutItems, TArray<EEXConsumable>& OutConsumables)
+	void OpenCache(EEXCache Kind, FRandomStream& Random, int32& NextSerial, TArray<FEXItem>& OutItems, TArray<EEXConsumable>& OutConsumables,
+		int32* OutShipCopy)
 	{
+		if (OutShipCopy)
+		{
+			*OutShipCopy = INDEX_NONE;
+		}
 		const FCacheDef& Def = Cache(Kind);
 		const int32 Components = Kind == EEXCache::Elite ? Random.RandRange(5, 6) : Random.RandRange(4, 6);
 		TArray<EEXFamily> Families;
@@ -713,6 +748,11 @@ namespace
 				}
 			}
 			OutItems[Slot] = Roll(*Legend, EEXRarity::Legendary, Random, OutItems[Slot].Serial);
+		}
+		if (Kind == EEXCache::Elite && OutShipCopy && Random.FRand() < ShipCopyChance)
+		{
+			// The rarest prize of the game: a copy of one of the ships, worth a star.
+			*OutShipCopy = Random.RandRange(0, ShipCount() - 1);
 		}
 		for (int32 K = Components; K < 10; ++K)
 		{

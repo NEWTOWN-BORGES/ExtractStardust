@@ -9,6 +9,7 @@
 #include "GameFramework/PlayerController.h"
 #include "UI/EXHangarWidget.h"
 #include "UI/EXMainMenuWidget.h"
+#include "UI/EXRaceHudWidget.h"
 
 namespace
 {
@@ -40,6 +41,22 @@ void AEXHud::DrawHUD()
 	const bool bMenu = Race && Race->IsInMenu();
 	const bool bHangar = Craft->IsInHangar();
 	ShowScreens(Race, bMenu, bHangar);
+	// The race panels of the mock-up hud.png are a widget; the minimap, the arrow and the messages stay here.
+	const bool bRacing = !bMenu && !bHangar && !Craft->IsInShowroom() && Race && Race->IsReady();
+	if (bRacing && !IsValid(RaceHudWidget) && GetOwningPlayerController())
+	{
+		RaceHudWidget = CreateWidget<UEXRaceHudWidget>(GetOwningPlayerController());
+		if (RaceHudWidget)
+		{
+			RaceHudWidget->InitializeHud(Race);
+			RaceHudWidget->AddToViewport(10);
+		}
+	}
+	else if (!bRacing && RaceHudWidget)
+	{
+		RaceHudWidget->RemoveFromParent();
+		RaceHudWidget = nullptr;
+	}
 	if (bMenu || bHangar || Craft->IsInShowroom())
 	{
 		return;
@@ -87,9 +104,12 @@ void AEXHud::DrawHUD()
 	{
 		DrawText(TEXT("SENTIDO ERRADO"), FLinearColor(1.0f, 0.2f, 0.1f), Canvas->ClipX * 0.5f - 80.0f * Scale, 112.0f * Scale, nullptr, 1.6f * Scale);
 	}
-	const float LapKm = Route.Num() * 5.0f / 1000.0f;
-	DrawText(FString::Printf(TEXT("%.1f / %.1f km"), Index * 5.0f / 1000.0f, LapKm), FLinearColor::White,
-		Canvas->ClipX - 200.0f * Scale, 262.0f * Scale, nullptr, 1.1f * Scale);
+	if (!RaceHudWidget)
+	{
+		const float LapKm = Route.Num() * 5.0f / 1000.0f;
+		DrawText(FString::Printf(TEXT("%.1f / %.1f km"), Index * 5.0f / 1000.0f, LapKm), FLinearColor::White,
+			Canvas->ClipX - 200.0f * Scale, 262.0f * Scale, nullptr, 1.1f * Scale);
+	}
 }
 
 void AEXHud::DrawMinimap(const TArray<FVector2D>& Route, const FVector2D& Here, const FVector2D& Forward, int32 Index,
@@ -97,7 +117,8 @@ void AEXHud::DrawMinimap(const TArray<FVector2D>& Route, const FVector2D& Here, 
 {
 	const float Scale = Canvas->ClipY / 720.0f;
 	const float Half = 110.0f * Scale;
-	const FVector2D Centre(Canvas->ClipX - Half - 24.0f * Scale, Half + 24.0f * Scale);
+	// Under the lives plate of the race widget (top right).
+	const FVector2D Centre(Canvas->ClipX - Half - 24.0f * Scale, Half + (RaceHudWidget ? 104.0f : 24.0f) * Scale);
 	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.45f), Centre.X - Half, Centre.Y - Half, Half * 2.0f, Half * 2.0f);
 	const FVector2D Right(-Forward.Y, Forward.X);
 	const float PxPerM = Half / (MapWindowM * 0.5f);
@@ -226,34 +247,37 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 	const FLinearColor Sand(0.66f, 0.55f, 0.42f);
 	const float Now = GetWorld()->GetTimeSeconds();
 
-	// Panel, top left: mode and time, place, lives.
 	const float X = 24.0f * Scale;
-	float Y = 20.0f * Scale;
-	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.45f), X - 10.0f * Scale, Y - 6.0f * Scale, 360.0f * Scale, (bBots ? 100.0f : 76.0f) * Scale);
-	DrawText(FString::Printf(TEXT("%s   %s"), bBots ? TEXT("PELOT\u00C3O 15") : TEXT("EXPEDI\u00C7\u00C3O SOLO"), *HudRaceClock(Race->GetRaceTime())), White, X, Y,
-		nullptr, 1.3f * Scale);
-	Y += 26.0f * Scale;
-	if (bBots)
+	if (!RaceHudWidget)
 	{
-		int32 Alive = 0;
-		for (const FEXRacer& Racer : Standings)
+		// Panel, top left: mode and time, place, lives.
+		float Y = 20.0f * Scale;
+		DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.45f), X - 10.0f * Scale, Y - 6.0f * Scale, 360.0f * Scale, (bBots ? 100.0f : 76.0f) * Scale);
+		DrawText(FString::Printf(TEXT("%s   %s"), bBots ? TEXT("PELOT\u00C3O 15") : TEXT("EXPEDI\u00C7\u00C3O SOLO"), *HudRaceClock(Race->GetRaceTime())), White, X, Y,
+			nullptr, 1.3f * Scale);
+		Y += 26.0f * Scale;
+		if (bBots)
 		{
-			Alive += Racer.bOut ? 0 : 1;
+			int32 Alive = 0;
+			for (const FEXRacer& Racer : Standings)
+			{
+				Alive += Racer.bOut ? 0 : 1;
+			}
+			DrawText(FString::Printf(TEXT("POSI\u00C7\u00C3O %d / %d    em prova: %d"), Race->GetPlayerPlace(), Standings.Num(), Alive), White, X, Y,
+				nullptr, 1.1f * Scale);
+			Y += 24.0f * Scale;
 		}
-		DrawText(FString::Printf(TEXT("POSI\u00C7\u00C3O %d / %d    em prova: %d"), Race->GetPlayerPlace(), Standings.Num(), Alive), White, X, Y,
-			nullptr, 1.1f * Scale);
-		Y += 24.0f * Scale;
-	}
-	DrawText(TEXT("VIDAS"), White, X, Y, nullptr, 1.1f * Scale);
-	for (int32 Life = 0; Life < Craft->GetMaxLives(); ++Life)
-	{
-		DrawRect(Life < Craft->GetLives() ? FLinearColor(0.3f, 1.0f, 0.4f) : FLinearColor(0.25f, 0.25f, 0.25f, 0.8f),
-			X + (70.0f + Life * 26.0f) * Scale, Y + 3.0f * Scale, 20.0f * Scale, 14.0f * Scale);
-	}
+		DrawText(TEXT("VIDAS"), White, X, Y, nullptr, 1.1f * Scale);
+		for (int32 Life = 0; Life < Craft->GetMaxLives(); ++Life)
+		{
+			DrawRect(Life < Craft->GetLives() ? FLinearColor(0.3f, 1.0f, 0.4f) : FLinearColor(0.25f, 0.25f, 0.25f, 0.8f),
+				X + (70.0f + Life * 26.0f) * Scale, Y + 3.0f * Scale, 20.0f * Scale, 14.0f * Scale);
+		}
 
-	DrawGauges(Craft, Scale);
-	DrawQuickSlots(Craft, Scale);
+		DrawGauges(Craft, Scale);
+		DrawQuickSlots(Craft, Scale);
 
+	}
 	const float Mid = Canvas->ClipX * 0.5f;
 	auto Centred = [this, Mid](const FString& Text, const FLinearColor& Colour, float AtY, float TextScale)
 	{
@@ -316,7 +340,7 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 		DrawText(TEXT("DESTRU\u00CDDA - AT\u00C9 3 M\u00D3DULOS V\u00C3O PARA QUEM EXTRAIR"), Red, Mid - 330.0f * Scale, Canvas->ClipY * 0.36f, nullptr, 1.8f * Scale);
 	}
 	// Messages of the last 6 s (left, under the panel).
-	float FeedY = (bBots ? 130.0f : 106.0f) * Scale;
+	float FeedY = (RaceHudWidget ? 128.0f : (bBots ? 130.0f : 106.0f)) * Scale;
 	for (const TPair<float, FString>& Line : Race->GetFeed())
 	{
 		if (Race->GetRaceTime() - Line.Key < 6.0f || Race->GetCountdown() > 0.0f)
@@ -324,6 +348,14 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 			DrawText(Line.Value, FLinearColor(1.0f, 0.9f, 0.6f), X, FeedY, nullptr, 1.0f * Scale);
 			FeedY += 20.0f * Scale;
 		}
+	}
+	// Past the line, before the results: the finish banner, and the results come on their own (or with Enter / X).
+	if (!Race->IsOver() && Race->IsPlayerDone() && !Craft->IsEliminated())
+	{
+		DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.55f), Mid - 330.0f * Scale, Canvas->ClipY * 0.30f, 660.0f * Scale, 120.0f * Scale);
+		DrawText(FString::Printf(TEXT("META!   %s   \u00B7   %d.\u00BA LUGAR"), *HudRaceClock(Race->GetPlayerDoneTime()), Race->GetPlayerPlace()),
+			FLinearColor(0.3f, 1.0f, 0.4f), Mid - 300.0f * Scale, Canvas->ClipY * 0.30f + 18.0f * Scale, nullptr, 2.0f * Scale);
+		DrawText(TEXT("Enter / X: ver o esp\u00F3lio e os resultados"), FLinearColor(1.0f, 0.85f, 0.6f), Mid - 210.0f * Scale, Canvas->ClipY * 0.30f + 78.0f * Scale, nullptr, 1.2f * Scale);
 	}
 	// The extraction: who reached B (EXTRACTED), who was destroyed (up to three of its modules are the pool) and who
 	// was still on the way; then what the player won and lost.

@@ -651,14 +651,20 @@ namespace
 	/** Sun, sky and dusty air. Movable lighting only: the project has no baked lighting. */
 	void AddSky(UWorld* World, float FogDensity)
 	{
-		ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(FVector(0.0f, 0.0f, 50000.0f), FRotator(-38.0f, -35.0f, 0.0f));
+		ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(FVector(0.0f, 0.0f, 50000.0f), FRotator(-23.0f, -35.0f, 0.0f));   // low golden-hour sun: long raking shadows give the canyons depth
 		if (UDirectionalLightComponent* SunLight = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()))
 		{
 			SunLight->SetMobility(EComponentMobility::Movable);
-			SunLight->SetIntensity(10.0f);
-			SunLight->SetLightColor(FLinearColor(1.0f, 0.93f, 0.84f));
+			SunLight->SetIntensity(13.0f);   // the sun is lower than before: more lux for the same exposure
+			SunLight->SetLightColor(FLinearColor(1.0f, 0.86f, 0.68f));
+			SunLight->SetEnableLightShaftBloom(true);   // god rays through the dust
+			SunLight->SetBloomScale(0.22f);
+			SunLight->SetBloomThreshold(0.0f);
+			SunLight->SetBloomTint(FColor(255, 196, 140));
+			SunLight->SetVolumetricScatteringIntensity(1.6f);
+			SunLight->ContactShadowLength = 0.04f;
 			SunLight->SetAtmosphereSunLight(true);
-			SunLight->SetDynamicShadowDistanceMovableLight(25000.0f);
+			SunLight->SetDynamicShadowDistanceMovableLight(60000.0f);
 		}
 		World->SpawnActor<ASkyAtmosphere>(FVector::ZeroVector, FRotator::ZeroRotator);
 		ASkyLight* Sky = World->SpawnActor<ASkyLight>(FVector(0.0f, 0.0f, 20000.0f), FRotator::ZeroRotator);
@@ -666,7 +672,8 @@ namespace
 		{
 			SkyLight->SetMobility(EComponentMobility::Movable);
 			SkyLight->SetRealTimeCapture(true);
-			SkyLight->SetIntensity(1.0f);
+			SkyLight->SetIntensity(1.15f);
+			SkyLight->SetLowerHemisphereColor(FLinearColor(0.34f, 0.2f, 0.12f));   // warm sand bounce under the rocks
 		}
 		AExponentialHeightFog* Fog = World->SpawnActor<AExponentialHeightFog>(FVector(0.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
 		if (UExponentialHeightFogComponent* FogComponent = Fog->GetComponent())
@@ -676,15 +683,38 @@ namespace
 			FogComponent->SetFogInscatteringColor(FLinearColor(0.62f, 0.47f, 0.36f));
 			FogComponent->SetDirectionalInscatteringColor(FLinearColor(1.0f, 0.72f, 0.48f));
 			FogComponent->SetStartDistance(4000.0f);
-		}
+			FogComponent->SetVolumetricFog(true);   // dust hanging in the air, lit by the sun
+			FogComponent->SetVolumetricFogScatteringDistribution(0.4f);
+			FogComponent->SetVolumetricFogExtinctionScale(1.2f);
+			FogComponent->SetVolumetricFogDistance(30000.0f);		}
 		APostProcessVolume* Post = World->SpawnActor<APostProcessVolume>(FVector::ZeroVector, FRotator::ZeroRotator);
 		Post->bUnbound = true;
 		Post->Settings.bOverride_BloomIntensity = true;
-		Post->Settings.BloomIntensity = 0.45f;
+		Post->Settings.BloomIntensity = 0.75f;
 		Post->Settings.bOverride_VignetteIntensity = true;
-		Post->Settings.VignetteIntensity = 0.3f;
+		Post->Settings.VignetteIntensity = 0.42f;
 		Post->Settings.bOverride_WhiteTemp = true;
-		Post->Settings.WhiteTemp = 6100.0f;
+		Post->Settings.WhiteTemp = 6300.0f;
+		// Cinematic grade: warm highlights, cool shadows, a little more contrast and colour, ambient occlusion, speed blur,
+		// a hint of lens fringe and film grain.
+		Post->Settings.bOverride_ColorSaturation = true;
+		Post->Settings.ColorSaturation = FVector4(1.14, 1.14, 1.14, 1.0);
+		Post->Settings.bOverride_ColorContrast = true;
+		Post->Settings.ColorContrast = FVector4(1.1, 1.1, 1.1, 1.0);
+		Post->Settings.bOverride_ColorGainHighlights = true;
+		Post->Settings.ColorGainHighlights = FVector4(1.05, 1.0, 0.9, 1.0);
+		Post->Settings.bOverride_ColorGainShadows = true;
+		Post->Settings.ColorGainShadows = FVector4(0.92, 0.97, 1.08, 1.0);
+		Post->Settings.bOverride_AmbientOcclusionIntensity = true;
+		Post->Settings.AmbientOcclusionIntensity = 0.75f;
+		Post->Settings.bOverride_AmbientOcclusionRadius = true;
+		Post->Settings.AmbientOcclusionRadius = 220.0f;
+		Post->Settings.bOverride_MotionBlurAmount = true;
+		Post->Settings.MotionBlurAmount = 0.35f;
+		Post->Settings.bOverride_SceneFringeIntensity = true;
+		Post->Settings.SceneFringeIntensity = 0.6f;
+		Post->Settings.bOverride_FilmGrainIntensity = true;
+		Post->Settings.FilmGrainIntensity = 0.07f;
 	}
 
 	/** Invisible walls around an area (cm), 1.2 km tall around CenterZ: the map edge can never be crossed. */

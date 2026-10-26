@@ -98,6 +98,21 @@ O jogador achou o túnel "horrível, impossível conduzir": as paredes tinham pl
 
 Falta, no PC com o Unreal: ver o túnel dentro do jogo (as claraboias da caverna são aberturas na malha do teto).
 
+## Paredes nas curvas do ziguezague (pedido do jogador, 2026-10-25)
+
+O ziguezague do **Shafer Fall** (as curvas em U da descida) era difícil de fazer sem sair da pista. Do lado de **fora
+de cada curva em U** nasce agora uma parede, colada ao chão da pista sem degrau (`curve_walls` em
+`Scripts/sculpt_expedition_ab.py`). **Só nessa zona**: o resto da pista fica como estava.
+- **Perfil:** um quarto de oval, tangente ao chão e a subir até ~80° no topo (corre-se por ela), depois 6 m de topo plano
+  e uma encosta atrás a 40°. A oval substitui o que lá estava (um talude natural mais a pique prendia a nave contra uma
+  face); a encosta de trás só acrescenta terreno.
+- **Altura:** segue a curva. Raio de 200 m ou menos: 13 m (23 m de largura); a 520 m ou mais: nada. Nas retas entre as
+  curvas afunda até desaparecer. Dá ~1 km de parede, nas 4 pontas dos U (ver `paredes_zigzag.png` na conversa).
+- **Ajustar:** `WALL_H`, `WALL_RUN`, `WALL_R_FULL`, `WALL_R_NONE` e `WALL_KINDS` (a lista de setores com parede: pôr
+  `"top"`, `"floor"`, `"wash"`, `"rim"` leva paredes às curvas do resto da pista). O log escreve `CURVE WALLS ...` e um corte
+  da parede mais alta. Testado a 10 m; a 3 m a forma fica mais fina.
+- **Por ver no Unreal:** que a nave sobe pela parede e volta sem bater no topo, e a cor (hoje é a da inclinação).
+
 ## Gerar
 
 ```

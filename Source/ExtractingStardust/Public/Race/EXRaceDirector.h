@@ -88,6 +88,9 @@ public:
 	float GetCountdown() const { return Countdown; }
 	float GetRaceTime() const { return RaceTime; }
 	bool IsOver() const { return bOver; }
+	/** The player is past the line (finished or out) and the results are still to come. */
+	bool IsPlayerDone() const { return PlayerDoneTime >= 0.0f; }
+	float GetPlayerDoneTime() const { return PlayerDoneTime; }
 	float GetRouteLengthM() const { return RouteLengthM; }
 	/** Racers in race order (index 0 leads); refreshed every frame. */
 	const TArray<FEXRacer>& GetStandings() const { return Standings; }

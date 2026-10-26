@@ -175,8 +175,8 @@ Os módulos mexem na condução afinada pelo jogador ponto a ponto, contando só
 | --- | --- |
 | Velocidade | velocidade máxima: +0,57% por ponto |
 | Aceleração | força do motor: +0,6% por ponto; a massa dos módulos tira um pouco (raiz da massa da nave sobre a massa total) |
-| Manobra | viragem: +0,5% por ponto |
-| Estabilidade | aderência lateral: +0,5% por ponto |
+| Manobra | viragem: +2% por ponto (asa no teto +9 ≈ +18%) |
+| Estabilidade | aderência lateral: +2% por ponto (cauda segura a traseira) |
 | Casco | **vidas**: as da nave (VORTEX 2 … BASTION 5), mais 1 por cada 10 pontos de casco acima do da nave (máximo 6). Também aguenta choques +0,6% mais fortes por ponto antes de perder vida |
 | Eficiência | consumo de combustível (secção 6) |
 | Refrigeração | arrefecimento: 4 + 0,08 × refrigeração por segundo |
@@ -218,7 +218,7 @@ O HUD da corrida mostra as duas barras.
 
 ## 8. Loja e caixas (Doc 03, secções 7 e 8)
 
-**Caixas:** 10 itens cada (4 a 6 componentes, o resto consumíveis). Nunca trazem naves.
+**Caixas:** 10 itens cada (4 a 6 componentes, o resto consumíveis). Só a ELITE pode trazer uma cópia de nave (secção 8b).
 
 | Caixa | Preço | Probabilidades e garantias |
 | --- | --- | --- |
@@ -227,6 +227,23 @@ O HUD da corrida mostra as duas barras.
 | ELITE | 10 000 | 25% incomum, 55% raro, 20% épico; 1 épico garantido, mínimo 4 raros ou melhor, e **uma** tentativa de 4% por caixa de subir um item a lendário |
 
 O ELITE custa 10 000 na demo; o documento prevê 13 500 no jogo final.
+
+### 8b. Estrelas das naves (pedido do jogador, 2026-10-25)
+
+Como as cópias do Dragon Ball Legends: cada **cópia de uma nave** dá-lhe **1 estrela**, até **7**.
+- **Onde sai:** só na caixa mais cara, a **ELITE**, com **6%** de probabilidade por caixa (baixa, mas possível), além
+  dos 10 itens. A nave é sorteada entre as 5. É a última carta a virar, a dourado.
+- **O que dão:** pontos nos 8 stats base da própria nave, antes de qualquer módulo ou item: **+2 por estrela**
+  (+15 com as 7). Os módulos somam por cima e os stats continuam limitados a 100.
+  Exemplo: STRIX com 3 estrelas tem +6 em tudo (VEL 72 → 78).
+- **Vidas:** como o casco conta nas vidas (1 por cada 10 acima do da nave), 5 estrelas já dão +1 vida e 7 estrelas
+  também (+15 de casco).
+- **Repetidas:** com as 7 estrelas, a cópia paga **8 000 STARDUST**.
+- **Só o jogador:** os bots não têm estrelas.
+- **No hangar:** as 7 estrelas aparecem por baixo do nome da nave (douradas, `◆◆◆◇◇◇◇  3/7 ESTRELAS`: cheias as que tem,
+  vazias as que faltam) e também em cada nave da lista do separador NAVE. Os stats já mostram o bónus.
+- **No código:** `UEXProfileSave::ShipStars` (por nome, sem mudar a versão do perfil, por isso os perfis atuais
+  guardam-se), `EXMeta::StarBonus`, `Resolve(..., Stars)` e `OpenCache(..., &ShipCopy)`.
 
 **Loja de componentes:**
 
@@ -342,6 +359,9 @@ utilitários passaram para dentro do nariz, visíveis só no esqueleto. Imagens 
    desaparecer ao sair do esqueleto.
 4. Abrir a STANDARD CACHE inicial no COFRE.
 5. Correr no Pelotão 15 e ver o espólio no fim.
+
+**Interface igual às maquetes (2026-10-26):** ver `Docs/MENU_HANGAR.md`. A testar: correr o passo 3d do
+`casa_tudo.ps1` (ícones e fotos), ver no hangar as fotos nas cartas, o brilho, as fontes e as notas junto à nave.
 
 **Falta:**
 - os slots extra (Aux da NOMAD, Propulsão central da VORTEX, Blindagem 2 da BASTION);

@@ -20,7 +20,14 @@ enum class EEXHangarTab : uint8
 	Count UMETA(Hidden)
 };
 
-/** One line of a hangar list, as the widget shows it. */
+/** One of the "+9 Manobra" boxes of the mock-ups: Sign +1 green, -1 red, 0 bone (a perk). */
+struct FEXHangarChip
+{
+	FString Text;
+	int32 Sign = 0;
+};
+
+/** One line of a hangar list or one card of a cache, as the widget shows it (the mock-ups' rows and cards). */
 struct FEXHangarRow
 {
 	/** Small capitals over the title (the family, the quick key, the rarity). */
@@ -35,6 +42,40 @@ struct FEXHangarRow
 	/** The bar on the left: rarity or consumable colour. */
 	FLinearColor Colour = FLinearColor::White;
 	bool bDim = false;
+	/** The icon (EXUi::Icon): fam_<family>, con_<consumable>, cache_<kind>, ship_copy. */
+	FString Icon;
+	/** The photo of the ship with the module fitted (EXUi::Thumb): <ship>_<piece>, <ship>_engine_<flame>... */
+	FString Thumb;
+	/** The line under the name: "Vanta Works  ·  classe S  ·  −10 kg" (a row), "Blindagem  ·  M  ·  +90 kg" (a card). */
+	FString Maker;
+	/** The rarity in small capitals on the right ("ÉPICO"). */
+	FString Rarity;
+	/** STARDUST shown with the gem (-1: none); bApprox writes "≈" before it. */
+	int32 Value = -1;
+	bool bApprox = false;
+	TArray<FEXHangarChip> Chips;
+	/** An engine: the flame bar next to its name (EXMeta::FlameLook). */
+	int32 Flame = INDEX_NONE;
+	/** The slot's size class badge ("M"), and the insured shield. */
+	FString Size;
+	bool bInsured = false;
+	/** A card worth the "NOVO" ribbon (epic or better, a ship copy). */
+	bool bNew = false;
+	/** Consumables: how many (the diamonds) of how many at most; the stock line and its buy button. */
+	int32 Count = INDEX_NONE;
+	int32 MaxCount = 0;
+	FString Button;
+	/** The roster: the ship's lives and its stars (INDEX_NONE: not a ship). */
+	int32 Lives = INDEX_NONE;
+	int32 Stars = INDEX_NONE;
+};
+
+/** A note pinned next to the ship on the turntable ("ponta dobrada · bordo de ataque luminoso"), at a module. */
+struct FEXHangarCallout
+{
+	FString Text;
+	EEXFamily Family = EEXFamily::Wings;
+	FLinearColor Colour = FLinearColor::White;
 };
 
 /** One hint of the key bar: the keys, then what they do. */
@@ -91,11 +132,21 @@ public:
 	const FString& GetNotice() const { return Notice; }
 	float GetNoticeTime() const { return NoticeTime; }
 	TArray<FEXHangarHint> GetHints() const;
+	/** The label under the ship ("PRÉ-VISUALIZAÇÃO · WRAITH GLIDE", "VISTA EM ESQUELETO · MOTOR LIGADO"); empty for none. */
+	FString GetPreviewLabel(FLinearColor& OutColour) const;
+	/** The notes pinned to the modules on the ship (the equip tab). */
+	TArray<FEXHangarCallout> GetCallouts() const;
+	/** The card shown in the right panel of the shop and the vault for the module looked at (false: none). */
+	bool GetLookedCard(FEXHangarRow& OutCard) const;
+	/** The two lines of the summary under the quick slots (CONSUMÍVEIS). */
+	FString GetQuickSummary() const;
 	FString GetShipName() const;
 	UEXProfileSave* GetProfile() const;
 	static FString TabName(EEXHangarTab Tab);
 	static FString ShipRole(const FString& Ship);
 	static FString ShipSubtitle(const FString& Ship);
+	/** Seven pips, one filled per star (the empty ones show too), then "3/7 ESTRELAS". */
+	static FString StarText(int32 Stars);
 
 private:
 	int32& Row() { return Rows[static_cast<int32>(CurrentTab)]; }
@@ -117,6 +168,10 @@ private:
 	void BuyShop(int32 Index);
 	void SellItem(int32 Serial);
 	FEXHangarRow ItemRow(const FEXItem& Item, bool bWithPlace) const;
+	/** The same module as a card of a cache: the photo, short chip names, family and class under the name. */
+	FEXHangarRow ItemCard(const FEXItem& Item) const;
+	/** Sells the commons of the cache just opened at a quarter of their value (the "VENDER COMUNS" button). */
+	void SellCommons();
 	int32 QuickAvailable(int32 Slot, EEXConsumable Kind) const;
 
 	UPROPERTY(Transient) TObjectPtr<AEXHoverCraft> Craft;
@@ -136,4 +191,6 @@ private:
 	int32 CacheValue = 0;
 	EEXCache OpenedKind = EEXCache::Standard;
 	TArray<FEXHangarRow> Cards;
+	/** The serial behind each card (0: a consumable or a ship copy), for selling the commons. */
+	TArray<int32> CardSerials;
 };
