@@ -20,6 +20,10 @@ O jogador fala português (PT). Responder em português.
 - **Estrelas no hangar:** as 7 estrelas aparecem por baixo do nome da nave (cheias as que tem, vazias as que faltam) e
   em cada nave da lista NAVE.
 
+- **Interface igual às maquetes** (2026-10-26, `Docs/MENU_HANGAR.md`): fontes Inter e Orbitron, ícones, brilhos,
+  fotos de cada nave com cada módulo nas cartas (`SourceArt/UI/Thumbs`), HUD da corrida em UMG. Importar com o passo
+  3d do `casa_tudo.ps1` e compilar.
+
 ## NAVES NOVAS: falta pô-las no Unreal (2026-10-21; BASTION a 2026-10-25)
 
 As 5 naves (STRIX, WRAITH, NOMAD, VORTEX e BASTION) foram refeitas de dentro para fora (PR #3, ramo

@@ -12,7 +12,7 @@ class UWidget;
 
 /**
  * The start menu (the mock-up the player approved), drawn over the workshop where the chosen ship turns on the turntable
- * with the lights down: the logo and the four lines on the left (EXPEDICAO SOLO, PELOTAO 15, HANGAR, SAIR), the
+ * with the workshop lit (menu2.png; the dark menu was refused): the logo and the four lines on the left (EXPEDICAO SOLO, PELOTAO 15, HANGAR, SAIR), the
  * expedition briefing on the right (route map, distance, time, ship, cargo and what is at risk), the wallet at the top and
  * the keys at the bottom. Keyboard and pad drive it through the director (W/S or the d-pad, Enter or Cross); the mouse
  * highlights and clicks the lines. Built in code (no widget blueprint).

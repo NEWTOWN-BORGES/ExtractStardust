@@ -1888,6 +1888,41 @@ void AEXHoverCraft::SetQuickSlots(const TArray<FEXQuickSlot>& InSlots)
 	LastQuickTime = -100.0f;
 }
 
+bool AEXHoverCraft::GetModuleAnchor(EEXFamily Family, FVector& OutWorld) const
+{
+	const int32 K = static_cast<int32>(Family);
+	if (ModuleMeshes.IsValidIndex(K) && ModuleMeshes[K] && ModuleMeshes[K]->IsVisible() && ModuleMeshes[K]->GetStaticMesh())
+	{
+		OutWorld = ModuleMeshes[K]->Bounds.Origin;
+		return true;
+	}
+	const UStaticMeshComponent* Body = bXRay && SkeletonMesh && SkeletonMesh->IsVisible() ? SkeletonMesh.Get() : ShipMesh.Get();
+	if (!Body || !VisualPivot)
+	{
+		return false;
+	}
+	const FVector Forward = VisualPivot->GetForwardVector();
+	const FVector Up = VisualPivot->GetUpVector();
+	const FBoxSphereBounds& Bounds = Body->Bounds;
+	const float Half = FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y);
+	switch (Family)
+	{
+	case EEXFamily::Engine:
+	case EEXFamily::Propulsion:
+		OutWorld = Bounds.Origin - Forward * Half * 0.85f;
+		return true;
+	case EEXFamily::Reactor:
+		OutWorld = Bounds.Origin - Forward * Half * 0.2f + Up * Bounds.BoxExtent.Z * 0.3f;
+		return true;
+	case EEXFamily::Utility:
+		OutWorld = Bounds.Origin + Forward * Half * 0.6f;
+		return true;
+	default:
+		OutWorld = Bounds.Origin;
+		return true;
+	}
+}
+
 void AEXHoverCraft::PreviewModules(const TArray<FEXItem>& InModules, EEXFamily Focus)
 {
 	Modules = InModules;

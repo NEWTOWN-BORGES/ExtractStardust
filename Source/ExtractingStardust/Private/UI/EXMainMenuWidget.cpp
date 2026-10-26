@@ -55,27 +55,36 @@ void UEXMainMenuWidget::BuildTree()
 	UOverlay* Root = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("MenuRoot"));
 	Tree->RootWidget = Root;
 
-	// A light shade behind the left column, so the text reads over the lit garage.
-	EXUi::AddO(Root, EXUi::Sized(Tree, 900.0f, 0.0f, EXUi::Fade(Tree, EXUi::Ink(), 0.62f, 0.0f, 24)), HAlign_Left, VAlign_Fill);
+	// A light shade behind the left column, so the text reads over the lit garage (menu2.png: the workshop stays lit).
+	EXUi::AddO(Root, EXUi::Sized(Tree, 900.0f, 0.0f, EXUi::Fade(Tree, EXUi::Ink(), 0.45f, 0.0f, 24)), HAlign_Left, VAlign_Fill);
 
 	// Top: the expedition and the wallet.
 	UHorizontalBox* Top = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	EXUi::AddH(Top, EXUi::Text(Tree, TEXT("EXPEDI\u00C7\u00C3O 01  \u00B7  RED DUST DIVIDE"), 11, EXUi::Rust(), true, 220));
 	EXUi::AddH(Top, EXUi::Sized(Tree, 1.0f, 1.0f), FMargin(0.0f), true);
-	EXUi::AddH(Top, EXUi::Gem(Tree, 14.0f, EXUi::RustHot()), FMargin(0.0f, 0.0f, 14.0f, 0.0f));
-	WalletText = EXUi::Text(Tree, TEXT("0"), 16, EXUi::Bone(), true);
+	EXUi::AddH(Top, EXUi::GemImage(Tree, 16.0f), FMargin(0.0f, 0.0f, 12.0f, 0.0f));
+	WalletText = EXUi::WeightText(Tree, TEXT("0"), 16, EXUi::Bone(), 800);
 	EXUi::AddH(Top, WalletText, FMargin(0.0f, 0.0f, 10.0f, 0.0f));
 	EXUi::AddH(Top, EXUi::Text(Tree, TEXT("STARDUST"), 11, EXUi::Sand(), true, 200));
 	EXUi::AddO(Root, EXUi::Sized(Tree, 0.0f, 77.0f, Top), HAlign_Fill, VAlign_Top, FMargin(58.0f, 0.0f, 58.0f, 0.0f));
 
 	// Left: the logo and the four lines.
 	UVerticalBox* Left = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	EXUi::AddV(Left, EXUi::Text(Tree, TEXT("EXTRACT"), 20, EXUi::Bone(), true, 620), FMargin(0.0f, 19.0f, 0.0f, 0.0f));
-	UTextBlock* Logo = EXUi::Text(Tree, TEXT("STARDUST"), 68, EXUi::Hex(243, 154, 76), true, 150);
-	Logo->SetShadowOffset(FVector2D(0.0f, 3.0f));
-	Logo->SetShadowColorAndOpacity(EXUi::Hex(120, 30, 6, 0.85f));
-	EXUi::AddV(Left, Logo, FMargin(0.0f, -4.0f, 0.0f, 0.0f));
-	EXUi::AddV(Left, EXUi::Text(Tree, TEXT("RACE  \u00B7  SURVIVE  \u00B7  EXTRACT"), 13, EXUi::Rust(), true, 420), FMargin(0.0f, 6.0f, 0.0f, 46.0f));
+	// The logo of the mock-up (menu2.png): EXTRACT spaced out, STARDUST in Orbitron with its orange gradient, the line
+	// under it; drawn by Scripts/make_ui_icons.py (ui_logo). Text in Orbitron while the art is not imported.
+	if (UTexture2D* LogoArt = EXUi::Icon(TEXT("ui_logo")))
+	{
+		EXUi::AddV(Left, EXUi::Sized(Tree, 780.0f, 228.0f, EXUi::Image(Tree, LogoArt)), FMargin(0.0f, 19.0f, 0.0f, 46.0f), HAlign_Left);
+	}
+	else
+	{
+		EXUi::AddV(Left, EXUi::TitleText(Tree, TEXT("EXTRACT"), 20, EXUi::Bone(), 620), FMargin(0.0f, 19.0f, 0.0f, 0.0f));
+		UTextBlock* Logo = EXUi::TitleText(Tree, TEXT("STARDUST"), 68, EXUi::Hex(243, 154, 76), 60);
+		Logo->SetShadowOffset(FVector2D(0.0f, 3.0f));
+		Logo->SetShadowColorAndOpacity(EXUi::Hex(120, 30, 6, 0.85f));
+		EXUi::AddV(Left, Logo, FMargin(0.0f, -4.0f, 0.0f, 0.0f));
+		EXUi::AddV(Left, EXUi::TitleText(Tree, TEXT("RACE  \u00B7  SURVIVE  \u00B7  EXTRACT"), 13, EXUi::Rust(), 420), FMargin(0.0f, 6.0f, 0.0f, 46.0f));
+	}
 	const TCHAR* const Titles[MenuLineCount] = { TEXT("EXPEDI\u00C7\u00C3O SOLO"), TEXT("PELOT\u00C3O 15"), TEXT("HANGAR"), TEXT("SAIR") };
 	const TCHAR* const Descriptions[MenuLineCount] = {
 		TEXT("Tu contra o deserto. Chega vivo a B."),
@@ -117,9 +126,9 @@ UWidget* UEXMainMenuWidget::BuildItem(int32 Index, const FString& Title, const F
 
 	UVerticalBox* TextColumn = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UHorizontalBox* Head = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	UTextBlock* Number = EXUi::Text(Tree, FString::Printf(TEXT("%02d"), Index + 1), 13, EXUi::Dim(), true, 60);
+	UTextBlock* Number = EXUi::TitleText(Tree, FString::Printf(TEXT("%02d"), Index + 1), 12, EXUi::Dim(), 60);
 	EXUi::AddH(Head, EXUi::Sized(Tree, 53.0f, 0.0f, Number));
-	UTextBlock* TitleText = EXUi::Text(Tree, Title, 27, EXUi::Sand(), true, 80);
+	UTextBlock* TitleText = EXUi::TitleText(Tree, Title, 27, EXUi::Sand(), 80);
 	EXUi::AddH(Head, TitleText);
 	EXUi::AddV(TextColumn, Head);
 	UTextBlock* DescriptionText = EXUi::Text(Tree, Description, 13, EXUi::Hex(215, 195, 160), false, 20);
@@ -144,7 +153,7 @@ UWidget* UEXMainMenuWidget::BuildBriefing()
 	Card.Fill->SetContent(Column);
 
 	EXUi::AddV(Column, EXUi::Text(Tree, TEXT("BRIEFING DA EXPEDI\u00C7\u00C3O"), 11, EXUi::Rust(), true, 220));
-	EXUi::AddV(Column, EXUi::Text(Tree, TEXT("RED DUST DIVIDE"), 23, EXUi::Bone(), true, 60), FMargin(0.0f, 7.0f, 0.0f, 2.0f));
+	EXUi::AddV(Column, EXUi::TitleText(Tree, TEXT("RED DUST DIVIDE"), 23, EXUi::Bone(), 60), FMargin(0.0f, 7.0f, 0.0f, 2.0f));
 	BriefSubText = EXUi::Text(Tree, TEXT(""), 12, EXUi::Sand(), false);
 	EXUi::AddV(Column, BriefSubText);
 
@@ -159,7 +168,7 @@ UWidget* UEXMainMenuWidget::BuildBriefing()
 	auto AddStat = [&](const FString& Value, const FString& Label, float RightGap) -> UTextBlock*
 	{
 		UVerticalBox* Tile = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-		UTextBlock* ValueText = EXUi::Text(Tree, Value, 20, EXUi::Bone(), true);
+		UTextBlock* ValueText = EXUi::WeightText(Tree, Value, 20, EXUi::Bone(), 800);
 		EXUi::AddV(Tile, ValueText);
 		EXUi::AddV(Tile, EXUi::Text(Tree, Label, 10, EXUi::Sand(), true, 120), FMargin(0.0f, 3.0f, 0.0f, 0.0f));
 		EXUi::AddH(Stats, EXUi::Box(Tree, EXUi::Bone(0.04f), FMargin(14.0f, 12.0f), Tile), FMargin(0.0f, 0.0f, RightGap, 0.0f), true, VAlign_Fill);

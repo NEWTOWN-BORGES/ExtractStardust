@@ -196,6 +196,9 @@ public:
 	/** Hangar preview: the craft wears this build. Looking at a slot inside the hull (engine, propulsion, reactor,
 	 *  utility) the bodywork goes, the skeleton shows and the engine runs with its flame. */
 	void PreviewModules(const TArray<FEXItem>& InModules, EEXFamily Focus);
+	/** Where a module sits on the ship, in the world (the hangar pins its notes there): the piece on the hull, else a
+	 *  point of the hull for the parts inside it (engine and propulsion at the back, the reactor in the middle). */
+	bool GetModuleAnchor(EEXFamily Family, FVector& OutWorld) const;
 	/** No more ship changes once the race is on. */
 	void LockShip() { bShipLocked = true; }
 	/** Puts the craft at a place and heading, at rest (grid slots, respawns). */

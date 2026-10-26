@@ -399,6 +399,14 @@ namespace
 		return Names[FMath::Clamp(static_cast<int32>(Stat), 0, StatCount - 1)];
 	}
 
+	FString StatCard(EEXStat Stat)
+	{
+		// The cards' chips (mock-up cofre.png): "+8 Estab.", "+1 Refrig.", "+5 Sensores".
+		static const TCHAR* Names[] = { TEXT("Veloc."), TEXT("Acel."), TEXT("Manobra"), TEXT("Estab."), TEXT("Casco"), TEXT("Efic."), TEXT("Refrig."),
+			TEXT("Nitro"), TEXT("kg"), TEXT("Repar."), TEXT("Sensores") };
+		return Names[FMath::Clamp(static_cast<int32>(Stat), 0, StatCount - 1)];
+	}
+
 	FString RarityName(EEXRarity Rarity)
 	{
 		static const TCHAR* Names[] = { TEXT("COMUM"), TEXT("INCOMUM"), TEXT("RARO"), TEXT("\u00C9PICO"), TEXT("LEND\u00C1RIO") };
@@ -407,9 +415,9 @@ namespace
 
 	FLinearColor RarityColour(EEXRarity Rarity)
 	{
-		// White, green, blue, purple, gold (doc 02 sec. 7).
-		static const FColor Colours[] = { FColor(0xE6, 0xE6, 0xE6), FColor(0x5C, 0xD3, 0x6B), FColor(0x4C, 0x9D, 0xFF), FColor(0xB4, 0x6B, 0xFF),
-			FColor(0xFF, 0xC2, 0x3A) };
+		// White, green, blue, purple, gold (doc 02 sec. 7), as the mock-ups draw them.
+		static const FColor Colours[] = { FColor(0xE9, 0xE4, 0xDA), FColor(0x5F, 0xD1, 0x7A), FColor(0x4A, 0xA3, 0xFF), FColor(0xB5, 0x6C, 0xFF),
+			FColor(0xFF, 0xC2, 0x3D) };
 		return FLinearColor(Colours[FMath::Clamp(static_cast<int32>(Rarity), 0, RarityCount - 1)]);
 	}
 
@@ -628,6 +636,11 @@ namespace
 			Style.bSparks = true;
 		}
 		return Style;
+	}
+
+	int32 FlameLook(const FEXItem* Engine)
+	{
+		return FlameIndex(Engine);
 	}
 
 	FLinearColor NitroColour(const FEXItem* Propulsion)

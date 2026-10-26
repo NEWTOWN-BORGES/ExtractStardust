@@ -7,6 +7,8 @@
 
 class UBorder;
 class UHorizontalBox;
+class UImage;
+class UTexture2D;
 class UHorizontalBoxSlot;
 class UOverlay;
 class UOverlaySlot;
@@ -34,7 +36,12 @@ namespace EXUi
 	FLinearColor Ink(float A = 1.0f);       // #0a0604
 	FLinearColor Plate(float A = 0.86f);    // #160c07, panels
 
+	/** The text font of the mock-ups: Inter, bold or regular (Content/UI/Fonts; the engine's Roboto if it is missing). */
 	FSlateFontInfo Font(int32 Size, bool bBold = true, int32 LetterSpacing = 0);
+	/** Inter at a weight: 400 regular, 500 medium, 600 semibold, 700 bold, 800 extrabold, 900 black. */
+	FSlateFontInfo Inter(int32 Size, int32 Weight, int32 LetterSpacing = 0);
+	/** Orbitron Black, the titles of the mock-ups: HANGAR, the ship's name, the cache, the menu's lines, the speed. */
+	FSlateFontInfo Orbitron(int32 Size, int32 LetterSpacing = 0);
 	/** 3480 -> "3 480". */
 	FString Thousands(int32 Value);
 
@@ -42,6 +49,10 @@ namespace EXUi
 	/** Text with a dark outline round the letters: readable over the bright workshop and the dark one alike. */
 	UTextBlock* OutlinedText(UWidgetTree* Tree, const FString& Value, int32 Size, const FLinearColor& Color, int32 Spacing, int32 OutlineSize,
 		const FLinearColor& OutlineColor);
+	/** Text in Orbitron (see Orbitron). */
+	UTextBlock* TitleText(UWidgetTree* Tree, const FString& Value, int32 Size, const FLinearColor& Color, int32 Spacing = 0);
+	/** Text in Inter at a weight (see Inter). */
+	UTextBlock* WeightText(UWidgetTree* Tree, const FString& Value, int32 Size, const FLinearColor& Color, int32 Weight, int32 Spacing = 0);
 	/** Sets the text only when it changed (no repaint otherwise). */
 	void SetText(UTextBlock* Block, const FString& Value);
 	/** A filled box with padding round its content; recolour it with SetBrushColor. */
@@ -67,6 +78,37 @@ namespace EXUi
 	UWidget* Gem(UWidgetTree* Tree, float Size, const FLinearColor& Color);
 	/** A horizontal fade from LeftAlpha to RightAlpha of a colour, made of strips. */
 	UHorizontalBox* Fade(UWidgetTree* Tree, const FLinearColor& Color, float LeftAlpha, float RightAlpha, int32 Strips);
+
+	// ---- Art (Scripts/make_ui_icons.py, the card photos of Scripts/render_modules.py; Scripts/import_ui_icons.py imports them)
+	/** An icon or a piece of interface art: /Game/UI/Icons/T_Icon_<Name> (nullptr until it is imported). */
+	UTexture2D* Icon(const FString& Name);
+	/** The photo of a ship with a module fitted: /Game/UI/Thumbs/T_Thumb_<Key> (nullptr until it is imported). */
+	UTexture2D* Thumb(const FString& Key);
+	/** An image of a texture at a size (0: the texture's own), tinted. */
+	UImage* Image(UWidgetTree* Tree, UTexture2D* Texture, const FLinearColor& Tint = FLinearColor::White, float Width = 0.0f, float Height = 0.0f);
+	/** Soft art stretched to any size without blurring its edges (9-sliced): the glows, the vignette. */
+	UImage* Sliced(UWidgetTree* Tree, const FString& IconName, const FLinearColor& Tint, float Margin = 0.5f);
+	/** Art repeated across the image (the stripes of a card's back). */
+	UImage* Tiled(UWidgetTree* Tree, const FString& IconName, const FLinearColor& Tint, float TileSize);
+	/** Shows a texture in an image, tinted; collapses the image when the texture is missing. Cheap when nothing changed. */
+	void SetImage(UImage* Target, UTexture2D* Texture, const FLinearColor& Tint = FLinearColor::White);
+	/** The STARDUST gem (the art), or the drawn diamond while the art is not imported. */
+	UWidget* GemImage(UWidgetTree* Tree, float Size);
+	/** A soft glow of a colour round a box: put it behind the box, Spread larger on every side. */
+	UImage* Glow(UWidgetTree* Tree, const FLinearColor& Color);
+	/** The orange gradient of the mock-ups' buttons (#eb571a to #ff7a3a), round some content, with a glow. */
+	UWidget* OrangeButton(UWidgetTree* Tree, UWidget* Content, const FMargin& Padding, float Width, float Height);
+
+	// ---- Chips (the "+9 Manobra" boxes of the mock-ups)
+	struct FChipView
+	{
+		UWidget* Root = nullptr;
+		UTextBlock* Label = nullptr;
+	};
+	/** A chip: dark box, faint outline, bold text (green up, red down, bone for a perk). */
+	FChipView Chip(UWidgetTree* Tree, int32 Size);
+	/** Shows a chip: Sign +1 green, -1 red, 0 bone; an empty text hides it. */
+	void SetChip(const FChipView& View, const FString& Text, int32 Sign);
 
 	UHorizontalBoxSlot* AddH(UHorizontalBox* Box, UWidget* Child, const FMargin& Padding = FMargin(0.0f), bool bFill = false,
 		EVerticalAlignment VAlign = VAlign_Center);

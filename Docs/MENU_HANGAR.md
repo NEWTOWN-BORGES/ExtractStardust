@@ -51,5 +51,23 @@ Os módulos, as caixas e os consumíveis estão em `Docs/MODULOS.md` (secção 1
 - **Luz da oficina** (`EXHangarStage.cpp`): `WorkLumens` (1300 por painel) e os focos. Está dimensionada como o
   deserto (sol de 10 lux), para a exposição automática funcionar igual nos dois.
 - **Enquadramento da câmara do menu** (`EXHoverCraft.cpp`): `ShowroomDistCm` (12,5 m) e `ShowroomPitchDeg` (8°).
-- **Interface:** toda em UMG feita em código, com a fonte Roboto do motor. A Orbitron das maquetas pode entrar
-  depois, como asset de fonte.
+- **Interface:** toda em UMG feita em código.
+
+## Igual às maquetes (2026-10-26, pedido do jogador: "não aceito menos")
+
+- **Fontes:** Inter (texto) e Orbitron (títulos, nomes das naves, velocidade), em `Content/UI/Fonts` (OFL), empacotadas
+  com o jogo (`DirectoriesToAlwaysStageAsUFS`). Sem os ficheiros, volta a Roboto.
+- **Arte:** `Scripts/make_ui_icons.py` desenha os ícones (famílias, consumíveis, caixas, cópia de nave, estrela) e a arte
+  da interface (brilhos, riscas do verso das cartas, gema do STARDUST, d-pad, barras de chama, logo do menu).
+- **Fotos dos módulos:** `Scripts/render_modules.py <modulos> <nave> <saida> thumbs` fotografa cada nave com cada módulo
+  montado (180 fotos de 496 × 316, em `SourceArt/UI/Thumbs`): asas, kits, refrigeração e caudas por fora; motor (com a
+  chama), propulsão (nitro na cor), reator (brilho na cor) e utilitário (no nariz) no esqueleto.
+- **Importar:** `Scripts/import_ui_icons.py` (passo 3d do `casa_tudo.ps1`) → `/Game/UI/Icons` e `/Game/UI/Thumbs`.
+- **Hangar** (`UEXHangarWidget`): slots com ícone, nome na cor da raridade, classe e escudo do seguro; peças com barra
+  de chama, raridade, valor com a gema e chips verdes e vermelhos; legenda por baixo da nave e notas presas às peças;
+  consumíveis à volta do d-pad e stock com botões COMPRAR; cartas da caixa com a foto da nave com o módulo, brilho da
+  raridade, faixa NOVO nos épicos, verso com riscas, "VENDER COMUNS (25%)" (⌫) e "GUARDAR TUDO" (Enter); Enter revela
+  uma carta, Espaço todas. Na LOJA e no COFRE, o módulo escolhido aparece como carta com a foto.
+- **Menu:** logo em imagem, linhas e títulos em Orbitron, oficina iluminada (o menu escuro foi recusado).
+- **HUD da corrida** (`UEXRaceHudWidget`, maquete `hud.png`): posição e tempo, vidas e valor em risco, velocidade com
+  as barras e os 4 consumíveis com ícones. O minimapa, a seta e as mensagens continuam no `AEXHud`.

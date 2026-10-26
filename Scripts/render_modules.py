@@ -3,7 +3,9 @@
 # writes (<modules_dir>/<ship>_<piece>.fbx and <ship>_modules.json).
 # Usage: python3 Scripts/render_modules.py <modules_dir> <ship> <out_dir> [shot ...]
 #   shots: stock, wings, armor, cooling, tail, utility, skeleton, flames, build (default: all); and close looks at
-#   the body kits: armorclose (the nose), armorside (from the side), armorrear (the tail, from behind and below)
+#   the body kits: armorclose (the nose), armorside (from the side), armorrear (the tail, from behind and below);
+#   thumbs: the hangar's card photos (Scripts/import_ui_icons.py brings them into Unreal): the ship with each module
+#   fitted, 496 x 316 JPG, named <ship>_<key>.jpg (see THUMBS below)
 import json
 import math
 import os
@@ -245,7 +247,7 @@ def ship_frame():
     return (max(1.0, (max(ys) - min(ys)) / 6.3), min(ys)) if ys else (1.0, -3.2)
 
 
-def shot(name, yaw_deg=-80, pitch_deg=14, dist=8.0, target=(0, 0, 1.0), lens=40, ship_yaw=-35):
+def shot(name, yaw_deg=-80, pitch_deg=14, dist=8.0, target=(0, 0, 1.0), lens=40, ship_yaw=-35, ext="png"):
     """Camera round the target (yaw 0 = the ship's left side, 90 = behind, -90 = in front when ship_yaw is 0)."""
     ROOT.rotation_euler = (0, 0, math.radians(ship_yaw))
     yaw, pitch = math.radians(yaw_deg), math.radians(pitch_deg)
@@ -254,7 +256,7 @@ def shot(name, yaw_deg=-80, pitch_deg=14, dist=8.0, target=(0, 0, 1.0), lens=40,
     cam.location = tgt + Vector((math.cos(yaw) * math.cos(pitch), math.sin(yaw) * math.cos(pitch), math.sin(pitch))) * dist
     cam.rotation_euler = (tgt - cam.location).to_track_quat("-Z", "Y").to_euler()
     cam.data.lens = lens
-    sc.render.filepath = os.path.join(OUT, "%s_%s.png" % (SHIP, name))
+    sc.render.filepath = os.path.join(OUT, "%s_%s.%s" % (SHIP, name, ext))
     bpy.ops.render.render(write_still=True)
     print("SHOT", sc.render.filepath)
 
@@ -318,5 +320,108 @@ if "build" in SHOTS:
     show(["core", "wing_" + wings[1] if wings else "wing_stock", "armor_guard", "cooling_radiator", "tail_twin"])
     flames("burner")
     shot("build", yaw_deg=-60, pitch_deg=18, dist=8.6, ship_yaw=0)
+    flames(None)
+# ---- The hangar's card photos (the mock-ups' cards): the ship where the module goes, with it fitted. The parts inside
+# the hull show in the skeleton (x-ray), as in the hangar: the engine with its flame, the propulsion with the nitro in
+# its colour, the reactor glowing in its colour, the utility module in the nose. The keys are what the game looks up
+# (EXUi::Thumb): <ship>_<piece> for the parts on the hull, <ship>_engine_<flame>, <ship>_prop_<look>,
+# <ship>_reactor_<look> and <ship>_ship (the stock ship, for the copy of a ship that a star comes from).
+FLAME_ORDER = ["stock", "sprint", "endurance", "burner", "razor", "heavy", "relic", "redline"]   # EXMeta::Flames
+NITRO = [(0.25, 0.45, 1.0), (0.30, 0.90, 1.0), (0.35, 0.40, 1.0), (0.75, 0.45, 1.0)]            # EXMeta::NitroColours
+REACTOR = [(1.0, 0.54, 0.24), (0.25, 0.95, 1.0), (0.25, 0.45, 1.0), (1.0, 0.25, 0.85), (1.0, 0.62, 0.12), (1.0, 0.88, 0.50)]
+
+
+def reactor_glow(col, strength=28.0):
+    """Every glowing reactor material of the skeleton takes this colour."""
+    for m in bpy.data.materials:
+        if "Reactor_Glow" in m.name and m.use_nodes:
+            for nd in m.node_tree.nodes:
+                if nd.type == "BSDF_PRINCIPLED":
+                    nd.inputs["Base Color"].default_value = (*col, 1)
+                    nd.inputs["Emission Color"].default_value = (*col, 1)
+                    nd.inputs["Emission Strength"].default_value = strength
+                elif nd.type == "EMISSION":
+                    nd.inputs["Color"].default_value = (*col, 1)
+                    nd.inputs["Strength"].default_value = strength
+
+
+def material_centre(key):
+    """World centre of the faces whose material name holds `key` (on the meshes shown now), or None."""
+    pts = []
+    for o in bpy.data.objects:
+        if o.type != "MESH" or o.hide_render:
+            continue
+        idx = [i for i, sl in enumerate(o.material_slots) if sl.material and key in sl.material.name]
+        if not idx:
+            continue
+        me = o.data
+        pts += [o.matrix_world @ me.vertices[v].co for p in me.polygons if p.material_index in idx for v in p.vertices]
+    if not pts:
+        return None
+    return tuple(sum(c[k] for c in pts) / len(pts) for k in range(3))
+
+
+ONLY_THUMBS = [k for k in os.environ.get("THUMB_ONLY", "").split(",") if k]   # re-render just some (e.g. reactor,ship)
+
+
+def tshot(key, **kw):
+    if ONLY_THUMBS and not any(k in key for k in ONLY_THUMBS):
+        return
+    shot(key, ship_yaw=0, ext="jpg", **kw)
+
+
+if "thumbs" in SHOTS:
+    sc.render.resolution_x, sc.render.resolution_y = 496, 316
+    sc.render.resolution_percentage = 100
+    sc.render.image_settings.file_format = "JPEG"
+    sc.render.image_settings.quality = 90
+    sc.cycles.samples = int(os.environ.get("THUMB_SAMPLES", "24"))
+    bay = MAN.get("utility_bay", [0, -1.5, 0.5])
+    stock_wing = "wing_stock"
+    show(["core", stock_wing])                                    # the stock ship, for a ship copy
+    flames(None)
+    tshot("ship", yaw_deg=-52, pitch_deg=17, dist=7.4, target=(0, 0.25, 1.0))
+    for w in wings:                                              # its own wings, from above and behind
+        show(["core", "wing_" + w])
+        tshot("wing_" + w, yaw_deg=58, pitch_deg=34, dist=5.3, target=(0.0, 0.9, 0.9))
+    for k in ("light", "guard", "bulwark", "shell", "aegis"):     # body kits: from the front and low, along the skirt
+        show(["core", stock_wing, "armor_" + k])
+        tshot("armor_" + k, yaw_deg=-28, pitch_deg=11, dist=6.6, target=(0, 0.0, 0.95))
+    for k in ("vents", "radiator", "grid"):                       # cooling: from above
+        show(["core", stock_wing, "cooling_" + k])
+        tshot("cooling_" + k, yaw_deg=28, pitch_deg=44, dist=4.8, target=(0, 0.7, 1.0))
+    for k in ("compact", "twin", "keel"):                         # tails: from behind
+        show(["core", stock_wing, "tail_" + k])
+        tshot("tail_" + k, yaw_deg=58, pitch_deg=-3 if MAN.get("tail") == "below" else 14, dist=4.8, target=(0, 1.9, 0.9))
+    for k in ("mast", "dome", "drone"):                           # utility: inside the nose, in the skeleton, close
+        show(["skeleton", "utility_" + k])
+        reactor_glow(REACTOR[0])
+        flames("stock", 0.35)
+        at = material_centre("Utility_Glow") or (bay[0], bay[1], bay[2] + LIFT)
+        tshot("utility_" + k, yaw_deg=-50, pitch_deg=32, dist=1.9, target=(at[0], at[1] + 0.1, at[2]))
+    show(["skeleton"])
+    reactor_glow(REACTOR[0])
+    for i, style in enumerate(FLAME_ORDER):                       # engines: the skeleton with the engine's flame
+        flames(style)
+        tshot("engine_%d" % i, yaw_deg=62, pitch_deg=18, dist=5.2, target=(0, 1.7, 1.05))
+    for i, col in enumerate(NITRO):                               # propulsion: the nitro in its colour
+        FLAMES["nitro_%d" % i] = (col, (0.85, 0.95, 1.0), 1.5, 1.05, 0)
+        flames("nitro_%d" % i, 1.0)
+        tshot("prop_%d" % i, yaw_deg=62, pitch_deg=18, dist=5.2, target=(0, 1.7, 1.05))
+    flames("stock", 0.3)
+    core = material_centre("Reactor_Glow") or (0, 0.6, 1.3)
+    for i, col in enumerate(REACTOR):                             # reactors: the core glowing in its colour, close
+        reactor_glow(col, 60.0)
+        local = ROOT.matrix_world.inverted() @ Vector(core)       # blob() works in the ship's frame
+        halo = [blob(tuple(local), (0.17, 0.27, 0.17), flame_mat("halo_%d" % i, col, 2.6, 1.7))]   # the glow round the core
+        bpy.ops.object.light_add(type="POINT", location=core)
+        halo.append(bpy.context.object)
+        halo[-1].data.color, halo[-1].data.energy, halo[-1].data.shadow_soft_size = col, 120.0, 0.3
+        tshot("reactor_%d" % i, yaw_deg=-60, pitch_deg=30, dist=2.6, target=core)
+        for o in halo:
+            if o in FLAME_OBJS:
+                FLAME_OBJS.remove(o)
+            bpy.data.objects.remove(o, do_unlink=True)
+    reactor_glow(REACTOR[0])
     flames(None)
 print("RENDERS DONE")

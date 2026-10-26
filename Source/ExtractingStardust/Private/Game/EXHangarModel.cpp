@@ -39,6 +39,123 @@ namespace
 
 	const TCHAR* const HangarQuickKeys[EXMeta::QuickSlots] = { TEXT("1  \u00B7  \u25B2"), TEXT("2  \u00B7  \u25BC"), TEXT("3  \u00B7  \u25C0"), TEXT("4  \u00B7  \u25B6") };
 
+	/** The short look of a piece (the line under a module's name) and the note pinned next to it on the ship. */
+	struct FHangarLook
+	{
+		const TCHAR* Piece;
+		const TCHAR* Short;
+		const TCHAR* Callout;
+	};
+	const FHangarLook HangarLooks[] = {
+		{ TEXT("wing_blade"), TEXT("barbatana na ponta"), TEXT("asa curta e enflechada \u00B7 barbatana na ponta") },
+		{ TEXT("wing_longspan"), TEXT("placas na ponta"), TEXT("asa longa \u00B7 placas na ponta") },
+		{ TEXT("wing_vector"), TEXT("segunda superf\u00EDcie"), TEXT("segunda superf\u00EDcie por cima") },
+		{ TEXT("wing_brace"), TEXT("escora at\u00E9 ao casco"), TEXT("asa grossa \u00B7 escora at\u00E9 ao casco") },
+		{ TEXT("wing_glide"), TEXT("ponta dobrada"), TEXT("ponta dobrada \u00B7 bordo de ataque luminoso") },
+		{ TEXT("armor_light"), TEXT("kit de carro\u00E7aria leve"), TEXT("saias finas \u00B7 l\u00E2mina no nariz") },
+		{ TEXT("armor_guard"), TEXT("kit de carro\u00E7aria"), TEXT("saias em placas \u00B7 l\u00E2mina no nariz") },
+		{ TEXT("armor_bulwark"), TEXT("kit de carro\u00E7aria pesado"), TEXT("saias grossas \u00B7 aletas atr\u00E1s") },
+		{ TEXT("armor_shell"), TEXT("kit com grelha t\u00E9rmica"), TEXT("saias com grelha t\u00E9rmica") },
+		{ TEXT("armor_aegis"), TEXT("kit lend\u00E1rio"), TEXT("saias douradas \u00B7 aletas atr\u00E1s") },
+		{ TEXT("cooling_vents"), TEXT("grelhas no dorso"), TEXT("grelhas de ventila\u00E7\u00E3o") },
+		{ TEXT("cooling_radiator"), TEXT("radiadores no dorso"), TEXT("radiadores no dorso") },
+		{ TEXT("cooling_grid"), TEXT("grelha t\u00E9rmica"), TEXT("grelha t\u00E9rmica grande") },
+		{ TEXT("tail_compact"), TEXT("cauda curta"), TEXT("cauda curta") },
+		{ TEXT("tail_twin"), TEXT("cauda dupla"), TEXT("cauda dupla") },
+		{ TEXT("tail_keel"), TEXT("quilha longa"), TEXT("quilha longa") },
+		{ TEXT("utility_mast"), TEXT("dentro do nariz"), TEXT("scanner \u00B7 dentro do nariz") },
+		{ TEXT("utility_dome"), TEXT("dentro do nariz"), TEXT("or\u00E1culo de rota \u00B7 dentro do nariz") },
+		{ TEXT("utility_drone"), TEXT("dentro do nariz"), TEXT("drone \u00B7 dentro do nariz") },
+	};
+	// By EXMeta look: the engine's flame, the nitro of the propulsion, the reactor's glow.
+	const TCHAR* const HangarFlameLooks[] = { TEXT("chama de s\u00E9rie"), TEXT("jato azul"), TEXT("cone ciano curto"),
+		TEXT("scramjet \u00B7 diamantes de choque"), TEXT("jato violeta fino"), TEXT("chama larga laranja"), TEXT("feixe fino"), TEXT("chama vermelha") };
+	const TCHAR* const HangarNitroLooks[] = { TEXT("nitro de s\u00E9rie"), TEXT("nitro ciano"), TEXT("nitro azul"), TEXT("nitro violeta") };
+	const TCHAR* const HangarReactorLooks[] = { TEXT("brilho laranja"), TEXT("brilho ciano"), TEXT("brilho azul"), TEXT("brilho magenta"),
+		TEXT("brilho \u00E2mbar"), TEXT("brilho dourado") };
+	// The family on a card ("Blindagem  ·  M  ·  +90 kg").
+	const TCHAR* const HangarFamilyWords[] = { TEXT("Motor"), TEXT("Propuls\u00E3o"), TEXT("Asas"), TEXT("Cauda"), TEXT("Blindagem"), TEXT("Reator"),
+		TEXT("Refrigera\u00E7\u00E3o"), TEXT("Utilidade") };
+	// The chip of each consumable on a card (mock-up cofre.png), by EEXConsumable.
+	const TCHAR* const HangarConsumableChips[] = { TEXT(""), TEXT("\u221245 calor"), TEXT("+1 vida"), TEXT("+30% combust\u00EDvel"), TEXT("+8 s ader\u00EAncia"),
+		TEXT("+70% nitro"), TEXT("+1 vida em 2,5 s") };
+
+	const TCHAR* HangarLookOf(const EXMeta::FModuleDef& Def, bool bCallout)
+	{
+		const int32 Look = Def.Look;
+		switch (Def.Family)
+		{
+		case EEXFamily::Engine: return HangarFlameLooks[FMath::Clamp(Look, 0, static_cast<int32>(UE_ARRAY_COUNT(HangarFlameLooks)) - 1)];
+		case EEXFamily::Propulsion: return HangarNitroLooks[FMath::Clamp(Look, 0, static_cast<int32>(UE_ARRAY_COUNT(HangarNitroLooks)) - 1)];
+		case EEXFamily::Reactor: return HangarReactorLooks[FMath::Clamp(Look, 0, static_cast<int32>(UE_ARRAY_COUNT(HangarReactorLooks)) - 1)];
+		default:
+			for (const FHangarLook& Entry : HangarLooks)
+			{
+				if (Def.Piece.Equals(Entry.Piece))
+				{
+					return bCallout ? Entry.Callout : Entry.Short;
+				}
+			}
+			return TEXT("");
+		}
+	}
+
+	/** The photo of the module on the ship where it goes (Scripts/render_modules.py, thumbs): the ship's own one for its
+	 *  wings, else the ship on the turntable. */
+	FString HangarThumbKey(const EXMeta::FModuleDef& Def, const FString& Ship)
+	{
+		const FString On = (Def.Ship.IsEmpty() ? Ship : Def.Ship).ToLower();
+		switch (Def.Family)
+		{
+		case EEXFamily::Engine: return FString::Printf(TEXT("%s_engine_%d"), *On, FMath::Clamp(Def.Look, 0, 7));
+		case EEXFamily::Propulsion: return FString::Printf(TEXT("%s_prop_%d"), *On, FMath::Clamp(Def.Look, 0, 3));
+		case EEXFamily::Reactor: return FString::Printf(TEXT("%s_reactor_%d"), *On, FMath::Clamp(Def.Look, 0, 5));
+		default: return Def.Piece.IsEmpty() ? FString() : FString::Printf(TEXT("%s_%s"), *On, *Def.Piece);
+		}
+	}
+
+	/** "+9 Manobra"-style chips: the gains first, then the drawbacks (mass left out), then the legendary's perk. */
+	void HangarChips(const FEXItem& Item, bool bCard, TArray<FEXHangarChip>& Out)
+	{
+		for (int32 Pass = 0; Pass < 2; ++Pass)
+		{
+			for (int32 Stat = 0; Stat < EXMeta::StatCount && Stat < Item.Rolls.Num(); ++Stat)
+			{
+				const int32 V = Item.Rolls[Stat];
+				if (Stat == static_cast<int32>(EEXStat::Mass) || V == 0 || (Pass == 0) != (V > 0))
+				{
+					continue;
+				}
+				const FString Name = bCard ? EXMeta::StatCard(static_cast<EEXStat>(Stat)) : EXMeta::StatName(static_cast<EEXStat>(Stat));
+				FEXHangarChip& Chip = Out.AddDefaulted_GetRef();
+				Chip.Text = V > 0 ? FString::Printf(TEXT("+%d %s"), V, *Name) : FString::Printf(TEXT("\u2212%d %s"), -V, *Name);
+				Chip.Sign = V > 0 ? 1 : -1;
+			}
+		}
+		const EXMeta::FModuleDef* Def = EXMeta::Find(Item);
+		if (Def && Def->bLegendary && !bCard)
+		{
+			TArray<FString> Parts;
+			Def->PerkText.ParseIntoArray(Parts, TEXT(" \u00B7 "));
+			for (int32 Index = 1; Index < Parts.Num(); ++Index)
+			{
+				FEXHangarChip& Chip = Out.AddDefaulted_GetRef();
+				Chip.Text = Parts[Index];
+				Chip.Sign = 0;
+			}
+		}
+	}
+
+	FString HangarMass(int32 Kg)
+	{
+		return Kg == 0 ? FString() : (Kg > 0 ? FString::Printf(TEXT("  \u00B7  +%d kg"), Kg) : FString::Printf(TEXT("  \u00B7  \u2212%d kg"), -Kg));
+	}
+
+	FLinearColor EXUiHangarSand()
+	{
+		return FLinearColor(FColor(0xA8, 0x8C, 0x6A));
+	}
+
 	FString HangarDust(int32 Value)
 	{
 		// 12500 -> "12 500" (a fixed separator, whatever the system's locale).
@@ -415,9 +532,10 @@ void UEXHangarModel::Confirm()
 	}
 	if (bOpening)
 	{
+		// The mock-up cofre.png: Enter turns over the next card, Space all of them; then Enter keeps everything.
 		if (Revealed < Cards.Num())
 		{
-			Revealed = Cards.Num();
+			++Revealed;
 		}
 		else
 		{
@@ -496,8 +614,16 @@ void UEXHangarModel::Confirm()
 void UEXHangarModel::Clear()
 {
 	UEXProfileSave* Profile = GetProfile();
-	if (bOpening || !Profile)
+	if (!Profile)
 	{
+		return;
+	}
+	if (bOpening)
+	{
+		if (Revealed >= Cards.Num())
+		{
+			SellCommons();   // the "VENDER COMUNS (25%)" button
+		}
 		return;
 	}
 	if (CurrentTab == EEXHangarTab::Equip)
@@ -566,13 +692,13 @@ void UEXHangarModel::Tick(float Dt)
 		SyncCandidate();
 		Touch();
 	}
-	if (bOpening && Revealed < Cards.Num())
+	// The cards wait for Enter (one) or Space (all), as in the mock-up; the first one turns over by itself.
+	if (bOpening && Revealed == 0 && Cards.Num() > 0)
 	{
 		RevealTimer += Dt;
-		while (RevealTimer >= HangarRevealSeconds && Revealed < Cards.Num())
+		if (RevealTimer >= HangarRevealSeconds)
 		{
-			RevealTimer -= HangarRevealSeconds;
-			++Revealed;
+			Revealed = 1;
 		}
 	}
 	if (SellArmed != 0 && Craft && Craft->GetWorld() && Craft->GetWorld()->GetTimeSeconds() - SellArmedTime > HangarSellConfirmSeconds)
@@ -640,27 +766,44 @@ void UEXHangarModel::OpenCache(int32 Index)
 	int32 ShipCopy = INDEX_NONE;
 	EXMeta::OpenCache(OpenedKind, Random, Profile->NextSerial, Got, Consumables, &ShipCopy);
 	Profile->Items.Append(Got);
-	// The cards: the consumables first, then the modules from the plainest to the best (the best turns over last).
+	// The cards (mock-up cofre.png): the consumables first (one card per kind, "Coolant Cell ×2"), then the modules from
+	// the plainest to the best (the best turns over last), a copy of a ship at the very end.
 	Cards.Reset();
+	CardSerials.Reset();
 	CacheValue = 0;
+	TArray<int32> PerKind;
+	PerKind.Init(0, EXMeta::ConsumableCount);
 	for (const EEXConsumable Kind : Consumables)
 	{
 		Profile->AddStock(Kind, 1);
-		const EXMeta::FConsumableDef& Def = EXMeta::Consumable(Kind);
+		++PerKind[static_cast<int32>(Kind)];
+		CacheValue += EXMeta::Consumable(Kind).Price;
+	}
+	for (int32 Kind = 1; Kind < EXMeta::ConsumableCount; ++Kind)
+	{
+		if (PerKind[Kind] == 0)
+		{
+			continue;
+		}
+		const EXMeta::FConsumableDef& Def = EXMeta::Consumable(static_cast<EEXConsumable>(Kind));
 		FEXHangarRow& Card = Cards.AddDefaulted_GetRef();
-		Card.Label = TEXT("CONSUM\u00CDVEL");
-		Card.Title = Def.Name;
+		Card.Label = EXMeta::RarityName(EEXRarity::Common);
+		Card.Title = FString::Printf(TEXT("%s \u00D7%d"), Def.Name, PerKind[Kind]);
+		Card.Maker = TEXT("Consum\u00EDvel");
 		Card.Sub = Def.Effect;
-		Card.Right = HangarDust(Def.Price);
-		Card.Colour = Def.Colour;
-		CacheValue += Def.Price;
+		Card.Colour = EXMeta::RarityColour(EEXRarity::Common);
+		Card.Icon = FString::Printf(TEXT("con_%s"), Def.Id);
+		Card.Value = Def.Price * PerKind[Kind];
+		FEXHangarChip& Chip = Card.Chips.AddDefaulted_GetRef();
+		Chip.Text = HangarConsumableChips[FMath::Clamp(Kind, 0, static_cast<int32>(UE_ARRAY_COUNT(HangarConsumableChips)) - 1)];
+		Chip.Sign = Chip.Text.StartsWith(TEXT("+")) ? 1 : -1;
+		CardSerials.Add(0);
 	}
 	Got.Sort([](const FEXItem& A, const FEXItem& B) { return A.Rarity != B.Rarity ? A.Rarity < B.Rarity : A.Value < B.Value; });
 	for (const FEXItem& Item : Got)
 	{
-		FEXHangarRow Card = ItemRow(Item, false);
-		Card.Tag = Item.Rarity >= static_cast<uint8>(EEXRarity::Epic) ? FString(TEXT("NOVO")) : FString();
-		Cards.Add(Card);
+		Cards.Add(ItemCard(Item));
+		CardSerials.Add(Item.Serial);
 		CacheValue += Item.Value;
 	}
 	if (ShipCopy != INDEX_NONE)
@@ -672,10 +815,18 @@ void UEXHangarModel::OpenCache(int32 Index)
 		Card.Label = TEXT("C\u00D3PIA DA NAVE");
 		Card.Title = ShipName;
 		Card.Colour = FLinearColor(1.0f, 0.82f, 0.20f);
+		Card.Thumb = ShipName.ToLower() + TEXT("_ship");
+		Card.Icon = TEXT("ship_copy");
+		Card.bNew = true;
+		CardSerials.Add(0);
 		if (Profile->AddStar(ShipName))
 		{
 			const int32 Stars = Profile->StarsOf(ShipName);
-			Card.Sub = FString::Printf(TEXT("%s  \u00B7  +%d em todos os stats base"), *UEXHangarModel::StarText(Stars), EXMeta::StarBonus(Stars) - EXMeta::StarBonus(Stars - 1));
+			Card.Maker = UEXHangarModel::StarText(Stars);
+			Card.Sub = Card.Maker;
+			FEXHangarChip& Chip = Card.Chips.AddDefaulted_GetRef();
+			Chip.Text = FString::Printf(TEXT("+%d em todos os stats base"), EXMeta::StarBonus(Stars) - EXMeta::StarBonus(Stars - 1));
+			Chip.Sign = 1;
 			Card.Right = FString::Printf(TEXT("%d/%d"), Stars, EXMeta::MaxStars);
 			Card.Tag = TEXT("NOVA ESTRELA");
 			Note(FString::Printf(TEXT("C\u00F3pia da %s: agora com %d estrelas"), *ShipName, Stars));
@@ -683,8 +834,9 @@ void UEXHangarModel::OpenCache(int32 Index)
 		else
 		{
 			Profile->Stardust += EXMeta::ShipCopyRefund;
+			Card.Maker = TEXT("J\u00E1 tem as 7 estrelas");
 			Card.Sub = TEXT("J\u00E1 tem as 7 estrelas: a c\u00F3pia foi paga em STARDUST");
-			Card.Right = HangarDust(EXMeta::ShipCopyRefund);
+			Card.Value = EXMeta::ShipCopyRefund;
 			Card.Tag = TEXT("REPETIDA");
 		}
 		UE_LOG(LogTemp, Display, TEXT("EXMETA SHIPCOPY %s stars=%d"), *ShipName, Profile->StarsOf(ShipName));
@@ -750,6 +902,31 @@ FEXHangarRow UEXHangarModel::ItemRow(const FEXItem& Item, bool bWithPlace) const
 	R.Sub = EXMeta::RollText(Item);
 	R.Right = HangarDust(Item.Value);
 	R.Colour = EXMeta::RarityColour(Rarity);
+	R.Rarity = EXMeta::RarityName(Rarity);
+	R.Value = Item.Value;
+	R.bApprox = true;
+	HangarChips(Item, false, R.Chips);
+	if (Def)
+	{
+		R.Icon = FString::Printf(TEXT("fam_%d"), static_cast<int32>(Def->Family));
+		R.Thumb = HangarThumbKey(*Def, GetShipName());
+		R.Flame = Def->Family == EEXFamily::Engine ? EXMeta::FlameLook(&Item) : INDEX_NONE;
+		// "Vanta Works  ·  classe S  ·  −10 kg", "Oryx Reclamation  ·  asa própria  ·  ponta dobrada"; a legendary's perk.
+		if (Def->bLegendary)
+		{
+			TArray<FString> Parts;
+			Def->PerkText.ParseIntoArray(Parts, TEXT(" \u00B7 "));
+			R.Maker = FString::Printf(TEXT("%s  \u00B7  %s"), *Def->Maker, Parts.Num() > 0 ? *Parts[0] : TEXT(""));
+		}
+		else if (Def->Family == EEXFamily::Wings)
+		{
+			R.Maker = FString::Printf(TEXT("%s  \u00B7  asa pr\u00F3pria  \u00B7  %s"), *Def->Maker, HangarLookOf(*Def, false));
+		}
+		else
+		{
+			R.Maker = FString::Printf(TEXT("%s  \u00B7  classe %s%s"), *Def->Maker, *EXMeta::SizeText(Def->Size), *HangarMass(Item.Roll(EEXStat::Mass)));
+		}
+	}
 	const UEXProfileSave* Profile = GetProfile();
 	if (bWithPlace && Profile)
 	{
@@ -758,11 +935,44 @@ FEXHangarRow UEXHangarModel::ItemRow(const FEXItem& Item, bool bWithPlace) const
 		{
 			const FEXBuild* Build = Profile->FindBuild(On);
 			const bool bInsured = Build && Build->Insured == Item.Serial;
-			R.Tag = On.Equals(GetShipName(), ESearchCase::IgnoreCase) ? FString(bInsured ? TEXT("MONTADA \u00B7 SEGURA") : TEXT("MONTADA"))
+			R.Tag = On.Equals(GetShipName(), ESearchCase::IgnoreCase) ? FString(bInsured ? TEXT("MONTADO \u00B7 SEGURO") : TEXT("MONTADO"))
 				: FString::Printf(TEXT("NA %s"), *On);
+			R.bInsured = bInsured;
 		}
 	}
 	return R;
+}
+
+FEXHangarRow UEXHangarModel::ItemCard(const FEXItem& Item) const
+{
+	FEXHangarRow Card;
+	const EXMeta::FModuleDef* Def = EXMeta::Find(Item);
+	const EEXRarity Rarity = static_cast<EEXRarity>(Item.Rarity);
+	Card.Label = EXMeta::RarityName(Rarity);
+	Card.Rarity = Card.Label;
+	Card.Title = EXMeta::ItemLabel(Item);
+	Card.Colour = EXMeta::RarityColour(Rarity);
+	Card.Value = Item.Value;
+	Card.bNew = Rarity >= EEXRarity::Epic;
+	HangarChips(Item, true, Card.Chips);
+	if (Def)
+	{
+		Card.Icon = FString::Printf(TEXT("fam_%d"), static_cast<int32>(Def->Family));
+		Card.Thumb = HangarThumbKey(*Def, GetShipName());
+		Card.Flame = Def->Family == EEXFamily::Engine ? EXMeta::FlameLook(&Item) : INDEX_NONE;
+		const FString Family = HangarFamilyWords[FMath::Clamp(static_cast<int32>(Def->Family), 0, EXMeta::FamilyCount - 1)];
+		if (Def->Family == EEXFamily::Wings)
+		{
+			Card.Maker = FString::Printf(TEXT("Asa pr\u00F3pria  \u00B7  %s"), *Def->Ship);
+		}
+		else
+		{
+			const FString Look = (Def->Family == EEXFamily::Reactor || Def->Family == EEXFamily::Engine || Def->Family == EEXFamily::Propulsion)
+				? FString::Printf(TEXT("  \u00B7  %s"), HangarLookOf(*Def, false)) : FString();
+			Card.Maker = FString::Printf(TEXT("%s  \u00B7  %s%s%s"), *Family, *EXMeta::SizeText(Def->Size), *HangarMass(Item.Roll(EEXStat::Mass)), *Look);
+		}
+	}
+	return Card;
 }
 
 void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32& Selected) const
@@ -790,9 +1000,11 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			FEXHangarRow& R = Out.AddDefaulted_GetRef();
 			R.Label = ShipRole(Name);
 			R.Title = Name;
-			R.Sub = Profile ? UEXHangarModel::StarText(Profile->StarsOf(Name)) : FString();
 			R.Right = FString::Printf(TEXT("%d VIDAS"), ShipLives);
 			R.Colour = FLinearColor(1.0f, 0.34f, 0.10f);
+			R.Lives = ShipLives;
+			R.Stars = Profile ? Profile->StarsOf(Name) : 0;
+			R.Thumb = Name.ToLower() + TEXT("_ship");
 		}
 		Selected = Craft ? Craft->GetShipIndex() : 0;
 		return;
@@ -808,8 +1020,10 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			FEXHangarRow& R = Out.AddDefaulted_GetRef();
 			const FEXItem* Item = Fitted.IsValidIndex(Slot) ? Fitted[Slot] : nullptr;
 			R.Label = EXMeta::FamilyName(static_cast<EEXFamily>(Slot));
+			R.Icon = FString::Printf(TEXT("fam_%d"), Slot);
 			R.Right = Def.Sizes[Slot] == EXMeta::SizeAny && Slot == static_cast<int32>(EEXFamily::Wings) ? FString(TEXT("PR\u00D3PRIAS"))
 				: EXMeta::SizeText(Def.Sizes[Slot]);
+
 			if (Def.Sizes[Slot] == 0)
 			{
 				R.Title = TEXT("\u2014");
@@ -819,8 +1033,13 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			}
 			R.Title = Item ? EXMeta::ItemLabel(*Item) : FString(TEXT("De s\u00E9rie"));
 			R.Sub = Item ? EXMeta::RollText(*Item) : FString();
+			// The class badge: the fitted module's size (the slot's for the stock part); none when any size goes.
+			const EXMeta::FModuleDef* ItemDef = Item ? EXMeta::Find(*Item) : nullptr;
+			const uint8 Badge = ItemDef ? ItemDef->Size : Def.Sizes[Slot];
+			R.Size = Badge == EXMeta::SizeAny ? FString() : EXMeta::SizeText(Badge);
 			R.Colour = Item ? EXMeta::RarityColour(static_cast<EEXRarity>(Item->Rarity)) : FLinearColor(0.42f, 0.36f, 0.30f);
-			R.Tag = Item && Build && Build->Insured == Item->Serial ? FString(TEXT("SEGURA")) : FString();
+			R.bInsured = Item && Build && Build->Insured == Item->Serial;
+			R.Tag = R.bInsured ? FString(TEXT("SEGURA")) : FString();
 		}
 		return;
 	}
@@ -839,6 +1058,9 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			R.Right = Kind == EEXConsumable::None ? FString() : FString::Printf(TEXT("\u00D7%d"), Q.Count);
 			R.Colour = Def.Colour;
 			R.bDim = Kind == EEXConsumable::None || Q.Count == 0;
+			R.Icon = Kind == EEXConsumable::None ? FString() : FString::Printf(TEXT("con_%s"), Def.Id);
+			R.Count = Kind == EEXConsumable::None ? 0 : Q.Count;
+			R.MaxCount = EXMeta::PerQuickSlot;
 		}
 		return;
 	}
@@ -852,15 +1074,20 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			R.Label = TEXT("CAIXA");
 			R.Title = Def.Name;
 			R.Sub = Def.Promise;
+			R.Maker = Def.Promise;
 			R.Right = HangarDust(Def.Price);
 			R.Colour = FLinearColor(1.0f, 0.34f, 0.10f);
 			R.bDim = Profile && Profile->Stardust < Def.Price;
+			R.Icon = FString::Printf(TEXT("cache_%d"), Kind);
+			R.Value = Def.Price;
 		}
 		for (int32 Offer = 0; Profile && Offer < Profile->Shop.Num(); ++Offer)
 		{
 			FEXHangarRow R = ItemRow(Profile->Shop[Offer], false);
 			R.Right = HangarDust(EXMeta::ShopPrice(Profile->Shop[Offer]));
 			R.bDim = Profile->Stardust < EXMeta::ShopPrice(Profile->Shop[Offer]);
+			R.Value = EXMeta::ShopPrice(Profile->Shop[Offer]);
+			R.bApprox = false;
 			Out.Add(R);
 		}
 		return;
@@ -875,8 +1102,11 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			R.Label = TEXT("CAIXA POR ABRIR");
 			R.Title = Def.Name;
 			R.Sub = Def.Promise;
+			R.Maker = Def.Promise;
 			R.Right = TEXT("ABRIR");
 			R.Colour = FLinearColor(1.0f, 0.34f, 0.10f);
+			R.Icon = FString::Printf(TEXT("cache_%d"), FMath::Min(static_cast<int32>(Profile->Caches[Index]), EXMeta::CacheCount - 1));
+			R.Tag = TEXT("ABRIR");
 		}
 		for (const int32 Serial : VaultItems())
 		{
@@ -962,8 +1192,11 @@ void UEXHangarModel::BuildRight(FString& Title, TArray<FEXHangarRow>& Out, int32
 				R.Label = TEXT("PE\u00C7A DA NAVE");
 				R.Title = TEXT("De s\u00E9rie");
 				R.Sub = TEXT("sem b\u00F3nus, nunca se perde");
+				R.Maker = R.Sub;
+				R.Rarity = TEXT("DE S\u00C9RIE");
 				R.Colour = FLinearColor(0.42f, 0.36f, 0.30f);
-				R.Tag = FittedSerial == 0 ? FString(TEXT("MONTADA")) : FString();
+				R.Tag = FittedSerial == 0 ? FString(TEXT("MONTADO")) : FString();
+				R.Icon = FString::Printf(TEXT("fam_%d"), static_cast<int32>(CurrentSlot()));
 				continue;
 			}
 			Out.Add(ItemRow(*Item, true));
@@ -989,8 +1222,13 @@ void UEXHangarModel::BuildRight(FString& Title, TArray<FEXHangarRow>& Out, int32
 			R.Label = FString::Printf(TEXT("%d STARDUST"), Def.Price);
 			R.Title = Def.Name;
 			R.Sub = Def.Effect;
+			R.Maker = Def.Effect;
 			R.Right = FString::Printf(TEXT("\u00D7%d"), Profile ? Profile->StockOf(static_cast<EEXConsumable>(Kind)) : 0);
 			R.Colour = Def.Colour;
+			R.Icon = FString::Printf(TEXT("con_%s"), Def.Id);
+			R.Count = Profile ? Profile->StockOf(static_cast<EEXConsumable>(Kind)) : 0;
+			R.Button = FString::Printf(TEXT("COMPRAR %d"), Def.Price);
+			R.Value = Def.Price;
 			if (Profile && Profile->Quick.IsValidIndex(RowOf(EEXHangarTab::Quick)) && Profile->Quick[RowOf(EEXHangarTab::Quick)].Kind == Kind)
 			{
 				Selected = Kind - 1;
@@ -1058,6 +1296,140 @@ void UEXHangarModel::BuildRight(FString& Title, TArray<FEXHangarRow>& Out, int32
 	}
 }
 
+void UEXHangarModel::SellCommons()
+{
+	UEXProfileSave* Profile = GetProfile();
+	if (!Profile || !bOpening)
+	{
+		return;
+	}
+	int32 Sold = 0;
+	int32 Paid = 0;
+	for (int32 Index = 0; Index < Cards.Num() && Index < CardSerials.Num(); ++Index)
+	{
+		const FEXItem* Item = CardSerials[Index] ? Profile->FindItem(CardSerials[Index]) : nullptr;
+		if (!Item || Item->Rarity != static_cast<uint8>(EEXRarity::Common) || !Profile->EquippedOn(Item->Serial).IsEmpty())
+		{
+			continue;
+		}
+		Paid += EXMeta::SellValue(*Item);
+		Profile->RemoveItem(Item->Serial);
+		CardSerials[Index] = 0;
+		Cards[Index].Tag = TEXT("VENDIDA");
+		Cards[Index].bDim = true;
+		++Sold;
+	}
+	if (Sold == 0)
+	{
+		Note(TEXT("Nada comum para vender nesta caixa"));
+		return;
+	}
+	Profile->Stardust += Paid;
+	CacheValue = FMath::Max(0, CacheValue);
+	Note(FString::Printf(TEXT("Vendidas %d pe\u00E7as comuns: +%s STARDUST"), Sold, *HangarDust(Paid)));
+	SaveProfile();
+	Touch();
+}
+
+FString UEXHangarModel::GetPreviewLabel(FLinearColor& OutColour) const
+{
+	OutColour = EXUiHangarSand();
+	if (CurrentTab != EEXHangarTab::Equip || bOpening)
+	{
+		return FString();
+	}
+	const UEXProfileSave* Profile = GetProfile();
+	const FEXItem* Item = Profile ? Profile->FindItem(CandidateSerial()) : nullptr;
+	if (Item)
+	{
+		OutColour = EXMeta::RarityColour(static_cast<EEXRarity>(Item->Rarity));
+	}
+	const EEXFamily Slot = CurrentSlot();
+	if (Slot == EEXFamily::Engine || Slot == EEXFamily::Propulsion || Slot == EEXFamily::Reactor || Slot == EEXFamily::Utility)
+	{
+		return Slot == EEXFamily::Utility ? FString(TEXT("VISTA EM ESQUELETO  \u00B7  UTILIT\u00C1RIO NO NARIZ"))
+			: FString(TEXT("VISTA EM ESQUELETO  \u00B7  MOTOR LIGADO"));
+	}
+	return Item ? FString::Printf(TEXT("PR\u00C9-VISUALIZA\u00C7\u00C3O  \u00B7  %s"), *EXMeta::ItemLabel(*Item).ToUpper())
+		: FString::Printf(TEXT("DE S\u00C9RIE  \u00B7  %s"), *EXMeta::FamilyName(Slot));
+}
+
+TArray<FEXHangarCallout> UEXHangarModel::GetCallouts() const
+{
+	TArray<FEXHangarCallout> Out;
+	if (CurrentTab != EEXHangarTab::Equip || bOpening)
+	{
+		return Out;
+	}
+	const TArray<FEXItem> Build = GetPreviewBuild();
+	auto Add = [&Out](const FEXItem& Item, bool bWithRarity)
+	{
+		const EXMeta::FModuleDef* Def = EXMeta::Find(Item);
+		if (!Def)
+		{
+			return;
+		}
+		FEXHangarCallout& Pin = Out.AddDefaulted_GetRef();
+		Pin.Family = Def->Family;
+		Pin.Colour = EXMeta::RarityColour(static_cast<EEXRarity>(Item.Rarity));
+		Pin.Text = Def->Family == EEXFamily::Reactor ? FString::Printf(TEXT("reator  \u00B7  %s"), HangarLookOf(*Def, true)) : FString(HangarLookOf(*Def, true));
+		if (bWithRarity && Def->Family == EEXFamily::Engine && Item.Rarity >= static_cast<uint8>(EEXRarity::Rare))
+		{
+			Pin.Text += Item.Rarity >= static_cast<uint8>(EEXRarity::Epic) ? TEXT(" (\u00E9pico)") : TEXT(" (mais longa)");
+		}
+	};
+	const int32 Slot = static_cast<int32>(CurrentSlot());
+	if (Build.IsValidIndex(Slot) && Build[Slot].IsValid())
+	{
+		Add(Build[Slot], true);
+	}
+	// The skeleton shows the reactor too: its glow is the reactor module's colour.
+	const int32 Reactor = static_cast<int32>(EEXFamily::Reactor);
+	const bool bXRay = CurrentSlot() == EEXFamily::Engine || CurrentSlot() == EEXFamily::Propulsion || CurrentSlot() == EEXFamily::Utility;
+	if (bXRay && Build.IsValidIndex(Reactor))
+	{
+		if (Build[Reactor].IsValid())
+		{
+			Add(Build[Reactor], false);
+		}
+		else
+		{
+			FEXHangarCallout& Pin = Out.AddDefaulted_GetRef();
+			Pin.Family = EEXFamily::Reactor;
+			Pin.Colour = EXUiHangarSand();
+			Pin.Text = TEXT("reator  \u00B7  brilha na cor do m\u00F3dulo");
+		}
+	}
+	return Out;
+}
+
+bool UEXHangarModel::GetLookedCard(FEXHangarRow& OutCard) const
+{
+	const FEXItem* Item = LookedItem();
+	if (!Item)
+	{
+		return false;
+	}
+	OutCard = ItemCard(*Item);
+	if (CurrentTab == EEXHangarTab::Shop)
+	{
+		OutCard.Value = EXMeta::ShopPrice(*Item);
+	}
+	return true;
+}
+
+FString UEXHangarModel::GetQuickSummary() const
+{
+	const UEXProfileSave* Profile = GetProfile();
+	int32 Carried = 0;
+	for (int32 Slot = 0; Profile && Slot < Profile->Quick.Num(); ++Slot)
+	{
+		Carried += Profile->Quick[Slot].Count;
+	}
+	return FString::Printf(TEXT("Levas %d consum\u00EDveis  \u00B7  valor em risco %s STARDUST\nSe fores destru\u00EDdo, perdes os que levas. Se extra\u00EDres, os que n\u00E3o "
+		"gastaste voltam ao stock."), Carried, *HangarDust(EXEconomy::QuickValue(Profile)));
+}
+
 TArray<FEXHangarHint> UEXHangarModel::GetHints() const
 {
 	TArray<FEXHangarHint> Hints;
@@ -1072,7 +1444,16 @@ TArray<FEXHangarHint> UEXHangarModel::GetHints() const
 	};
 	if (bOpening)
 	{
-		Add({ TEXT("Enter") }, Revealed < Cards.Num() ? TEXT("Revelar todas") : TEXT("Fechar"));
+		if (Revealed < Cards.Num())
+		{
+			Add({ TEXT("Enter") }, TEXT("Revelar a pr\u00F3xima"));
+			Add({ TEXT("Espa\u00E7o") }, TEXT("Revelar todas"));
+		}
+		else
+		{
+			Add({ TEXT("Enter") }, TEXT("Guardar tudo"));
+			Add({ TEXT("\u232B") }, TEXT("Vender comuns (25%)"));
+		}
 		Add({ TEXT("Esc") }, TEXT("Fechar"));
 		return Hints;
 	}

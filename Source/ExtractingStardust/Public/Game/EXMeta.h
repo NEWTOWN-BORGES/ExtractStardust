@@ -240,6 +240,8 @@ namespace EXMeta
 	FString FamilyName(EEXFamily Family);
 	FString StatName(EEXStat Stat);
 	FString StatShort(EEXStat Stat);
+	/** The stat's name on a card's chip: "Manobra", "Estab.", "Refrig." (mock-up cofre.png). */
+	FString StatCard(EEXStat Stat);
 	FString RarityName(EEXRarity Rarity);
 	FLinearColor RarityColour(EEXRarity Rarity);
 	FString SizeText(uint8 Sizes);
@@ -264,6 +266,9 @@ namespace EXMeta
 	int32 Lives(const FString& ShipName, int32 HullStat);
 	bool HasPerk(const TArray<const FEXItem*>& Modules, const TCHAR* Perk);
 	FFlameStyle Flame(const FEXItem* Engine);
+	/** The engine's flame style (0 stock, 1 sprint, 2 endurance, 3 burner, 4 razor, 5 heavy, 6 relic, 7 redline): the flame
+	 *  bar of the hangar and the engine photo. */
+	int32 FlameLook(const FEXItem* Engine);
 	FLinearColor NitroColour(const FEXItem* Propulsion);
 	FLinearColor ReactorGlow(const FEXItem* Reactor);
 

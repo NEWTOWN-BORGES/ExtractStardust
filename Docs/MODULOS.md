@@ -360,6 +360,9 @@ utilitários passaram para dentro do nariz, visíveis só no esqueleto. Imagens 
 4. Abrir a STANDARD CACHE inicial no COFRE.
 5. Correr no Pelotão 15 e ver o espólio no fim.
 
+**Interface igual às maquetes (2026-10-26):** ver `Docs/MENU_HANGAR.md`. A testar: correr o passo 3d do
+`casa_tudo.ps1` (ícones e fotos), ver no hangar as fotos nas cartas, o brilho, as fontes e as notas junto à nave.
+
 **Falta:**
 - os slots extra (Aux da NOMAD, Propulsão central da VORTEX, Blindagem 2 da BASTION);
 - as passivas das naves;
