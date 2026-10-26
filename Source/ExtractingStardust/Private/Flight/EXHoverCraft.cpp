@@ -1014,10 +1014,12 @@ void AEXHoverCraft::ApplyShipStats()
 	AccelerationMps2 = BaseAccelMps2 * (1.0f + 0.006f * Delta(EEXStat::Accel)) * MassFactor;
 	BoostAccelerationMps2 = BaseBoostAccelMps2 * (1.0f + 0.004f * Delta(EEXStat::Boost)) * MassFactor;
 	NitroSeconds = BaseNitroSeconds * (1.0f + 0.006f * Delta(EEXStat::Boost));
-	TurnRateLow = BaseTurnLow * (1.0f + 0.005f * Delta(EEXStat::Handling));
-	TurnRateHigh = BaseTurnHigh * (1.0f + 0.005f * Delta(EEXStat::Handling));
-	GripRedirect = BaseGripRedirect * (1.0f + 0.005f * Delta(EEXStat::Stability));
-	GripLateralMax = BaseGripLateralMax * (1.0f + 0.005f * Delta(EEXStat::Stability));
+	// Wings and tails (player, 2026-10-26: "caudas e asas se sintam de verdade"): 2% of turn and of side grip per point,
+	// so a wing at its +9 ceiling turns ~18% better. With nothing fitted the handling is the original one.
+	TurnRateLow = BaseTurnLow * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Handling));
+	TurnRateHigh = BaseTurnHigh * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Handling));
+	GripRedirect = BaseGripRedirect * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Stability));
+	GripLateralMax = BaseGripLateralMax * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Stability));
 	const float HullMul = (1.0f + 0.006f * Delta(EEXStat::Hull)) * (EXMeta::HasPerk(Fitted, TEXT("aegis")) ? 1.25f : 1.0f);
 	WallHitMps = Stats->WallHitMps * HullMul;
 	LandingHitMps = Stats->LandingHitMps * HullMul;

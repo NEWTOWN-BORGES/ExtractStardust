@@ -24,6 +24,11 @@ O jogador fala português (PT). Responder em português.
   fotos de cada nave com cada módulo nas cartas (`SourceArt/UI/Thumbs`), HUD da corrida em UMG. Importar com o passo
   3d do `casa_tudo.ps1` e compilar.
 
+- **Condução como antes** (2026-10-26): o Cursor (commit `a6ba938`, 23/10) tinha subido `TurnRateHigh` de 0,8 para 1,05
+  e `NoseLeadMaxDeg` de 5 para 8, e a nave escorregava de lado. Voltaram aos valores da Phase 1. A câmara e a nave a
+  deitar-se nas curvas ficaram como o Cursor as deixou (o jogador gostou). Asas e caudas valem agora 2 % por ponto de
+  Manobra/Estabilidade (eram 0,5 %); sem módulos a condução é a original.
+
 ## NAVES NOVAS: falta pô-las no Unreal (2026-10-21; BASTION a 2026-10-25)
 
 As 5 naves (STRIX, WRAITH, NOMAD, VORTEX e BASTION) foram refeitas de dentro para fora (PR #3, ramo

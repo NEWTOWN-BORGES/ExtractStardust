@@ -175,8 +175,8 @@ Os módulos mexem na condução afinada pelo jogador ponto a ponto, contando só
 | --- | --- |
 | Velocidade | velocidade máxima: +0,57% por ponto |
 | Aceleração | força do motor: +0,6% por ponto; a massa dos módulos tira um pouco (raiz da massa da nave sobre a massa total) |
-| Manobra | viragem: +0,5% por ponto |
-| Estabilidade | aderência lateral: +0,5% por ponto |
+| Manobra | viragem: +2% por ponto (asa no teto +9 ≈ +18%) |
+| Estabilidade | aderência lateral: +2% por ponto (cauda segura a traseira) |
 | Casco | **vidas**: as da nave (VORTEX 2 … BASTION 5), mais 1 por cada 10 pontos de casco acima do da nave (máximo 6). Também aguenta choques +0,6% mais fortes por ponto antes de perder vida |
 | Eficiência | consumo de combustível (secção 6) |
 | Refrigeração | arrefecimento: 4 + 0,08 × refrigeração por segundo |

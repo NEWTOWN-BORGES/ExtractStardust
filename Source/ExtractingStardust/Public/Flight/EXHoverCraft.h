@@ -58,7 +58,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float NitroAirRegen = 0.15f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateLow = 2.4f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateHigh = 1.05f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float TurnRateHigh = 0.8f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float SteerResponse = 10.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float AirTurnMul = 0.35f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Steering") float BrakeTurnMul = 1.35f;
@@ -90,7 +90,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallScrapeLoss = 0.2f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float BankMaxDeg = 38.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float NoseLeadMaxDeg = 8.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float NoseLeadMaxDeg = 5.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float PitchFromAccel = 0.16f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float VisualResponse = 9.0f;
 
