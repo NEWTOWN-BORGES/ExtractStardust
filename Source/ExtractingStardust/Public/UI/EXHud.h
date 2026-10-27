@@ -40,6 +40,10 @@ private:
 	/** Shows the menu or the hangar widget (or neither) and sets the input for it: the menu takes the mouse, the hangar
 	 *  and the race leave it to the game (the mouse turns the ship in the hangar). */
 	void ShowScreens(class AEXRaceDirector* Race, bool bMenu, bool bHangar);
+	/** The menu and the hangar get the showroom graphics, the race its own (AEXGameMode::ApplyGraphics). */
+	bool bShowroomGraphics = false;
+	/** -EXShotAfter=N: a screenshot with the interface after N s (Saved/Shots), then the game closes (to check a screen). */
+	float ShotAfterS = -2.0f, ShotTakenAt = -1.0f;
 	void DrawArrow(const FVector2D& Center, float AngleDeg, float Size, const FLinearColor& Colour);
 
 	UPROPERTY(Transient)

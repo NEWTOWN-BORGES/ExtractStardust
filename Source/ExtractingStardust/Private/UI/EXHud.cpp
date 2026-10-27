@@ -5,7 +5,11 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Flight/EXHoverCraft.h"
+#include "EXGameMode.h"
 #include "Race/EXRaceDirector.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "UnrealClient.h"
 #include "GameFramework/PlayerController.h"
 #include "UI/EXGuideArrow.h"
 #include "UI/EXHangarWidget.h"
@@ -28,6 +32,21 @@ namespace
 void AEXHud::DrawHUD()
 {
 	Super::DrawHUD();
+	if (ShotAfterS < -1.0f)
+	{
+		ShotAfterS = -1.0f;
+		FParse::Value(FCommandLine::Get(), TEXT("EXShotAfter="), ShotAfterS);
+	}
+	const float Clock = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0f;
+	if (ShotAfterS > 0.0f && ShotTakenAt < 0.0f && Clock > ShotAfterS)
+	{
+		ShotTakenAt = Clock;
+		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Shots"), TEXT("shot.png")), true, false);
+	}
+	else if (ShotTakenAt >= 0.0f && Clock > ShotTakenAt + 2.0f)
+	{
+		FPlatformMisc::RequestExit(false);
+	}
 	const AEXHoverCraft* Craft = Cast<AEXHoverCraft>(GetOwningPawn());
 	if (!Craft || !Canvas)
 	{
@@ -210,6 +229,11 @@ void AEXHud::DrawArrow(const FVector2D& Center, float AngleDeg, float Size, cons
 
 void AEXHud::ShowScreens(AEXRaceDirector* Race, bool bMenu, bool bHangar)
 {
+	if ((bMenu || bHangar) != bShowroomGraphics)
+	{
+		bShowroomGraphics = bMenu || bHangar;
+		AEXGameMode::ApplyGraphics(GetWorld(), bShowroomGraphics);
+	}
 	APlayerController* PlayerController = GetOwningPlayerController();
 	if (!PlayerController)
 	{

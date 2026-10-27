@@ -15,6 +15,8 @@ public:
 
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
+	/** The graphics profile: the race's, or the showroom's (menu and hangar: one craft on screen, so all at full quality). */
+	static void ApplyGraphics(UWorld* World, bool bShowroom);
 
 private:
 	UPROPERTY(Transient)
