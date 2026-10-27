@@ -109,42 +109,42 @@ def relax(p, rmin, fixed=None, iters=300, reach=30):
 # line is relaxed to the sector's tightest radius (GDD: tight 60-120 m, medium 120-250, fast 250-500, mega arc 500+).
 # Per sector: name, surface kind, floor half width m (GDD widths: open 24-35 m, main 14-24, technical 10-16),
 # tightest radius m, meander (amplitude, wavelength), control points.
-# Player, 2026-10-26: back to the original widths and meanders (the wider, oval version of 2026-10-20 was not liked);
-# only the cave keeps its smooth, wide fix (it was impossible to drive).
+# Player, 2026-10-27: the wide, oval roads of 2026-10-20 back (the narrow ones let the craft ride up the banks): roads
+# wide like the Unity version and long clean arcs like the Horseshoe, the rhythmic meanders off. The cave as fixed.
 SECTORS = [
-    ("S1 The Basin", "top", 17.0, 180.0, (70.0, 1000.0),
+    ("S1 The Basin", "top", 26.0, 180.0, (0.0, 1.0),
      [(15300, 11300, 452), (14400, 10700, 446), (13300, 10900, 444), (12400, 10300, 448), (12600, 9300, 452),
       (13600, 9000, 455), (14400, 8300, 458), (13900, 7600, 462)]),
-    ("S2 Broken Mesa", "top", 12.0, 120.0, (130.0, 650.0),
+    ("S2 Broken Mesa", "top", 18.0, 120.0, (0.0, 1.0),
      [(13000, 7200, 466), (12600, 6300, 470), (13300, 5500, 474), (12700, 4800, 476), (11900, 5000, 478), (11450, 5650, 480),
       (11380, 6450, 478)]),
     # Switchbacks down the outer cliff to the bench: four legs 200 m apart, hairpins of ~100 m radius.
-    ("S3 Shafer Fall", "switchback", 10.0, 1.0, (0.0, 1.0),
+    ("S3 Shafer Fall", "switchback", 14.0, 1.0, (0.0, 1.0),
      [(11300, 6800, 470), (11300, 7500, 440), (11200, 7720, 432), (11100, 7500, 424), (11100, 6500, 382), (11000, 6280, 374),
       (10900, 6500, 366), (10900, 7500, 324), (10800, 7720, 316), (10700, 7500, 308), (10700, 6700, 274), (10550, 6350, 255)]),
     # A tributary born on the bench cuts down to the floor in one long left-hand sweep (radius ~700 -> ~250 m): the
     # Red Wall is its outer bank, steepening from a soft bank to a wall as the gorge deepens.
-    ("S4 The Red Wall", "gorge", 20.0, 250.0, (0.0, 1.0),
+    ("S4 The Red Wall", "gorge", 30.0, 250.0, (0.0, 1.0),
      [(10300, 5950, 240), (9800, 5450, 230), (9100, 5150, 212), (8400, 5300, 185), (7900, 5900, 150), (7650, 6700, 112),
       (7800, 7500, 78), (8150, 8150, 50), (8000, 8800, 42)]),
     # Down the main canyon past the slot canyons (fendas): the SAFE line; RACING and SKILL take the slots.
-    ("S5 Fendas", "floor", 16.0, 140.0, (110.0, 700.0),
+    ("S5 Fendas", "floor", 24.0, 140.0, (0.0, 1.0),
      [(7550, 9300, 40), (7400, 9950, 39), (6800, 10350, 39), (6050, 10200, 38), (5650, 9750, 37), (5250, 9300, 36)]),
     # Horseshoe: in heading south, 270 degrees round the rock spur, out heading north; SKILL jumps the neck.
-    ("S6 Horseshoe", "floor", 22.0, 1.0, (0.0, 1.0),
+    ("S6 Horseshoe", "floor", 32.0, 1.0, (0.0, 1.0),
      [(5150, 8750, 35), (5150, 8150, 34), (5050, 7650, 33), (4750, 7400, 33), (4400, 7550, 32), (4300, 7950, 31),
       (4450, 8450, 30), (4500, 8800, 30), (4300, 9350, 29), (4000, 9750, 29)]),
-    ("S7 The Wash", "wash", 28.0, 200.0, (140.0, 1100.0),
+    ("S7 The Wash", "wash", 40.0, 200.0, (0.0, 1.0),
      [(3500, 10000, 28), (2900, 9800, 27), (2250, 9150, 26), (1850, 8250, 25), (1800, 7250, 24), (2100, 6350, 22),
       (2400, 5650, 20)]),
     # Player, 2026-10-20: the cave was impossible to drive: now wide, no meanders, gentle S-bends (radius >= 220 m).
     ("S8 The Hollow", "cave", 26.0, 220.0, (0.0, 1.0),
      [(2650, 5150, 16), (2500, 4800, 12), (2800, 4450, 8), (2650, 4050, 4), (2800, 3700, 8), (2500, 3450, 40),
       (2150, 3350, 70)]),
-    ("S9 Arches Run", "desert", 18.0, 160.0, (100.0, 800.0),
+    ("S9 Arches Run", "desert", 28.0, 160.0, (0.0, 1.0),
      [(1700, 2950, 45), (1150, 2450, 50), (850, 1550, 55), (1450, 750, 60), (2550, 550, 62), (3400, 1250, 64),
       (4350, 1000, 66), (5250, 1450, 64), (5900, 1150, 60)]),
-    ("S10 White Rim", "rim", 18.0, 300.0, (40.0, 1200.0),
+    ("S10 White Rim", "rim", 28.0, 300.0, (0.0, 1.0),
      [(6500, 1650, 62), (7250, 2150, 150), (7900, 2450, 238), (8650, 2650, 240), (9500, 2450, 238), (10300, 2650, 240),
       (10900, 2700, 241), (11400, 2650, 242)]),
 ]
@@ -844,20 +844,17 @@ print("ROUTE CARVED", "lips", len(lips))
 # never higher than that bank: walls only get lower, nothing new stands in front of a line, and no floor is touched.
 # Not in the caves (the vault is their wall), across the hero gap, in the desert (driven as it is) or on the branches
 # that run over the ground as it is.
-# Player, 2026-10-26 ("natural, não algo cavado"): not one smooth ramp everywhere but what a canyon has, a talus apron
-# at the foot of the wall, 6-22 m high and 28-37 degrees, changing slowly along the line, then the cliff at 72 degrees.
-_ar = np.random.default_rng(2026)
-def _slow(n, width):
-    z_ = smooth1d(_ar.random(n), width)
-    return (z_ - z_.min()) / max(1e-6, z_.max() - z_.min())
-APRON_H = 6.0 + 16.0 * _slow(N, 401)
-APRON_TAN = np.tan(np.radians(28.0 + 9.0 * _slow(N, 301)))
-CLIFF_TAN = math.tan(math.radians(72.0))
+# Player, 2026-10-27: the talus apron with a cliff behind it (2026-10-26) looked like small walls along a narrow road
+# and the craft rode up on them: the smooth oval bank of 2026-10-20 is back everywhere.
+BANK_E, BANK_A, BANK_B = 24.0, math.radians(25.0), math.radians(45.0) / 24.0
+APRON_H = np.zeros(N)            # kept for bank_line's signature; the oval bank does not use them
+APRON_TAN = np.zeros(N)
 
 
-def bank_rise(e, apron_h, apron_tan):
-    e_a = apron_h / apron_tan
-    return np.where(e <= e_a, e * apron_tan, apron_h + (e - e_a) * CLIFF_TAN)
+def bank_rise(e, apron_h=None, apron_tan=None):
+    e1 = np.clip(e, 0.0, BANK_E)
+    return ((math.log(math.cos(BANK_A)) - np.log(np.cos(BANK_A + BANK_B * e1))) / BANK_B
+            + np.maximum(e - BANK_E, 0.0) * math.tan(math.radians(70.0)))
 
 
 bank_cap = np.full(H.shape, np.inf, np.float32)

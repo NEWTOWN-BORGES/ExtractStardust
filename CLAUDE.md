@@ -29,14 +29,14 @@ O jogador fala português (PT). Responder em português.
   naves com `make_ship_materials.py` (pintura, riscos, pó, carbono, metal escovado; passo 3e do `casa_tudo.ps1`).
   Plano e regras: `Docs/PLANO_TEXTURAS.md`. Fotos de prova: `-EXFlightTest -EXLook="x,y,z,yaw,pitch;..."` (vistas em
   `C:\rdd\look_views.txt`).
-- **Pista:** larguras e curvas originais (a versão larga/oval foi rejeitada); estrada **natural** (borda que vagueia,
-  taludes de 6-22 m e depois falésia; nada "cavado"); ziguezague S3 com paredes de 32 m; túnel liso e largo, aberto
+- **Pista (2026-10-27):** voltaram as **estradas ovais largas de 2026-10-20** (sem meandros, margem oval lisa que sobe
+  dos 25° aos 70°); os taludes de 6-22 m com falésia saíram (pareciam mini paredes e as naves subiam-lhes); ziguezague S3 com paredes de 32 m; túnel liso e largo, aberto
   nas bifurcações do braço (havia um degrau de 4 m e paredes cruzadas); arcos sem colisão; hoodoos a 48 m da borda.
 - **Checkpoints a sério (2026-10-27):** portões (`AEXCheckpointGate`: dois pilares, barra e feixes até ao céu) postos
   pelo `AEXRaceDirector::PlaceGates`, alternando entre o ápice de uma curva e a reta entre curvas, nunca na caverna. Só
   o próximo se vê (ciano); passado = verde; falhado = vermelho, seta e "VOLTA AO CHECKPOINT N". **Obrigatórios para o
   jogador** e por ordem: sem todos não extrai. A largura vem da escala Y dos pontos da spline (`EXDesertBuilder`,
-  precisa de remontar o mapa, passo 4). Paredes do ziguezague e forma da pista: **não mexer** (jogador, 2026-10-27).
+  precisa de remontar o mapa, passo 4). Paredes do ziguezague: **ficam** (jogador, 2026-10-27).
 - Builds: o jogo empacotado vai para `Builds\Jogo` (pasta fixa).
 - Atenção: no PowerShell, `Start-Process -ArgumentList` não põe aspas em caminhos com espaços (usar `&` ou aspas).
 
