@@ -45,6 +45,10 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UEXMainMenuWidget> MainMenuWidget;
 
+	/** The guide arrow in 3D over the player's craft. */
+	UPROPERTY(Transient)
+	TObjectPtr<class AEXGuideArrow> GuideArrow;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UEXHangarWidget> HangarWidget;
 

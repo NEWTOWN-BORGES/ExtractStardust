@@ -7,6 +7,7 @@
 #include "Flight/EXHoverCraft.h"
 #include "Race/EXRaceDirector.h"
 #include "GameFramework/PlayerController.h"
+#include "UI/EXGuideArrow.h"
 #include "UI/EXHangarWidget.h"
 #include "UI/EXMainMenuWidget.h"
 #include "UI/EXRaceHudWidget.h"
@@ -118,7 +119,15 @@ void AEXHud::DrawHUD()
 	const FLinearColor Colour = bWrongWay ? FLinearColor(1.0f, 0.15f, 0.1f) : (Off < 25.0f ? FLinearColor(0.3f, 1.0f, 0.4f)
 		: (Off < 70.0f ? FLinearColor(1.0f, 0.85f, 0.2f) : FLinearColor(1.0f, 0.4f, 0.15f)));
 	const float Scale = Canvas->ClipY / 720.0f;
-	DrawArrow(FVector2D(Canvas->ClipX * 0.5f, 70.0f * Scale), AngleDeg, 34.0f * Scale, Colour);
+	// The arrow is 3D now, over the craft (player, 2026-10-27: "tipo a seta do Need for Speed").
+	if (!IsValid(GuideArrow))
+	{
+		GuideArrow = GetWorld()->SpawnActor<AEXGuideArrow>();
+	}
+	if (GuideArrow)
+	{
+		GuideArrow->Point(Craft->GetActorLocation(), Forward, Target, Colour);
+	}
 	if (bWrongWay)
 	{
 		DrawText(TEXT("SENTIDO ERRADO"), FLinearColor(1.0f, 0.2f, 0.1f), Canvas->ClipX * 0.5f - 80.0f * Scale, 112.0f * Scale, nullptr, 1.6f * Scale);
