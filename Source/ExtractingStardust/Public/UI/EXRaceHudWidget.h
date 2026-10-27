@@ -73,6 +73,7 @@ private:
 	FSlotView Slots[4];
 	// The race bar (top): checkpoint ticks, the rivals' dots and the player's marker, moved by their overlay slots.
 	TArray<UBorder*> CheckpointTicks;
+	TArray<UOverlaySlot*> CheckpointTickSlots;
 	TArray<UOverlaySlot*> RivalSlots;
 	TArray<UBorder*> RivalDots;
 	UOverlaySlot* PlayerMarkSlot = nullptr;

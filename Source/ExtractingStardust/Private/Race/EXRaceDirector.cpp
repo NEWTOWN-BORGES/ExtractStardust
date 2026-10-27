@@ -3,6 +3,8 @@
 #include "Engine/World.h"
 #include "Flight/EXHoverCraft.h"
 #include "Game/EXProfile.h"
+#include "Race/EXCheckpointGate.h"
+#include "UnrealClient.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformMisc.h"
 #include "Kismet/GameplayStatics.h"
@@ -127,8 +129,8 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 			Racer.OutAtM = Craft->GetRaceProgressM();
 			DropToPool(Racer);
 		}
-		else if (Craft->GetRaceProgressM() >= RouteLengthM - FinishMarginM
-			|| (Route.Num() > 0 && FVector2D::Distance(FVector2D(Craft->GetActorLocation().X, Craft->GetActorLocation().Y) / 100.0, FVector2D(Route.Last())) < FinishRadiusM))
+		else if ((Craft->GetRaceProgressM() >= RouteLengthM - FinishMarginM
+			|| (Route.Num() > 0 && FVector2D::Distance(FVector2D(Craft->GetActorLocation().X, Craft->GetActorLocation().Y) / 100.0, FVector2D(Route.Last())) < FinishRadiusM)) && !GatesMissing(Racer))
 		{
 			Racer.bFinished = true;
 			Racer.FinishTime = RaceTime;
@@ -141,8 +143,13 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 			Craft->SetRaceHold(true);
 			Post(FString::Printf(TEXT("%s chegou a B em %s"), *Racer.Name, *DirectorClock(RaceTime)));
 		}
-		// Checkpoints: any line counts by the distance along the race (as in the Unity version).
-		const int32 Reached = FMath::Clamp(FMath::FloorToInt(Craft->GetRaceProgressM() / FMath::Max(1.0f, RouteLengthM) * CheckpointCount), 0, CheckpointCount);
+		// Checkpoints: the player has to fly through every gate, in order (player, 2026-10-27: "obrigatórios para evitar
+		// batotas"); the bots count by the distance along the race (as in the Unity version).
+		int32 Reached = FMath::Clamp(FMath::FloorToInt(Craft->GetRaceProgressM() / FMath::Max(1.0f, RouteLengthM) * CheckpointCount), 0, CheckpointCount);
+		if (Racer.bPlayer && Gates.Num() > 0 && !Racer.bFinished)
+		{
+			Reached = PlayerGates(Craft, Racer.Checkpoint);
+		}
 		if (!Racer.bOut && Reached > Racer.Checkpoint)
 		{
 			Racer.Checkpoint = Reached;
@@ -160,6 +167,13 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 		if (Racer.bPlayer && (Racer.bOut || Racer.bFinished))
 		{
 			PlayerDoneTime = RaceTime;
+			for (TObjectPtr<AEXCheckpointGate>& Gate : GateActors)
+			{
+				if (IsValid(Gate))
+				{
+					Gate->SetState(0);
+				}
+			}
 		}
 	}
 	UpdateStandings();
@@ -168,6 +182,13 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 		FpsTime += DeltaSeconds;
 		++FpsFrames;
 		WorstDt = FMath::Max(WorstDt, DeltaSeconds);
+	}
+	// The automated test photographs the race with its HUD every 15 s (Saved/RaceTest).
+	if (bTest && RaceTime >= NextShotTime)
+	{
+		NextShotTime += 15.0f;
+		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RaceTest"), FString::Printf(TEXT("race_%03d.png"),
+			FMath::RoundToInt(RaceTime))), true, false);
 	}
 
 	bool bAllDone = true;
@@ -283,6 +304,7 @@ void AEXRaceDirector::Setup()
 	Route = Player->GetMapRoute();
 	RouteLengthM = (Route.Num() - 1) * 5.0f;
 	CheckpointCount = FMath::Clamp(FMath::RoundToInt(RouteLengthM / CheckpointEveryM), 4, 40);
+	PlaceGates(Player);
 	Pool = 0;
 	PoolItems.Reset();
 	LastPoolGain = 0;
@@ -560,6 +582,162 @@ AEXHoverCraft* AEXRaceDirector::PlayerCraft() const
 		}
 	}
 	return nullptr;
+}
+
+void AEXRaceDirector::PlaceGates(const AEXHoverCraft* Player)
+{
+	for (TObjectPtr<AEXCheckpointGate>& Gate : GateActors)
+	{
+		if (IsValid(Gate))
+		{
+			Gate->Destroy();
+		}
+	}
+	GateActors.Reset();
+	Gates.Reset();
+	MissedGate = 0;
+	LastGateShot = -1;
+	const int32 N = Route.Num();
+	const TArray<float>& HalfWidths = Player->GetMapRouteHalfWidth();
+	const TArray<float>& Heights = Player->GetMapRouteZ();
+	UWorld* World = GetWorld();
+	if (!World || N < 200 || Heights.Num() != N || Mode == EEXRaceMode::Hangar)
+	{
+		return;
+	}
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(EXGate), true);
+	auto Turn = [this, N](int32 I)
+	{
+		const FVector2D In = (Route[I] - Route[FMath::Max(I - 12, 0)]).GetSafeNormal();
+		const FVector2D Out = (Route[FMath::Min(I + 12, N - 1)] - Route[I]).GetSafeNormal();
+		return static_cast<float>(FMath::Abs(In ^ Out));
+	};
+	auto Line = [this, &Heights](int32 I)
+	{
+		return FVector(Route[I].X * RaceCmPerM, Route[I].Y * RaceCmPerM, Heights[I] * RaceCmPerM);
+	};
+	auto UnderRoof = [&](int32 I)
+	{
+		FHitResult Hit;
+		return World->LineTraceSingleByChannel(Hit, Line(I) + FVector(0.0f, 0.0f, 300.0f), Line(I) + FVector(0.0f, 0.0f, 8000.0f), ECC_WorldStatic, Query);
+	};
+	auto Ground = [&](const FVector& At)
+	{
+		FHitResult Hit;
+		return World->LineTraceSingleByChannel(Hit, At + FVector(0.0f, 0.0f, 6000.0f), At - FVector(0.0f, 0.0f, 6000.0f), ECC_WorldStatic, Query)
+			? Hit.ImpactPoint : At;
+	};
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	for (int32 K = 1; K < CheckpointCount; ++K)
+	{
+		// Odd checkpoints at the apex of the tightest bend near their place, even ones on the straightest bit (the
+		// straight joining two bends), within 300 m either way; never under a cave's roof.
+		const int32 Target = FMath::Clamp(FMath::RoundToInt(static_cast<float>(K) * (N - 1) / CheckpointCount), 70, N - 71);
+		const bool bBend = K % 2 == 1;
+		int32 Best = INDEX_NONE;
+		float BestScore = -1.0e9f;
+		for (int32 I = Target - 60; I <= Target + 60; I += 3)
+		{
+			const float Score = bBend ? Turn(I) : -Turn(I);
+			if (Score > BestScore && !UnderRoof(I))
+			{
+				BestScore = Score;
+				Best = I;
+			}
+		}
+		Best = Best == INDEX_NONE ? Target : Best;
+		FEXGate& Gate = Gates.AddDefaulted_GetRef();
+		Gate.Centre = Route[Best];
+		Gate.AlongM = Best * 5.0f;
+		const float HalfW = HalfWidths.IsValidIndex(Best) ? HalfWidths[Best] : 0.0f;
+		Gate.HalfW = HalfW >= 4.0f ? FMath::Clamp(HalfW, 8.0f, 60.0f) : 30.0f;
+		const FVector2D Dir = (Route[Best + 2] - Route[Best - 2]).GetSafeNormal();
+		const FVector Side(-Dir.Y * (Gate.HalfW + 4.0f) * RaceCmPerM, Dir.X * (Gate.HalfW + 4.0f) * RaceCmPerM, 0.0f);
+		AEXCheckpointGate* Actor = World->SpawnActor<AEXCheckpointGate>(Line(Best), FRotator::ZeroRotator, Params);
+		if (Actor)
+		{
+			Actor->Setup(Ground(Line(Best) - Side), Ground(Line(Best) + Side));
+		}
+		GateActors.Add(Actor);
+	}
+	RefreshGates(0, -1);
+	UE_LOG(LogTemp, Display, TEXT("EXRACE gates %d"), Gates.Num());
+}
+
+void AEXRaceDirector::RefreshGates(int32 Passed, int32 JustPassed)
+{
+	// Only the next gate shows (red while it is missed); the one just passed flashes green and goes by itself.
+	for (int32 Index = 0; Index < GateActors.Num(); ++Index)
+	{
+		if (!IsValid(GateActors[Index]))
+		{
+			continue;
+		}
+		if (Index == JustPassed)
+		{
+			GateActors[Index]->SetState(2);
+		}
+		else if (Index == Passed)
+		{
+			GateActors[Index]->SetState(MissedGate == Index + 1 ? 3 : 1);
+		}
+		else if (Index > Passed)
+		{
+			GateActors[Index]->SetState(0);
+		}
+	}
+}
+
+int32 AEXRaceDirector::PlayerGates(AEXHoverCraft* Craft, int32 Passed)
+{
+	if (Passed >= Gates.Num())
+	{
+		return Passed;
+	}
+	const FEXGate& Gate = Gates[Passed];
+	const FVector2D Here(Craft->GetActorLocation().X / RaceCmPerM, Craft->GetActorLocation().Y / RaceCmPerM);
+	const float Dist = FVector2D::Distance(Here, Gate.Centre);
+	if (bTest && LastGateShot < Passed && Dist < 420.0f && Dist > 300.0f)
+	{
+		LastGateShot = Passed;
+		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RaceTest"), FString::Printf(TEXT("gate_%02d.png"), Passed + 1)),
+			true, false);
+	}
+	if (Dist <= Gate.HalfW + 12.0f)
+	{
+		MissedGate = 0;
+		RefreshGates(Passed + 1, Passed);
+		return Passed + 1;
+	}
+	// Gone 250 m past it on the line without flying through it: missed; the player has to go back through it.
+	if (MissedGate == 0 && Craft->GetRouteIndex() * 5.0f > Gate.AlongM + 250.0f)
+	{
+		MissedGate = Passed + 1;
+		RefreshGates(Passed, -1);
+		Post(FString::Printf(TEXT("FALHASTE O CHECKPOINT %d  \u00B7  VOLTA ATR\u00C1S"), Passed + 1));
+		Craft->PlayChime(10);
+	}
+	return Passed;
+}
+
+bool AEXRaceDirector::GatesMissing(const FEXRacer& Racer)
+{
+	if (!Racer.bPlayer || Racer.Checkpoint >= Gates.Num())
+	{
+		return false;
+	}
+	if (MissedGate == 0)
+	{
+		MissedGate = Racer.Checkpoint + 1;
+		RefreshGates(Racer.Checkpoint, -1);
+	}
+	if (RaceTime - GateNagTime > 4.0f)
+	{
+		GateNagTime = RaceTime;
+		Post(FString::Printf(TEXT("FALTA O CHECKPOINT %d  \u00B7  VOLTA ATR\u00C1S PARA EXTRA\u00CDR"), Racer.Checkpoint + 1));
+	}
+	return true;
 }
 
 void AEXRaceDirector::SettleExtraction()

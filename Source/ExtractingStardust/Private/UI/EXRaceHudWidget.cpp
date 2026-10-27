@@ -206,7 +206,7 @@ UWidget* UEXRaceHudWidget::BuildProgressBar(UWidgetTree* Tree)
 	{
 		UBorder* Tick = EXUi::Box(Tree, EXUi::Bone(0.35f));
 		CheckpointTicks.Add(Tick);
-		EXUi::AddO(Track, EXUi::Sized(Tree, 2.0f, 12.0f, Tick), HAlign_Left, VAlign_Center, FMargin(BarWidth * Index / Count - 1.0f, 0.0f, 0.0f, 0.0f));
+		CheckpointTickSlots.Add(EXUi::AddO(Track, EXUi::Sized(Tree, 2.0f, 12.0f, Tick), HAlign_Left, VAlign_Center, FMargin(BarWidth * Index / Count - 1.0f, 0.0f, 0.0f, 0.0f)));
 	}
 	for (int32 Index = 0; Index < MaxRivals; ++Index)
 	{
@@ -426,7 +426,11 @@ void UEXRaceHudWidget::RefreshProgress(const AEXHoverCraft* Craft)
 	const int32 Passed = RaceDirector->GetPlayerCheckpoint();
 	for (int32 Index = 0; Index < CheckpointTicks.Num(); ++Index)
 	{
-		CheckpointTicks[Index]->SetBrushColor(Index + 1 <= Passed ? EXUi::Rust() : EXUi::Bone(0.35f));
+		CheckpointTicks[Index]->SetBrushColor(Index + 1 <= Passed ? EXUi::Rust() : (RaceDirector->GetMissedGate() == Index + 1 ? EXUi::Hex(255, 70, 50) : EXUi::Bone(0.35f)));
+		if (Index < RaceDirector->GetGateCount() && CheckpointTickSlots.IsValidIndex(Index))
+		{
+			CheckpointTickSlots[Index]->SetPadding(FMargin(BarWidth * FMath::Clamp(RaceDirector->GetGateAlongM(Index) / RouteM, 0.0f, 1.0f) - 1.0f, 0.0f, 0.0f, 0.0f));
+		}
 	}
 	int32 Dot = 0;
 	for (const FEXRacer& Racer : RaceDirector->GetStandings())
@@ -448,6 +452,12 @@ void UEXRaceHudWidget::RefreshProgress(const AEXHoverCraft* Craft)
 	const float LeftKm = FMath::Max(0.0f, RouteM - Craft->GetRaceProgressM()) / 1000.0f;
 	EXUi::SetText(ProgressText, FString::Printf(TEXT("CHECKPOINT %d / %d   \u00B7   %s KM PARA B"), Passed, RaceDirector->GetCheckpointCount(),
 		*FString::Printf(TEXT("%.1f"), LeftKm).Replace(TEXT("."), TEXT(","))));
+	const int32 Missed = RaceDirector->GetMissedGate();
+	if (Missed > 0)
+	{
+		EXUi::SetText(ProgressText, FString::Printf(TEXT("VOLTA AO CHECKPOINT %d   \u00B7   \u00C9 OBRIGAT\u00D3RIO"), Missed));
+	}
+	ProgressText->SetColorAndOpacity(FSlateColor(Missed > 0 ? EXUi::Hex(255, 80, 60) : EXUi::Sand()));
 	// The call-out: 2.4 s after each checkpoint, fading.
 	const float Since = RaceDirector->GetRaceTime() - RaceDirector->GetLastCheckpointTime();
 	const bool bCall = Since >= 0.0f && Since < 2.4f && Passed > 0 && !RaceDirector->IsOver();

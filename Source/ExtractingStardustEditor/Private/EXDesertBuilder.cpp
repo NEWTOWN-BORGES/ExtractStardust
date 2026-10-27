@@ -1107,9 +1107,15 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 		const TArray<TSharedPtr<FJsonValue>>& P = LapPoints[Index]->AsArray();
 		return WorldToUnreal(P[0]->AsNumber(), P[1]->AsNumber(), P[2]->AsNumber());
 	};
+	// The floor's half width (m) rides on each point's scale (Y), for the checkpoint gates.
+	const TArray<TSharedPtr<FJsonValue>>& RouteWidths = Circuit->GetObjectField(TEXT("lap"))->GetArrayField(TEXT("width_m"));
 	for (int32 Index = 0; Index < LapPoints.Num(); Index += 5)
 	{
 		Spline->AddSplinePoint(LapPoint(Index) + FVector(0.0f, 0.0f, 50.0f), ESplineCoordinateSpace::World, false);
+		if (RouteWidths.IsValidIndex(Index))
+		{
+			Spline->SetScaleAtSplinePoint(Spline->GetNumberOfSplinePoints() - 1, FVector(1.0, 0.5 * RouteWidths[Index]->AsNumber(), 1.0), false);
+		}
 	}
 	bool bClosed = true;  // the world's grand circuit is a lap; the expedition runs from A to B
 	Circuit->TryGetBoolField(TEXT("closed"), bClosed);

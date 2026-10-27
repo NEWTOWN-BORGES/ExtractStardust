@@ -107,11 +107,13 @@ void AEXHud::DrawHUD()
 	DrawMinimap(Route, Here, Forward, Index, Others);
 
 	// Guide arrow: angle from the nose to the race line 150 m ahead (positive: turn right).
-	const FVector2D Target = Route[(Index + AheadSamples) % Route.Num()];
+	// A missed checkpoint: the arrow points back to it.
+	const int32 Missed = Race && Race->IsReady() ? Race->GetMissedGate() : 0;
+	const FVector2D Target = Missed > 0 ? Race->GetGateCentre(Missed - 1) : Route[(Index + AheadSamples) % Route.Num()];
 	const FVector2D ToTarget = (Target - Here).GetSafeNormal();
 	const float AngleDeg = FMath::RadiansToDegrees(FMath::Atan2(Forward ^ ToTarget, Forward | ToTarget));
 	const FVector2D Tangent = (Route[(Index + 4) % Route.Num()] - Route[Index]).GetSafeNormal();
-	const bool bWrongWay = (Forward | Tangent) < -0.3f && FVector2D(Craft->GetFlightVelocity()).Size() > 1500.0f;
+	const bool bWrongWay = Missed == 0 && (Forward | Tangent) < -0.3f && FVector2D(Craft->GetFlightVelocity()).Size() > 1500.0f;
 	const float Off = FMath::Abs(AngleDeg);
 	const FLinearColor Colour = bWrongWay ? FLinearColor(1.0f, 0.15f, 0.1f) : (Off < 25.0f ? FLinearColor(0.3f, 1.0f, 0.4f)
 		: (Off < 70.0f ? FLinearColor(1.0f, 0.85f, 0.2f) : FLinearColor(1.0f, 0.4f, 0.15f)));

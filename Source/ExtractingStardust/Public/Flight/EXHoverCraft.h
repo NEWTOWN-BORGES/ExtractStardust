@@ -139,6 +139,9 @@ public:
 
 	/** For the HUD: the map's race line (metres, 5 m apart), the nearest point of it, the nose and the velocity. */
 	const TArray<FVector2D>& GetMapRoute() const { return MapRoute; }
+	/** The floor's half width (m; under 4 when the map has none) and the line's height (m) at each route sample. */
+	const TArray<float>& GetMapRouteHalfWidth() const { return MapRouteHalfW; }
+	const TArray<float>& GetMapRouteZ() const { return MapRouteZ; }
 
 	// ---- Race rules (Docs/MODOS_DE_JOGO.md), switched on by AEXRaceDirector; off in free flight and the tests.
 	/** Lives by ship (plus the hull of the modules), damage from hard wall hits and hard landings, fuel and heat. */
@@ -321,6 +324,8 @@ private:
 	int32 TestPathIndex = 0;
 	/** The map's own race line (a spline tagged EXRoute), sampled every 5 m, in metres; empty on maps without one. */
 	TArray<FVector2D> MapRoute;
+	TArray<float> MapRouteHalfW;
+	TArray<float> MapRouteZ;
 	/** Nearest race line sample to the craft, followed every frame. */
 	int32 RouteIndex = 0;
 	float TestStuckSeconds = 0.0f;

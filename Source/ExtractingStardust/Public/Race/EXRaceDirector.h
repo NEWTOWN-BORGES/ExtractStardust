@@ -6,6 +6,15 @@
 #include "EXRaceDirector.generated.h"
 
 class AEXHoverCraft;
+class AEXCheckpointGate;
+
+/** A checkpoint gate on the race line: its middle (m), the floor's half width there (m) and how far along the line. */
+struct FEXGate
+{
+	FVector2D Centre = FVector2D::ZeroVector;
+	float HalfW = 30.0f;
+	float AlongM = 0.0f;
+};
 
 /** The game modes (Docs/MODOS_DE_JOGO.md): alone against the clock, against 15 bots, or the hangar showroom. */
 UENUM()
@@ -110,6 +119,11 @@ public:
 	float GetLastPoolTime() const { return LastPoolTime; }
 	/** The rivals: how many started, how many are still racing, and the value of the cargo they still carry. */
 	int32 GetRivalsTotal() const;
+	/** The checkpoint gates (all but B, which is the last checkpoint), and the one the player missed (1-based, 0 none). */
+	int32 GetGateCount() const { return Gates.Num(); }
+	float GetGateAlongM(int32 Index) const { return Gates.IsValidIndex(Index) ? Gates[Index].AlongM : 0.0f; }
+	FVector2D GetGateCentre(int32 Index) const { return Gates.IsValidIndex(Index) ? Gates[Index].Centre : FVector2D::ZeroVector; }
+	int32 GetMissedGate() const { return MissedGate; }
 	int32 GetRivalsLeft() const;
 	int32 GetCargoInPlay() const;
 	/** What happened to the player's things at the end (reward, pieces won and lost), for the results. */
@@ -154,6 +168,12 @@ private:
 	void SettleExtraction();
 	/** A destroyed racer's drop into the piggy bank (once). */
 	void DropToPool(FEXRacer& Racer);
+	/** The gates: placed at the start (the apex of a bend or the straight between two bends, never in a cave), passed
+	 *  by the player in order (returns how many), and the finish refused while one is missing. */
+	void PlaceGates(const AEXHoverCraft* Player);
+	int32 PlayerGates(AEXHoverCraft* Craft, int32 Passed);
+	bool GatesMissing(const FEXRacer& Racer);
+	void RefreshGates(int32 Passed, int32 JustPassed);
 	/** The player's craft, for the call-out sounds. */
 	AEXHoverCraft* PlayerCraft() const;
 	void ReturnToMenu();
@@ -173,6 +193,10 @@ private:
 	int32 CheckpointCount = 1, PlayerCheckpoint = 0;
 	TArray<FEXItem> PoolItems;
 	int32 LastCountdownBeep = 99;
+	TArray<FEXGate> Gates;
+	UPROPERTY() TArray<TObjectPtr<AEXCheckpointGate>> GateActors;
+	int32 MissedGate = 0, LastGateShot = -1;
+	float GateNagTime = -100.0f, NextShotTime = 5.0f;
 	/** Frame-time statistics of a test race (-EXRaceTest), and its length (-EXRaceSeconds=). */
 	float FpsTime = 0.0f, WorstDt = 0.0f, TestLimitS = 1500.0f;
 	int32 FpsFrames = 0;

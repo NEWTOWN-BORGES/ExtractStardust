@@ -215,6 +215,8 @@ void AEXHoverCraft::BeginPlay()
 			{
 				const FVector Point = Spline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 				MapRoute.Add(FVector2D(Point.X / CmPerM, Point.Y / CmPerM));
+				MapRouteZ.Add(Point.Z / CmPerM);
+				MapRouteHalfW.Add(Spline->GetScaleAtDistanceAlongSpline(Distance).Y);
 			}
 			break;
 		}

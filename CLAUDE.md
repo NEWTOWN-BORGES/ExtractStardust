@@ -32,6 +32,12 @@ O jogador fala português (PT). Responder em português.
 - **Pista:** larguras e curvas originais (a versão larga/oval foi rejeitada); estrada **natural** (borda que vagueia,
   taludes de 6-22 m e depois falésia; nada "cavado"); ziguezague S3 com paredes de 32 m; túnel liso e largo, aberto
   nas bifurcações do braço (havia um degrau de 4 m e paredes cruzadas); arcos sem colisão; hoodoos a 48 m da borda.
+- **Checkpoints a sério (2026-10-27):** portões (`AEXCheckpointGate`: dois pilares, barra e feixes até ao céu) postos
+  pelo `AEXRaceDirector::PlaceGates`, alternando entre o ápice de uma curva e a reta entre curvas, nunca na caverna. Só
+  o próximo se vê (ciano); passado = verde; falhado = vermelho, seta e "VOLTA AO CHECKPOINT N". **Obrigatórios para o
+  jogador** e por ordem: sem todos não extrai. A largura vem da escala Y dos pontos da spline (`EXDesertBuilder`,
+  precisa de remontar o mapa, passo 4). Paredes do ziguezague e forma da pista: **não mexer** (jogador, 2026-10-27).
+- Builds: o jogo empacotado vai para `Builds\Jogo` (pasta fixa).
 - Atenção: no PowerShell, `Start-Process -ArgumentList` não põe aspas em caminhos com espaços (usar `&` ou aspas).
 
 ## PEDIDOS DE 2026-10-25 (noite), por testar em casa
