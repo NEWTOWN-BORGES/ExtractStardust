@@ -297,17 +297,10 @@ for s in (-1, 1):
     ck.box((s * 0.18, 0.15, 0.58), (0.04, 0.14, 0.40), "Graphite", back)               # bolsters
 ck.finish(G["Cockpit_Cell"], bevel=0.003)
 
-pilot = Part("Pilot")
-pilot.tube([(0, 0.10, 0.45), (0, 0.13, 0.60), (0, 0.16, 0.72)], 0.12, "Paint_White", 12)   # torso
-pilot.sphere((0, 0.15, 0.76), 0.08, "Paint_White", (1.6, 1.0, 0.7))                    # shoulders
-pilot.sphere((0, 0.17, 0.835), 0.11, "Paint_Yellow")                                    # helmet
-pilot.sphere((0, 0.085, 0.84), 0.06, "Black", (1.35, 0.7, 0.85))                         # visor
-for s in (-1, 1):
-    pilot.tube([(s * 0.15, 0.15, 0.73), (s * 0.18, -0.07, 0.60), (s * 0.165, -0.37, 0.63)], 0.037, "Paint_White")
-    pilot.sphere((s * 0.165, -0.38, 0.63), 0.033, "Graphite")                           # gloves
-    pilot.tube([(s * 0.08, 0.05, 0.43), (s * 0.09, -0.45, 0.52), (s * 0.08, -1.00, 0.40)], 0.05, "Paint_White")
-    pilot.sphere((s * 0.08, -1.03, 0.40), 0.045, "Graphite", (1.0, 1.4, 1.0))            # boots
-pilot.finish(G["Cockpit_Cell"])
+# the pilot (ship_kit.PILOTS["strix"]: athletic racer, striped full-face helmet), in the pose of this cockpit
+pilot(G["Cockpit_Cell"], [(0, 0.10, 0.45), (0, 0.13, 0.60), (0, 0.16, 0.72)], (0, 0.17, 0.835), 0.11,
+      [(0.15, 0.15, 0.73), (0.18, -0.07, 0.60), (0.165, -0.37, 0.63)],
+      [(0.08, 0.05, 0.43), (0.09, -0.45, 0.52), (0.08, -1.00, 0.40)], max_w=0.17)
 
 # ================================================================ 3. WINGS (spar and ribs, root clamps, skins)
 WING = [(0.40, -0.43, 2.605), (1.38, 1.70, 2.53), (1.50, 1.98, 2.42)]   # x, leading edge y, trailing edge y

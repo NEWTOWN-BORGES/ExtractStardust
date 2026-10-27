@@ -29,6 +29,15 @@ O jogador fala português (PT). Responder em português.
   deitar-se nas curvas ficaram como o Cursor as deixou (o jogador gostou). Asas e caudas valem agora 2 % por ponto de
   Manobra/Estabilidade (eram 0,5 %); sem módulos a condução é a original.
 
+- **Pilotos próprios por nave** (2026-10-27, `ship_kit.pilot`, `PILOTS`, `HELMETS`): corpo com medidas humanas reais
+  (ANSUR II) e físico de cada nave (VORTEX alto e esguio, BASTION médio e forte, STRIX atleta, WRAITH magro, NOMAD
+  veterano de barba), capacetes de corrida a partir de um perfil lateral (VORTEX aerodinâmico em gota, STRIX F1,
+  WRAITH facetado, BASTION blindado, NOMAD de rali com pala). As naves não mudaram. FBX regerados para VORTEX,
+  BASTION, STRIX e WRAITH; **a NOMAD falta regerar** (`python3 Scripts/build_nomad.py <pasta>` e copiar `nomad.fbx`,
+  `nomad.blend`, `modules/nomad_core.fbx` e `modules/nomad_skeleton.fbx`). Reimportar com `import_test_ships.py` e
+  `import_ship_modules.py`.
+- **Plano da extração em corrida e da progressão:** `Docs/PLANO_EXTRACAO.md` (decisões do jogador na secção 6).
+
 ## NAVES NOVAS: falta pô-las no Unreal (2026-10-21; BASTION a 2026-10-25)
 
 As 5 naves (STRIX, WRAITH, NOMAD, VORTEX e BASTION) foram refeitas de dentro para fora (PR #3, ramo

@@ -216,17 +216,10 @@ ck.box((0, 0.12, 0.38), (0.34, 0.24, 0.05), "Graphite")                         
 back = Matrix.Rotation(math.radians(-28), 3, 'X')
 ck.box((0, 0.30, 0.56), (0.34, 0.045, 0.34), "Graphite", back)                          # back rest
 ck.finish(G["Cockpit_Cell"], bevel=0.003)
-pilot = Part("Pilot")
-pilot.tube([(0, 0.05, 0.46), (0, 0.14, 0.58), (0, 0.22, 0.70)], 0.10, "Paint_White", 12)   # torso
-pilot.sphere((0, 0.21, 0.72), 0.068, "Paint_White", (1.6, 1.0, 0.7))                    # shoulders
-pilot.sphere((0, 0.25, 0.80), 0.09, "Paint_Red")                                        # helmet
-pilot.sphere((0, 0.18, 0.805), 0.05, "Black", (1.3, 0.7, 0.85))                          # visor
-for s in (-1, 1):
-    pilot.tube([(s * 0.12, 0.21, 0.70), (s * 0.15, -0.05, 0.60), (s * 0.12, -0.33, 0.62)], 0.032, "Paint_White")
-    pilot.sphere((s * 0.125, -0.34, 0.62), 0.03, "Graphite")                              # gloves
-    pilot.tube([(s * 0.07, 0.04, 0.44), (s * 0.08, -0.40, 0.52), (s * 0.07, -0.85, 0.50)], 0.044, "Paint_White")
-    pilot.sphere((s * 0.07, -0.88, 0.50), 0.04, "Graphite", (1.0, 1.4, 1.0))              # boots
-pilot.finish(G["Cockpit_Cell"])
+# the pilot (ship_kit.PILOTS["vortex"]: tall and slim, red teardrop helmet with a crest), in the pose of this cockpit
+pilot(G["Cockpit_Cell"], [(0, 0.05, 0.46), (0, 0.14, 0.58), (0, 0.22, 0.70)], (0, 0.25, 0.80), 0.09,
+      [(0.12, 0.21, 0.70), (0.15, -0.05, 0.60), (0.12, -0.33, 0.62)],
+      [(0.07, 0.04, 0.44), (0.08, -0.40, 0.52), (0.07, -0.85, 0.50)])
 
 # ================================================================ 3. WINGS (big, swept, tips folded up)
 WING = [(0.70, 0.40, 1.60), (1.62, 1.72, 2.18)]   # x, leading edge y, trailing edge y

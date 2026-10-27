@@ -286,17 +286,10 @@ ck.box((0, -1.08, 0.37), (0.38, 0.26, 0.05), "Graphite")                        
 back = Matrix.Rotation(math.radians(-30), 3, 'X')
 ck.box((0, -0.90, 0.55), (0.38, 0.05, 0.36), "Graphite", back)                          # back rest
 ck.finish(G["Cockpit_Cell"], bevel=0.003)
-pilot = Part("Pilot")
-pilot.tube([(0, -1.11, 0.44), (0, -1.02, 0.57), (0, -0.94, 0.69)], 0.11, "Paint_White", 12)   # torso
-pilot.sphere((0, -0.95, 0.71), 0.072, "Paint_White", (1.6, 1.0, 0.7))                  # shoulders
-pilot.sphere((0, -0.91, 0.80), 0.095, "Paint_Yellow")                                  # helmet
-pilot.sphere((0, -0.985, 0.805), 0.052, "Black", (1.3, 0.7, 0.85))                     # visor
-for s in (-1, 1):
-    pilot.tube([(s * 0.13, -0.95, 0.69), (s * 0.17, -1.22, 0.60), (s * 0.13, -1.49, 0.61)], 0.034, "Paint_White")
-    pilot.sphere((s * 0.13, -1.50, 0.61), 0.031, "Graphite")                             # gloves
-    pilot.tube([(s * 0.08, -1.12, 0.42), (s * 0.09, -1.55, 0.50), (s * 0.08, -1.98, 0.46)], 0.047, "Paint_White")
-    pilot.sphere((s * 0.08, -2.01, 0.46), 0.043, "Graphite", (1.0, 1.4, 1.0))           # boots
-pilot.finish(G["Cockpit_Cell"])
+# the pilot (ship_kit.PILOTS["bastion"]: medium and strong, heavy helmet with a chin bar), in the pose of this cockpit
+pilot(G["Cockpit_Cell"], [(0, -1.11, 0.44), (0, -1.02, 0.57), (0, -0.94, 0.69)], (0, -0.91, 0.80), 0.095,
+      [(0.13, -0.95, 0.69), (0.17, -1.22, 0.60), (0.13, -1.49, 0.61)],
+      [(0.08, -1.12, 0.42), (0.09, -1.55, 0.50), (0.08, -1.98, 0.46)])
 
 # ================================================================ 3. WINGS (swept out of the wing-body edges, tips folded up)
 WING = [(1.20, 0.50, 2.05), (1.98, 1.62, 2.38)]   # x, leading edge y, trailing edge y

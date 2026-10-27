@@ -353,17 +353,10 @@ for s in (-1, 1):
     ck.box((s * 0.15, 0.29, 0.63), (0.03, 0.12, 0.26), "Graphite", back)                 # bolsters
 ck.finish(G["Cockpit_Cell"], bevel=0.003)
 
-pilot = Part("Pilot")
-pilot.tube([(0, 0.11, 0.53), (0, 0.19, 0.64), (0, 0.26, 0.74)], 0.10, "Paint_White", 12)   # torso
-pilot.sphere((0, 0.25, 0.76), 0.068, "Paint_White", (1.6, 1.0, 0.7))                     # shoulders
-pilot.sphere((0, 0.29, 0.83), 0.095, "Paint_Accent")                                      # helmet
-pilot.sphere((0, 0.22, 0.835), 0.052, "Black", (1.3, 0.7, 0.85))                          # visor
-for s in (-1, 1):
-    pilot.tube([(s * 0.12, 0.25, 0.74), (s * 0.15, 0.05, 0.63), (s * 0.12, -0.19, 0.70)], 0.032, "Paint_White")
-    pilot.sphere((s * 0.125, -0.20, 0.70), 0.03, "Graphite")                               # gloves
-    pilot.tube([(s * 0.07, 0.10, 0.52), (s * 0.08, -0.32, 0.575), (s * 0.07, -0.66, 0.575)], 0.044, "Paint_White")
-    pilot.sphere((s * 0.07, -0.69, 0.575), 0.04, "Graphite", (1.0, 1.4, 1.0))              # boots
-pilot.finish(G["Cockpit_Cell"])
+# the pilot (ship_kit.PILOTS["wraith"]: lean hunter, faceted helmet with a V visor and horns), in the pose of this cockpit
+pilot(G["Cockpit_Cell"], [(0, 0.11, 0.53), (0, 0.19, 0.64), (0, 0.26, 0.74)], (0, 0.29, 0.83), 0.095,
+      [(0.12, 0.25, 0.74), (0.15, 0.05, 0.63), (0.12, -0.19, 0.70)],
+      [(0.07, 0.10, 0.52), (0.08, -0.32, 0.575), (0.07, -0.66, 0.575)], max_w=0.145)
 
 # ================================================================ 3. WINGS (short, at the rear, going down)
 WING = [(0.74, 0.65, 2.16), (1.20, 1.78, 2.22)]   # x, leading edge y, trailing edge y
