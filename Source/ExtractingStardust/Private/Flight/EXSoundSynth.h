@@ -18,6 +18,7 @@
 // Units: Hz, seconds, linear gains. Inputs 0..1 unless said otherwise.
 
 #include <cmath>
+#include <initializer_list>
 #include <cstdint>
 
 namespace EXSynth
@@ -313,10 +314,116 @@ namespace EXSynth
 		}
 	};
 
+	/**
+	 * The game's call-outs, synthesised like the rest (player, 2026-10-27: "o som dá para melhorar"; the loot must be
+	 * adrenaline): bell-like notes (a sine and its octave and twelfth, a soft attack and a ringing decay) scheduled in
+	 * short phrases. Kinds: 0-4 a piece picked up, by rarity (the rarer, the longer and brighter the run; a legendary
+	 * ends on a held chord); 10 a countdown beep, 11 the start, 12 a checkpoint, 13 a rival destroyed (its pieces spill:
+	 * a falling run of coins).
+	 */
+	struct FChimes
+	{
+		static constexpr int kNotes = 24;
+		struct FNote
+		{
+			float Freq = 0.0f, Delay = 0.0f, Amp = 0.0f, Decay = 0.3f, Phase = 0.0f, Age = -1.0f;
+		};
+		FNote Notes[kNotes];
+		int Next = 0;
+		float Fs = 48000.0f;
+
+		void Add(float Freq, float Delay, float Amp, float Decay)
+		{
+			FNote& N = Notes[Next];
+			Next = (Next + 1) % kNotes;
+			N.Freq = Freq;
+			N.Delay = Delay;
+			N.Amp = Amp;
+			N.Decay = Decay;
+			N.Phase = 0.0f;
+			N.Age = 0.0f;
+		}
+		static float Hz(float Midi) { return 440.0f * std::pow(2.0f, (Midi - 69.0f) / 12.0f); }
+
+		void Play(int Kind)
+		{
+			static const float Up[8] = { 0, 4, 7, 12, 16, 19, 24, 28 };   // major arpeggio
+			if (Kind >= 0 && Kind <= 4)
+			{
+				const int Count = 3 + Kind;
+				const float Step = 0.075f - 0.008f * Kind;
+				const float Root = 72.0f + 2.0f * Kind;
+				for (int K = 0; K < Count; ++K)
+				{
+					Add(Hz(Root + Up[K]), K * Step, 0.16f + 0.02f * Kind, 0.35f + 0.08f * Kind);
+				}
+				if (Kind >= 3)   // epic and legendary: a held chord under the run
+				{
+					for (float Semi : { 0.0f, 7.0f, 12.0f, 16.0f })
+					{
+						Add(Hz(Root - 12.0f + Semi), Count * Step, Kind == 4 ? 0.12f : 0.08f, Kind == 4 ? 2.4f : 1.2f);
+					}
+				}
+			}
+			else if (Kind == 10)
+			{
+				Add(880.0f, 0.0f, 0.22f, 0.16f);
+			}
+			else if (Kind == 11)
+			{
+				Add(1318.5f, 0.0f, 0.24f, 0.7f);
+				Add(659.3f, 0.0f, 0.2f, 0.7f);
+				Add(987.8f, 0.0f, 0.16f, 0.7f);
+			}
+			else if (Kind == 12)
+			{
+				Add(987.8f, 0.0f, 0.18f, 0.25f);
+				Add(1318.5f, 0.09f, 0.2f, 0.45f);
+			}
+			else if (Kind == 13)
+			{
+				for (int K = 0; K < 7; ++K)
+				{
+					Add(Hz(96.0f - 2.0f * K), K * 0.045f, 0.09f, 0.22f);
+				}
+			}
+		}
+
+		void Sample(float& Out)
+		{
+			Out = 0.0f;
+			for (FNote& N : Notes)
+			{
+				if (N.Age < 0.0f)
+				{
+					continue;
+				}
+				N.Age += 1.0f / Fs;
+				const float T = N.Age - N.Delay;
+				if (T < 0.0f)
+				{
+					continue;
+				}
+				if (T > N.Decay * 6.0f)
+				{
+					N.Age = -1.0f;
+					continue;
+				}
+				N.Phase += N.Freq / Fs;
+				N.Phase -= std::floor(N.Phase);
+				const float Env = Clamp01(T / 0.004f) * std::exp(-T / N.Decay);
+				const float W = 2.0f * kPi * N.Phase;
+				Out += N.Amp * Env * (std::sin(W) + 0.35f * std::sin(2.0f * W) + 0.12f * std::sin(3.0f * W));
+			}
+		}
+	};
+
 	class FMixer
 	{
 	public:
-		explicit FMixer(float SampleRate = 48000.0f) : Fs(SampleRate) { Ambient.Init(SampleRate); }
+		explicit FMixer(float SampleRate = 48000.0f) : Fs(SampleRate) { Ambient.Init(SampleRate); Calls.Fs = SampleRate; }
+		/** A call-out (FChimes kinds). */
+		void Chime(int Kind) { Calls.Play(Kind); }
 
 		FListener Me;
 		FOther Others[kMaxOthers];
@@ -479,6 +586,10 @@ namespace EXSynth
 				// Master and soft limiter.
 				L = std::tanh(L * Master * 0.9f);
 				R = std::tanh(R * Master * 0.9f);
+				float Call = 0.0f;
+				Calls.Sample(Call);
+				L += Call;
+				R += Call;
 				MusicLevel += (Me.Music - MusicLevel) * SmoothCoef(1.5f, Fs);
 				if (MusicLevel > 0.0005f)
 				{
@@ -501,6 +612,7 @@ namespace EXSynth
 		float OtherAir[kMaxOthers] = {};
 		FRng Rng{ 0x51F15EEDu };
 		FAmbientMusic Ambient;
+		FChimes Calls;
 		float MusicLevel = 0.0f;
 		FPink PinkL, PinkR;
 		FSvf WindL, WindR, Tear, WallBandL, WallBandR, Skid, Grind, Crunch, Whoosh;

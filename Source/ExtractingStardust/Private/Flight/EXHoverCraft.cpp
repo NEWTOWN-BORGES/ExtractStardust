@@ -17,6 +17,8 @@
 #include "GameFramework/PlayerStart.h"
 #include "World/EXDesertTerrain.h"
 #include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "HAL/PlatformMisc.h"
 #include "Math/RotationMatrix.h"
 #include "Misc/CommandLine.h"
@@ -446,7 +448,9 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	FxInput.Heading = Heading;
 	FxInput.SurfaceUp = SurfaceUp;
 	FxInput.GroundPoint = GroundPointCm;
-	FxInput.CameraLocation = Camera->GetComponentLocation();
+	// The camera on screen (a bot's own camera is never used): the effects thin out with distance from it.
+	const APlayerCameraManager* ViewCamera = bViewer ? nullptr : UGameplayStatics::GetPlayerCameraManager(this, 0);
+	FxInput.CameraLocation = ViewCamera ? ViewCamera->GetCameraLocation() : Camera->GetComponentLocation();
 	FxInput.CameraForward = Camera->GetForwardVector();
 	FxInput.SpeedAlpha = FMath::Clamp(ForwardSpeedMps / MaxSpeedMps, 0.0f, 1.2f);
 	FxInput.Throttle = ThrottleInput;
@@ -1072,6 +1076,14 @@ void AEXHoverCraft::SetBot(int32 InShipIndex, float InSkill, float InLaneM)
 	BotLaneM = InLaneM;
 	BotPhase = FMath::FRandRange(0.0f, 2.0f * PI);
 	SelectShip(InShipIndex);
+}
+
+void AEXHoverCraft::PlayChime(int32 Kind)
+{
+	if (Audio && IsPlayerControlled())
+	{
+		Audio->Chime(Kind);
+	}
 }
 
 void AEXHoverCraft::LoseLife()

@@ -33,24 +33,32 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 		GEngine->bEnableOnScreenDebugMessages = false;
 		GEngine->Exec(World, TEXT("DisableAllScreenMessages"));
 	}
-	// Lumen is the default (Config/DefaultEngine.ini). -EXLow turns it off for more fps on a weak GPU (Jogar Leve.bat);
-	// -EXUltra still forces it on.
+	// Graphics profiles (player, 2026-10-27: "otimize, está lento"). Default: Lumen at a 75 % internal resolution
+	// upscaled by TSR, lighter fog grid, cloud and reflection sampling and shadow resolution: the look, at about a third
+	// less GPU time. -EXUltra: everything at full resolution. -EXLow (Jogar Leve.bat): no Lumen, no virtual shadows.
 	if (GEngine)
 	{
-		if (FParse::Param(FCommandLine::Get(), TEXT("EXLow")))
+		const bool bLow = FParse::Param(FCommandLine::Get(), TEXT("EXLow"));
+		const bool bUltra = !bLow && FParse::Param(FCommandLine::Get(), TEXT("EXUltra"));
+		TArray<const TCHAR*> Commands;
+		if (bLow)
 		{
-			for (const TCHAR* Command : { TEXT("r.DynamicGlobalIlluminationMethod 0"), TEXT("r.ReflectionMethod 2"), TEXT("r.Shadow.Virtual.Enable 0"),
-				TEXT("r.VolumetricFog.GridPixelSize 16") })
-			{
-				GEngine->Exec(World, Command);
-			}
+			Commands = { TEXT("r.DynamicGlobalIlluminationMethod 0"), TEXT("r.ReflectionMethod 2"), TEXT("r.Shadow.Virtual.Enable 0"),
+				TEXT("r.VolumetricFog.GridPixelSize 16"), TEXT("r.ScreenPercentage 67"), TEXT("r.VolumetricCloud.ViewRaySampleMaxCount 192") };
 		}
-		else if (FParse::Param(FCommandLine::Get(), TEXT("EXUltra")))
+		else if (bUltra)
 		{
-			for (const TCHAR* Command : { TEXT("r.DynamicGlobalIlluminationMethod 1"), TEXT("r.ReflectionMethod 1"), TEXT("r.Shadow.Virtual.Enable 1") })
-			{
-				GEngine->Exec(World, Command);
-			}
+			Commands = { TEXT("r.DynamicGlobalIlluminationMethod 1"), TEXT("r.ReflectionMethod 1"), TEXT("r.Shadow.Virtual.Enable 1"),
+				TEXT("r.ScreenPercentage 100"), TEXT("r.VolumetricFog.GridPixelSize 8"), TEXT("r.Lumen.Reflections.DownsampleFactor 1") };
+		}
+		else
+		{
+			Commands = { TEXT("r.ScreenPercentage 75"), TEXT("r.VolumetricFog.GridPixelSize 12"), TEXT("r.VolumetricCloud.ViewRaySampleMaxCount 256"),
+				TEXT("r.Shadow.Virtual.ResolutionLodBiasDirectional 0.5"), TEXT("r.Lumen.Reflections.DownsampleFactor 2") };
+		}
+		for (const TCHAR* Command : Commands)
+		{
+			GEngine->Exec(World, Command);
 		}
 	}
 	FActorSpawnParameters Params;

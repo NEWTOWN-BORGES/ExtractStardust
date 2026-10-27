@@ -215,9 +215,10 @@ float3 flatN = 0;
 
 [branch] if (wSand > 0.002)
 {
-    G.Tap(SaD, SaN, SaA, EXS, q / 2.2, qdx / 2.2, qdy / 2.2, c1, n1, a1);
     G.Tap(SaD, SaN, SaA, EXS, q / 11.0 + 17.3, qdx / 11.0, qdy / 11.0, c2, n2, a2);
     float m = lerp(0.35, 1.0, farF);
+    c1 = c2; n1 = n2; a1 = a2;
+    [branch] if (m < 0.99) { G.Tap(SaD, SaN, SaA, EXS, q / 2.2, qdx / 2.2, qdy / 2.2, c1, n1, a1); }   // close scale only near
     float3 c = lerp(c1, c2, m) * float3(2.05, 1.5, 1.0);
     col += c * wSand; flatN += float3(lerp(n1, n2, m) * 0.8, 0) * wSand; rough += lerp(a1.g, a2.g, m) * wSand; ao += lerp(a1.r, a2.r, m) * wSand; wsum += wSand;
 }
@@ -232,17 +233,19 @@ float3 flatN = 0;
 }
 [branch] if (wGrav > 0.002)
 {
-    G.Tap(GrD, GrN, GrA, EXS, q / 3.5 + 9.7, qdx / 3.5, qdy / 3.5, c1, n1, a1);
     G.Tap(GrD, GrN, GrA, EXS, q / 15.0 + 2.9, qdx / 15.0, qdy / 15.0, c2, n2, a2);
     float m = lerp(0.3, 1.0, farF);
+    c1 = c2; n1 = n2; a1 = a2;
+    [branch] if (m < 0.99) { G.Tap(GrD, GrN, GrA, EXS, q / 3.5 + 9.7, qdx / 3.5, qdy / 3.5, c1, n1, a1); }
     float3 c = lerp(c1, c2, m) * float3(1.08, 0.84, 0.94);
     col += c * wGrav; flatN += float3(lerp(n1, n2, m), 0) * wGrav; rough += lerp(a1.g, a2.g, m) * wGrav; ao += lerp(a1.r, a2.r, m) * wGrav; wsum += wGrav;
 }
 [branch] if (wPlat > 0.002)
 {
-    G.Tap(PlD, PlN, PlA, EXS, q / 6.0 + 3.3, qdx / 6.0, qdy / 6.0, c1, n1, a1);
     G.Tap(PlD, PlN, PlA, EXS, q / 25.0 + 7.1, qdx / 25.0, qdy / 25.0, c2, n2, a2);
     float m = lerp(0.3, 1.0, farF);
+    c1 = c2; n1 = n2; a1 = a2;
+    [branch] if (m < 0.99) { G.Tap(PlD, PlN, PlA, EXS, q / 6.0 + 3.3, qdx / 6.0, qdy / 6.0, c1, n1, a1); }
     float3 c = lerp(c1, c2, m) * float3(0.875, 0.84, 0.91);
     col += c * wPlat; flatN += float3(lerp(n1, n2, m), 0) * wPlat; rough += lerp(a1.g, a2.g, m) * wPlat; ao += lerp(a1.r, a2.r, m) * wPlat; wsum += wPlat;
 }
@@ -283,7 +286,8 @@ float3 flatN = 0;
     for (int s = 0; s < 2; ++s)
     {
         float sc = s == 0 ? 7.0 : 29.0;
-        float sw = s == 0 ? lerp(0.6, 0.15, farF) : lerp(0.4, 0.85, farF);
+        float sw = s == 0 ? lerp(0.6, 0.0, farF) : lerp(0.4, 1.0, farF);
+        if (sw < 0.02) { continue; }
         float2 ox = float2(3.7, 1.9) * s;
         if (bw.x > 0.02)
         {

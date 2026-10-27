@@ -49,7 +49,7 @@ struct FEXRacer
 	bool bProjected = false;
 	/** A bot's cargo: loose modules it carries (EXMeta::RollBotCargo). */
 	TArray<FEXItem> Cargo;
-	/** What it dropped into the piggy bank when destroyed (up to three modules and all its cargo). */
+	/** What it dropped into the piggy bank when destroyed (all its modules but the insured one, and all its cargo). */
 	TArray<FEXItem> Dropped;
 	bool bDropped = false;
 	/** The victory spoils: the best of the cargo of the racers it beat (top three extractors: 3, 2 and 1 pieces). */
@@ -154,6 +154,8 @@ private:
 	void SettleExtraction();
 	/** A destroyed racer's drop into the piggy bank (once). */
 	void DropToPool(FEXRacer& Racer);
+	/** The player's craft, for the call-out sounds. */
+	AEXHoverCraft* PlayerCraft() const;
 	void ReturnToMenu();
 
 	EEXRaceMode Mode = EEXRaceMode::Solo;
@@ -170,6 +172,10 @@ private:
 	int32 PlayerPlace = 1;
 	int32 CheckpointCount = 1, PlayerCheckpoint = 0;
 	TArray<FEXItem> PoolItems;
+	int32 LastCountdownBeep = 99;
+	/** Frame-time statistics of a test race (-EXRaceTest), and its length (-EXRaceSeconds=). */
+	float FpsTime = 0.0f, WorstDt = 0.0f, TestLimitS = 1500.0f;
+	int32 FpsFrames = 0;
 	int32 LastPoolGain = 0;
 	float LastPoolTime = -100.0f;
 	float LastCheckpointTime = -100.0f;

@@ -218,6 +218,8 @@ public:
 	int32 GetShipIndex() const { return ShipIndex; }
 	float GetSpeedKmh() const { return FMath::Abs(ForwardSpeedMps) * 3.6f; }
 	float GetTopSpeedKmh() const { return MaxSpeedMps * 3.6f; }
+	/** A sound call-out on this craft (UEXCraftAudio::Chime kinds). */
+	void PlayChime(int32 Kind);
 	/** Furthest point reached along the race line, in metres (never jumps more than 600 m at once). */
 	float GetRaceProgressM() const { return RaceProgressM; }
 	int32 GetRouteIndex() const { return RouteIndex; }

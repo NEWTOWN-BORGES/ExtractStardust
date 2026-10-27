@@ -315,7 +315,7 @@ UWidget* UEXResultsWidget::BuildPieces(UWidgetTree* Tree)
 	UHorizontalBox* Head = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	EXUi::AddH(Head, EXUi::Sized(Tree, 26.0f, 26.0f, EXUi::Image(Tree, EXUi::Icon(TEXT("piggy")), bWon ? EXUi::Hex(255, 200, 80) : EXUi::Hex(255, 90, 70))),
 		FMargin(0.0f, 0.0f, 10.0f, 0.0f), false, VAlign_Center);
-	EXUi::AddH(Head, EXUi::WeightText(Tree, bWon ? TEXT("ESPÓLIO GANHO  ·  VITÓRIA E PORQUINHO") : (Summary.State == 2 ? TEXT("PEÇAS QUE CAÍRAM NO PORQUINHO") : TEXT("AS TUAS PEÇAS")),
+	EXUi::AddH(Head, EXUi::WeightText(Tree, bWon ? TEXT("ESPÓLIO GANHO  ·  PORQUINHO") : (Summary.State == 2 ? TEXT("PEÇAS QUE CAÍRAM NO PORQUINHO") : TEXT("AS TUAS PEÇAS")),
 		11, bWon ? EXUi::Hex(255, 200, 80) : EXUi::Hex(255, 90, 70), 800, 300), FMargin(0.0f), false, VAlign_Center);
 	EXUi::AddV(Column, Head);
 	TArray<TPair<FEXItem, int32>> Cards;   // 0 from the piggy bank, 1 lost, 2 insured and kept, 3 victory spoils

@@ -83,6 +83,15 @@ void UEXCraftAudio::Bang(float Strength)
 	}
 }
 
+void UEXCraftAudio::Chime(int32 Kind)
+{
+	BeginAudio();
+	if (Mixer)
+	{
+		Mixer->Chime(Kind);
+	}
+}
+
 void UEXCraftAudio::Landing(float Strength)
 {
 	if (Mixer)

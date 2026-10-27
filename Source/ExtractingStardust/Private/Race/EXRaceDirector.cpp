@@ -40,6 +40,8 @@ AEXRaceDirector::AEXRaceDirector()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	bTest = FParse::Param(FCommandLine::Get(), TEXT("EXRaceTest"));
+	TestLimitS = TestTimeLimitS;
+	FParse::Value(FCommandLine::Get(), TEXT("EXRaceSeconds="), TestLimitS);
 }
 
 void AEXRaceDirector::Tick(float DeltaSeconds)
@@ -71,9 +73,22 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 	if (!bStarted)
 	{
 		Countdown -= DeltaSeconds;
+		const int32 Beep = FMath::CeilToInt(Countdown);   // the lights: 3, 2, 1, then the start
+		if (Beep != LastCountdownBeep && Beep >= 1 && Beep <= 3)
+		{
+			LastCountdownBeep = Beep;
+			if (AEXHoverCraft* Me = PlayerCraft())
+			{
+				Me->PlayChime(10);
+			}
+		}
 		if (Countdown <= 0.0f)
 		{
 			bStarted = true;
+			if (AEXHoverCraft* Me = PlayerCraft())
+			{
+				Me->PlayChime(11);
+			}
 			Countdown = 0.0f;
 			for (FEXRacer& Racer : Racers)
 			{
@@ -138,6 +153,7 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 				if (Reached < CheckpointCount)
 				{
 					Post(FString::Printf(TEXT("CHECKPOINT %d / %d  ·  %s  ·  +%d STARDUST"), Reached, CheckpointCount, *DirectorClock(RaceTime), CheckpointPrize));
+					Craft->PlayChime(12);
 				}
 			}
 		}
@@ -147,6 +163,12 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 		}
 	}
 	UpdateStandings();
+	if (RaceTime > 3.0f)
+	{
+		FpsTime += DeltaSeconds;
+		++FpsFrames;
+		WorstDt = FMath::Max(WorstDt, DeltaSeconds);
+	}
 
 	bool bAllDone = true;
 	for (const FEXRacer& Racer : Racers)
@@ -156,7 +178,7 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 	const bool bPlayerDone = PlayerDoneTime >= 0.0f;
 	// Solo: over when the player is done. Bots: when everyone is done, or a minute after the player.
 	if (bAllDone || (bPlayerDone && (Mode == EEXRaceMode::Solo || RaceTime - PlayerDoneTime > BotsAfterPlayerS))
-		|| (bTest && RaceTime > TestTimeLimitS))
+		|| (bTest && RaceTime > TestLimitS))
 	{
 		Finish();
 	}
@@ -443,6 +465,11 @@ void AEXRaceDirector::Finish()
 	SettleExtraction();
 	UpdateStandings();
 	Summary.Place = PlayerPlace;
+	if (FpsFrames > 0)
+	{
+		UE_LOG(LogTemp, Display, TEXT("EXRACE FPS average %.1f worst %.1f over %.0f s"), FpsFrames / FMath::Max(0.01f, FpsTime),
+			1.0f / FMath::Max(0.001f, WorstDt), FpsTime);
+	}
 	Post(FString::Printf(TEXT("FIM DA EXPEDI\u00C7\u00C3O  \u00B7  esp\u00F3lio %d STARDUST"), Pool));
 	for (int32 Place = 0; Place < Standings.Num(); ++Place)
 	{
@@ -489,7 +516,7 @@ int32 AEXRaceDirector::GetCargoInPlay() const
 
 void AEXRaceDirector::DropToPool(FEXRacer& Racer)
 {
-	// Destroyed: up to three of its modules (never the insured one) and all its cargo fall into the piggy bank.
+	// Destroyed: all its modules but the insured one and all its cargo fall into the piggy bank.
 	if (Racer.bDropped)
 	{
 		return;
@@ -510,15 +537,34 @@ void AEXRaceDirector::DropToPool(FEXRacer& Racer)
 	Racer.LostValue = Value;
 	PoolItems.Append(Racer.Dropped);
 	Pool += Value;
+	if (!Racer.bPlayer && Value > 0)
+	{
+		if (AEXHoverCraft* Me = PlayerCraft())
+		{
+			Me->PlayChime(13);   // coins falling into the piggy bank
+		}
+	}
 	LastPoolGain = Value;
 	LastPoolTime = RaceTime;
 	Post(Value > 0 ? FString::Printf(TEXT("%s DESTRU\u00CDDO  \u00B7  +%s no porquinho (%d pe\u00E7as)"), *Racer.Name, *FString::FromInt(Value), Racer.Dropped.Num())
 		: FString::Printf(TEXT("%s DESTRU\u00CDDO (km %.1f)"), *Racer.Name, Racer.OutAtM / 1000.0f));
 }
 
+AEXHoverCraft* AEXRaceDirector::PlayerCraft() const
+{
+	for (const FEXRacer& Racer : Racers)
+	{
+		if (Racer.bPlayer && IsValid(Racer.Craft))
+		{
+			return Racer.Craft;
+		}
+	}
+	return nullptr;
+}
+
 void AEXRaceDirector::SettleExtraction()
 {
-	// EXTRACTED: reached B alive. DESTROYED: dropped up to three modules and its cargo into the piggy bank (never the
+	// EXTRACTED: reached B alive. DESTROYED: dropped all but the insured module and its cargo into the piggy bank (never the
 	// insured module). STRANDED: still on the way (keeps everything, wins nothing).
 	PlayerNews.Reset();
 	TArray<int32> Extracted;
@@ -545,49 +591,14 @@ void AEXRaceDirector::SettleExtraction()
 		Racer.Reward = EXMeta::PlaceReward(K + 1) + EXMeta::ExtractedBonus + CheckpointPrize * Racer.Checkpoint
 			+ (Racer.Checkpoint >= CheckpointCount ? AllCheckpointsPrize : 0);
 	}
-	// The victory spoils: the first three extractors take the best pieces of the cargo of the racers they beat (the
-	// extractors behind them and the ones still on the way): three, two and one.
-	for (int32 K = 0; K < FMath::Min(3, Extracted.Num()); ++K)
-	{
-		FEXRacer& Winner = Racers[Extracted[K]];
-		for (int32 Take = 0; Take < 3 - K; ++Take)
-		{
-			FEXRacer* Holder = nullptr;
-			int32 Best = INDEX_NONE;
-			for (FEXRacer& Beaten : Racers)
-			{
-				const bool bBehind = (Beaten.State == 1 && Beaten.FinishTime > Winner.FinishTime) || Beaten.State == 3;
-				if (&Beaten == &Winner || !bBehind)
-				{
-					continue;
-				}
-				for (int32 Index = 0; Index < Beaten.Cargo.Num(); ++Index)
-				{
-					if (!Holder || Beaten.Cargo[Index].Value > Holder->Cargo[Best].Value)
-					{
-						Holder = &Beaten;
-						Best = Index;
-					}
-				}
-			}
-			if (!Holder)
-			{
-				break;
-			}
-			Winner.Spoils.Add(Holder->Cargo[Best]);
-			Holder->Cargo.RemoveAt(Best);
-		}
-	}
-	// The piggy bank in serpentine by value: the first extractor takes the most valuable piece, the second the next...;
-	// the order turns round every round. The pieces run out, the sharing stops.
+	// The piggy bank by order of arrival (Docs/VISAO_JOGO.md): every round the first extractor picks first, so it gets the
+	// best pieces; then the second, and so on. The pieces run out, the sharing stops.
 	TArray<FEXItem> Loot = PoolItems;
 	Loot.Sort([](const FEXItem& A, const FEXItem& B) { return A.Value > B.Value; });
 	const int32 Count = Extracted.Num();
 	for (int32 K = 0; K < Loot.Num() && Count > 0; ++K)
 	{
-		const int32 Round = K / Count;
-		const int32 Turn = Round % 2 == 0 ? K % Count : Count - 1 - K % Count;
-		Racers[Extracted[Turn]].Won.Add(Loot[K]);
+		Racers[Extracted[K % Count]].Won.Add(Loot[K]);
 	}
 
 	// The player's profile: not in the automated test.

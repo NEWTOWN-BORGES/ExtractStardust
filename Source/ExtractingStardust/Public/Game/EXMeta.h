@@ -127,7 +127,8 @@ namespace EXMeta
 	constexpr int32 CacheCount = static_cast<int32>(EEXCache::Count);
 	constexpr int32 QuickSlots = 4;
 	constexpr int32 PerQuickSlot = 2;
-	constexpr int32 MaxLost = 3;
+	/** A destroyed craft loses everything but its insured module (player, 2026-10-27; Docs/VISAO_JOGO.md). */
+	constexpr int32 MaxLost = 1000;
 	constexpr int32 FirstExtractionBonus = 500;
 	constexpr int32 ExtractedBonus = 250;
 	constexpr int32 StartingStardust = 3000;
@@ -287,6 +288,6 @@ namespace EXMeta
 	void RollBotCargo(int32 Skill, FRandomStream& Random, int32& NextSerial, int32 Count, TArray<FEXItem>& Out);
 	/** STARDUST for a finishing place (1-based), already scaled for a 10-15 minute expedition. */
 	int32 PlaceReward(int32 Place);
-	/** Losses of a destroyed craft: up to three modules, drawn by value, never the insured one. */
+	/** Losses of a destroyed craft: every module but the insured one. */
 	TArray<int32> SelectLosses(const TArray<FEXItem>& Carried, int32 InsuredSerial, FRandomStream& Random);
 }

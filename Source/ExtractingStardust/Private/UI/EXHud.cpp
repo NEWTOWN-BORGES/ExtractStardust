@@ -306,7 +306,7 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 	// Countdown: 3, 2, 1, VAI! (the race widget shows the start lights instead)
 	if (Race->GetCountdown() > 0.0f && !RaceHudWidget)
 	{
-		const int32 Count = FMath::CeilToInt(Race->GetCountdown() - 1.0f);
+		const int32 Count = FMath::Min(3, FMath::CeilToInt(Race->GetCountdown()));
 		DrawText(Count > 0 ? FString::FromInt(Count) : FString(TEXT("VAI!")), Count > 0 ? FLinearColor(1.0f, 0.85f, 0.2f)
 			: FLinearColor(0.3f, 1.0f, 0.4f), Mid - 40.0f * Scale, Canvas->ClipY * 0.3f, nullptr, 4.0f * Scale);
 	}
@@ -375,7 +375,7 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 			FLinearColor(0.3f, 1.0f, 0.4f), Mid - 300.0f * Scale, Canvas->ClipY * 0.30f + 18.0f * Scale, nullptr, 2.0f * Scale);
 		DrawText(TEXT("Enter / X: ver o esp\u00F3lio e os resultados"), FLinearColor(1.0f, 0.85f, 0.6f), Mid - 210.0f * Scale, Canvas->ClipY * 0.30f + 78.0f * Scale, nullptr, 1.2f * Scale);
 	}
-	// The extraction: who reached B (EXTRACTED), who was destroyed (up to three of its modules are the pool) and who
+	// The extraction: who reached B (EXTRACTED), who was destroyed (all but its insured module go to the pool) and who
 	// was still on the way; then what the player won and lost.
 	if (Race->IsOver() && !ResultsWidget)
 	{

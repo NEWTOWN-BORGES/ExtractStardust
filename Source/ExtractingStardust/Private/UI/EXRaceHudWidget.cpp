@@ -471,12 +471,13 @@ void UEXRaceHudWidget::RefreshStart()
 	{
 		return;
 	}
-	const int32 Count = FMath::CeilToInt(Countdown - 1.0f);   // 3, 2, 1, then 0
+	const int32 Count = FMath::Min(3, FMath::CeilToInt(Countdown));   // 3, 2, 1 (the craft go at 0)
+	const bool bSettle = Countdown > 3.0f;
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		const bool bRed = !bGo && Count > 0 && Index < 4 - Count;
+		const bool bRed = !bGo && !bSettle && Index < 4 - Count;
 		StartLights[Index]->SetBrushColor(bGo ? EXUi::Hex(70, 235, 110) : (bRed ? EXUi::Hex(255, 45, 30) : EXUi::Ink(0.8f)));
 	}
-	EXUi::SetText(StartText, bGo || Count <= 0 ? FString(TEXT("PARTIDA!")) : FString::FromInt(Count));
-	StartText->SetColorAndOpacity(FSlateColor(bGo || Count <= 0 ? EXUi::Hex(70, 235, 110) : EXUi::Bone()));
+	EXUi::SetText(StartText, bGo ? FString(TEXT("PARTIDA!")) : (bSettle ? FString() : FString::FromInt(Count)));
+	StartText->SetColorAndOpacity(FSlateColor(bGo ? EXUi::Hex(70, 235, 110) : EXUi::Bone()));
 }

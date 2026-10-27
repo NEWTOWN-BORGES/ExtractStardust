@@ -18,7 +18,10 @@ O jogador fala português (PT). Responder em português.
   **explosão** (`AEXExplosion`) quando o casco acaba; ecrã de resultados `UEXResultsWidget` (vitória/derrota, ganhos,
   cartas, medalha, classificação); fim garantido (meta a 45 m do último ponto, resultados 15 s depois ou com Enter).
 - **Porquinho** (pool ao vivo) de volta no HUD com os adversários em prova; **bots com carga** (2-6 peças,
-  `EXMeta::RollBotCargo`); **espólio de vitória**: o 1.º tira 3 peças da carga dos que venceu, o 2.º 2, o 3.º 1.
+  `EXMeta::RollBotCargo`). **Regras do espólio (jogador, 2026-10-27, = `Docs/VISAO_JOGO.md`):** quem é destruído perde
+  tudo menos o item seguro (1); tudo vai para o porquinho, dividido no fim por quem extrai, por ordem de chegada (o 1.º
+  escolhe primeiro em cada volta). O "espólio de vitória 3/2/1" foi retirado. **Nada de cápsulas/peças a apanhar na
+  pista** (testado e rejeitado; código guardado fora do projeto).
 - **Gráficos:** Lumen por defeito (`Jogar Leve.bat` = `-EXLow` desliga), nuvens volumétricas, atmosfera com poeira,
   sol baixo, névoa volumétrica, gradação de cor. **Fotorrealista** (escolha do jogador, "tipo Call of Duty"):
   `make_ground_material.py` (fotos CC0 Poly Haven sem repetição, triplanar nas falésias, areia com ondulações em 3
