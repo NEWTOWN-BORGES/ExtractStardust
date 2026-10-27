@@ -11,8 +11,8 @@ namespace
 	const FName ArrowColorParam(TEXT("Color"));
 	const FName ArrowIntensityParam(TEXT("Intensity"));
 	constexpr float ArrowScale = 2.2f;
-	constexpr float ArrowUpCm = 260.0f;       // over the craft
-	constexpr float ArrowAheadCm = 250.0f;    // a little ahead of its middle
+	constexpr float ArrowUpCm = 320.0f;       // over the craft
+	constexpr float ArrowAheadCm = 950.0f;    // well ahead of its nose (player, 2026-10-27: "muito próxima")
 	constexpr float ArrowTiltDeg = 50.0f;     // leaned back towards the camera, so its face is seen
 }
 
