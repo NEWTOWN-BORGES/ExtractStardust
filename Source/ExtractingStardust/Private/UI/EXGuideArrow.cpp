@@ -11,9 +11,9 @@ namespace
 	const FName ArrowColorParam(TEXT("Color"));
 	const FName ArrowIntensityParam(TEXT("Intensity"));
 	constexpr float ArrowScale = 2.2f;
-	constexpr float ArrowUpCm = 320.0f;       // over the craft
-	constexpr float ArrowAheadCm = 950.0f;    // well ahead of its nose (player, 2026-10-27: "muito próxima")
-	constexpr float ArrowTiltDeg = 50.0f;     // leaned back towards the camera, so its face is seen
+	constexpr float ArrowUpCm = 420.0f;       // over the craft (player, 2026-10-27: "mais para cima, não para a frente")
+	constexpr float ArrowAheadCm = 200.0f;    // over its middle
+	constexpr float ArrowTiltDeg = 70.0f;     // nearly upright, face to the camera: straight on reads as an arrow up the screen
 }
 
 AEXGuideArrow::AEXGuideArrow()
@@ -72,7 +72,7 @@ void AEXGuideArrow::Point(const FVector& CraftLocation, const FVector2D& Heading
 	Yaw = bHasYaw ? Yaw + FMath::FindDeltaAngleDegrees(Yaw, Want) * FMath::Min(1.0f, Dt * 10.0f) : Want;
 	bHasYaw = true;
 	const FVector Bob(0.0f, 0.0f, 15.0f * FMath::Sin(Age * 3.0f));
-	// The arrow turns in its own plane, and that plane leans back towards the camera (behind the craft): far side up.
+	// The arrow turns in its own plane, and that plane leans towards the camera (behind the craft and below the arrow).
 	const float CamYaw = FMath::RadiansToDegrees(FMath::Atan2(Heading.Y, Heading.X));
 	const FQuat Turn = FQuat(FRotator(ArrowTiltDeg, CamYaw, 0.0f)) * FQuat(FRotator(0.0f, Yaw - CamYaw, 0.0f));
 	SetActorLocationAndRotation(CraftLocation + FVector(Heading.X, Heading.Y, 0.0f) * ArrowAheadCm + FVector(0.0f, 0.0f, ArrowUpCm) + Bob, Turn);
