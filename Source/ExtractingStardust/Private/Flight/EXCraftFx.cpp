@@ -2,11 +2,9 @@
 
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/AudioComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Math/RotationMatrix.h"
-#include "Sound/SoundWave.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace
@@ -14,6 +12,8 @@ namespace
 	constexpr int32 PuffCount = 44;
 	constexpr int32 StreakCount = 48;
 	constexpr int32 SparkCount = 80;
+	constexpr int32 FxMaxEngines = 4;
+	constexpr int32 FxMaxDiamonds = 4;
 	const FName ColorParam(TEXT("Color"));
 	const FName IntensityParam(TEXT("Intensity"));
 	const FName OpacityParam(TEXT("Opacity"));
@@ -26,16 +26,10 @@ UEXCraftFx::UEXCraftFx()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Glow(TEXT("/Game/FX/M_FX_Glow.M_FX_Glow"));
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Dust(TEXT("/Game/FX/M_FX_Dust.M_FX_Dust"));
-	static ConstructorHelpers::FObjectFinder<USoundWave> EngineSound(TEXT("/Game/Audio/SW_EngineLoop.SW_EngineLoop"));
-	static ConstructorHelpers::FObjectFinder<USoundWave> DriftSound(TEXT("/Game/Audio/SW_DriftLoop.SW_DriftLoop"));
-	static ConstructorHelpers::FObjectFinder<USoundWave> NitroSound(TEXT("/Game/Audio/SW_NitroBurst.SW_NitroBurst"));
 	SphereMesh = Sphere.Object;
 	CylinderMesh = Cylinder.Object;
 	GlowMaterial = Glow.Object;
 	DustMaterial = Dust.Object;
-	EngineLoopSound = EngineSound.Object;
-	DriftLoopSound = DriftSound.Object;
-	NitroBurstSound = NitroSound.Object;
 }
 
 UStaticMeshComponent* UEXCraftFx::MakeMesh(UStaticMesh* Mesh, UMaterialInterface* Material, USceneComponent* Parent, bool bWorldSpace)
@@ -64,9 +58,9 @@ void UEXCraftFx::Initialize(USceneComponent* ShipAttach)
 		return;
 	}
 	bInitialized = true;
+	FlameParent = ShipAttach;
 
-	EngineAnchors = { FVector(-330.0f, -110.0f, 0.0f), FVector(-330.0f, 110.0f, 0.0f), FVector(-330.0f, 0.0f, 80.0f) };
-	for (int32 Engine = 0; Engine < 3; ++Engine)
+	for (int32 Engine = 0; Engine < FxMaxEngines; ++Engine)
 	{
 		for (int32 Layer = 0; Layer < 2; ++Layer)
 		{
@@ -84,31 +78,13 @@ void UEXCraftFx::Initialize(USceneComponent* ShipAttach)
 		Light->RegisterComponent();
 		EngineLights.Add(Light);
 	}
-
-	auto CreateAudio = [this, ShipAttach](USoundWave* Sound, const TCHAR* Name, bool bAutoPlay)
+	DiamondMaterial = UMaterialInstanceDynamic::Create(GlowMaterial, this);
+	DiamondMaterial->SetVectorParameterValue(ColorParam, FlameCoreColor);
+	for (int32 Index = 0; Index < FxMaxEngines * FxMaxDiamonds; ++Index)
 	{
-		if (!Sound)
-		{
-			return static_cast<UAudioComponent*>(nullptr);
-		}
-		UAudioComponent* Audio = NewObject<UAudioComponent>(GetOwner(), FName(Name));
-		Audio->SetSound(Sound);
-		Audio->bAutoActivate = false;
-		Audio->bAllowSpatialization = false;
-		Audio->SetupAttachment(ShipAttach);
-		Audio->RegisterComponent();
-		if (bAutoPlay)
-		{
-			Audio->Play();
-		}
-		return Audio;
-	};
-	EngineAudio = CreateAudio(EngineLoopSound, TEXT("EngineCueAudio"), false);
-	DriftAudio = CreateAudio(DriftLoopSound, TEXT("DriftLoopAudio"), false);
-	NitroAudio = CreateAudio(NitroBurstSound, TEXT("NitroBurstAudio"), false);
-	if (NitroAudio)
-	{
-		NitroAudio->SetVolumeMultiplier(0.22f);
+		UStaticMeshComponent* Diamond = MakeMesh(SphereMesh, DiamondMaterial, ShipAttach, false);
+		Diamond->SetVisibility(false);
+		DiamondMeshes.Add(Diamond);
 	}
 
 	USceneComponent* Root = GetOwner()->GetRootComponent();
@@ -205,24 +181,55 @@ void UEXCraftFx::UpdateSparks(float Dt)
 void UEXCraftFx::SetShipHalfSize(const FVector& HalfSizeCm)
 {
 	ShipHalfSize = HalfSizeCm;
+	if (bNozzlesFromManifest)
+	{
+		return;
+	}
+	// Two engines at the tail, for a ship whose module manifest is not known (the old test models).
+	EngineAnchors = { FVector(-HalfSizeCm.X * 0.92f, -HalfSizeCm.Y * 0.42f, -HalfSizeCm.Z * 0.1f),
+		FVector(-HalfSizeCm.X * 0.92f, HalfSizeCm.Y * 0.42f, -HalfSizeCm.Z * 0.1f) };
 	FlameRadiusCm = FMath::Clamp(HalfSizeCm.Y * 0.12f, 14.0f, 24.0f);
 }
 
-void UEXCraftFx::SetEngineAnchors(const TArray<FVector>& AnchorsCm)
+void UEXCraftFx::SetNozzles(const TArray<FVector>& AnchorsCm, float RadiusCm)
 {
-	if (AnchorsCm.Num() > 0)
+	bNozzlesFromManifest = AnchorsCm.Num() > 0;
+	if (!bNozzlesFromManifest)
 	{
-		EngineAnchors = AnchorsCm;
+		SetShipHalfSize(ShipHalfSize);
+		return;
 	}
-	for (int32 Engine = 0; Engine < EngineLights.Num(); ++Engine)
+	EngineAnchors.Reset();
+	for (int32 Index = 0; Index < AnchorsCm.Num() && Index < FxMaxEngines; ++Index)
 	{
-		const bool bVisible = EngineAnchors.IsValidIndex(Engine);
-		EngineLights[Engine]->SetVisibility(bVisible);
-		for (int32 Layer = 0; Layer < 2; ++Layer)
-		{
-			FlameMeshes[Engine * 2 + Layer]->SetVisibility(bVisible);
-		}
+		EngineAnchors.Add(AnchorsCm[Index]);
 	}
+	FlameRadiusCm = FMath::Clamp(RadiusCm * 0.95f, 8.0f, 30.0f);
+}
+
+void UEXCraftFx::SetFlameStyle(const FLinearColor& Outer, const FLinearColor& Core, float LengthMul, float RadiusMul, int32 Diamonds, bool bSparks,
+	const FLinearColor& Nitro)
+{
+	FlameColor = Outer;
+	FlameCoreColor = Core;
+	BoostFlameColor = Nitro;
+	BoostCoreColor = FMath::Lerp(Nitro, FLinearColor::White, 0.7f);
+	StyleLength = FMath::Clamp(LengthMul, 0.3f, 3.0f);
+	StyleRadius = FMath::Clamp(RadiusMul, 0.3f, 2.0f);
+	StyleDiamonds = FMath::Clamp(Diamonds, 0, FxMaxDiamonds);
+	bStyleSparks = bSparks;
+}
+
+void UEXCraftFx::TickPreview(float Dt, float Power)
+{
+	if (!bInitialized || Dt <= 0.0f)
+	{
+		return;
+	}
+	PreviewPowerOverride = FMath::Max(0.0f, Power);
+	UpdateFlames(Dt, FEXCraftFxInput());
+	PreviewPowerOverride = -1.0f;
+	UpdateSparks(Dt);
 }
 
 void UEXCraftFx::UpdateFx(float Dt, const FEXCraftFxInput& Input)
@@ -232,7 +239,6 @@ void UEXCraftFx::UpdateFx(float Dt, const FEXCraftFxInput& Input)
 		return;
 	}
 	UpdateFlames(Dt, Input);
-	UpdateAudio(Input);
 	UpdateDust(Dt, Input);
 	UpdateStreaks(Dt, Input);
 	UpdateSparks(Dt);
@@ -241,79 +247,101 @@ void UEXCraftFx::UpdateFx(float Dt, const FEXCraftFxInput& Input)
 void UEXCraftFx::UpdateFlames(float Dt, const FEXCraftFxInput& Input)
 {
 	FlickerTime += Dt;
-	// Flames follow throttle and grow with speed; nitro stretches them further.
-	const float TargetPower = FMath::Clamp((0.2f + 0.8f * Input.Throttle) * (0.45f + 0.55f * Input.SpeedAlpha), 0.0f, 1.0f) * (Input.bBoosting ? 1.7f : 1.0f);
+	// Flames follow throttle and grow with speed; nitro stretches them further. In the hangar a fixed power runs them.
+	const float TargetPower = PreviewPowerOverride >= 0.0f ? PreviewPowerOverride
+		: FMath::Clamp((0.2f + 0.8f * Input.Throttle) * (0.45f + 0.55f * Input.SpeedAlpha), 0.0f, 1.0f) * (Input.bBoosting ? 1.7f : 1.0f);
 	FlamePower = FMath::FInterpTo(FlamePower, TargetPower, Dt, 8.0f);
 	const float Power = FMath::Min(FlamePower, 1.0f);
 	BoostBlend = FMath::FInterpTo(BoostBlend, Input.bBoosting ? 1.0f : 0.0f, Dt, 6.0f);
 	const FLinearColor OuterColor = FMath::Lerp(FlameColor, BoostFlameColor, BoostBlend);
 	const FLinearColor CoreColor = FMath::Lerp(FlameCoreColor, BoostCoreColor, BoostBlend);
-	for (int32 Engine = 0; Engine < EngineLights.Num(); ++Engine)
+	const bool bLit = FlamePower > 0.02f;
+	for (int32 Engine = 0; Engine < FxMaxEngines; ++Engine)
 	{
-		const bool bVisible = EngineAnchors.IsValidIndex(Engine);
-		EngineLights[Engine]->SetVisibility(bVisible);
-		FlameMeshes[Engine * 2]->SetVisibility(bVisible);
-		FlameMeshes[Engine * 2 + 1]->SetVisibility(bVisible);
-		if (!bVisible)
+		const bool bEngine = bLit && EngineAnchors.IsValidIndex(Engine);
+		for (int32 Layer = 0; Layer < 2; ++Layer)
+		{
+			FlameMeshes[Engine * 2 + Layer]->SetVisibility(bEngine);
+		}
+		// Real lights only on the craft whose camera is on screen: sixteen crafts' engine lights were a large part of the
+		// frame (player, 2026-10-26: "está lento"); the others glow through their flames.
+		EngineLights[Engine]->SetVisibility(bEngine && Input.bViewer);
+		for (int32 K = 0; K < FxMaxDiamonds; ++K)
+		{
+			DiamondMeshes[Engine * FxMaxDiamonds + K]->SetVisibility(bEngine && K < StyleDiamonds);
+		}
+		if (!bEngine)
 		{
 			continue;
 		}
+		const FVector& Anchor = EngineAnchors[Engine];
 		const float Flicker = 1.0f + 0.12f * FMath::Sin(FlickerTime * 37.0f + Engine * 1.7f) + 0.08f * FMath::Sin(FlickerTime * 61.0f + Engine * 0.9f);
 		// Short, hot flames like the tail glow in the reference video (the close chase camera sits only 2-3 m
-		// behind the tail): ~0.25 m idle, ~0.7 m flat out, ~1.2 m on nitro.
-		const float OuterLength = (FMath::Lerp(25.0f, 70.0f, Power) + (Input.bBoosting ? 50.0f : 0.0f)) * Flicker;
+		// behind the tail): ~0.25 m idle, ~0.7 m flat out, ~1.2 m on nitro; the engine module stretches or narrows them.
+		const float OuterLength = (FMath::Lerp(25.0f, 70.0f, Power) + (Input.bBoosting ? 50.0f : 0.0f)) * Flicker * StyleLength;
+		const float OuterRadius = FlameRadiusCm * StyleRadius;
 		for (int32 Layer = 0; Layer < 2; ++Layer)
 		{
 			const float Length = Layer == 0 ? OuterLength : OuterLength * 0.55f;
-			const float Radius = Layer == 0 ? FlameRadiusCm : FlameRadiusCm * 0.5f;
+			const float Radius = Layer == 0 ? OuterRadius : OuterRadius * 0.5f;
 			UStaticMeshComponent* Flame = FlameMeshes[Engine * 2 + Layer];
 			// The sphere is stretched into a flame along -X, starting at the nozzle.
-			Flame->SetRelativeLocation(EngineAnchors[Engine] - FVector(Length * 0.5f, 0.0f, 0.0f));
+			Flame->SetRelativeLocation(Anchor - FVector(Length * 0.5f, 0.0f, 0.0f));
 			Flame->SetRelativeScale3D(FVector(Length / 100.0f, Radius / 50.0f, Radius / 50.0f));
 			const float Intensity = FMath::Lerp(0.6f, 2.6f, Power) * Flicker * (Input.bBoosting ? 1.3f : 1.0f) * (Layer == 0 ? 1.0f : 1.4f);
 			FlameMaterials[Engine * 2 + Layer]->SetScalarParameterValue(IntensityParam, Intensity);
 			FlameMaterials[Engine * 2 + Layer]->SetVectorParameterValue(ColorParam, Layer == 0 ? OuterColor : CoreColor);
 		}
+		for (int32 K = 0; K < StyleDiamonds; ++K)
+		{
+			// Shock diamonds: bright beads along the plume, closer together towards the tail.
+			const float Bead = OuterRadius * 0.42f;
+			UStaticMeshComponent* Diamond = DiamondMeshes[Engine * FxMaxDiamonds + K];
+			Diamond->SetRelativeLocation(Anchor - FVector(OuterLength * (0.16f + 0.19f * K), 0.0f, 0.0f));
+			Diamond->SetRelativeScale3D(FVector(Bead * 1.8f / 50.0f, Bead / 50.0f, Bead / 50.0f));
+		}
 		EngineLights[Engine]->SetLightColor(OuterColor);
-		EngineLights[Engine]->SetRelativeLocation(EngineAnchors[Engine] - FVector(60.0f, 0.0f, 0.0f));
+		EngineLights[Engine]->SetRelativeLocation(Anchor - FVector(60.0f, 0.0f, 0.0f));
 		EngineLights[Engine]->SetIntensity(FMath::Lerp(3.0f, 18.0f, FlamePower) * Flicker);
 	}
-}
-
-void UEXCraftFx::UpdateAudio(const FEXCraftFxInput& Input)
-{
-	const float SpeedAlpha = FMath::Clamp(Input.SpeedAlpha, 0.0f, 1.2f);
-	const bool bThrottleCue = Input.Throttle > 0.25f;
-	if (EngineAudio && bThrottleCue && !bAudioWasThrottling && Input.AudioScale > 0.0f)
+	if (DiamondMaterial && StyleDiamonds > 0)
 	{
-		EngineAudio->SetPitchMultiplier(0.9f + SpeedAlpha * 0.32f);
-		EngineAudio->SetVolumeMultiplier(Input.AudioScale * 0.16f);
-		EngineAudio->Play();
+		DiamondMaterial->SetVectorParameterValue(ColorParam, CoreColor);
+		DiamondMaterial->SetScalarParameterValue(IntensityParam, FMath::Lerp(1.5f, 5.0f, Power));
 	}
-	bAudioWasThrottling = bThrottleCue;
-	if (DriftAudio)
+	// Epic and legendary engines throw sparks out of the plume.
+	if (bStyleSparks && bLit && Power > 0.35f && FlameParent && EngineAnchors.Num() > 0)
 	{
-		const bool bDriftSound = Input.bDrifting && Input.bGrounded && SpeedAlpha > 0.12f;
-		if (bDriftSound && !bAudioWasDrifting && Input.AudioScale > 0.0f)
+		SparkTimer += Dt;
+		const FTransform& Frame = FlameParent->GetComponentTransform();
+		while (SparkTimer > 0.05f)
 		{
-			DriftAudio->SetPitchMultiplier(0.9f + SpeedAlpha * 0.18f);
-			DriftAudio->SetVolumeMultiplier(Input.AudioScale * 0.12f);
-			DriftAudio->Play();
+			SparkTimer -= 0.05f;
+			const FVector& Anchor = EngineAnchors[Random.RandRange(0, EngineAnchors.Num() - 1)];
+			const FVector From = Frame.TransformPosition(Anchor - FVector(Random.FRandRange(10.0f, 60.0f), 0.0f, 0.0f));
+			const FVector Back = -Frame.GetUnitAxis(EAxis::X);
+			SpawnSpark(From, Input.Velocity * 0.9f + Back * Random.FRandRange(600.0f, 1100.0f) + Random.VRand() * 150.0f, Random.FRandRange(0.25f, 0.45f));
 		}
-		bAudioWasDrifting = bDriftSound;
 	}
-	if (NitroAudio && Input.bBoosting && !bAudioWasBoosting)
-	{
-		NitroAudio->Play();
-	}
-	bAudioWasBoosting = Input.bBoosting;
 }
 
-void UEXCraftFx::StopAudio()
+void UEXCraftFx::SpawnSpark(const FVector& Location, const FVector& Velocity, float Life)
 {
-	if (EngineAudio) { EngineAudio->Stop(); }
-	if (DriftAudio) { DriftAudio->Stop(); }
-	if (NitroAudio) { NitroAudio->Stop(); }
+	for (int32 Index = 0; Index < Sparks.Num(); ++Index)
+	{
+		FSpark& Spark = Sparks[Index];
+		if (Spark.bActive)
+		{
+			continue;
+		}
+		Spark.Location = Location;
+		Spark.Velocity = Velocity;
+		Spark.Age = 0.0f;
+		Spark.Life = Life;
+		Spark.bActive = true;
+		SparkMeshes[Index]->SetVisibility(true);
+		return;
+	}
 }
 
 void UEXCraftFx::SpawnPuff(const FVector& Location, const FVector& Velocity, float Life, float StartSizeM, float EndSizeM, float Opacity)
@@ -369,9 +397,11 @@ void UEXCraftFx::LandingBurst(const FVector& Point, const FVector& Up, float Str
 void UEXCraftFx::UpdateDust(float Dt, const FEXCraftFxInput& Input)
 {
 	const float Speed = Input.Velocity.Size() / 100.0f;
+	// The other crafts raise a quarter of the dust, and none beyond 250 m from the camera.
+	const float DustMul = Input.bViewer ? 1.0f : (FVector::DistSquared(Input.GroundPoint, Input.CameraLocation) < FMath::Square(25000.0f) ? 0.25f : 0.0f);
 	if (Input.bGrounded && Input.HeightM < 3.0f && Speed > 8.0f)
 	{
-		SpawnAccumulator += Dt * DustRateMax * FMath::Clamp(Speed / 90.0f, 0.15f, 1.0f) * (Input.bDrifting ? 1.5f : 1.0f);
+		SpawnAccumulator += Dt * DustRateMax * DustMul * FMath::Clamp(Speed / 90.0f, 0.15f, 1.0f) * (Input.bDrifting ? 1.5f : 1.0f);
 	}
 	const FVector Right = FVector::CrossProduct(Input.SurfaceUp, Input.Heading).GetSafeNormal();
 	while (SpawnAccumulator >= 1.0f)
@@ -413,13 +443,21 @@ void UEXCraftFx::UpdateDust(float Dt, const FEXCraftFxInput& Input)
 
 void UEXCraftFx::UpdateStreaks(float Dt, const FEXCraftFxInput& Input)
 {
+	if (!Input.bViewer)
+	{
+		for (UStaticMeshComponent* Streak : StreakMeshes)
+		{
+			Streak->SetVisibility(false);
+		}
+		return;
+	}
 	const float Speed = Input.Velocity.Size() / 100.0f;
-	const float Strength = FMath::SmoothStep(35.0f, 110.0f, Speed) * (Input.bBoosting ? 1.4f : 1.0f);
+	const float Strength = FMath::SmoothStep(22.0f, 95.0f, Speed) * (Input.bBoosting ? 1.55f : 1.0f);
 	StreakMaterial->SetScalarParameterValue(IntensityParam, 0.6f * Strength);
 	const bool bVisible = Strength > 0.01f;
 	const FVector Direction = Speed > 1.0f ? Input.Velocity / (Speed * 100.0f) : Input.Heading;
 	// Each streak is as long as 0.06 s of travel, so faster flight draws longer lines.
-	const float LengthCm = FMath::Clamp(Speed * 6.0f, 50.0f, 900.0f);
+	const float LengthCm = FMath::Clamp(Speed * 8.0f, 80.0f, 1400.0f);
 	const FQuat Orientation = FRotationMatrix::MakeFromZ(Direction).ToQuat();
 	const FVector ViewSide = FVector::CrossProduct(Input.CameraForward, FVector::UpVector).GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
 	const FVector ViewUp = FVector::CrossProduct(ViewSide, Input.CameraForward).GetSafeNormal();

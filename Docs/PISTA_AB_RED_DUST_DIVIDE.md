@@ -74,6 +74,45 @@ Valley), fechada por falésias. À volta do mundo, cordilheiras mais altas fecha
 
 O total ideal é 58,6 km em 9:42 (média de 362 km/h). Com saltos, travagens e pilotos reais deve dar 10:30-11:30.
 
+## Estradas largas para 16-20 naves (2026-10-21)
+
+O jogador quer 15 a 20 naves lado a lado, 6 ou 7 de frente. A linha principal passou a 56-64 m de largura (semi-largura
+28-32 m, antes 10-28), a partir de S1 até S10: S3 Shafer Fall (os 4 lances em zigue-zague) fica com 40 m, por causa
+dos cotovelos de 43 m de raio. O túnel The Hollow tem 56 m de chão. As bifurcações RACING e SAFE ficam com 48 e 52 m;
+**os atalhos SKILL ficam estreitos de propósito** (12-18 m). A grelha de partida passa a 3 filas de 6 (18 lugares)
+em vez de 4 de 5. O traçado e os tempos não mudam (59,0 km, 9:44).
+
+## Túnel e paredes lisas (2026-10-21)
+
+O jogador achou o túnel "horrível, impossível conduzir": as paredes tinham placas e triângulos salientes. Corrigido em
+`Scripts/sculpt_expedition_ab.py`:
+- **The Hollow é um arco liso**, de meia elipse, com 22-28 m de altura livre no meio. O semi-largura do chão passou de
+  14 para 22 m (braço da caverna de 10 para 16 m). As paredes e a abóbada são a malha do teto (`caves/*.fbx`), de uma
+  só peça; o chão do túnel é só chão, ao nível da borda da pista. Um heightfield não faz uma parede íngreme limpa (os
+  triângulos veem-se como cunhas), por isso o arco é que faz as paredes.
+- **Nada de rochas no túnel nem ao lado dele** (120 m): os adereços ficam de fora.
+- **Rochas afastadas da pista:** faces de falésia, blocos de talude, pedras, lajes e barbatanas ficam pelo menos 30 m
+  (`TRACK_CLEAR`) para lá da borda da pista, por isso as paredes junto à linha ficam lisas.
+- `AB_ONLY=08_caverna,07_wash` (variável de ambiente) tira só essas fotos de piloto, para testar sem esperar pelas
+  doze.
+
+Falta, no PC com o Unreal: ver o túnel dentro do jogo (as claraboias da caverna são aberturas na malha do teto).
+
+## Paredes nas curvas do ziguezague (pedido do jogador, 2026-10-25)
+
+O ziguezague do **Shafer Fall** (as curvas em U da descida) era difícil de fazer sem sair da pista. Do lado de **fora
+de cada curva em U** nasce agora uma parede, colada ao chão da pista sem degrau (`curve_walls` em
+`Scripts/sculpt_expedition_ab.py`). **Só nessa zona**: o resto da pista fica como estava.
+- **Perfil:** um quarto de oval, tangente ao chão e a subir até ~80° no topo (corre-se por ela), depois 6 m de topo plano
+  e uma encosta atrás a 40°. A oval substitui o que lá estava (um talude natural mais a pique prendia a nave contra uma
+  face); a encosta de trás só acrescenta terreno.
+- **Altura:** segue a curva. Raio de 200 m ou menos: 13 m (23 m de largura); a 520 m ou mais: nada. Nas retas entre as
+  curvas afunda até desaparecer. Dá ~1 km de parede, nas 4 pontas dos U (ver `paredes_zigzag.png` na conversa).
+- **Ajustar:** `WALL_H`, `WALL_RUN`, `WALL_R_FULL`, `WALL_R_NONE` e `WALL_KINDS` (a lista de setores com parede: pôr
+  `"top"`, `"floor"`, `"wash"`, `"rim"` leva paredes às curvas do resto da pista). O log escreve `CURVE WALLS ...` e um corte
+  da parede mais alta. Testado a 10 m; a 3 m a forma fica mais fina.
+- **Por ver no Unreal:** que a nave sobe pela parede e volta sem bater no topo, e a cor (hoje é a da inclinação).
+
 ## Gerar
 
 ```

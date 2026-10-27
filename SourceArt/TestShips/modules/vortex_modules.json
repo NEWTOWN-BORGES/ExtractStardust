@@ -1,0 +1,47 @@
+{
+ "ship": "VORTEX",
+ "pieces": [
+  "core",
+  "wing_stock",
+  "skeleton",
+  "wing_blade",
+  "wing_vector",
+  "wing_glide",
+  "armor_light",
+  "armor_guard",
+  "armor_bulwark",
+  "armor_shell",
+  "armor_aegis",
+  "cooling_vents",
+  "cooling_radiator",
+  "cooling_grid",
+  "tail_compact",
+  "tail_twin",
+  "tail_keel",
+  "utility_mast",
+  "utility_dome",
+  "utility_drone"
+ ],
+ "wings": [
+  "blade",
+  "vector",
+  "glide"
+ ],
+ "tail": "above",
+ "nozzles": [
+  [
+   0.0,
+   2.6,
+   0.475,
+   0.2
+  ]
+ ],
+ "utility_bay": [
+  0.0,
+  -1.539,
+  0.479,
+  0.189,
+  0.27,
+  0.099
+ ]
+}

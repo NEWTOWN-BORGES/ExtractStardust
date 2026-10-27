@@ -8,9 +8,9 @@ public class ExtractingStardust : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "Slate", "SlateCore" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "InputDevice" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "InputDevice", "Slate", "SlateCore" });
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
@@ -18,9 +18,6 @@ public class ExtractingStardust : ModuleRules
 			PublicSystemLibraries.AddRange(new string[] { "hid.lib", "setupapi.lib" });
 		}
 
-		// Uncomment if you are using Slate UI
-		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-		
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 
