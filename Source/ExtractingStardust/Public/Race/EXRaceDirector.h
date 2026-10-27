@@ -6,6 +6,15 @@
 #include "EXRaceDirector.generated.h"
 
 class AEXHoverCraft;
+class AEXCheckpointGate;
+
+/** A checkpoint gate on the race line: its middle (m), the floor's half width there (m) and how far along the line. */
+struct FEXGate
+{
+	FVector2D Centre = FVector2D::ZeroVector;
+	float HalfW = 30.0f;
+	float AlongM = 0.0f;
+};
 
 /** The game modes (Docs/MODOS_DE_JOGO.md): alone against the clock, against 15 bots, or the hangar showroom. */
 UENUM()
@@ -43,6 +52,36 @@ struct FEXRacer
 	TArray<FEXItem> Won;
 	/** Where it dropped out (m along the race line). */
 	float OutAtM = 0.0f;
+	/** Checkpoints passed (one every ~2.5 km of the race line). */
+	int32 Checkpoint = 0;
+	/** Bots still racing when the race ends get a finishing time from their pace (as in the Unity version). */
+	bool bProjected = false;
+	/** A bot's cargo: loose modules it carries (EXMeta::RollBotCargo). */
+	TArray<FEXItem> Cargo;
+	/** What it dropped into the piggy bank when destroyed (all its modules but the insured one, and all its cargo). */
+	TArray<FEXItem> Dropped;
+	bool bDropped = false;
+	/** The victory spoils: the best of the cargo of the racers it beat (top three extractors: 3, 2 and 1 pieces). */
+	TArray<FEXItem> Spoils;
+};
+
+/** The player's expedition for the results screen: victory (EXTRACTED) or defeat (DESTROYED / STRANDED), what it paid
+ *  and what changed hands. Filled when the race ends. */
+struct FEXRaceSummary
+{
+	bool bValid = false;
+	/** 1 EXTRACTED, 2 DESTROYED, 3 STRANDED. */
+	uint8 State = 0;
+	int32 Place = 0, Field = 0;
+	float Time = 0.0f, DistanceM = 0.0f;
+	int32 PlaceReward = 0, ExtractBonus = 0, CheckpointReward = 0, FirstBonus = 0, Total = 0;
+	int32 Checkpoints = 0, CheckpointCount = 0;
+	/** Pieces won from the pool, pieces lost to it, the insured module kept. */
+	TArray<FEXItem> Won, Lost;
+	/** The victory spoils (from the cargo of the racers beaten), for the podium. */
+	TArray<FEXItem> Spoils;
+	FEXItem Saved;
+	int32 PoolValue = 0;
 };
 
 /**
@@ -72,8 +111,21 @@ public:
 	void LaunchExpedition();
 	/** The mode the hangar's launch button starts. */
 	EEXRaceMode GetLaunchMode() const { return LastRaceMode; }
-	/** The value of the pool (the real pieces lost by the destroyed, shared by the extractors), known at the end. */
+	/** The piggy bank (o porquinho): the real pieces the destroyed dropped (modules and cargo), live during the race and
+	 *  shared by the extractors at the end. Its STARDUST value, how many pieces, the last drop and when. */
 	int32 GetPool() const { return Pool; }
+	int32 GetPoolCount() const { return PoolItems.Num(); }
+	int32 GetLastPoolGain() const { return LastPoolGain; }
+	float GetLastPoolTime() const { return LastPoolTime; }
+	/** The rivals: how many started, how many are still racing, and the value of the cargo they still carry. */
+	int32 GetRivalsTotal() const;
+	/** The checkpoint gates (all but B, which is the last checkpoint), and the one the player missed (1-based, 0 none). */
+	int32 GetGateCount() const { return Gates.Num(); }
+	float GetGateAlongM(int32 Index) const { return Gates.IsValidIndex(Index) ? Gates[Index].AlongM : 0.0f; }
+	FVector2D GetGateCentre(int32 Index) const { return Gates.IsValidIndex(Index) ? Gates[Index].Centre : FVector2D::ZeroVector; }
+	int32 GetMissedGate() const { return MissedGate; }
+	int32 GetRivalsLeft() const;
+	int32 GetCargoInPlay() const;
 	/** What happened to the player's things at the end (reward, pieces won and lost), for the results. */
 	const TArray<FString>& GetPlayerNews() const { return PlayerNews; }
 	bool IsInMenu() const { return bMenu; }
@@ -88,7 +140,18 @@ public:
 	float GetCountdown() const { return Countdown; }
 	float GetRaceTime() const { return RaceTime; }
 	bool IsOver() const { return bOver; }
+	/** The player is past the line (finished or out) and the results are still to come. */
+	bool IsPlayerDone() const { return PlayerDoneTime >= 0.0f; }
+	float GetPlayerDoneTime() const { return PlayerDoneTime; }
 	float GetRouteLengthM() const { return RouteLengthM; }
+	/** Checkpoints along the line (every ~2.5 km) and how many the player has passed; the race time of the last one. */
+	int32 GetCheckpointCount() const { return CheckpointCount; }
+	int32 GetPlayerCheckpoint() const { return PlayerCheckpoint; }
+	float GetLastCheckpointTime() const { return LastCheckpointTime; }
+	/** STARDUST each checkpoint is worth on extraction. */
+	static int32 GetCheckpointPrize();
+	/** The player's expedition, for the results screen (valid once the race is over). */
+	const FEXRaceSummary& GetSummary() const { return Summary; }
 	/** Racers in race order (index 0 leads); refreshed every frame. */
 	const TArray<FEXRacer>& GetStandings() const { return Standings; }
 	/** The player's place (1-based) among all racers. */
@@ -103,6 +166,16 @@ private:
 	void UpdateStandings();
 	void Finish();
 	void SettleExtraction();
+	/** A destroyed racer's drop into the piggy bank (once). */
+	void DropToPool(FEXRacer& Racer);
+	/** The gates: placed at the start (the apex of a bend or the straight between two bends, never in a cave), passed
+	 *  by the player in order (returns how many), and the finish refused while one is missing. */
+	void PlaceGates(const AEXHoverCraft* Player);
+	int32 PlayerGates(AEXHoverCraft* Craft, int32 Passed);
+	bool GatesMissing(const FEXRacer& Racer);
+	void RefreshGates(int32 Passed, int32 JustPassed);
+	/** The player's craft, for the call-out sounds. */
+	AEXHoverCraft* PlayerCraft() const;
 	void ReturnToMenu();
 
 	EEXRaceMode Mode = EEXRaceMode::Solo;
@@ -117,6 +190,20 @@ private:
 	EEXRaceMode LastRaceMode = EEXRaceMode::Bots;
 	float Countdown = 4.0f, RaceTime = 0.0f, RouteLengthM = 0.0f, PlayerDoneTime = -1.0f, OverTime = 0.0f;
 	int32 PlayerPlace = 1;
+	int32 CheckpointCount = 1, PlayerCheckpoint = 0;
+	TArray<FEXItem> PoolItems;
+	int32 LastCountdownBeep = 99;
+	TArray<FEXGate> Gates;
+	UPROPERTY() TArray<TObjectPtr<AEXCheckpointGate>> GateActors;
+	int32 MissedGate = 0, LastGateShot = -1;
+	float GateNagTime = -100.0f, NextShotTime = 5.0f;
+	/** Frame-time statistics of a test race (-EXRaceTest), and its length (-EXRaceSeconds=). */
+	float FpsTime = 0.0f, WorstDt = 0.0f, TestLimitS = 1500.0f;
+	int32 FpsFrames = 0;
+	int32 LastPoolGain = 0;
+	float LastPoolTime = -100.0f;
+	float LastCheckpointTime = -100.0f;
+	FEXRaceSummary Summary;
 	TArray<FVector2D> Route;
 
 	UPROPERTY()

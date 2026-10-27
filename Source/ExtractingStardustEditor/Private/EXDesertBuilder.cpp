@@ -10,13 +10,16 @@
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
+#include "Components/VolumetricCloudComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/Engine.h"
 #include "Engine/ExponentialHeightFog.h"
+#include "Engine/PointLight.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/SkyLight.h"
 #include "Engine/StaticMesh.h"
@@ -649,22 +652,47 @@ namespace
 	/** Sun, sky and dusty air. Movable lighting only: the project has no baked lighting. */
 	void AddSky(UWorld* World, float FogDensity)
 	{
-		ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(FVector(0.0f, 0.0f, 50000.0f), FRotator(-38.0f, -35.0f, 0.0f));
+		ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(FVector(0.0f, 0.0f, 50000.0f), FRotator(-23.0f, -35.0f, 0.0f));   // low golden-hour sun: long raking shadows give the canyons depth
 		if (UDirectionalLightComponent* SunLight = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()))
 		{
 			SunLight->SetMobility(EComponentMobility::Movable);
-			SunLight->SetIntensity(10.0f);
-			SunLight->SetLightColor(FLinearColor(1.0f, 0.93f, 0.84f));
+			SunLight->SetIntensity(13.0f);   // the sun is lower than before: more lux for the same exposure
+			SunLight->SetLightColor(FLinearColor(1.0f, 0.86f, 0.68f));
+			SunLight->SetEnableLightShaftBloom(true);   // god rays through the dust
+			SunLight->SetBloomScale(0.22f);
+			SunLight->SetBloomThreshold(0.0f);
+			SunLight->SetBloomTint(FColor(255, 196, 140));
+			SunLight->SetVolumetricScatteringIntensity(1.6f);
+			SunLight->ContactShadowLength = 0.04f;
 			SunLight->SetAtmosphereSunLight(true);
-			SunLight->SetDynamicShadowDistanceMovableLight(25000.0f);
+			SunLight->SetDynamicShadowDistanceMovableLight(60000.0f);
 		}
-		World->SpawnActor<ASkyAtmosphere>(FVector::ZeroVector, FRotator::ZeroRotator);
+		// The sky: a dusty desert atmosphere (more aerosol, so the low sun burns orange and the distance goes hazy) and
+		// real volumetric clouds high up, lit by the sun and seen by Lumen (player, 2026-10-26: cinematic).
+		if (ASkyAtmosphere* Atmosphere = World->SpawnActor<ASkyAtmosphere>(FVector::ZeroVector, FRotator::ZeroRotator))
+		{
+			if (USkyAtmosphereComponent* Air = Atmosphere->GetComponent())
+			{
+				Air->SetMieScatteringScale(0.0075f);
+				Air->SetMieAnisotropy(0.82f);
+				Air->SetRayleighScatteringScale(0.031f);
+			}
+		}
+		if (AVolumetricCloud* Clouds = World->SpawnActor<AVolumetricCloud>(FVector::ZeroVector, FRotator::ZeroRotator))
+		{
+			if (UVolumetricCloudComponent* Cloud = Clouds->FindComponentByClass<UVolumetricCloudComponent>())
+			{
+				Cloud->SetLayerBottomAltitude(4.5f);
+				Cloud->SetLayerHeight(6.0f);
+			}
+		}
 		ASkyLight* Sky = World->SpawnActor<ASkyLight>(FVector(0.0f, 0.0f, 20000.0f), FRotator::ZeroRotator);
 		if (USkyLightComponent* SkyLight = Sky->GetLightComponent())
 		{
 			SkyLight->SetMobility(EComponentMobility::Movable);
 			SkyLight->SetRealTimeCapture(true);
-			SkyLight->SetIntensity(1.0f);
+			SkyLight->SetIntensity(1.15f);
+			SkyLight->SetLowerHemisphereColor(FLinearColor(0.34f, 0.2f, 0.12f));   // warm sand bounce under the rocks
 		}
 		AExponentialHeightFog* Fog = World->SpawnActor<AExponentialHeightFog>(FVector(0.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
 		if (UExponentialHeightFogComponent* FogComponent = Fog->GetComponent())
@@ -674,15 +702,43 @@ namespace
 			FogComponent->SetFogInscatteringColor(FLinearColor(0.62f, 0.47f, 0.36f));
 			FogComponent->SetDirectionalInscatteringColor(FLinearColor(1.0f, 0.72f, 0.48f));
 			FogComponent->SetStartDistance(4000.0f);
-		}
+			FogComponent->SetVolumetricFog(true);   // dust hanging in the air, lit by the sun
+			FogComponent->SetVolumetricFogScatteringDistribution(0.4f);
+			FogComponent->SetVolumetricFogExtinctionScale(1.2f);
+			FogComponent->SetVolumetricFogDistance(30000.0f);		}
 		APostProcessVolume* Post = World->SpawnActor<APostProcessVolume>(FVector::ZeroVector, FRotator::ZeroRotator);
 		Post->bUnbound = true;
 		Post->Settings.bOverride_BloomIntensity = true;
-		Post->Settings.BloomIntensity = 0.45f;
+		Post->Settings.BloomIntensity = 0.75f;
 		Post->Settings.bOverride_VignetteIntensity = true;
-		Post->Settings.VignetteIntensity = 0.3f;
+		Post->Settings.VignetteIntensity = 0.42f;
 		Post->Settings.bOverride_WhiteTemp = true;
-		Post->Settings.WhiteTemp = 6100.0f;
+		Post->Settings.WhiteTemp = 6300.0f;
+		// Cinematic grade: warm highlights, cool shadows, a little more contrast and colour, ambient occlusion, speed blur,
+		// a hint of lens fringe and film grain.
+		Post->Settings.bOverride_ColorSaturation = true;
+		Post->Settings.ColorSaturation = FVector4(1.14, 1.14, 1.14, 1.0);
+		Post->Settings.bOverride_ColorContrast = true;
+		Post->Settings.ColorContrast = FVector4(1.1, 1.1, 1.1, 1.0);
+		Post->Settings.bOverride_ColorGainHighlights = true;
+		Post->Settings.ColorGainHighlights = FVector4(1.05, 1.0, 0.9, 1.0);
+		Post->Settings.bOverride_ColorGainShadows = true;
+		Post->Settings.ColorGainShadows = FVector4(0.92, 0.97, 1.08, 1.0);
+		Post->Settings.bOverride_AmbientOcclusionIntensity = true;
+		Post->Settings.AmbientOcclusionIntensity = 0.75f;
+		Post->Settings.bOverride_AmbientOcclusionRadius = true;
+		Post->Settings.AmbientOcclusionRadius = 220.0f;
+		Post->Settings.bOverride_MotionBlurAmount = true;
+		Post->Settings.MotionBlurAmount = 0.35f;
+		Post->Settings.bOverride_SceneFringeIntensity = true;
+		Post->Settings.SceneFringeIntensity = 0.6f;
+		Post->Settings.bOverride_FilmGrainIntensity = true;
+		Post->Settings.FilmGrainIntensity = 0.07f;
+		// Lumen: a little sky light into the deep shade (the cave, the slot canyons), and lens flares off the sun.
+		Post->Settings.bOverride_LumenSkylightLeaking = true;
+		Post->Settings.LumenSkylightLeaking = 0.12f;
+		Post->Settings.bOverride_LensFlareIntensity = true;
+		Post->Settings.LensFlareIntensity = 0.35f;
 	}
 
 	/** Invisible walls around an area (cm), 1.2 km tall around CenterZ: the map edge can never be crossed. */
@@ -1004,7 +1060,10 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 		}
 		const bool bKit = !Folder.EndsWith(TEXT("Plants"));  // rocks of any kind
 		const bool bWood = Group.Key.Contains(TEXT("Dead"));
-		AddInstances(World, Mesh, Group.Value, bKit && !bWood, bKit ? 0.0f : PlantCullM(Group.Key), bKit ? TEXT("World/Rocks") : TEXT("World/Plants"));
+		// The arches over the line (Arches Run, the finish) are landmarks to fly through, never walls to die on
+		// (player, 2026-10-26: "tem obstáculos que chocamos").
+		const bool bArch = Group.Key.Contains(TEXT("Arch"));
+		AddInstances(World, Mesh, Group.Value, bKit && !bWood && !bArch, bKit ? 0.0f : PlantCullM(Group.Key), bKit ? TEXT("World/Rocks") : TEXT("World/Plants"));
 		Placed += Group.Value.Num();
 	}
 	UE_LOG(LogTemp, Display, TEXT("EXWORLD props placed %d in %d meshes"), Placed, ByMesh.Num());
@@ -1048,9 +1107,15 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 		const TArray<TSharedPtr<FJsonValue>>& P = LapPoints[Index]->AsArray();
 		return WorldToUnreal(P[0]->AsNumber(), P[1]->AsNumber(), P[2]->AsNumber());
 	};
+	// The floor's half width (m) rides on each point's scale (Y), for the checkpoint gates.
+	const TArray<TSharedPtr<FJsonValue>>& RouteWidths = Circuit->GetObjectField(TEXT("lap"))->GetArrayField(TEXT("width_m"));
 	for (int32 Index = 0; Index < LapPoints.Num(); Index += 5)
 	{
 		Spline->AddSplinePoint(LapPoint(Index) + FVector(0.0f, 0.0f, 50.0f), ESplineCoordinateSpace::World, false);
+		if (RouteWidths.IsValidIndex(Index))
+		{
+			Spline->SetScaleAtSplinePoint(Spline->GetNumberOfSplinePoints() - 1, FVector(1.0, 0.5 * RouteWidths[Index]->AsNumber(), 1.0), false);
+		}
 	}
 	bool bClosed = true;  // the world's grand circuit is a lap; the expedition runs from A to B
 	Circuit->TryGetBoolField(TEXT("closed"), bClosed);
@@ -1063,10 +1128,15 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 	const TArray<TSharedPtr<FJsonValue>>& LapWidths = Circuit->GetObjectField(TEXT("lap"))->GetArrayField(TEXT("width_m"));
 	TArray<FTransform> Beacons;
 	float SinceLast = 1000.0f;
+	float SinceCaveLight = 1000.0f;
+	float SinceCaveLamp = 1000.0f;
+	int32 CaveLamps = 0;
 	double StraightSide = 1.0;
 	for (int32 Index = 10; Index + 10 < LapPoints.Num(); ++Index)
 	{
 		SinceLast += 4.0f;
+		SinceCaveLight += 4.0f;
+		SinceCaveLamp += 4.0f;
 		const FVector A = LapPoint(Index - 10);
 		const FVector B = LapPoint(Index);
 		const FVector C = LapPoint(Index + 10);
@@ -1082,7 +1152,39 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 		FHitResult Hit;
 		if (World->LineTraceSingleByChannel(Hit, B + FVector(0.0, 0.0, 200.0), B + FVector(0.0, 0.0, 6000.0), ECC_WorldStatic))
 		{
-			continue;  // under a tunnel roof: the tunnel itself shows the way
+			// Under a cave roof: short glowing posts on both sides every 40 m, 4 m inside the foot of the vault, and a
+			// warm lamp under the vault every 160 m (no shadows), so the way reads in the dark.
+			const FVector2D CaveDir = FVector2D(C - A).GetSafeNormal();
+			const FVector2D CaveLeft(-CaveDir.Y, CaveDir.X);
+			if (SinceCaveLight >= 40.0f)
+			{
+				SinceCaveLight = 0.0f;
+				const double InsideCm = FMath::Max(2.0, 0.5 * LapWidths[Index]->AsNumber() - 4.0) * CmPerM;
+				for (const double Side : {1.0, -1.0})
+				{
+					const FVector2D Post = FVector2D(B) + CaveLeft * Side * InsideCm;
+					double GroundZ = B.Z;
+					if (World->LineTraceSingleByChannel(Hit, FVector(Post, B.Z + 500.0), FVector(Post, B.Z - 8000.0), ECC_WorldStatic))
+					{
+						GroundZ = Hit.ImpactPoint.Z;
+					}
+					Beacons.Add(FTransform(FRotator::ZeroRotator, FVector(Post, GroundZ + 60.0), FVector(0.3, 0.3, 1.4)));
+				}
+			}
+			if (SinceCaveLamp >= 160.0f)
+			{
+				SinceCaveLamp = 0.0f;
+				APointLight* Lamp = World->SpawnActor<APointLight>(B + FVector(0.0, 0.0, 1200.0), FRotator::ZeroRotator);
+				Lamp->SetMobility(EComponentMobility::Movable);
+				Lamp->PointLightComponent->SetIntensityUnits(ELightUnits::Candelas);
+				Lamp->PointLightComponent->SetIntensity(2500.0f);  // the sun is 10 lux: ~15 lux on the floor below
+				Lamp->PointLightComponent->SetAttenuationRadius(9000.0f);
+				Lamp->PointLightComponent->SetLightColor(FLinearColor(1.0f, 0.62f, 0.32f));
+				Lamp->PointLightComponent->SetCastShadows(false);
+				Lamp->SetFolderPath(TEXT("World/CaveLamps"));
+				++CaveLamps;
+			}
+			continue;
 		}
 		SinceLast = 0.0f;
 		const FVector2D Dir = FVector2D(C - A).GetSafeNormal();
@@ -1104,7 +1206,7 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 			Posts->SetMaterial(0, LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/World/M_Beacon.M_Beacon")));
 		}
 	}
-	UE_LOG(LogTemp, Display, TEXT("EXWORLD beacons %d"), Beacons.Num());
+	UE_LOG(LogTemp, Display, TEXT("EXWORLD beacons %d, cave lamps %d"), Beacons.Num(), CaveLamps);
 
 	const FVector Start = LapPoint(0);
 	const FVector Ahead = LapPoint(FMath::Min(10, LapPoints.Num() - 1));

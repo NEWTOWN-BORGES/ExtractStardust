@@ -127,9 +127,24 @@ TH = int(round(TW * NY / NX))
 ri = np.clip(((np.arange(TH) + 0.5) * NY / TH).astype(int), 0, NY - 1)
 ci = np.clip(((np.arange(TW) + 0.5) * NX / TW).astype(int), 0, NX - 1)
 write_png(os.path.join(OUT, "world_surface.png"), surface[ri][:, ci] * 255.0)
+# Track as a distance field: metres from the floor's edge (negative inside), stored as (d + 32) / 64. Bilinear
+# filtering of a distance keeps the edge a clean line even with 4 m pixels; the shader cuts it at 0.
 KW = 4096
 KH = int(round(KW * NY / NX))
-grey = (route_mask((KH, KW), (NX - 1) * CELL / KW, lines) * 255.0)[..., None]
+px = (NX - 1) * CELL / KW
+edge = np.full((KH, KW), 32.0, np.float32)
+for points, widths in lines:
+    for (x, y, _), wd in zip(points, widths):
+        c = (x + SX / 2.0) / px
+        r = ((NY - 1) * CELL - (y + SY / 2.0)) / px
+        half = 0.5 * wd
+        rad = int((half + 32.0) / px) + 1
+        r0, r1, c0, c1 = max(0, int(r) - rad), min(KH, int(r) + rad + 1), max(0, int(c) - rad), min(KW, int(c) + rad + 1)
+        if r0 >= r1 or c0 >= c1:
+            continue
+        yy, xx = np.mgrid[r0:r1, c0:c1]
+        edge[r0:r1, c0:c1] = np.minimum(edge[r0:r1, c0:c1], np.hypot(yy - r, xx - c) * px - half)
+grey = (np.clip((edge + 32.0) / 64.0, 0.0, 1.0) * 255.0)[..., None]
 write_png(os.path.join(OUT, "world_track.png"), np.concatenate([grey, grey, grey, np.full_like(grey, 255.0)], -1))
 
 x0 = (0.0 - SX / 2.0) * 100.0

@@ -263,7 +263,9 @@ void UEXCraftFx::UpdateFlames(float Dt, const FEXCraftFxInput& Input)
 		{
 			FlameMeshes[Engine * 2 + Layer]->SetVisibility(bEngine);
 		}
-		EngineLights[Engine]->SetVisibility(bEngine);
+		// Real lights only on the craft whose camera is on screen: sixteen crafts' engine lights were a large part of the
+		// frame (player, 2026-10-26: "está lento"); the others glow through their flames.
+		EngineLights[Engine]->SetVisibility(bEngine && Input.bViewer);
 		for (int32 K = 0; K < FxMaxDiamonds; ++K)
 		{
 			DiamondMeshes[Engine * FxMaxDiamonds + K]->SetVisibility(bEngine && K < StyleDiamonds);
@@ -395,9 +397,11 @@ void UEXCraftFx::LandingBurst(const FVector& Point, const FVector& Up, float Str
 void UEXCraftFx::UpdateDust(float Dt, const FEXCraftFxInput& Input)
 {
 	const float Speed = Input.Velocity.Size() / 100.0f;
+	// The other crafts raise a quarter of the dust, and none beyond 250 m from the camera.
+	const float DustMul = Input.bViewer ? 1.0f : (FVector::DistSquared(Input.GroundPoint, Input.CameraLocation) < FMath::Square(25000.0f) ? 0.25f : 0.0f);
 	if (Input.bGrounded && Input.HeightM < 3.0f && Speed > 8.0f)
 	{
-		SpawnAccumulator += Dt * DustRateMax * FMath::Clamp(Speed / 90.0f, 0.15f, 1.0f) * (Input.bDrifting ? 1.5f : 1.0f);
+		SpawnAccumulator += Dt * DustRateMax * DustMul * FMath::Clamp(Speed / 90.0f, 0.15f, 1.0f) * (Input.bDrifting ? 1.5f : 1.0f);
 	}
 	const FVector Right = FVector::CrossProduct(Input.SurfaceUp, Input.Heading).GetSafeNormal();
 	while (SpawnAccumulator >= 1.0f)

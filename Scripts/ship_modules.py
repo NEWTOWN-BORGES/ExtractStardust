@@ -666,7 +666,12 @@ class Builder:
         if kind == "vents":
             for s in (-1, 1):
                 for dy in (-0.26, 0.26):
-                    loc, nor = self.side_hit(s, c.y + dy * sc, c.z + 0.08)
+                    # the hull side may be lower than the socket (a flat ship): look down for it, 0.1 m at a time
+                    loc, nor = None, None
+                    for drop in (0.0, 0.1, 0.2, 0.3, 0.45, 0.6):
+                        loc, nor = self.side_hit(s, c.y + dy * sc, c.z + 0.08 - drop)
+                        if loc is not None:
+                            break
                     if loc is None:
                         continue
                     R = frame_of(nor)

@@ -189,13 +189,29 @@ def star_icon(d):
     star(d, 256, 262, 220, 92)
 
 
+def piggy(d):
+    """The expedition's piggy bank (the pool the destroyed lose their pieces to): body, snout, ear, legs, a coin going in."""
+    d.ellipse([62, 200, 398, 432], outline=WHITE, width=26)                 # body
+    d.ellipse([372, 262, 452, 352], outline=WHITE, width=24)                # snout
+    disc(d, 400, 307, 11)
+    disc(d, 426, 307, 11)
+    poly(d, [(272, 214), (318, 132), (344, 222)])                          # ear
+    disc(d, 318, 268, 15)                                                   # eye
+    for x0 in (112, 182, 262, 330):                                         # legs
+        d.rounded_rectangle([x0, 402, x0 + 44, 478], radius=14, fill=WHITE)
+    line(d, [(66, 300), (32, 286), (30, 254), (58, 250), (60, 276)], 18)   # tail
+    line(d, [(182, 214), (262, 214)], 22)                                   # coin slot
+    ring(d, 222, 90, 54, 20)                                                # the coin going in
+    star(d, 222, 90, 30, 13, 4, -90)
+
+
 ICONS = {
     "fam_0": engine, "fam_1": propulsion, "fam_2": wings, "fam_3": tail, "fam_4": armor, "fam_5": reactor, "fam_6": cooling,
     "fam_7": utility,
     "con_coolant": lambda d: battery(d, snow), "con_foam": lambda d: battery(d, plus), "con_fuel": drop, "con_stab": stabilizer,
     "con_surge": bolt, "con_nanogel": nanogel,
     "cache_0": lambda d: crate(d, 1), "cache_1": lambda d: crate(d, 2), "cache_2": lambda d: crate(d, 3),
-    "ship_copy": ship_copy, "star": star_icon,
+    "ship_copy": ship_copy, "star": star_icon, "piggy": piggy,
 }
 
 # ---- Interface art --------------------------------------------------------------------------------------------------

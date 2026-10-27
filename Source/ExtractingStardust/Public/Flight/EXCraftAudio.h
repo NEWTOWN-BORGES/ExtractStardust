@@ -36,6 +36,7 @@ struct FEXCraftAudioInput
 	bool bGrounded = false;
 	bool bDrifting = false;
 	bool bHangar = false;
+	float Music = 0.0f;       // menu and hangar music (0..1)
 	bool bRaceHold = false;
 	bool bViewer = true;
 	TArray<FEXCraftAudioOther, TInlineAllocator<8>> Others;
@@ -63,6 +64,8 @@ public:
 	void Bang(float Strength);
 	/** Touchdown after a jump, 0..1. */
 	void Landing(float Strength);
+	/** A call-out: 0-4 a piece picked up (rarity), 10 countdown beep, 11 start, 12 checkpoint, 13 a rival's pieces spill. */
+	void Chime(int32 Kind);
 
 private:
 	void EnsurePlaying();

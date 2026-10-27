@@ -97,8 +97,8 @@ namespace
 void UEXHangarWidget::InitializeHangar(AEXRaceDirector* InRaceDirector)
 {
 	RaceDirector = InRaceDirector;
-	// The mouse turns the ship (game input): the widget never takes it.
-	SetVisibility(ESlateVisibility::HitTestInvisible);
+	// The widget takes the clicks (tabs, slots, pieces); a click on nothing goes on to the game.
+	SetVisibility(ESlateVisibility::Visible);
 }
 
 TSharedRef<SWidget> UEXHangarWidget::RebuildWidget()
@@ -183,7 +183,7 @@ void UEXHangarWidget::BuildTree()
 	EXUi::AddO(Root, Bottom, HAlign_Fill, VAlign_Bottom);
 }
 
-UEXHangarWidget::FLineFrame UEXHangarWidget::MakeLineFrame(UWidget* Content, float BarWidth, const FMargin& Padding, bool bWash)
+UEXHangarWidget::FLineFrame UEXHangarWidget::MakeLineFrame(UWidget* Content, float BarWidth, const FMargin& LinePadding, bool bWash)
 {
 	UWidgetTree* Tree = WidgetTree;
 	FLineFrame Frame;
@@ -197,7 +197,7 @@ UEXHangarWidget::FLineFrame UEXHangarWidget::MakeLineFrame(UWidget* Content, flo
 		Frame.Wash->SetVisibility(ESlateVisibility::Collapsed);
 		EXUi::AddO(Root, Frame.Wash, HAlign_Fill, VAlign_Fill);
 	}
-	EXUi::AddO(Root, Content, HAlign_Fill, VAlign_Center, Padding);
+	EXUi::AddO(Root, Content, HAlign_Fill, VAlign_Center, LinePadding);
 	for (int32 Side = 0; Side < 4; ++Side)
 	{
 		Frame.Edges[Side] = EXUi::Box(Tree, EXUi::Bone(0.07f));
@@ -395,7 +395,7 @@ UEXHangarWidget::FShipView UEXHangarWidget::MakeShip()
 	return View;
 }
 
-UEXHangarWidget::FTileView UEXHangarWidget::MakeTile(int32 Slot)
+UEXHangarWidget::FTileView UEXHangarWidget::MakeTile(int32 QuickIndex)
 {
 	UWidgetTree* Tree = WidgetTree;
 	FTileView View;
@@ -404,12 +404,12 @@ UEXHangarWidget::FTileView UEXHangarWidget::MakeTile(int32 Slot)
 	EXUi::AddO(Root, View.Fill, HAlign_Fill, VAlign_Fill);
 	// The key in a small box (top left) and the d-pad arrow (top right).
 	const EXUi::FFrame Key = EXUi::Frame(Tree, EXUi::Bone(0.7f), EXUi::Ink(0.0f), 1.0f, FMargin(0.0f));
-	UTextBlock* KeyText = EXUi::WeightText(Tree, FString::FromInt(Slot + 1), 10, EXUi::Bone(), 800);
+	UTextBlock* KeyText = EXUi::WeightText(Tree, FString::FromInt(QuickIndex + 1), 10, EXUi::Bone(), 800);
 	Key.Fill->SetContent(KeyText);
 	Key.Fill->SetHorizontalAlignment(HAlign_Center);
 	Key.Fill->SetVerticalAlignment(VAlign_Center);
 	EXUi::AddO(Root, EXUi::Sized(Tree, 22.0f, 22.0f, Key.Root), HAlign_Left, VAlign_Top, FMargin(9.0f));
-	EXUi::AddO(Root, EXUi::WeightText(Tree, QuickArrows[Slot], 10, EXUi::Rust(), 700), HAlign_Right, VAlign_Top, FMargin(0.0f, 8.0f, 10.0f, 0.0f));
+	EXUi::AddO(Root, EXUi::WeightText(Tree, QuickArrows[QuickIndex], 10, EXUi::Rust(), 700), HAlign_Right, VAlign_Top, FMargin(0.0f, 8.0f, 10.0f, 0.0f));
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	View.Icon = EXUi::Image(Tree, nullptr);
 	EXUi::AddV(Column, EXUi::Sized(Tree, 40.0f, 40.0f, View.Icon), FMargin(0.0f), HAlign_Center);
@@ -618,12 +618,12 @@ UWidget* UEXHangarWidget::BuildQuickPanel()
 	EXUi::AddV(Column, QuickTitle, FMargin(0.0f, 0.0f, 0.0f, 14.0f));
 	UCanvasPanel* Cross = Tree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
 	const FVector2D Cells[EXMeta::QuickSlots] = { FVector2D(152.0f, 0.0f), FVector2D(152.0f, 304.0f), FVector2D(0.0f, 152.0f), FVector2D(304.0f, 152.0f) };
-	for (int32 Slot = 0; Slot < EXMeta::QuickSlots; ++Slot)
+	for (int32 QuickIndex = 0; QuickIndex < EXMeta::QuickSlots; ++QuickIndex)
 	{
-		FTileView View = MakeTile(Slot);
+		FTileView View = MakeTile(QuickIndex);
 		UCanvasPanelSlot* CellSlot = Cross->AddChildToCanvas(View.Root);
 		CellSlot->SetAutoSize(false);
-		CellSlot->SetPosition(Cells[Slot]);
+		CellSlot->SetPosition(Cells[QuickIndex]);
 		CellSlot->SetSize(FVector2D(142.0f, 142.0f));
 		TileViews.Add(View);
 	}
@@ -638,14 +638,14 @@ UWidget* UEXHangarWidget::BuildQuickPanel()
 	// Teclado 1 2 3 4  ·  Comando ▲ ▼ ◀ ▶
 	UHorizontalBox* Keys = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	EXUi::AddH(Keys, EXUi::WeightText(Tree, TEXT("Teclado"), 12, EXUi::Sand(), 400), FMargin(0.0f, 0.0f, 8.0f, 0.0f));
-	for (int32 Slot = 0; Slot < EXMeta::QuickSlots; ++Slot)
+	for (int32 QuickIndex = 0; QuickIndex < EXMeta::QuickSlots; ++QuickIndex)
 	{
-		EXUi::AddH(Keys, EXUi::KeyCap(Tree, FString::FromInt(Slot + 1)), FMargin(0.0f, 0.0f, 7.0f, 0.0f));
+		EXUi::AddH(Keys, EXUi::KeyCap(Tree, FString::FromInt(QuickIndex + 1)), FMargin(0.0f, 0.0f, 7.0f, 0.0f));
 	}
 	EXUi::AddH(Keys, EXUi::WeightText(Tree, TEXT("·  Comando"), 12, EXUi::Sand(), 400), FMargin(4.0f, 0.0f, 8.0f, 0.0f));
-	for (int32 Slot = 0; Slot < EXMeta::QuickSlots; ++Slot)
+	for (int32 QuickIndex = 0; QuickIndex < EXMeta::QuickSlots; ++QuickIndex)
 	{
-		EXUi::AddH(Keys, EXUi::KeyCap(Tree, QuickArrows[Slot]), FMargin(0.0f, 0.0f, 7.0f, 0.0f));
+		EXUi::AddH(Keys, EXUi::KeyCap(Tree, QuickArrows[QuickIndex]), FMargin(0.0f, 0.0f, 7.0f, 0.0f));
 	}
 	EXUi::AddV(Column, Keys, FMargin(0.0f, 14.0f, 0.0f, 4.0f), HAlign_Left);
 	return MakePanel(Column, 504.0f, false);
@@ -1039,6 +1039,123 @@ void UEXHangarWidget::ShowCard(const FCardView& View, const FEXHangarRow* Card, 
 	View.Front->SetRenderOpacity(Card->bDim ? 0.45f : 1.0f);
 }
 
+bool UEXHangarWidget::IsUnder(const UWidget* Widget, const FPointerEvent& MouseEvent)
+{
+	if (!Widget || !Widget->IsVisible())
+	{
+		return false;
+	}
+	// Screen space on both sides (the mouse and the widget's last geometry).
+	const FGeometry& Geometry = Widget->GetCachedGeometry();
+	const FVector2D Mouse = MouseEvent.GetScreenSpacePosition();
+	const FVector2D Top = Geometry.GetAbsolutePosition();
+	const FVector2D Size = Geometry.GetAbsoluteSize();
+	return Size.X > 1.0 && Mouse.X >= Top.X && Mouse.Y >= Top.Y && Mouse.X < Top.X + Size.X && Mouse.Y < Top.Y + Size.Y;
+}
+
+namespace
+{
+	/** Index of the first of these widgets that is shown and under the mouse (INDEX_NONE if none). */
+	int32 FirstUnder(const TArray<UWidget*>& Roots, const FPointerEvent& MouseEvent, bool (*Under)(const UWidget*, const FPointerEvent&))
+	{
+		for (int32 Index = 0; Index < Roots.Num(); ++Index)
+		{
+			if (Under(Roots[Index], MouseEvent))
+			{
+				return Index;
+			}
+		}
+		return INDEX_NONE;
+	}
+}
+
+FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	AEXHoverCraft* Craft = GetPlayerCraft();
+	UEXHangarModel* Model = Craft ? Craft->GetHangarModel() : nullptr;
+	if (!Model || InMouseEvent.GetEffectingButton() != EKeys::LeftMouseButton)
+	{
+		return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+	}
+	if (Model->IsOpening())
+	{
+		// A cache being opened: a click turns the next card over, and closes it at the end (as Enter does).
+		Model->Confirm();
+		return FReply::Handled();
+	}
+	const EEXHangarTab Tab = Model->GetTab();
+	// The tabs.
+	for (int32 Index = 0; Index < TabFills.Num(); ++Index)
+	{
+		if (IsUnder(TabFills[Index], InMouseEvent))
+		{
+			Model->Tab(Index - static_cast<int32>(Tab) + TabFills.Num());
+			return FReply::Handled();
+		}
+	}
+	// The action button (launch on NAVE, fit on EQUIPAR).
+	if ((Tab == EEXHangarTab::Ship || Tab == EEXHangarTab::Equip) && IsUnder(ActionPanel, InMouseEvent))
+	{
+		Model->Confirm();
+		return FReply::Handled();
+	}
+	// The left list. A click picks the row; a second click on the picked row does what Enter does (buy, open, sell,
+	// change the consumable). On NAVE and EQUIPAR a click only picks (the piece is chosen on the right).
+	TArray<UWidget*> Roots;
+	int32 First = 0;
+	switch (Tab)
+	{
+	case EEXHangarTab::Equip:
+		for (const FSlotView& View : SlotViews) { Roots.Add(View.Frame.Root); }
+		break;
+	case EEXHangarTab::Ship:
+		for (const FShipView& View : ShipViews) { Roots.Add(View.Frame.Root); }
+		break;
+	case EEXHangarTab::Quick:
+		for (const FTileView& View : TileViews) { Roots.Add(View.Root); }
+		break;
+	default:
+		for (const FItemView& View : ListViews) { Roots.Add(View.Frame.Root); }
+		First = LeftFirst;
+		break;
+	}
+	const int32 Left = FirstUnder(Roots, InMouseEvent, &UEXHangarWidget::IsUnder);
+	if (Left != INDEX_NONE)
+	{
+		const int32 RowIndex = First + Left;
+		if (RowIndex != LeftSelected)
+		{
+			Model->Move(RowIndex - LeftSelected);
+		}
+		else if (Tab != EEXHangarTab::Equip && Tab != EEXHangarTab::Ship)
+		{
+			Model->Confirm();
+		}
+		return FReply::Handled();
+	}
+	// The pieces on the right of EQUIPAR: the first click looks at the piece on the ship, a second click fits it.
+	if (Tab == EEXHangarTab::Equip)
+	{
+		Roots.Reset();
+		for (const FItemView& View : CandidateViews) { Roots.Add(View.Frame.Root); }
+		const int32 Right = FirstUnder(Roots, InMouseEvent, &UEXHangarWidget::IsUnder);
+		if (Right != INDEX_NONE)
+		{
+			const int32 RowIndex = RightFirst + Right;
+			if (RowIndex != RightSelected)
+			{
+				Model->Change(RowIndex - RightSelected);
+			}
+			else
+			{
+				Model->Confirm();
+			}
+			return FReply::Handled();
+		}
+	}
+	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+}
+
 void UEXHangarWidget::Refresh()
 {
 	AEXHoverCraft* Craft = GetPlayerCraft();
@@ -1102,6 +1219,8 @@ void UEXHangarWidget::Refresh()
 	TArray<FEXHangarRow> Rows;
 	int32 Selected = 0;
 	Model->BuildLeft(Title, Rows, Selected);
+	LeftSelected = Selected;
+	LeftFirst = 0;
 	if (bEquip)
 	{
 		EXUi::SetText(SlotsTitle, Title);
@@ -1118,6 +1237,7 @@ void UEXHangarWidget::Refresh()
 			ShowShip(ShipViews[Index], bShip && Rows.IsValidIndex(Index) ? &Rows[Index] : nullptr, Index == Selected);
 		}
 		const int32 First = FMath::Clamp(Selected - HangarListRows / 2, 0, FMath::Max(0, Rows.Num() - HangarListRows));
+		LeftFirst = bList ? First : 0;
 		for (int32 Index = 0; Index < ListViews.Num(); ++Index)
 		{
 			const int32 RowIndex = First + Index;
@@ -1150,10 +1270,13 @@ void UEXHangarWidget::Refresh()
 	// Right.
 	FString Detail;
 	Model->BuildRight(Title, Rows, Selected, Detail);
+	RightSelected = Selected;
+	RightFirst = 0;
 	if (bEquip)
 	{
 		EXUi::SetText(CandidatesTitle, Title);
 		const int32 First = Selected >= 0 ? FMath::Clamp(Selected - HangarCandidateRows / 2, 0, FMath::Max(0, Rows.Num() - HangarCandidateRows)) : 0;
+		RightFirst = First;
 		for (int32 Index = 0; Index < CandidateViews.Num(); ++Index)
 		{
 			const int32 RowIndex = First + Index;

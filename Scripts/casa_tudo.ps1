@@ -23,6 +23,7 @@ $Project = Join-Path $Root "ExtractingStardust.uproject"
 $Editor = Join-Path $UE "Engine\Binaries\Win64\UnrealEditor.exe"
 $EditorCmd = Join-Path $UE "Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 $Ab = "$Rdd\ab"
+$RootFwd = $Root -replace "\\", "/"  # o Unreal le "\n" de C:\Users\nilto como mudanca de linha: caminhos de scripts com "/"
 
 function Step($Name, $Exe, [string[]]$Arguments) {
     Write-Host ""
@@ -43,13 +44,14 @@ if (-not $SemPista) {
     Step "2b. Exportar a pista para o Unreal" $Blender @("-b", "-P", "Scripts/export_ab_unreal.py", "--", $Ab)
     $env:EX_WORLD_DIR = "$Ab\ue"
     $env:EX_KIT_DIR = "$Rdd\kit"
-    Step "3a. Importar as pecas da pista" $EditorCmd @($Project, "-run=pythonscript", "-script=$Root\Scripts\import_world.py", "-unattended")
+    Step "3a. Importar as pecas da pista" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/import_world.py", "-unattended")
 }
-Step "3b. Importar as naves novas" $EditorCmd @($Project, "-run=pythonscript", "-script=$Root\Scripts\import_test_ships.py", "-unattended")
-Step "3c. Importar os modulos das naves" $EditorCmd @($Project, "-run=pythonscript", "-script=$Root\Scripts\import_ship_modules.py", "-unattended")
-Step "3d. Importar os icones e as fotos do hangar" $EditorCmd @($Project, "-run=pythonscript", "-script=$Root\Scripts\import_ui_icons.py", "-unattended")
+Step "3b. Importar as naves novas" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/import_test_ships.py", "-unattended")
+Step "3c. Importar os modulos das naves" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/import_ship_modules.py", "-unattended")
+Step "3d. Importar os icones e as fotos do hangar" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/import_ui_icons.py", "-unattended")
+Step "3e. Materiais fotorrealistas das naves" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/make_ship_materials.py", "-unattended")
 if (-not $SemPista) {
-    Step "4. Montar o mapa Expedition" $Editor @($Project, "-ExecutePythonScript=$Root\Scripts\build_expedition_map.py")
+    Step "4. Montar o mapa Expedition" $Editor @($Project, "-ExecutePythonScript=$RootFwd/Scripts/build_expedition_map.py")
 }
 Write-Host ""
 Write-Host "PRONTO. Para jogar: powershell -ExecutionPolicy Bypass -File Scripts\jogar.ps1 -Modo Bots   (ou Solo)" -ForegroundColor Green

@@ -778,6 +778,28 @@ namespace
 		}
 	}
 
+	void RollBotCargo(int32 Skill, FRandomStream& Random, int32& NextSerial, int32 Count, TArray<FEXItem>& Out)
+	{
+		Skill = FMath::Clamp(Skill, 0, 2);
+		static const float Odds[3][4] = { { 0.50f, 0.34f, 0.13f, 0.03f }, { 0.28f, 0.40f, 0.25f, 0.07f }, { 0.10f, 0.34f, 0.40f, 0.16f } };
+		TArray<float> Weights;
+		Weights.Append(Odds[Skill], 4);
+		TArray<const FModuleDef*> Any;
+		TArray<const FModuleDef*> Legends;
+		for (const FModuleDef& Def : Catalogue())
+		{
+			(Def.bLegendary ? Legends : Any).Add(&Def);
+		}
+		for (int32 K = 0; K < Count && Any.Num() > 0; ++K)
+		{
+			Out.Add(Roll(*Any[Random.RandRange(0, Any.Num() - 1)], static_cast<EEXRarity>(Weighted(Random, Weights)), Random, NextSerial++));
+		}
+		if (Skill >= 1 && Legends.Num() > 0 && Random.FRand() < (Skill >= 2 ? 0.10f : 0.03f))
+		{
+			Out.Add(Roll(*Legends[Random.RandRange(0, Legends.Num() - 1)], EEXRarity::Legendary, Random, NextSerial++));
+		}
+	}
+
 	void RollBotBuild(const FString& ShipName, int32 Skill, FRandomStream& Random, int32& NextSerial, TArray<FEXItem>& Out)
 	{
 		Out.Reset();

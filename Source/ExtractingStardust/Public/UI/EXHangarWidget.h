@@ -45,6 +45,8 @@ public:
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	/** Player, 2026-10-25: the pieces could only be chosen with W/S/A/D/Enter; now the mouse clicks tabs, slots and pieces. */
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 
 private:
 	static constexpr int32 MaxChips = 6;
@@ -206,6 +208,7 @@ private:
 	void RefreshCards(const UEXHangarModel* Model);
 	void RefreshHints(const UEXHangarModel* Model);
 	AEXHoverCraft* GetPlayerCraft() const;
+	static bool IsUnder(const UWidget* Widget, const FPointerEvent& MouseEvent);
 
 	UPROPERTY(Transient) TObjectPtr<AEXRaceDirector> RaceDirector;
 	// Plain pointers into the widget tree (it owns the widgets and lives as long as this widget).
@@ -266,4 +269,9 @@ private:
 	UCanvasPanel* CalloutLayer = nullptr;
 	UHorizontalBox* KeyBar = nullptr;
 	FString ShownHints;
+	// What the lists showed at the last Refresh: the first row of each window and the selected row (for the clicks).
+	int32 LeftFirst = 0;
+	int32 LeftSelected = 0;
+	int32 RightFirst = 0;
+	int32 RightSelected = -1;
 };

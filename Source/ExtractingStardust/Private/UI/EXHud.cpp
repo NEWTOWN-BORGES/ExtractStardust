@@ -10,6 +10,7 @@
 #include "UI/EXHangarWidget.h"
 #include "UI/EXMainMenuWidget.h"
 #include "UI/EXRaceHudWidget.h"
+#include "UI/EXResultsWidget.h"
 
 namespace
 {
@@ -57,6 +58,22 @@ void AEXHud::DrawHUD()
 		RaceHudWidget->RemoveFromParent();
 		RaceHudWidget = nullptr;
 	}
+	// The results screen, once the race is over.
+	const bool bResults = bRacing && Race->IsOver();
+	if (bResults && !IsValid(ResultsWidget) && GetOwningPlayerController())
+	{
+		ResultsWidget = CreateWidget<UEXResultsWidget>(GetOwningPlayerController());
+		if (ResultsWidget)
+		{
+			ResultsWidget->InitializeResults(Race);
+			ResultsWidget->AddToViewport(50);
+		}
+	}
+	else if (!bResults && ResultsWidget)
+	{
+		ResultsWidget->RemoveFromParent();
+		ResultsWidget = nullptr;
+	}
 	if (bMenu || bHangar || Craft->IsInShowroom())
 	{
 		return;
@@ -90,11 +107,13 @@ void AEXHud::DrawHUD()
 	DrawMinimap(Route, Here, Forward, Index, Others);
 
 	// Guide arrow: angle from the nose to the race line 150 m ahead (positive: turn right).
-	const FVector2D Target = Route[(Index + AheadSamples) % Route.Num()];
+	// A missed checkpoint: the arrow points back to it.
+	const int32 Missed = Race && Race->IsReady() ? Race->GetMissedGate() : 0;
+	const FVector2D Target = Missed > 0 ? Race->GetGateCentre(Missed - 1) : Route[(Index + AheadSamples) % Route.Num()];
 	const FVector2D ToTarget = (Target - Here).GetSafeNormal();
 	const float AngleDeg = FMath::RadiansToDegrees(FMath::Atan2(Forward ^ ToTarget, Forward | ToTarget));
 	const FVector2D Tangent = (Route[(Index + 4) % Route.Num()] - Route[Index]).GetSafeNormal();
-	const bool bWrongWay = (Forward | Tangent) < -0.3f && FVector2D(Craft->GetFlightVelocity()).Size() > 1500.0f;
+	const bool bWrongWay = Missed == 0 && (Forward | Tangent) < -0.3f && FVector2D(Craft->GetFlightVelocity()).Size() > 1500.0f;
 	const float Off = FMath::Abs(AngleDeg);
 	const FLinearColor Colour = bWrongWay ? FLinearColor(1.0f, 0.15f, 0.1f) : (Off < 25.0f ? FLinearColor(0.3f, 1.0f, 0.4f)
 		: (Off < 70.0f ? FLinearColor(1.0f, 0.85f, 0.2f) : FLinearColor(1.0f, 0.4f, 0.15f)));
@@ -215,12 +234,12 @@ void AEXHud::ShowScreens(AEXRaceDirector* Race, bool bMenu, bool bHangar)
 		HangarWidget->RemoveFromParent();
 		HangarWidget = nullptr;
 	}
-	// The menu takes the mouse (its lines are clicked); the hangar and the race give it to the game.
-	const int32 Wanted = bMenu ? 1 : 0;
+	// The menu and the hangar take the mouse (their lines, tabs and pieces are clicked); the race gives it to the game.
+	const int32 Wanted = (bMenu || bHangar) ? 1 : 0;
 	if (Wanted != InputScreen)
 	{
 		InputScreen = Wanted;
-		if (bMenu)
+		if (bMenu || bHangar)
 		{
 			PlayerController->bShowMouseCursor = true;
 			FInputModeGameAndUI InputMode;
@@ -286,10 +305,10 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 		DrawRect(FLinearColor(0.03f, 0.02f, 0.01f, 0.6f), Mid - W * 0.5f - 12.0f, AtY - 4.0f, W + 24.0f, H + 8.0f);
 		DrawText(Text, Colour, Mid - W * 0.5f, AtY, nullptr, TextScale);
 	};
-	// Countdown: 3, 2, 1, VAI!
-	if (Race->GetCountdown() > 0.0f)
+	// Countdown: 3, 2, 1, VAI! (the race widget shows the start lights instead)
+	if (Race->GetCountdown() > 0.0f && !RaceHudWidget)
 	{
-		const int32 Count = FMath::CeilToInt(Race->GetCountdown() - 1.0f);
+		const int32 Count = FMath::Min(3, FMath::CeilToInt(Race->GetCountdown()));
 		DrawText(Count > 0 ? FString::FromInt(Count) : FString(TEXT("VAI!")), Count > 0 ? FLinearColor(1.0f, 0.85f, 0.2f)
 			: FLinearColor(0.3f, 1.0f, 0.4f), Mid - 40.0f * Scale, Canvas->ClipY * 0.3f, nullptr, 4.0f * Scale);
 	}
@@ -304,7 +323,7 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 	}
 	if (Craft->GetRepairProgress() >= 0.0f)
 	{
-		Centred(FString::Printf(TEXT("A REPARAR  %d%%  \u00B7  +1 VIDA"), FMath::RoundToInt(Craft->GetRepairProgress() * 100.0f)),
+		Centred(FString::Printf(TEXT("A REPARAR O CASCO  %d%%"), FMath::RoundToInt(Craft->GetRepairProgress() * 100.0f)),
 			FLinearColor(0.48f, 0.88f, 0.54f), ToastY, 1.1f * Scale);
 		ToastY += 28.0f * Scale;
 	}
@@ -337,10 +356,11 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 	}
 	if (Craft->IsEliminated() && !Race->IsOver())
 	{
+		DrawText(TEXT("Enter / X: ver o resultado"), FLinearColor(1.0f, 0.85f, 0.6f), Mid - 120.0f * Scale, Canvas->ClipY * 0.36f + 44.0f * Scale, nullptr, 1.2f * Scale);
 		DrawText(TEXT("DESTRU\u00CDDA - AT\u00C9 3 M\u00D3DULOS V\u00C3O PARA QUEM EXTRAIR"), Red, Mid - 330.0f * Scale, Canvas->ClipY * 0.36f, nullptr, 1.8f * Scale);
 	}
 	// Messages of the last 6 s (left, under the panel).
-	float FeedY = (RaceHudWidget ? 128.0f : (bBots ? 130.0f : 106.0f)) * Scale;
+	float FeedY = (RaceHudWidget ? 252.0f : (bBots ? 130.0f : 106.0f)) * Scale;   // under the piggy bank's panel
 	for (const TPair<float, FString>& Line : Race->GetFeed())
 	{
 		if (Race->GetRaceTime() - Line.Key < 6.0f || Race->GetCountdown() > 0.0f)
@@ -349,9 +369,17 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 			FeedY += 20.0f * Scale;
 		}
 	}
-	// The extraction: who reached B (EXTRACTED), who was destroyed (up to three of its modules are the pool) and who
+	// Past the line, before the results: the finish banner, and the results come on their own (or with Enter / X).
+	if (!Race->IsOver() && Race->IsPlayerDone() && !Craft->IsEliminated())
+	{
+		DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.55f), Mid - 330.0f * Scale, Canvas->ClipY * 0.30f, 660.0f * Scale, 120.0f * Scale);
+		DrawText(FString::Printf(TEXT("META!   %s   \u00B7   %d.\u00BA LUGAR"), *HudRaceClock(Race->GetPlayerDoneTime()), Race->GetPlayerPlace()),
+			FLinearColor(0.3f, 1.0f, 0.4f), Mid - 300.0f * Scale, Canvas->ClipY * 0.30f + 18.0f * Scale, nullptr, 2.0f * Scale);
+		DrawText(TEXT("Enter / X: ver o esp\u00F3lio e os resultados"), FLinearColor(1.0f, 0.85f, 0.6f), Mid - 210.0f * Scale, Canvas->ClipY * 0.30f + 78.0f * Scale, nullptr, 1.2f * Scale);
+	}
+	// The extraction: who reached B (EXTRACTED), who was destroyed (all but its insured module go to the pool) and who
 	// was still on the way; then what the player won and lost.
-	if (Race->IsOver())
+	if (Race->IsOver() && !ResultsWidget)
 	{
 		const TArray<FString>& News = Race->GetPlayerNews();
 		const float W = 700.0f * Scale;

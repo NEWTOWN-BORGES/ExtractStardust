@@ -13,9 +13,12 @@
 #include "EngineUtils.h"
 #include "Flight/EXCraftAudio.h"
 #include "Flight/EXCraftFx.h"
+#include "Flight/EXExplosion.h"
 #include "GameFramework/PlayerStart.h"
 #include "World/EXDesertTerrain.h"
 #include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "HAL/PlatformMisc.h"
 #include "Math/RotationMatrix.h"
 #include "Misc/CommandLine.h"
@@ -165,9 +168,9 @@ AEXHoverCraft::AEXHoverCraft()
 	// Blur mostly smears nearby scenery (as in the reference video); kept moderate because heavy full-screen
 	// blur measurably lowers the perceived speed.
 	Camera->PostProcessSettings.bOverride_MotionBlurAmount = true;
-	Camera->PostProcessSettings.MotionBlurAmount = 0.55f;
+	Camera->PostProcessSettings.MotionBlurAmount = 0.5f;
 	Camera->PostProcessSettings.bOverride_MotionBlurMax = true;
-	Camera->PostProcessSettings.MotionBlurMax = 12.0f;
+	Camera->PostProcessSettings.MotionBlurMax = 8.0f;
 	Camera->PostProcessSettings.bOverride_SceneFringeIntensity = true;
 	Camera->PostProcessSettings.SceneFringeIntensity = 0.0f;
 	Camera->PostProcessSettings.bOverride_VignetteIntensity = true;
@@ -212,6 +215,8 @@ void AEXHoverCraft::BeginPlay()
 			{
 				const FVector Point = Spline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 				MapRoute.Add(FVector2D(Point.X / CmPerM, Point.Y / CmPerM));
+				MapRouteZ.Add(Point.Z / CmPerM);
+				MapRouteHalfW.Add(Spline->GetScaleAtDistanceAlongSpline(Distance).Y);
 			}
 			break;
 		}
@@ -291,8 +296,11 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	{
 		if (Audio)
 		{
+			// The explosion rings out for the player who blew up, then silence.
 			FEXCraftAudioInput Silent;
-			Silent.bViewer = false;
+			Silent.ShipName = GetShipName();
+			Silent.bViewer = IsPlayerControlled() && GetWorld()->GetTimeSeconds() - EliminatedAt < 2.5f;
+			Silent.bRaceHold = true;
 			Audio->UpdateAudio(DeltaSeconds, Silent);
 		}
 		return;
@@ -306,6 +314,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 			FEXCraftAudioInput In;
 			In.ShipName = GetShipName();
 			In.bHangar = true;
+			In.Music = 1.0f;   // the menu and the hangar play the ambient music
 			In.bGrounded = true;
 			In.bViewer = true;
 			Audio->UpdateAudio(DeltaSeconds, In);
@@ -331,6 +340,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	{
 		RunFlightTest(DeltaSeconds);
 	}
+	bGridLock = bGridLock && bRaceHold;   // the grid lock ends with the start (a respawn never re-arms it)
 	if (bRaceHold)
 	{
 		// On the grid (countdown) or past the finish: the craft hovers where it is.
@@ -338,6 +348,10 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 		BrakeInput = 1.0f;
 		bBoostHeld = false;
 		bDriftHeld = false;
+		if (bGridLock)
+		{
+			SteerInput = 0.0f;   // bots too: nobody turns on the grid
+		}
 	}
 	if (bRaceRules && !bRaceHold)
 	{
@@ -353,6 +367,17 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 			StepFlight(Step);
 			Remaining -= Step;
 		}
+		if (bRaceHold && bGridLock)
+		{
+			// Player, 2026-10-26: the crafts stood scattered at the start. On the grid each stays on its slot, in line,
+			// facing down the track, hovering; all go at the same instant when the director lets go.
+			const FVector Here = GetActorLocation();
+			SetActorLocation(FVector(StartLocation.X, StartLocation.Y, Here.Z), false, nullptr, ETeleportType::TeleportPhysics);
+			VelocityCmps = FVector(0.0f, 0.0f, VelocityCmps.Z);
+			YawRate = 0.0f;
+			Heading = FVector::VectorPlaneProject(StartRotation.Vector(), SurfaceUp).GetSafeNormal(UE_SMALL_NUMBER, StartRotation.Vector());
+			SetActorRotation(FRotationMatrix::MakeFromXZ(Heading, SurfaceUp).ToQuat());
+		}
 		if (GetActorLocation().Z < LostBelowZCm)
 		{
 			bLost = true;
@@ -361,7 +386,7 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 			{
 				// In a race a fall out of the world costs a life; the craft comes back on the line.
 				HitCooldown = 0.0f;
-				LoseLife();
+				ApplyHullDamage(HullMax * 0.25f, true);
 				if (!bEliminated)
 				{
 					RespawnOnRoute();
@@ -425,7 +450,9 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	FxInput.Heading = Heading;
 	FxInput.SurfaceUp = SurfaceUp;
 	FxInput.GroundPoint = GroundPointCm;
-	FxInput.CameraLocation = Camera->GetComponentLocation();
+	// The camera on screen (a bot's own camera is never used): the effects thin out with distance from it.
+	const APlayerCameraManager* ViewCamera = bViewer ? nullptr : UGameplayStatics::GetPlayerCameraManager(this, 0);
+	FxInput.CameraLocation = ViewCamera ? ViewCamera->GetCameraLocation() : Camera->GetComponentLocation();
 	FxInput.CameraForward = Camera->GetForwardVector();
 	FxInput.SpeedAlpha = FMath::Clamp(ForwardSpeedMps / MaxSpeedMps, 0.0f, 1.2f);
 	FxInput.Throttle = ThrottleInput;
@@ -458,7 +485,8 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 		Sound.bViewer = bViewer;
 		Audio->UpdateAudio(DeltaSeconds, Sound);
 	}
-	if (bViewer)
+	// The telemetry lines are for the tests only (player, 2026-10-26: "não quero nada a poluir o jogo").
+	if (bViewer && (bFlightTest || bDesertTest || bTour || FParse::Param(FCommandLine::Get(), TEXT("EXDebugText"))))
 	{
 		ShowTelemetry();
 	}
@@ -657,9 +685,9 @@ void AEXHoverCraft::StepFlight(float Dt)
 				Audio->Landing(FMath::Clamp(LandingSpeed / 20.0f, 0.2f, 1.0f));
 			}
 		}
-		if (LandingSpeed > LandingHitMps)
+		if (LandingSpeed > 20.0f)
 		{
-			LoseLife();   // a landing too hard for this ship (race rules only)
+			ApplyHullDamage((LandingSpeed - 20.0f) * 1.0f);   // a hard landing (race rules only)
 		}
 	}
 
@@ -711,10 +739,12 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 			}
 			if (bWall || IsValid(OtherCraft))
 			{
-				const float DamageThresholdMps = IsValid(OtherCraft) ? WallHitMps * 0.6f : WallHitMps;
-				if (-IntoSpeed / CmPerM > DamageThresholdMps)
+				// What the impact speed has above 16 m/s (player, 2026-10-26: destroyed too easily), half against a craft;
+				// ApplyHullDamage caps one hit at 40 % of the hull.
+				const float ImpactMps = -IntoSpeed / CmPerM;
+				if (ImpactMps > 16.0f)
 				{
-					LoseLife();
+					ApplyHullDamage((ImpactMps - 16.0f) * 0.85f * (IsValid(OtherCraft) ? 0.5f : 1.0f));
 				}
 			}
 			if (bWall)
@@ -736,8 +766,8 @@ void AEXHoverCraft::UpdateVisuals(float Dt)
 	HoverBobTime += Dt;
 	SteerVisual = FMath::FInterpTo(SteerVisual, SteerInput, Dt, 6.0f);
 	const float SpeedAlpha = FMath::Clamp(FMath::Abs(ForwardSpeedMps) / MaxSpeedMps, 0.0f, 1.0f);
-	const float DriftExtra = bDrifting ? 1.45f : 1.0f;
-	const float TargetRoll = SteerVisual * BankMaxDeg * FMath::Lerp(0.45f, 1.0f, SpeedAlpha) * DriftExtra + FMath::Sin(HoverBobTime * 1.7f) * 0.6f;
+	const float DriftExtra = bDrifting ? 1.35f : 1.0f;
+	const float TargetRoll = SteerVisual * BankMaxDeg * FMath::Lerp(0.35f, 1.0f, SpeedAlpha) * DriftExtra + FMath::Sin(HoverBobTime * 1.7f) * 0.6f;
 	const float TargetPitch = FMath::Clamp(LongAccelMps2 * PitchFromAccel, -6.0f, 5.0f);
 	const float TargetYaw = SteerVisual * NoseLeadMaxDeg * DriftExtra;
 	VisualRoll = FMath::FInterpTo(VisualRoll, TargetRoll, Dt, VisualResponse);
@@ -853,11 +883,11 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 
 	// The camera leans a little with the craft's bank, and vibrates lightly near top speed.
 	Rotation.Roll += VisualRoll * CameraBankFollow;
-	const float Shake = ShakeScale * (TopSpeedShakeDeg * FMath::Clamp((SpeedAlpha - 0.72f) / 0.28f, 0.0f, 1.0f) * (bBoosting ? 1.6f : 1.0f)
-		+ WallThreat * 0.9f);
+	// Player, 2026-10-26: the camera and the feel of 2026-10-20 (before the apex camera and the deep lean): the light
+	// top-speed vibration only, no wall shake.
+	const float Shake = ShakeScale * TopSpeedShakeDeg * FMath::Clamp((SpeedAlpha - 0.85f) / 0.15f, 0.0f, 1.0f) * (bBoosting ? 1.6f : 1.0f);
 	Rotation.Pitch += FMath::Sin(HoverBobTime * 31.0f) * Shake;
 	Rotation.Yaw += FMath::Sin(HoverBobTime * 23.0f + 1.3f) * Shake;
-	Rotation.Roll += FMath::Sin(HoverBobTime * 19.0f) * WallThreat * 0.7f;
 	// Short, sharp jolt after a hard landing or a wall hit.
 	CamJoltTime += Dt;
 	if (CamJolt > 0.0f)
@@ -874,9 +904,11 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	const float TargetFovV = FMath::Lerp(FovMinV, FovMaxV, 0.3f * SpeedAlpha + 0.7f * Vertigo) + (bBoosting ? FovBoostV : 0.0f);
 	CamFovV = FMath::Lerp(CamFovV, TargetFovV, Damp(3.0f, Dt));
 	Camera->SetFieldOfView(HorizontalFov(CamFovV + 7.0f * CamBoostPunch * CamBoostPunch));
-	Camera->PostProcessSettings.MotionBlurAmount = 0.45f + 0.55f * Vertigo + 0.25f * CamBoostPunch;
-	Camera->PostProcessSettings.SceneFringeIntensity = 0.35f * Vertigo + 0.55f * CamBoostPunch;
-	Camera->PostProcessSettings.VignetteIntensity = 0.28f + 0.22f * Vertigo;
+	// The race view as on 2026-10-20 (the hangar changes these while it is open).
+	Camera->PostProcessSettings.MotionBlurAmount = 0.5f;
+	Camera->PostProcessSettings.SceneFringeIntensity = 0.0f;
+	Camera->PostProcessSettings.VignetteIntensity = 0.35f;
+	Camera->PostProcessSettings.bOverride_AutoExposureBias = false;
 }
 
 void AEXHoverCraft::SelectShip(int32 Index)
@@ -959,6 +991,7 @@ void AEXHoverCraft::PlaceAt(const FVector& Location, float YawDeg)
 	LastGroundZCm = Location.Z - 300.0f;
 	VelocityCmps = FVector::ZeroVector;
 	Heading = StartRotation.Vector();
+	bGridLock = true;
 	SurfaceUp = FVector::UpVector;
 	YawRate = 0.0f;
 	AirTimeSeconds = 0.0f;
@@ -1010,6 +1043,8 @@ void AEXHoverCraft::ApplyShipStats()
 	const float MassFactor = FMath::Sqrt(Ship.MassKg / FMath::Max(1.0f, Ship.MassKg + static_cast<float>(ResolvedStats[static_cast<int32>(EEXStat::Mass)])));
 	MaxLives = EXMeta::Lives(Name, ResolvedStats[static_cast<int32>(EEXStat::Hull)]);
 	Lives = MaxLives;
+	HullMax = FMath::Max(70.0f, 100.0f * MaxLives / 3.0f);
+	Hull = HullMax;
 	MaxSpeedMps = BaseMaxSpeedMps * Stats->SpeedMul * (1.0f + 0.0057f * Delta(EEXStat::Speed));
 	AccelerationMps2 = BaseAccelMps2 * (1.0f + 0.006f * Delta(EEXStat::Accel)) * MassFactor;
 	BoostAccelerationMps2 = BaseBoostAccelMps2 * (1.0f + 0.004f * Delta(EEXStat::Boost)) * MassFactor;
@@ -1033,6 +1068,7 @@ void AEXHoverCraft::ApplyShipStats()
 	Heat = 0.0f;
 	bOverheated = false;
 	RepairLeft = RepairTotal = RepairSlow = StabLeft = 0.0f;
+	RaceSeconds = 0.0f;
 }
 
 void AEXHoverCraft::SetBot(int32 InShipIndex, float InSkill, float InLaneM)
@@ -1044,22 +1080,45 @@ void AEXHoverCraft::SetBot(int32 InShipIndex, float InSkill, float InLaneM)
 	SelectShip(InShipIndex);
 }
 
+void AEXHoverCraft::PlayChime(int32 Kind)
+{
+	if (Audio && IsPlayerControlled())
+	{
+		Audio->Chime(Kind);
+	}
+}
+
 void AEXHoverCraft::LoseLife()
 {
-	if (!bRaceRules || bEliminated || bRaceHold || HitCooldown > 0.0f)
+	ApplyHullDamage(HullMax / FMath::Max(1, MaxLives), true);
+}
+
+void AEXHoverCraft::ApplyHullDamage(float Amount, bool bForce)
+{
+	// No damage on the grid, after the finish, in the first 10 s of the race (the pack sorts itself out) or twice in one
+	// scrape; a fall out of the world always counts.
+	if (!bRaceRules || bEliminated || bRaceHold || Amount <= 0.0f || (!bForce && (RaceSeconds < 10.0f || HitCooldown > 0.0f)))
 	{
 		return;
 	}
-	HitCooldown = 1.5f;   // one hit is one life, however many frames it scrapes
-	if (Audio)
+	HitCooldown = 0.25f;
+	if (!bForce)
 	{
-		Audio->Bang(1.0f);
+		Amount = FMath::Min(Amount, HullMax * 0.4f);   // no single knock takes more than 40 %
 	}
-	Lives = FMath::Max(0, Lives - 1);
-	LastHitTime = GetWorld()->GetTimeSeconds();
-	UE_LOG(LogTemp, Display, TEXT("EXRACE HIT %s%s lives=%d at %.1f km"), *GetShipName(), bBot ? TEXT("") : TEXT(" (jogador)"), Lives,
+	Hull = FMath::Max(0.0f, Hull - Amount);
+	Lives = Hull <= 0.0f ? 0 : FMath::Max(1, FMath::CeilToInt(Hull / HullMax * MaxLives));
+	if (Amount >= 5.0f)
+	{
+		LastHitTime = GetWorld()->GetTimeSeconds();   // the red flash
+		if (Audio)
+		{
+			Audio->Bang(FMath::Clamp(Amount / 40.0f, 0.3f, 1.0f));
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("EXRACE HIT %s%s -%.0f hull=%.0f/%.0f at %.1f km"), *GetShipName(), bBot ? TEXT("") : TEXT(" (jogador)"), Amount, Hull, HullMax,
 		RaceProgressM / 1000.0f);
-	if (Lives == 0)
+	if (Hull <= 0.0f)
 	{
 		Eliminate();
 	}
@@ -1067,6 +1126,19 @@ void AEXHoverCraft::LoseLife()
 
 void AEXHoverCraft::Eliminate()
 {
+	// The hull is gone: the craft blows up (fireball, flash, debris, smoke) where it was, carried on by its speed.
+	FActorSpawnParameters BlastParams;
+	BlastParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	if (AEXExplosion* Blast = GetWorld()->SpawnActor<AEXExplosion>(GetActorLocation(), FRotator::ZeroRotator, BlastParams))
+	{
+		Blast->Ignite(VelocityCmps, 1.0f);
+	}
+	if (Audio)
+	{
+		Audio->Bang(1.0f);
+		Audio->Landing(1.0f);
+	}
+	EliminatedAt = GetWorld()->GetTimeSeconds();
 	bEliminated = true;
 	VelocityCmps = FVector::ZeroVector;
 	ThrottleInput = 0.0f;
@@ -1163,10 +1235,11 @@ void AEXHoverCraft::UseQuick(int32 Slot)
 		break;
 	case EEXConsumable::Foam:
 	case EEXConsumable::Nanogel:
-		bUsed = Lives < MaxLives && RepairLeft <= 0.0f;
+		bUsed = Hull < HullMax && RepairLeft <= 0.0f;
 		if (bUsed)
 		{
 			const bool bFoam = Kind == EEXConsumable::Foam;
+			RepairAmount = HullMax * (bFoam ? 0.5f : 0.25f);   // half the hull back over 8 s, or a quarter over 2.5 s
 			RepairTotal = RepairLeft = (bFoam ? 8.0f : 2.5f) * RepairTimeMul;
 			RepairSlow = (bFoam ? 0.10f : 0.25f) * RepairTimeMul;
 		}
@@ -1240,7 +1313,8 @@ void AEXHoverCraft::DriveBot(float Dt)
 	const FVector Location = GetActorLocation();
 	const int32 Aim = FMath::Min(RouteIndex + 7, Count - 2);
 	const FVector2D Dir = (MapRoute[Aim + 1] - MapRoute[Aim]).GetSafeNormal();
-	const float Lane = BotLaneM + (1.1f - BotSkill) * 25.0f * FMath::Sin(BotTime * 0.15f + BotPhase);  // weaker bots wander
+	// Weaker bots wander in their lane, but only once the pack has spread out (not off the grid).
+	const float Lane = BotLaneM + (1.1f - BotSkill) * 25.0f * FMath::Sin(BotTime * 0.15f + BotPhase) * FMath::Clamp(RaceProgressM / 1500.0f, 0.0f, 1.0f);
 	const FVector2D Target = MapRoute[Aim] + FVector2D(-Dir.Y, Dir.X) * Lane;
 	const FVector ToTarget = FVector(Target.X * CmPerM - Location.X, Target.Y * CmPerM - Location.Y, 0.0f).GetSafeNormal();
 	const FVector Flat = Heading.GetSafeNormal2D();
@@ -1671,8 +1745,20 @@ void AEXHoverCraft::UpdateHangar(float Dt)
 	{
 		// Orbit: mouse or right stick; zoom: wheel, PageUp/PageDown or the triggers. Q/E or the shoulders change the tab,
 		// W/S the row (MenuUp/MenuDown), A/D or the left stick the choice in it; Tab, 1-5 and the d-pad sides the ship.
-		const float YawDelta = HangarOrbitInput * 120.0f * Dt + HangarYawInput * 0.6f;
-		const float PitchDelta = HangarPitchInput * 50.0f * Dt;
+		// With the mouse cursor on (the tabs and pieces are clicked) the mouse turns the ship only while the right button
+		// is held, so reaching for a piece does not spin it; the gamepad stick always does.
+		float MouseYaw = HangarYawInput;
+		float MousePitch = HangarPitchInput;
+		if (const APlayerController* Pc = Cast<APlayerController>(GetController()))
+		{
+			if (Pc->bShowMouseCursor && !Pc->IsInputKeyDown(EKeys::RightMouseButton))
+			{
+				MouseYaw = 0.0f;
+				MousePitch = FMath::Abs(Pc->GetInputAnalogKeyState(EKeys::Gamepad_RightY)) > 0.1f ? MousePitch : 0.0f;
+			}
+		}
+		const float YawDelta = HangarOrbitInput * 120.0f * Dt + MouseYaw * 0.6f;
+		const float PitchDelta = MousePitch * 50.0f * Dt;
 		if (!FMath::IsNearlyZero(YawDelta) || !FMath::IsNearlyZero(PitchDelta))
 		{
 			bHangarAutoRotate = false;
@@ -2056,6 +2142,7 @@ void AEXHoverCraft::UpdateRaceSystems(float Dt)
 	{
 		return;
 	}
+	RaceSeconds += Dt;
 	// Fuel by distance, more flat out and on nitro (efficiency sets the rate); heat from the nitro, cooled by the
 	// cooling stat; repairs and the stabiliser run out.
 	const float DistanceKm = VelocityCmps.Size() * Dt / CmPerM / 1000.0f;
@@ -2072,12 +2159,13 @@ void AEXHoverCraft::UpdateRaceSystems(float Dt)
 	}
 	if (RepairLeft > 0.0f)
 	{
+		Hull = FMath::Min(HullMax, Hull + RepairAmount / FMath::Max(0.1f, RepairTotal) * FMath::Min(Dt, RepairLeft));
+		Lives = FMath::Max(1, FMath::CeilToInt(Hull / HullMax * MaxLives));
 		RepairLeft -= Dt;
 		if (RepairLeft <= 0.0f)
 		{
 			RepairLeft = RepairTotal = RepairSlow = 0.0f;
-			Lives = FMath::Min(MaxLives, Lives + 1);
-			UE_LOG(LogTemp, Display, TEXT("EXRACE REPAIRED %s lives=%d"), *GetShipName(), Lives);
+			UE_LOG(LogTemp, Display, TEXT("EXRACE REPAIRED %s hull=%.0f"), *GetShipName(), Hull);
 		}
 	}
 	StabLeft = FMath::Max(0.0f, StabLeft - Dt);

@@ -89,38 +89,38 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallBounce = 0.3f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallScrapeLoss = 0.2f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float BankMaxDeg = 38.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float BankMaxDeg = 22.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float NoseLeadMaxDeg = 5.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float PitchFromAccel = 0.16f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float VisualResponse = 9.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float PitchFromAccel = 0.12f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float VisualResponse = 6.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamDistanceM = 5.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamDistanceM = 6.4f;
 	/** Negative: the camera closes in at top speed. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamDistanceAtSpeedM = -1.6f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeightM = 1.45f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeightAtSpeedM = -0.55f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookAheadM = 22.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookHeightM = 0.55f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamUpFollow = 0.75f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamRollFollow = 0.72f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamOffsetStiffness = 5.5f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamUpSmoothing = 5.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeadingSmoothing = 6.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamDistanceAtSpeedM = -1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeightM = 1.6f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeightAtSpeedM = -0.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookAheadM = 16.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookHeightM = 0.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamUpFollow = 0.7f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamRollFollow = 0.4f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamOffsetStiffness = 7.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamUpSmoothing = 6.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamHeadingSmoothing = 8.0f;
 	/** Vertical field of view in degrees, as in the previous game; converted to Unreal's horizontal FOV. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovMinV = 68.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovMaxV = 112.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovBoostV = 14.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovMinV = 62.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovMaxV = 100.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float FovBoostV = 9.0f;
 	/** Speeds (km/h) between which the vertigo effect (wider FOV, shake) builds up. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float VertigoKmhMin = 180.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float VertigoKmhMin = 230.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float VertigoKmhMax = 450.0f;
 	/** Light vibration near top speed, in degrees (the player preferred this to the old noise shake). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float TopSpeedShakeDeg = 0.55f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float TopSpeedShakeDeg = 0.35f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float ShakeScale = 1.0f;
 	/** Share of the craft's visual bank that the camera follows. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CameraBankFollow = 0.82f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CameraBankFollow = 0.5f;
 	/** Camera looks into the apex and hangs slightly outside the turn. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookIntoTurnDeg = 12.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamOutboardM = 1.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookIntoTurnDeg = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamOutboardM = 0.0f;
 	/** Peak camera jolt on a hard landing or wall hit, in degrees. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float LandingShakeDeg = 2.2f;
 	/** How far the right stick orbits the camera around the craft. */
@@ -139,6 +139,9 @@ public:
 
 	/** For the HUD: the map's race line (metres, 5 m apart), the nearest point of it, the nose and the velocity. */
 	const TArray<FVector2D>& GetMapRoute() const { return MapRoute; }
+	/** The floor's half width (m; under 4 when the map has none) and the line's height (m) at each route sample. */
+	const TArray<float>& GetMapRouteHalfWidth() const { return MapRouteHalfW; }
+	const TArray<float>& GetMapRouteZ() const { return MapRouteZ; }
 
 	// ---- Race rules (Docs/MODOS_DE_JOGO.md), switched on by AEXRaceDirector; off in free flight and the tests.
 	/** Lives by ship (plus the hull of the modules), damage from hard wall hits and hard landings, fuel and heat. */
@@ -146,7 +149,7 @@ public:
 	/** Makes this craft a bot that drives itself along the race line (skill 0.8-1.0, lane offset from the line in m). */
 	void SetBot(int32 InShipIndex, float InSkill, float InLaneM);
 	/** Holds the craft on the grid (countdown, after the finish). */
-	void SetRaceHold(bool bHold) { bRaceHold = bHold; }
+	void SetRaceHold(bool bHold) { bRaceHold = bHold; bGridLock = bGridLock && bHold; }
 	/** Showroom: the craft stands on the turntable of the workshop (AEXHangarStage) under a slow orbit camera, with the
 	 *  menu drawn over it. EnterHangar opens the hangar's tabs (UEXHangarModel): ship, modules, consumables, shop and
 	 *  vault, paid with the STARDUST of the profile. */
@@ -207,12 +210,19 @@ public:
 	bool IsBot() const { return bBot; }
 	bool IsEliminated() const { return bEliminated; }
 	int32 GetLives() const { return Lives; }
+	/** The hull (player, 2026-10-26: a health bar as in the Unity version, not lives): 0..1 of the ship's maximum. */
+	float GetHullFrac() const { return HullMax > 0.0f ? FMath::Clamp(Hull / HullMax, 0.0f, 1.0f) : 0.0f; }
+	float GetHull() const { return Hull; }
+	float GetHullMax() const { return HullMax; }
 	int32 GetMaxLives() const { return MaxLives; }
 	/** World time of the last life lost (the HUD flashes it), -1 if none. */
 	float GetLastHitTime() const { return LastHitTime; }
 	FString GetShipName() const;
 	int32 GetShipIndex() const { return ShipIndex; }
 	float GetSpeedKmh() const { return FMath::Abs(ForwardSpeedMps) * 3.6f; }
+	float GetTopSpeedKmh() const { return MaxSpeedMps * 3.6f; }
+	/** A sound call-out on this craft (UEXCraftAudio::Chime kinds). */
+	void PlayChime(int32 Kind);
 	/** Furthest point reached along the race line, in metres (never jumps more than 600 m at once). */
 	float GetRaceProgressM() const { return RaceProgressM; }
 	int32 GetRouteIndex() const { return RouteIndex; }
@@ -314,6 +324,8 @@ private:
 	int32 TestPathIndex = 0;
 	/** The map's own race line (a spline tagged EXRoute), sampled every 5 m, in metres; empty on maps without one. */
 	TArray<FVector2D> MapRoute;
+	TArray<float> MapRouteHalfW;
+	TArray<float> MapRouteZ;
 	/** Nearest race line sample to the craft, followed every frame. */
 	int32 RouteIndex = 0;
 	float TestStuckSeconds = 0.0f;
@@ -330,6 +342,10 @@ private:
 	// Race rules state.
 	bool bRaceRules = false, bBot = false, bRaceHold = false, bShipLocked = false, bEliminated = false;
 	int32 Lives = 0, MaxLives = 0;
+	/** Hull points: 100 for a three-life ship, more for the sturdy ones. Damage as in the Unity version: (impact speed - 12
+	 *  m/s) x 1.1 into a wall (x 0.6 into another craft), (landing speed - 17 m/s) x 1.4; none in the first 10 s. */
+	float Hull = 100.0f, HullMax = 100.0f, RaceSeconds = 0.0f, RepairAmount = 0.0f, EliminatedAt = -1.0f;
+	void ApplyHullDamage(float Amount, bool bForce = false);
 	float BaseMaxSpeedMps = 0.0f, WallHitMps = 1.0e6f, LandingHitMps = 1.0e6f;
 	float HitCooldown = 0.0f, LastHitTime = -1.0f, RaceProgressM = 0.0f;
 	// The tuned handling before the modules (BeginPlay), so the module stats never compound.
@@ -365,6 +381,8 @@ private:
 	FVector PreHangarLocation = FVector::ZeroVector;
 	FRotator PreHangarRotation = FRotator::ZeroRotator;
 	bool bInShowroom = false, bQtyArmed = true, bZoomArmed = true;
+	/** On the grid (placed by PlaceAt, until the start): the craft stays on its slot, facing down the line. */
+	bool bGridLock = false;
 	/** The orbit camera's distance now (it glides to HangarOrbitDist). */
 	float HangarCamDist = 1250.0f;
 	/** The frame the hangar was closed with Esc (the same press must not also quit from the menu). */

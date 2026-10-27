@@ -8,6 +8,38 @@ espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde)
 
 O jogador fala português (PT). Responder em português.
 
+## FEITO EM CASA A 2026-10-26 (ramo ccr-6888126d-pxbtcg, commits locais; builds `Builds\Naves*`)
+
+- **Câmara e condução de 2026-10-20 repostas** (valores de c79fecb). O jogador rejeitou a câmara de ápice e a
+  inclinação funda feitas no outro PC (a6ba938). Não mexer na câmara nem na condução sem perguntar.
+- **Corrida:** largada em filas retas e presa até à partida (luzes 3-2-1); checkpoints a cada ~2,5 km (+40 cada,
+  +300 todos, pagos na extração); HUD em barra (A→B no topo, velocidade segmentada); **casco em barra** como na Unity
+  (dano: impacto acima de 16 m/s × 0,85, metade contra naves, no máximo 40 % por pancada, 10 s sem dano no início);
+  **explosão** (`AEXExplosion`) quando o casco acaba; ecrã de resultados `UEXResultsWidget` (vitória/derrota, ganhos,
+  cartas, medalha, classificação); fim garantido (meta a 45 m do último ponto, resultados 15 s depois ou com Enter).
+- **Porquinho** (pool ao vivo) de volta no HUD com os adversários em prova; **bots com carga** (2-6 peças,
+  `EXMeta::RollBotCargo`). **Regras do espólio (jogador, 2026-10-27, = `Docs/VISAO_JOGO.md`):** quem é destruído perde
+  tudo menos o item seguro (1); tudo vai para o porquinho, dividido no fim por quem extrai, por ordem de chegada (o 1.º
+  escolhe primeiro em cada volta). O "espólio de vitória 3/2/1" foi retirado. **Nada de cápsulas/peças a apanhar na
+  pista** (testado e rejeitado; código guardado fora do projeto).
+- **Gráficos:** Lumen por defeito (`Jogar Leve.bat` = `-EXLow` desliga), nuvens volumétricas, atmosfera com poeira,
+  sol baixo, névoa volumétrica, gradação de cor. **Fotorrealista** (escolha do jogador, "tipo Call of Duty"):
+  `make_ground_material.py` (fotos CC0 Poly Haven sem repetição, triplanar nas falésias, areia com ondulações em 3
+  escalas e brilho do quartzo) e `make_rock_material.py` (arenito triplanar, só nós de textura: as rochas são Nanite);
+  naves com `make_ship_materials.py` (pintura, riscos, pó, carbono, metal escovado; passo 3e do `casa_tudo.ps1`).
+  Plano e regras: `Docs/PLANO_TEXTURAS.md`. Fotos de prova: `-EXFlightTest -EXLook="x,y,z,yaw,pitch;..."` (vistas em
+  `C:\rdd\look_views.txt`).
+- **Pista (2026-10-27):** voltaram as **estradas ovais largas de 2026-10-20** (sem meandros, margem oval lisa que sobe
+  dos 25° aos 70°); os taludes de 6-22 m com falésia saíram (pareciam mini paredes e as naves subiam-lhes); ziguezague S3 com paredes de 32 m; túnel liso e largo, aberto
+  nas bifurcações do braço (havia um degrau de 4 m e paredes cruzadas); arcos sem colisão; hoodoos a 48 m da borda.
+- **Checkpoints a sério (2026-10-27):** portões (`AEXCheckpointGate`: dois pilares, barra e feixes até ao céu) postos
+  pelo `AEXRaceDirector::PlaceGates`, alternando entre o ápice de uma curva e a reta entre curvas, nunca na caverna. Só
+  o próximo se vê (ciano); passado = verde; falhado = vermelho, seta e "VOLTA AO CHECKPOINT N". **Obrigatórios para o
+  jogador** e por ordem: sem todos não extrai. A largura vem da escala Y dos pontos da spline (`EXDesertBuilder`,
+  precisa de remontar o mapa, passo 4). Paredes do ziguezague: **ficam** (jogador, 2026-10-27).
+- Builds: o jogo empacotado vai para `Builds\Jogo` (pasta fixa).
+- Atenção: no PowerShell, `Start-Process -ArgumentList` não põe aspas em caminhos com espaços (usar `&` ou aspas).
+
 ## PEDIDOS DE 2026-10-25 (noite), por testar em casa
 
 - **Estrelas das naves** (`Docs/MODULOS.md` secção 8b): cada cópia de uma nave dá 1 estrela, até 7, e cada estrela dá
