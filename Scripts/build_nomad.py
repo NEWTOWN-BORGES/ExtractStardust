@@ -282,17 +282,10 @@ ck.box((0, -1.42, 0.86), (0.40, 0.26, 0.05), "Graphite")                        
 back = Matrix.Rotation(math.radians(-15), 3, 'X')
 ck.box((0, -1.23, 1.04), (0.40, 0.05, 0.36), "Graphite", back)                          # back rest
 ck.finish(G["Cockpit_Cell"], bevel=0.003)
-pilot = Part("Pilot")
-pilot.tube([(0, -1.40, 0.92), (0, -1.34, 1.04), (0, -1.28, 1.14)], 0.11, "Paint_White", 12)   # torso
-pilot.sphere((0, -1.29, 1.16), 0.075, "Paint_White", (1.6, 1.0, 0.7))                  # shoulders
-pilot.sphere((0, -1.26, 1.24), 0.10, "Paint_Orange")                                   # helmet
-pilot.sphere((0, -1.335, 1.245), 0.055, "Black", (1.3, 0.7, 0.85))                     # visor
-for s in (-1, 1):
-    pilot.tube([(s * 0.15, -1.30, 1.12), (s * 0.18, -1.55, 1.02), (s * 0.15, -1.89, 1.02)], 0.035, "Paint_White")
-    pilot.sphere((s * 0.15, -1.90, 1.02), 0.032, "Graphite")                             # gloves
-    pilot.tube([(s * 0.08, -1.42, 0.90), (s * 0.09, -1.85, 0.98), (s * 0.08, -2.30, 0.92)], 0.05, "Paint_White")
-    pilot.sphere((s * 0.08, -2.33, 0.92), 0.045, "Graphite", (1.0, 1.4, 1.0))           # boots
-pilot.finish(G["Cockpit_Cell"])
+# the pilot (ship_kit.PILOTS["nomad"]: stocky bearded veteran, bubble visor and lamps), in the pose of this cockpit
+pilot(G["Cockpit_Cell"], [(0, -1.40, 0.92), (0, -1.34, 1.04), (0, -1.28, 1.14)], (0, -1.26, 1.24), 0.10,
+      [(0.15, -1.30, 1.12), (0.18, -1.55, 1.02), (0.15, -1.89, 1.02)],
+      [(0.08, -1.42, 0.90), (0.09, -1.85, 0.98), (0.08, -2.30, 0.92)])
 
 # ================================================================ 3. STABILIZERS (long and low, going down a little)
 WING = [(0.58, 0.20, 2.00), (1.65, 1.45, 2.15)]   # x, leading edge y, trailing edge y
