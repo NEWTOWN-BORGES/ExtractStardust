@@ -139,11 +139,16 @@ void AEXHud::DrawHUD()
 		: (Off < 70.0f ? FLinearColor(1.0f, 0.85f, 0.2f) : FLinearColor(1.0f, 0.4f, 0.15f)));
 	const float Scale = Canvas->ClipY / 720.0f;
 	// The arrow is 3D now, over the craft (player, 2026-10-27: "tipo a seta do Need for Speed").
-	if (!IsValid(GuideArrow))
+	// Only when lost (player, 2026-10-29: "a seta só aparece quando estamos perdidos"): the wrong way, a checkpoint missed,
+	// off the floor by more than 25 m, or the nose more than 70 degrees off the way; it hides itself otherwise.
+	const TArray<float>& HalfWidths = Craft->GetMapRouteHalfWidth();
+	const float HalfW = HalfWidths.IsValidIndex(Index) && HalfWidths[Index] >= 4.0f ? HalfWidths[Index] : 30.0f;
+	const bool bLost = bWrongWay || Missed > 0 || Off > 70.0f || FVector2D::Distance(Here, Route[Index]) > HalfW + 25.0f;
+	if (bLost && !IsValid(GuideArrow))
 	{
 		GuideArrow = GetWorld()->SpawnActor<AEXGuideArrow>();
 	}
-	if (GuideArrow)
+	if (bLost && GuideArrow)
 	{
 		GuideArrow->Point(Craft->GetActorLocation(), Forward, Target, Colour);
 	}

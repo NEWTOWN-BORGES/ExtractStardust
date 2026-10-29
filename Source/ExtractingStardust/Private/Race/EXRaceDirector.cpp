@@ -182,9 +182,13 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 		FpsTime += DeltaSeconds;
 		++FpsFrames;
 		WorstDt = FMath::Max(WorstDt, DeltaSeconds);
+		if (DeltaSeconds > 0.06f && FpsFrames < 100000)
+		{
+			UE_LOG(LogTemp, Display, TEXT("EXRACE hitch %.0f ms at %.1f s"), DeltaSeconds * 1000.0f, RaceTime);
+		}
 	}
 	// The automated test photographs the race with its HUD every 15 s (Saved/RaceTest).
-	if (bTest && RaceTime >= NextShotTime)
+	if (bTest && RaceTime >= NextShotTime && !FParse::Param(FCommandLine::Get(), TEXT("EXNoShots")))
 	{
 		NextShotTime += 15.0f;
 		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RaceTest"), FString::Printf(TEXT("race_%03d.png"),
@@ -331,7 +335,10 @@ void AEXRaceDirector::Setup()
 		Player->SetQuickSlots(Profile->Quick);
 		for (const FEXQuickSlot& Quick : Profile->Quick)
 		{
-			Profile->AddStock(static_cast<EEXConsumable>(Quick.Kind), -Quick.Count);
+			if (!bTest)   // the automated test never spends the pilot's stock
+			{
+				Profile->AddStock(static_cast<EEXConsumable>(Quick.Kind), -Quick.Count);
+			}
 		}
 	}
 	Player->SetModules(MyModules);
@@ -601,7 +608,7 @@ void AEXRaceDirector::PlaceGates(const AEXHoverCraft* Player)
 	const TArray<float>& HalfWidths = Player->GetMapRouteHalfWidth();
 	const TArray<float>& Heights = Player->GetMapRouteZ();
 	UWorld* World = GetWorld();
-	if (!World || N < 200 || Heights.Num() != N || Mode == EEXRaceMode::Hangar)
+	if (!World || N < 200 || Heights.Num() != N || Mode == EEXRaceMode::Hangar || FParse::Param(FCommandLine::Get(), TEXT("EXNoGates")))
 	{
 		return;
 	}
@@ -698,7 +705,7 @@ int32 AEXRaceDirector::PlayerGates(AEXHoverCraft* Craft, int32 Passed)
 	const FEXGate& Gate = Gates[Passed];
 	const FVector2D Here(Craft->GetActorLocation().X / RaceCmPerM, Craft->GetActorLocation().Y / RaceCmPerM);
 	const float Dist = FVector2D::Distance(Here, Gate.Centre);
-	if (bTest && LastGateShot < Passed && Dist < 420.0f && Dist > 300.0f)
+	if (bTest && LastGateShot < Passed && Dist < 420.0f && Dist > 300.0f && !FParse::Param(FCommandLine::Get(), TEXT("EXNoShots")))
 	{
 		LastGateShot = Passed;
 		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RaceTest"), FString::Printf(TEXT("gate_%02d.png"), Passed + 1)),

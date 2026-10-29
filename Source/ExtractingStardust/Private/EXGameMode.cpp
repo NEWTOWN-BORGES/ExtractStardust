@@ -126,7 +126,7 @@ void AEXGameMode::ApplyGraphics(UWorld* World, bool bShowroom)
 	}
 	else
 	{
-		Commands = { TEXT("r.AntiAliasingMethod 4"), TEXT("r.ScreenPercentage 85"), TEXT("r.TSR.History.ScreenPercentage 200"),
+		Commands = { TEXT("r.AntiAliasingMethod 4"), TEXT("r.ScreenPercentage 75"), TEXT("r.TSR.History.ScreenPercentage 100"),
 			TEXT("r.VolumetricFog.GridPixelSize 12"), TEXT("r.VolumetricCloud.ViewRaySampleMaxCount 256"),
 			TEXT("r.Lumen.Reflections.DownsampleFactor 2"), TEXT("r.Lumen.Reflections.MaxRoughnessToTrace 0.4"),
 			TEXT("r.Shadow.Virtual.ResolutionLodBiasDirectional 0.5"), TEXT("r.Shadow.Virtual.ResolutionLodBiasLocal 0") };

@@ -9,9 +9,9 @@ class UStaticMeshComponent;
 
 /**
  * A checkpoint gate (player, 2026-10-27: "deixa o checkpoint visível no horizonte quando estivermos a aproximar; os
- * checkpoints são obrigatórios para evitar batotas"): two glowing pylons either side of the floor, a bar across the top
- * and a beam of light up into the sky from each pylon, seen from far away. Only the player's next gate shows (cyan,
- * pulsing); a passed one flashes green and goes; a missed one turns red until the player flies back through it.
+ * checkpoints são obrigatórios para evitar batotas"; then "portões sólidos sem ser de luz"): two tall painted pylons
+ * either side of the floor and a bar across their tops, seen from far away. Only the player's next gate shows (cyan);
+ * a passed one turns green and goes; a missed one turns red until the player flies back through it.
  * AEXRaceDirector places them (at the apex of a bend or on the straight between two bends) and says which is which.
  * No collision.
  */
