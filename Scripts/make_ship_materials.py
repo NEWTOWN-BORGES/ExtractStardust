@@ -105,7 +105,8 @@ float3 emissive = 0;
 float upF = saturate((N.z - 0.35) / 0.5);
 float underF = saturate((-N.z - 0.2) / 0.6);
 float patches = S.Fbm(q * 2.3);
-float dust = saturate((upF * 0.55 + underF * 0.75) * (patches * 1.4 - 0.25)) * (kind == 5 ? 0.0 : 1.0);
+// Player, 2026-10-27 ("a nave não está tão bonita"): much lighter on the upward faces, the patches read as stains.
+float dust = saturate((upF * 0.18 + underF * 0.5) * (patches * 1.2 - 0.35)) * (kind == 5 ? 0.0 : 1.0);
 
 if (kind == 0)
 {
@@ -160,11 +161,15 @@ else
     base = Col * 0.2;
     rough = 0.3;
 }
+dust *= 1.0 - Sty;   // the arcade style: clean
 float3 dustCol = float3(0.40, 0.17, 0.075) * (0.85 + 0.3 * S.Value(q * 30.0));
-base = lerp(base, dustCol, dust * 0.8);
+base = lerp(base, dustCol, dust * 0.55);
 metal = lerp(metal, 0.0, dust);
 rough = lerp(rough, 0.95, dust);
 coat = coat * (1.0 - dust);
+// Arcade style (style_mpc.py): glossy racing paint and livelier colours.
+coat = lerp(coat, 1.0, Sty * (kind == 0 ? 1.0 : 0.0));
+base = lerp(base, max(lerp(dot(base, float3(0.3, 0.59, 0.11)).xxx, base, 1.35), 0.0), Sty);
 OutMetal = metal;
 OutRough = saturate(lerp(rough, coatRough + 0.1, coat * 0.7));   // a coated paint is glossy
 OutCoat = saturate(coat);
@@ -173,6 +178,8 @@ OutNormal = n;
 OutEmissive = emissive;
 return base;
 """
+exec(open(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()) + "Scripts/style_mpc.py", encoding="utf-8").read())
+inputs.append(("Sty", style_input()))
 custom_inputs = []
 for name, _src in inputs:
     ci = unreal.CustomInput()
@@ -222,6 +229,27 @@ def slot_defs(ship):
         for m in CALL.finditer(text):
             defs[m.group(1)] = (lin(m.group(2)), kwarg(m.group(3), "metal", 0.0), kwarg(m.group(3), "rough", 0.45),
                                 kwarg(m.group(3), "coat", 0.0), kwarg(m.group(3), "emit", 0.0))
+    # The pilot (ship_kit.pilot, player 2026-10-29: "os novos pilotos não estão no jogo"): its colours from PILOTS[ship],
+    # the visor's from its helmet in HELMETS, the finishes as ship_kit gives them.
+    try:
+        kit = open(SCRIPTS + "ship_kit.py", encoding="utf-8").read()
+        block = re.search(r'"%s": dict\((.*?)face=' % ship.lower(), kit, re.S).group(1)
+        P = dict(re.findall(r'(\w+)="#([0-9A-Fa-f]{6})"', block))
+        helmet = re.search(r'helmet="(\w+)"', block).group(1)
+        visor = re.search(r'"%s": dict\(.*?visor="#([0-9A-Fa-f]{6})"' % helmet, kit, re.S).group(1)
+
+        def pdef(hexc, metal=0.0, rough=0.5, coat=0.0, emit=0.0):
+            return (lin(hexc), metal, rough, coat, emit)
+        defs.update({
+            "Pilot_Suit": pdef(P["suit"], rough=0.6), "Pilot_Trim": pdef(P["trim"], rough=0.45),
+            "Pilot_Under": pdef(P["under"], rough=0.75), "Pilot_Skin": pdef(P["skin"], rough=0.55),
+            "Pilot_Brow": pdef(P["brow"], rough=0.85), "Pilot_Eye": pdef("16120F", rough=0.15),
+            "Pilot_EyeWhite": pdef("EDE8E2", rough=0.3), "Pilot_Beard": pdef(P.get("beard", P["brow"]), rough=0.9),
+            "Pilot_Metal": pdef("B9BEC4", metal=1.0, rough=0.3), "Pilot_Helmet": pdef(P["shell"], rough=0.22, coat=0.7),
+            "Pilot_Helmet2": pdef(P["shell2"], rough=0.28, coat=0.6), "Pilot_Visor": pdef(visor, metal=0.6, rough=0.05),
+            "Pilot_Lamp": pdef("FFF2D0", rough=0.2, emit=6.0)})
+    except (OSError, AttributeError, KeyError) as e:
+        failures.append("pilot %s: %s" % (ship, e))
     return defs
 
 
@@ -232,7 +260,7 @@ def kind_of(name, metal, emit):
         return 2
     if metal > 0.5 or name.startswith("Metal") or name in ("Gold", "Chrome"):
         return 1
-    if name.startswith("Paint"):
+    if name.startswith("Paint") or name.startswith("Pilot_Helmet"):
         return 0
     return 3
 
@@ -256,6 +284,8 @@ for ship in SHIPS:
             key = (old.get_name() if old else slot_name)
             key = key[len(ship) + 1:] if key.upper().startswith(ship + "_") else key
             key = key[3 + len(ship) + 1:] if key.startswith("MI_") else key
+            own = slot_name[len(ship) + 1:] if slot_name.upper().startswith(ship + "_") else slot_name
+            key = own if own.startswith("Pilot_") else key   # the pilot's slots by their own names
             if key not in defs or key == "Glass" or "Glow" in key:
                 continue
             if key not in made:

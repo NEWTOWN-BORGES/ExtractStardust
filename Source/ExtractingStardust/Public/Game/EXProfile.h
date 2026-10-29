@@ -40,6 +40,8 @@ public:
 	UPROPERTY() int32 NextSerial = 1;
 	UPROPERTY() int32 Seed = 0;
 	UPROPERTY() bool bFirstExtractionPaid = false;
+	/** The three free caches of the start (standard, advanced, elite) were given. */
+	UPROPERTY() bool bStarterTrio = false;
 	/** Stars of each ship (by upper-case name, 0-7): a copy of a ship from an ELITE CACHE adds one. They raise the ship's
 	 *  own stats, before any module (EXMeta::StarBonus). A ship missing here has none. */
 	UPROPERTY() TMap<FString, int32> ShipStars;

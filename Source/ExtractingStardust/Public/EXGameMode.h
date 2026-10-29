@@ -17,6 +17,8 @@ public:
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 	/** The graphics profile: the race's, or the showroom's (menu and hangar: one craft on screen, so all at full quality). */
 	static void ApplyGraphics(UWorld* World, bool bShowroom);
+	/** -EXStyle=Arcade: the Rocket League-like look (MPC_Style.Stylize = 1, brighter sun and sky, livelier grading). */
+	static void ApplyStyle(UWorld* World);
 
 private:
 	UPROPERTY(Transient)

@@ -175,6 +175,10 @@ col = lerp(col, col * float3(0.32, 0.24, 0.2), saturate((streak - 0.55) * 3.0) *
 float up = saturate((N.z - 0.75) / 0.18);
 col = lerp(col, float3(0.42, 0.17, 0.075), up * 0.85);
 Rough = lerp(0.82, 0.94, up);
+// Arcade style (style_mpc.py): livelier colours, smoother shading.
+float lumA = dot(col, float3(0.3, 0.59, 0.11));
+col = lerp(col, max(lerp(lumA.xxx, col, 1.5) * 1.1, 0.0), Sty);
+NormalWS = normalize(lerp(NormalWS, N, Sty * 0.55));
 return min(col, 0.85);
 """
 names = []
@@ -185,6 +189,8 @@ shade_inputs = [("N", normal_ws, ""), ("P", world, ""), ("Tint", tint, ""), ("Co
                 ("Varnish", varnish, ""), ("BX", uvgen, "BX"), ("BY", uvgen, "BY"), ("BZ", uvgen, "BZ")]
 for name, node in zip(names, samples):
     shade_inputs.append((name, node, ""))
+exec(open(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()) + "Scripts/style_mpc.py", encoding="utf-8").read())
+shade_inputs.append(("Sty", style_input(), ""))
 shade = custom(SHADE, shade_inputs, F3, extra_outputs=(("NormalWS", F3), ("Rough", F1)))
 for out, prop in (("", unreal.MaterialProperty.MP_BASE_COLOR), ("NormalWS", unreal.MaterialProperty.MP_NORMAL),
                   ("Rough", unreal.MaterialProperty.MP_ROUGHNESS)):

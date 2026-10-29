@@ -385,6 +385,11 @@ private:
 	bool bGridLock = false;
 	/** The orbit camera's distance now (it glides to HangarOrbitDist). */
 	float HangarCamDist = 1250.0f;
+	/** Equipping: the point and the distance the camera glides to (the part being changed), the part it swung round to. */
+	FVector HangarFocusPoint = FVector::ZeroVector;
+	float HangarZoomDist = 0.0f;
+	int32 HangarZoomFamily = -1;
+	float HangarSwingLeft = 0.0f, HangarSwingYaw = 0.0f;
 	/** The frame the hangar was closed with Esc (the same press must not also quit from the menu). */
 	uint64 HangarBackFrame = 0;
 	float HangarYawInput = 0.0f;

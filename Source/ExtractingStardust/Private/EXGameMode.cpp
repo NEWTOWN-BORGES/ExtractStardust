@@ -1,7 +1,14 @@
 #include "EXGameMode.h"
 
 #include "Arena/EXTestArena.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Engine/DirectionalLight.h"
 #include "Engine/Engine.h"
+#include "Engine/PostProcessVolume.h"
+#include "Engine/SkyLight.h"
+#include "Kismet/KismetMaterialLibrary.h"
+#include "Materials/MaterialParameterCollection.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Flight/EXHoverCraft.h"
@@ -34,6 +41,7 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 		GEngine->Exec(World, TEXT("DisableAllScreenMessages"));
 	}
 	ApplyGraphics(World, false);
+	ApplyStyle(World);
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	// Maps built for the game (e.g. the desert) bring their own world and a start tagged EXWorld.
@@ -126,6 +134,57 @@ void AEXGameMode::ApplyGraphics(UWorld* World, bool bShowroom)
 	for (const TCHAR* Command : Commands)
 	{
 		GEngine->Exec(World, Command);
+	}
+}
+
+void AEXGameMode::ApplyStyle(UWorld* World)
+{
+	// Player, 2026-10-27: "uma versão gráfica tipo Rocket League". The photoreal look stays the default; -EXStyle=Arcade
+	// (Jogar Arcade.bat) turns the materials clean and saturated (MPC_Style, see Scripts/style_mpc.py), lifts the sun and
+	// the sky (softer, brighter shadows) and grades livelier, with more bloom and no film grain.
+	// A build of its own (Builds\JogoArcade) carries an Arcade.txt beside the game's folder, so it opens arcade.
+	FString Style;
+	FParse::Value(FCommandLine::Get(), TEXT("EXStyle="), Style);
+	const bool bArcadeBuild = FPaths::FileExists(FPaths::Combine(FPaths::RootDir(), TEXT("Arcade.txt")));
+	if (!World || !(bArcadeBuild || Style.Equals(TEXT("Arcade"), ESearchCase::IgnoreCase)))
+	{
+		return;
+	}
+	if (UMaterialParameterCollection* Collection = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/Game/World/MPC_Style.MPC_Style")))
+	{
+		UKismetMaterialLibrary::SetScalarParameterValue(World, Collection, TEXT("Stylize"), 1.0f);
+	}
+	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+	{
+		if (ULightComponent* Sun = It->GetLightComponent())
+		{
+			Sun->SetIntensity(Sun->Intensity * 1.25f);
+		}
+	}
+	for (TActorIterator<ASkyLight> It(World); It; ++It)
+	{
+		if (USkyLightComponent* Sky = It->GetLightComponent())
+		{
+			Sky->SetIntensity(Sky->Intensity * 1.6f);
+		}
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	if (APostProcessVolume* Post = World->SpawnActor<APostProcessVolume>(FVector::ZeroVector, FRotator::ZeroRotator, Params))
+	{
+		Post->bUnbound = true;
+		Post->Priority = 50.0f;
+		FPostProcessSettings& Settings = Post->Settings;
+		Settings.bOverride_ColorSaturation = true;
+		Settings.ColorSaturation = FVector4(1.2f, 1.2f, 1.2f, 1.0f);
+		Settings.bOverride_ColorContrast = true;
+		Settings.ColorContrast = FVector4(1.08f, 1.08f, 1.08f, 1.0f);
+		Settings.bOverride_BloomIntensity = true;
+		Settings.BloomIntensity = 1.3f;
+		Settings.bOverride_FilmGrainIntensity = true;
+		Settings.FilmGrainIntensity = 0.0f;
+		Settings.bOverride_AutoExposureBias = true;
+		Settings.AutoExposureBias = 0.25f;
 	}
 }
 

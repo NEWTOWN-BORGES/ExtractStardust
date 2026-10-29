@@ -22,13 +22,17 @@ namespace
 	const FName HangarIntensityParam(TEXT("Intensity"));
 	// Light levels. Sized like the desert maps (sun of 10 lux): the floor gets ~12 lux in the workshop, so the auto
 	// exposure that suits the desert suits the hangar too. The menu keeps 6 % of the work lights and a show spot on the ship.
-	constexpr float WorkLumens = 1300.0f;      // each ceiling rect light, workshop
+	// Player, 2026-10-27 ("a nave não está tão bonita, no Blender parece tudo bonito"): a studio look, as in the Blender
+	// previews. Less flat ceiling light, a strong warm key, a cool rim from behind, darker walls, floor and turntable, so
+	// the craft stands out from the room instead of everything washing out together.
+	constexpr float WorkLumens = 520.0f;       // each ceiling rect light, workshop
 	constexpr float WorkMenuShare = 0.06f;     // ... in the menu
 	constexpr float PanelGlowWork = 6.0f;      // glowing ceiling panels
 	constexpr float PanelGlowMenu = 0.3f;
-	constexpr float KeySpotLumens = 600.0f;
-	constexpr float FillSpotWork = 400.0f, FillSpotMenu = 250.0f;
-	constexpr float TopSpotWork = 300.0f, TopSpotMenu = 750.0f;
+	constexpr float KeySpotLumens = 1800.0f;
+	constexpr float FillSpotWork = 350.0f, FillSpotMenu = 300.0f;
+	constexpr float TopSpotWork = 500.0f, TopSpotMenu = 900.0f;
+	constexpr float RimSpotLumens = 1500.0f;
 	constexpr float SignGlowWork = 8.0f, SignGlowMenu = 3.0f;
 	constexpr int32 PanelColumns = 7;
 }
@@ -133,14 +137,14 @@ void AEXHangarStage::Build()
 		return;
 	}
 	bBuilt = true;
-	const FLinearColor Floor(0.42f, 0.43f, 0.45f);
+	const FLinearColor Floor(0.24f, 0.245f, 0.26f);
 	const FLinearColor Line(0.16f, 0.16f, 0.17f);
 	const FLinearColor Yellow(0.85f, 0.62f, 0.05f);
-	const FLinearColor Wall(0.62f, 0.63f, 0.65f);
-	const FLinearColor Rib(0.36f, 0.37f, 0.40f);
+	const FLinearColor Wall(0.32f, 0.33f, 0.35f);
+	const FLinearColor Rib(0.2f, 0.21f, 0.23f);
 	const FLinearColor Dark(0.08f, 0.08f, 0.09f);
 	const FLinearColor PlatformDark(0.16f, 0.17f, 0.19f);
-	const FLinearColor Steel(0.50f, 0.52f, 0.55f);
+	const FLinearColor Steel(0.28f, 0.29f, 0.31f);
 	const FLinearColor Panel(1.0f, 0.97f, 0.92f);
 	const FLinearColor Rim(1.0f, 0.45f, 0.15f);
 	const FLinearColor Cabinet(0.60f, 0.06f, 0.04f);
@@ -205,6 +209,8 @@ void AEXHangarStage::Build()
 	KeySpot = AddSpot(FVector(700.0f, 700.0f, 650.0f), FVector(0.0f, 0.0f, 100.0f), KeySpotLumens, FLinearColor(1.0f, 0.92f, 0.82f), 34.0f);
 	FillSpot = AddSpot(FVector(-700.0f, -600.0f, 650.0f), FVector(0.0f, 0.0f, 100.0f), FillSpotWork, FLinearColor(0.86f, 0.9f, 1.0f), 34.0f);
 	TopSpot = AddSpot(FVector(0.0f, 0.0f, RoomH - 70.0f), FVector(0.0f, 0.0f, 0.0f), TopSpotWork, FLinearColor(1.0f, 0.95f, 0.88f), 26.0f);
+	// A cool rim light from high behind, outlining the hull against the room.
+	AddSpot(FVector(-900.0f, 350.0f, 750.0f), FVector(0.0f, 0.0f, 120.0f), RimSpotLumens, FLinearColor(0.7f, 0.84f, 1.0f), 30.0f);
 
 	// Turntable: base, glowing rim, steel top.
 	AddPart(CylinderMesh, FVector(0.0f, 0.0f, 11.0f), None, FVector(920.0f, 920.0f, 22.0f), PlatformDark);

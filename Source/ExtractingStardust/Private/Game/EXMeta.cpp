@@ -499,6 +499,30 @@ namespace
 		return (Takes & Def.Size) != 0;
 	}
 
+	bool ItemFits(const FEXItem& Item, const FString& ShipName, EEXFamily Slot)
+	{
+		const FModuleDef* Def = Find(Item);
+		return Def && Fits(*Def, ShipName, Slot) && (Item.Ship.IsEmpty() || Item.Ship.Equals(ShipName, ESearchCase::IgnoreCase));
+	}
+
+	FString ShipFor(const FModuleDef& Def, FRandomStream& Random)
+	{
+		if (!Def.Ship.IsEmpty())
+		{
+			return Def.Ship;
+		}
+		TArray<FString> Can;
+		for (int32 Index = 0; Index < ShipCount(); ++Index)
+		{
+			const FString Name(ShipAt(Index).Name);
+			if (Fits(Def, Name, Def.Family))
+			{
+				Can.Add(Name);
+			}
+		}
+		return Can.Num() > 0 ? Can[Random.RandRange(0, Can.Num() - 1)] : FString(ShipAt(Random.RandRange(0, ShipCount() - 1)).Name);
+	}
+
 	FEXItem Roll(const FModuleDef& Def, EEXRarity Rarity, FRandomStream& Random, int32 Serial)
 	{
 		FEXItem Item;
@@ -566,6 +590,7 @@ namespace
 			const float Quality = FMath::Min(1.0f, Spent / static_cast<float>(FMath::Max(1, RarityBudget[static_cast<int32>(Rarity)])));
 			Item.Value = Round10(Average * (0.9f + 0.25f * Quality) * Random.FRandRange(0.95f, 1.05f));
 		}
+		Item.Ship = ShipFor(Def, Random);
 		return Item;
 	}
 
@@ -841,6 +866,13 @@ namespace
 			{
 				const FModuleDef* Legend = Legends[Random.RandRange(0, Legends.Num() - 1)];
 				Out[static_cast<int32>(Legend->Family)] = Roll(*Legend, EEXRarity::Legendary, Random, NextSerial++);
+			}
+		}
+		for (FEXItem& Item : Out)   // a bot's fitted modules are its ship's own
+		{
+			if (Item.IsValid())
+			{
+				Item.Ship = ShipName;
 			}
 		}
 	}

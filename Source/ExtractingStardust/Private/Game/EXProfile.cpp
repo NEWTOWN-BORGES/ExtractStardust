@@ -17,7 +17,11 @@ namespace
 	/** Docs/MODULOS.md sec. 8: a STANDARD CACHE to open and the old game's starting consumables, in the quick slots. */
 	void GrantStarterKit(UEXProfileSave* Profile)
 	{
+		// Player, 2026-10-29: three free caches to start, a standard, an advanced and an elite one.
 		Profile->Caches.Add(static_cast<uint8>(EEXCache::Standard));
+		Profile->Caches.Add(static_cast<uint8>(EEXCache::Advanced));
+		Profile->Caches.Add(static_cast<uint8>(EEXCache::Elite));
+		Profile->bStarterTrio = true;
 		Profile->AddStock(EEXConsumable::Foam, 2);
 		Profile->AddStock(EEXConsumable::Fuel, 1);
 		Profile->AddStock(EEXConsumable::Coolant, 1);
@@ -30,6 +34,29 @@ namespace
 
 	void SanitizeProfile(UEXProfileSave* Profile)
 	{
+		// Pieces from before every piece had its ship: the ship it is fitted on, else its own or one it fits.
+		for (FEXItem& Item : Profile->Items)
+		{
+			if (!Item.Ship.IsEmpty() || !Item.IsValid())
+			{
+				continue;
+			}
+			for (const FEXBuild& Build : Profile->Builds)
+			{
+				if (Build.Slots.Contains(Item.Serial) && Item.Serial != 0)
+				{
+					Item.Ship = Build.Ship;
+				}
+			}
+			if (Item.Ship.IsEmpty())
+			{
+				if (const EXMeta::FModuleDef* Def = EXMeta::Find(Item))
+				{
+					FRandomStream Random(Item.Serial);
+					Item.Ship = EXMeta::ShipFor(*Def, Random);
+				}
+			}
+		}
 		Profile->Stock.SetNumZeroed(EXMeta::ConsumableCount);
 		for (int32& Count : Profile->Stock)
 		{
@@ -49,7 +76,7 @@ namespace
 			{
 				const FEXItem* Item = Profile->FindItem(Build.Slots[Slot]);
 				const EXMeta::FModuleDef* Def = Item ? EXMeta::Find(*Item) : nullptr;
-				if (!Def || !EXMeta::Fits(*Def, Build.Ship, static_cast<EEXFamily>(Slot)))
+				if (!Def || !EXMeta::ItemFits(*Item, Build.Ship, static_cast<EEXFamily>(Slot)))
 				{
 					Build.Slots[Slot] = 0;
 				}
@@ -244,6 +271,13 @@ namespace EXEconomy
 			GrantStarterKit(Profile);
 			RollShop(Profile);
 			Profile->Version = ProfileVersion;
+		}
+		if (!Profile->bStarterTrio)
+		{
+			// A pilot from before: the advanced and the elite starter caches come in now.
+			Profile->Caches.Add(static_cast<uint8>(EEXCache::Advanced));
+			Profile->Caches.Add(static_cast<uint8>(EEXCache::Elite));
+			Profile->bStarterTrio = true;
 		}
 		SanitizeProfile(Profile);
 		if (Profile->Shop.Num() == 0)

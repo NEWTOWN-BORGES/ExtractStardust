@@ -90,6 +90,9 @@ struct FEXItem
 	UPROPERTY() TArray<int32> Rolls;
 	/** Valuation in STARDUST, separate from power. */
 	UPROPERTY() int32 Value = 0;
+	/** The ship it was made for, the one in its photo: it only fits that ship (empty on old saves until the profile gives
+	 *  it one). */
+	UPROPERTY() FString Ship;
 
 	bool IsValid() const { return !Def.IsNone(); }
 	int32 Roll(EEXStat Stat) const { return Rolls.IsValidIndex(static_cast<int32>(Stat)) ? Rolls[static_cast<int32>(Stat)] : 0; }
@@ -258,6 +261,10 @@ namespace EXMeta
 	// ---- rules
 	/** Whether a module goes in that slot of that ship: family, size class, and the ship for wings. */
 	bool Fits(const FModuleDef& Def, const FString& ShipName, EEXFamily Slot);
+	/** Fits, and the piece is that ship's own (FEXItem::Ship). */
+	bool ItemFits(const FEXItem& Item, const FString& ShipName, EEXFamily Slot);
+	/** The ship a new piece is made for: its definition's own, else one of the ships it fits, at random. */
+	FString ShipFor(const FModuleDef& Def, FRandomStream& Random);
 	/** A new instance: the rarity's budget spread over the family's stats under their ceilings, sometimes with a
 	 *  drawback that returns budget; legendaries get their controlled rolls. */
 	FEXItem Roll(const FModuleDef& Def, EEXRarity Rarity, FRandomStream& Random, int32 Serial);

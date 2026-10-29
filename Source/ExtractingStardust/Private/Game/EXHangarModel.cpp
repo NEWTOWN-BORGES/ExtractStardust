@@ -1,5 +1,8 @@
 #include "Game/EXHangarModel.h"
 
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+
 #include "Engine/World.h"
 #include "Flight/EXHoverCraft.h"
 #include "Game/EXProfile.h"
@@ -194,6 +197,14 @@ void UEXHangarModel::Open()
 	Rows[static_cast<int32>(EEXHangarTab::Ship)] = Craft ? Craft->GetShipIndex() : 0;
 	bOpening = false;
 	SellArmed = 0;
+	// -EXHangarTab=N opens on a tab (1 EQUIPAR...), to photograph a screen in a test; -EXHangarRow=N picks its line.
+	int32 StartTab = 0, StartRow = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("EXHangarTab="), StartTab))
+	{
+		CurrentTab = static_cast<EEXHangarTab>(FMath::Clamp(StartTab, 0, static_cast<int32>(EEXHangarTab::Count) - 1));
+		FParse::Value(FCommandLine::Get(), TEXT("EXHangarRow="), StartRow);
+		Row() = FMath::Max(0, StartRow);
+	}
 	SyncCandidate();
 	if (UEXProfileSave* Profile = GetProfile())
 	{
@@ -268,7 +279,7 @@ TArray<int32> UEXHangarModel::Candidates() const
 	for (const FEXItem& Item : Profile->Items)
 	{
 		const EXMeta::FModuleDef* Def = EXMeta::Find(Item);
-		if (Def && EXMeta::Fits(*Def, Ship, Slot))
+		if (Def && EXMeta::ItemFits(Item, Ship, Slot))
 		{
 			Fit.Add(&Item);
 		}
@@ -356,7 +367,7 @@ TArray<FEXItem> UEXHangarModel::GetPreviewBuild() const
 	{
 		// A module in the shop or the vault that fits this ship is shown on it.
 		const EXMeta::FModuleDef* Def = EXMeta::Find(*Item);
-		if (Def && EXMeta::Fits(*Def, GetShipName(), Def->Family))
+		if (Def && EXMeta::ItemFits(*Item, GetShipName(), Def->Family))
 		{
 			Build[static_cast<int32>(Def->Family)] = *Item;
 		}
@@ -373,7 +384,7 @@ EEXFamily UEXHangarModel::GetFocus() const
 	if (const FEXItem* Item = LookedItem())
 	{
 		const EXMeta::FModuleDef* Def = EXMeta::Find(*Item);
-		if (Def && EXMeta::Fits(*Def, GetShipName(), Def->Family))
+		if (Def && EXMeta::ItemFits(*Item, GetShipName(), Def->Family))
 		{
 			return Def->Family;
 		}
@@ -909,7 +920,7 @@ FEXHangarRow UEXHangarModel::ItemRow(const FEXItem& Item, bool bWithPlace) const
 	if (Def)
 	{
 		R.Icon = FString::Printf(TEXT("fam_%d"), static_cast<int32>(Def->Family));
-		R.Thumb = HangarThumbKey(*Def, GetShipName());
+		R.Thumb = HangarThumbKey(*Def, Item.Ship.IsEmpty() ? GetShipName() : Item.Ship);
 		R.Flame = Def->Family == EEXFamily::Engine ? EXMeta::FlameLook(&Item) : INDEX_NONE;
 		// "Vanta Works  ·  classe S  ·  −10 kg", "Oryx Reclamation  ·  asa própria  ·  ponta dobrada"; a legendary's perk.
 		if (Def->bLegendary)
@@ -925,6 +936,13 @@ FEXHangarRow UEXHangarModel::ItemRow(const FEXItem& Item, bool bWithPlace) const
 		else
 		{
 			R.Maker = FString::Printf(TEXT("%s  \u00B7  classe %s%s"), *Def->Maker, *EXMeta::SizeText(Def->Size), *HangarMass(Item.Roll(EEXStat::Mass)));
+		}
+		// The ship it belongs to, first (player, 2026-10-29: each piece is its ship's own).
+		if (!Item.Ship.IsEmpty())
+		{
+			FString Rest = R.Maker;   // the maker gives way: the line has to fit beside the value
+			R.Maker.Split(TEXT("  \u00B7  "), nullptr, &Rest);
+			R.Maker = FString::Printf(TEXT("S\u00D3 %s  \u00B7  %s"), *Item.Ship.ToUpper(), *Rest);
 		}
 	}
 	const UEXProfileSave* Profile = GetProfile();
@@ -958,7 +976,7 @@ FEXHangarRow UEXHangarModel::ItemCard(const FEXItem& Item) const
 	if (Def)
 	{
 		Card.Icon = FString::Printf(TEXT("fam_%d"), static_cast<int32>(Def->Family));
-		Card.Thumb = HangarThumbKey(*Def, GetShipName());
+		Card.Thumb = HangarThumbKey(*Def, Item.Ship.IsEmpty() ? GetShipName() : Item.Ship);
 		Card.Flame = Def->Family == EEXFamily::Engine ? EXMeta::FlameLook(&Item) : INDEX_NONE;
 		const FString Family = HangarFamilyWords[FMath::Clamp(static_cast<int32>(Def->Family), 0, EXMeta::FamilyCount - 1)];
 		if (Def->Family == EEXFamily::Wings)
@@ -970,6 +988,10 @@ FEXHangarRow UEXHangarModel::ItemCard(const FEXItem& Item) const
 			const FString Look = (Def->Family == EEXFamily::Reactor || Def->Family == EEXFamily::Engine || Def->Family == EEXFamily::Propulsion)
 				? FString::Printf(TEXT("  \u00B7  %s"), HangarLookOf(*Def, false)) : FString();
 			Card.Maker = FString::Printf(TEXT("%s  \u00B7  %s%s%s"), *Family, *EXMeta::SizeText(Def->Size), *HangarMass(Item.Roll(EEXStat::Mass)), *Look);
+		}
+		if (!Item.Ship.IsEmpty() && Def->Family != EEXFamily::Wings)
+		{
+			Card.Maker = FString::Printf(TEXT("S\u00D3 %s  \u00B7  %s"), *Item.Ship.ToUpper(), *Card.Maker);
 		}
 	}
 	return Card;
@@ -1150,9 +1172,9 @@ void UEXHangarModel::BuildRight(FString& Title, TArray<FEXHangarRow>& Out, int32
 		{
 			Text += FString::Printf(TEXT("\nPERK: %s"), *Def->PerkText);
 		}
-		if (!Def->Ship.IsEmpty())
+		if (!Item.Ship.IsEmpty() || !Def->Ship.IsEmpty())
 		{
-			Text += FString::Printf(TEXT("\nS\u00F3 serve na %s."), *Def->Ship);
+			Text += FString::Printf(TEXT("\nExclusivo da %s: s\u00F3 serve nessa nave."), *(Item.Ship.IsEmpty() ? Def->Ship : Item.Ship).ToUpper());
 		}
 		else if (!EXMeta::Fits(*Def, Ship, Def->Family))
 		{

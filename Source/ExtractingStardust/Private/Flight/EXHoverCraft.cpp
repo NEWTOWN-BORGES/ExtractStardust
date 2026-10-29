@@ -85,7 +85,8 @@ namespace
 	// shows the garage lit (no dark silhouette), so the exposure is left alone and the vignette stays light.
 	constexpr float ShowroomDistCm = 1250.0f;
 	constexpr float ShowroomPitchDeg = 8.0f;
-	constexpr float ShowroomExposureBias = 0.0f;
+	constexpr float ShowroomExposureBias = -0.4f;   // the menu: the room a little darker, the lit craft standing out
+	constexpr float ShowroomLitExposureBias = -0.3f;
 	constexpr float ShowroomVignette = 0.25f;
 
 	/** The engine nozzles of the new ships in the ship's frame (Blender metres: front -Y, up +Z), from the module
@@ -1828,20 +1829,60 @@ void AEXHoverCraft::UpdateHangar(float Dt)
 	}
 
 	// The camera stays inside the room: above the floor and under the ceiling lights, whatever the pitch and zoom.
-	const FVector TargetFocus = GetActorLocation() + FVector(0.0f, 0.0f, 20.0f);
+	// Equipping, the camera closes in on the part being changed and swings round to its side (player, 2026-10-29: "faz
+	// um zoom para a peça modificada"); the parts inside the hull are shown in x-ray from a little closer.
+	FVector WantFocus = GetActorLocation() + FVector(0.0f, 0.0f, 20.0f);
+	float WantDist = HangarCamDist;
+	if (HangarModel && HangarModel->GetTab() == EEXHangarTab::Equip && ShipMesh)
+	{
+		const EEXFamily Focus = HangarModel->GetFocus();
+		FBox Box(ForceInit);
+		for (int32 K = 0; K < ModuleMeshes.Num() && K < static_cast<int32>(UE_ARRAY_COUNT(CraftExterior)); ++K)
+		{
+			if (CraftExterior[K] == Focus && ModuleMeshes[K] && ModuleMeshes[K]->GetStaticMesh())
+			{
+				Box += ModuleMeshes[K]->Bounds.GetBox();
+			}
+		}
+		WantFocus = Box.IsValid ? Box.GetCenter() : ShipMesh->Bounds.Origin;
+		WantDist = Box.IsValid ? FMath::Clamp(Box.GetExtent().Size() * 3.4f, 320.0f, HangarCamDist * 0.8f) : HangarCamDist * 0.72f;
+		if (static_cast<int32>(Focus) != HangarZoomFamily)
+		{
+			HangarZoomFamily = static_cast<int32>(Focus);
+			const FVector2D Side(WantFocus - ShipMesh->Bounds.Origin);
+			if (Box.IsValid && Side.Size() > 60.0f)
+			{
+				HangarSwingYaw = FMath::RadiansToDegrees(FMath::Atan2(-Side.Y, -Side.X));
+				HangarSwingLeft = 0.9f;
+			}
+		}
+	}
+	else
+	{
+		HangarZoomFamily = -1;
+	}
+	if (HangarSwingLeft > 0.0f)
+	{
+		HangarSwingLeft -= Dt;
+		HangarOrbitYaw += FMath::FindDeltaAngleDegrees(HangarOrbitYaw, HangarSwingYaw) * FMath::Min(1.0f, Dt * 5.0f);
+	}
+	const bool bFirstFrame = HangarZoomDist <= 0.0f;
+	HangarFocusPoint = bFirstFrame ? WantFocus : FMath::VInterpTo(HangarFocusPoint, WantFocus, Dt, 4.0f);
+	HangarZoomDist = bFirstFrame ? WantDist : FMath::FInterpTo(HangarZoomDist, WantDist, Dt, 4.0f);
+	const FVector TargetFocus = HangarFocusPoint;
 	const float FocusZ = HangarStage ? TargetFocus.Z - HangarStage->GetActorLocation().Z : 155.0f;
-	const float LowDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp((60.0f - FocusZ) / HangarCamDist, -1.0f, 1.0f)));
-	const float HighDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp((900.0f - FocusZ) / HangarCamDist, -1.0f, 1.0f)));
+	const float LowDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp((60.0f - FocusZ) / HangarZoomDist, -1.0f, 1.0f)));
+	const float HighDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp((900.0f - FocusZ) / HangarZoomDist, -1.0f, 1.0f)));
 	HangarOrbitPitch = FMath::Clamp(HangarOrbitPitch, FMath::Max(-10.0f, LowDeg), FMath::Min(75.0f, HighDeg));
 	const FRotator OrbitRot(-HangarOrbitPitch, HangarOrbitYaw, 0.0f);
-	const FVector CamLoc = TargetFocus - OrbitRot.Vector() * HangarCamDist;
+	const FVector CamLoc = TargetFocus - OrbitRot.Vector() * HangarZoomDist;
 	Camera->SetWorldLocationAndRotation(CamLoc, OrbitRot);
 	Camera->SetFieldOfView(58.0f);
 
 	// While the lights come on the exposure and vignette follow them; lit, the garage is shown as it is.
 	const float Lights = HangarStage ? HangarStage->GetLightLevel() : 1.0f;
 	Camera->PostProcessSettings.bOverride_AutoExposureBias = true;
-	Camera->PostProcessSettings.AutoExposureBias = FMath::Lerp(ShowroomExposureBias, 0.0f, Lights);
+	Camera->PostProcessSettings.AutoExposureBias = FMath::Lerp(ShowroomExposureBias, ShowroomLitExposureBias, Lights);
 	Camera->PostProcessSettings.VignetteIntensity = FMath::Lerp(ShowroomVignette, 0.15f, Lights);
 	Camera->PostProcessSettings.MotionBlurAmount = 0.0f;
 	Camera->PostProcessSettings.SceneFringeIntensity = 0.0f;

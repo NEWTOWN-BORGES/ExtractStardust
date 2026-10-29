@@ -174,8 +174,10 @@ FEXGround G;
 #define EXS SaDSampler
 float3 Pm = P / 100.0;                                   // metres
 float2 q = Pm.xy;
-float2 qdx = ddx(q), qdy = ddy(q);
-float3 Pdx = ddx(Pm), Pdy = ddy(Pm);
+// The arcade style (Sty, style_mpc.py) samples much smoother mips: clean, painted surfaces instead of photo detail.
+float blur = 1.0 + Sty * 10.0;
+float2 qdx = ddx(q) * blur, qdy = ddy(q) * blur;
+float3 Pdx = ddx(Pm) * blur, Pdy = ddy(Pm) * blur;
 float dist = length(P - C) / 100.0;
 float nearF = saturate(1.0 - dist / 80.0);
 float farF = saturate((dist - 40.0) / 220.0);
@@ -327,13 +329,19 @@ float wstreak = 0.94 + 0.12 * G.Value(float2(dot(q, float2(0.82, 0.57)) / 420.0,
 col *= macro * lerp(wstreak, 1.0, steep);
 col *= 1.0 + crest;
 col = lerp(col, col * 1.6, glint);
+// Arcade: livelier colours, smoother shading (Rocket League-like readability at speed).
+float lumA = dot(col, float3(0.3, 0.59, 0.11));
+col = lerp(col, max(lerp(lumA.xxx, col, 1.55) * 1.1, 0.0), Sty);
+nWS = normalize(lerp(nWS, N, Sty * 0.6));
+rough = lerp(rough, 0.8, Sty * 0.5);
 col = min(col, 0.85);
 NormalWS = nWS;
 Rough = saturate(lerp(lerp(rough, 0.92, 0.15), 0.2, glint));
 AmbOcc = saturate(lerp(1.0, ao, 0.8));
 return col;
 """
-ins = [("P", world, ""), ("N", normal_ws, ""), ("C", camera, ""), ("T", track, ""), ("Gm", surface, "A")] + tex_inputs
+exec(open(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()) + "Scripts/style_mpc.py", encoding="utf-8").read())
+ins = [("P", world, ""), ("N", normal_ws, ""), ("C", camera, ""), ("T", track, ""), ("Gm", surface, "A"), ("Sty", style_input(), "")] + tex_inputs
 ground = custom(CODE, ins, F3, extra_outputs=(("NormalWS", F3), ("Rough", F1), ("AmbOcc", F1)))
 spec = expr(unreal.MaterialExpressionConstant, r=0.35)
 for out, prop in (("", unreal.MaterialProperty.MP_BASE_COLOR), ("NormalWS", unreal.MaterialProperty.MP_NORMAL),
