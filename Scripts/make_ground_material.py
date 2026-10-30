@@ -361,7 +361,8 @@ if eal.does_asset_exist(bpath):
 else:
     mat = tools.create_asset("M_Beacon", "/Game/World", unreal.Material, unreal.MaterialFactoryNew())
 mat.set_editor_property("used_with_instanced_static_meshes", True)
-for value, prop in (((0.05, 0.02, 0.01), unreal.MaterialProperty.MP_BASE_COLOR), ((12.0, 3.2, 0.5), unreal.MaterialProperty.MP_EMISSIVE_COLOR)):
+# Player, 2026-10-30: the yellow posts were lost on the sand; electric blue stands out.
+for value, prop in (((0.01, 0.02, 0.05), unreal.MaterialProperty.MP_BASE_COLOR), ((0.8, 3.0, 14.0), unreal.MaterialProperty.MP_EMISSIVE_COLOR)):
     c = expr(unreal.MaterialExpressionConstant3Vector, constant=unreal.LinearColor(value[0], value[1], value[2], 1.0))
     if not mel.connect_material_property(c, "", prop):
         failures.append("beacon %s" % prop)

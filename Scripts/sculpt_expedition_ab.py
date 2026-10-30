@@ -678,8 +678,10 @@ rv_s = (XM - main[i_hero, 0]) * hero_t[0] + (YM - main[i_hero, 1]) * hero_t[1]
 rv_l = (XM - main[i_hero, 0]) * hero_n[0] + (YM - main[i_hero, 1]) * hero_n[1]
 ravine = (np.abs(rv_s) < 45 * smoothstep(380, 150, rv_l) + 8 * fbm(XM, YM, 40, 1)) & (rv_l > -400) & (rv_l < 380)
 H = np.where(ravine, np.minimum(H, basin_z + 4.0 + (np.maximum(rv_l, 0) * 0.15)), H)
-bed[i_hero - 60:i_hero - 45] += np.linspace(0, 3.0, 15)
-bed[i_hero - 45:i_hero - 40] += 3.0
+# Player, 2026-10-30: "o último salto tem de ser mais comprido, é difícil de o ver e acertar": a 50 m ramp up to 5 m
+# (was 15 m up to 3 m), seen from far off; the ravine keeps its width.
+bed[i_hero - 95:i_hero - 45] += 5.0 * smoothstep(0.0, 1.0, np.linspace(0.0, 1.0, 50))
+bed[i_hero - 45:i_hero - 40] += 5.0
 bed[i_hero + 45:i_hero + 260] -= 6.0 * smoothstep(0, 1, np.linspace(1, 0, 215))
 gap = (np.arange(N) > i_hero - 40) & (np.arange(N) < i_hero + 45)
 
@@ -917,8 +919,9 @@ patch = smoothstep(-0.35, 0.15, fbm(XM + 222, YM - 111, 160, 3))
 # Height above the nearest canyon floor (main canyon and the Red Wall gorge): the meadow covers the floor and the
 # foot of the walls up to ~16 m, in patches.
 rel = np.minimum(np.where(dM < 500, H - fM, 999.0), np.where(dT < 500, H - fT, 999.0))
-canyon_green = (rel < 16.0) & (slope_g < 22)
-green = canyon_green * smoothstep(-0.55, 0.0, fbm(XM + 222, YM - 111, 160, 3)) * smoothstep(16.0, 6.0, rel)
+# Player, 2026-10-30 ("quero mais área verde, mais vida"): the meadows climb higher (28 m) and break up less.
+canyon_green = (rel < 28.0) & (slope_g < 24)
+green = canyon_green * smoothstep(-0.8, -0.15, fbm(XM + 222, YM - 111, 160, 3)) * smoothstep(28.0, 10.0, rel)
 # Springs in the desert basin: the oasis beside the line before the hoodoo slalom (a pond, cottonwoods, willows,
 # grass), and two seeps at the foot of the basin cliffs.
 io = sec_of(8)[int(0.08 * len(sec_of(8)))]
@@ -931,6 +934,12 @@ for frac, side in ((0.55, -1.0), (0.82, 1.0)):
     t_s = np.gradient(main, axis=0)[i_s]
     n_s = np.array([-t_s[1], t_s[0]]) / (np.linalg.norm(t_s) + 1e-9)
     SPRINGS.append((main[i_s] + n_s * side * 140.0, 130.0, 18.0))
+# ... and oases in the open sectors too: the basin, the mesa top and the arches desert (pond, trees, grass round it).
+for sec_k, frac, side in ((0, 0.35, 1.0), (0, 0.75, -1.0), (1, 0.5, 1.0), (8, 0.3, -1.0), (8, 0.7, 1.0)):
+    i_s = sec_of(sec_k)[int(frac * len(sec_of(sec_k)))]
+    t_s = np.gradient(main, axis=0)[i_s]
+    n_s = np.array([-t_s[1], t_s[0]]) / (np.linalg.norm(t_s) + 1e-9)
+    SPRINGS.append((main[i_s] + n_s * side * (half_w[i_s] + 150.0), 200.0, 22.0))
 WATER = []
 for k_, (c_, r_, pr_) in enumerate(SPRINGS):
     d_s = np.hypot(XM - c_[0], YM - c_[1]) + 25.0 * fbm(XM + k_ * 70, YM, 60, 2)
