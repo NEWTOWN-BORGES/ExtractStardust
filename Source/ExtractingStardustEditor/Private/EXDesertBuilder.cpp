@@ -1123,6 +1123,29 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 	Spline->UpdateSpline();
 	Route->Tags.Add(TEXT("EXRoute"));
 	Route->SetActorLabel(TEXT("Route_GrandCircuit"));
+	// The shortcuts as splines tagged EXBranch (the minimap draws them; player, 2026-10-30: "atalhos visíveis no mapa").
+	const TSharedPtr<FJsonObject>* BranchObject = nullptr;
+	if (Circuit->TryGetObjectField(TEXT("branches"), BranchObject) && BranchObject)
+	{
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : (*BranchObject)->Values)
+		{
+			const TArray<TSharedPtr<FJsonValue>>& Points = Pair.Value->AsObject()->GetArrayField(TEXT("points"));
+			AActor* Branch = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform::Identity);
+			USplineComponent* Line = NewObject<USplineComponent>(Branch, TEXT("Branch"));
+			Branch->SetRootComponent(Line);
+			Branch->AddInstanceComponent(Line);
+			Line->RegisterComponent();
+			Line->ClearSplinePoints(false);
+			for (int32 Index = 0; Index < Points.Num(); Index += 5)
+			{
+				const TArray<TSharedPtr<FJsonValue>>& P = Points[Index]->AsArray();
+				Line->AddSplinePoint(WorldToUnreal(P[0]->AsNumber(), P[1]->AsNumber(), P[2]->AsNumber()), ESplineCoordinateSpace::World, false);
+			}
+			Line->UpdateSpline();
+			Branch->Tags.Add(TEXT("EXBranch"));
+			Branch->SetActorLabel(FString::Printf(TEXT("Branch_%s"), *Pair.Key.Replace(TEXT(" "), TEXT("_"))));
+		}
+	}
 	// Guide beacons: glowing posts 3 m outside the floor's edge, on the outside of every bend tighter than 400 m
 	// (one every 60 m) and every 250 m on the straights, standing on the ground; they never collide.
 	const TArray<TSharedPtr<FJsonValue>>& LapWidths = Circuit->GetObjectField(TEXT("lap"))->GetArrayField(TEXT("width_m"));

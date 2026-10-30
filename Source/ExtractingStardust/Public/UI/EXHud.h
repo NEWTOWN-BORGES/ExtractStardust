@@ -54,6 +54,9 @@ private:
 	/** The guide arrow in 3D over the player's craft. */
 	UPROPERTY(Transient)
 	TObjectPtr<class AEXGuideArrow> GuideArrow;
+	/** The shortcuts' lines (m), read once from the splines tagged EXBranch. */
+	TArray<TArray<FVector2D>> BranchLines;
+	bool bBranchesRead = false;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UEXHangarWidget> HangarWidget;

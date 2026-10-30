@@ -283,7 +283,19 @@ def at_main(x, y):
 branches = {}
 for name, bkind, bw, brmin, wps in BRANCHES:
     i0, i1 = at_main(*wps[0][1:3]), at_main(*wps[-1][1:3])
-    pts = [main[i0]] + [np.array(w_[:2], float) for w_ in wps[1:-1]] + [main[i1]]
+    inner = [np.array(w_[:2], float) for w_ in wps[1:-1]]
+    if bkind != "cave":
+        # Player, 2026-10-30: "os atalhos têm de ser suaves ao entrar e ao sair; tem uns que bato na parede por ter má
+        # saída a 90 graus": the branch peels off along the main line (40 m out 4 m, 90 m out 14 m) and comes back the
+        # same way, so neither end is a hard turn. The cave's arm keeps its own junctions (fixed with the tunnel).
+        def peel(i, toward, along):
+            t_ = main[min(i + 1, len(main) - 1)] - main[max(i - 1, 0)]
+            t_ = t_ / (np.linalg.norm(t_) + 1e-9)
+            n_ = np.array([-t_[1], t_[0]])
+            side = 1.0 if np.dot(toward - main[i], n_) >= 0.0 else -1.0
+            return [main[int(np.clip(i + along * k_, 0, len(main) - 1))] + n_ * side * off for k_, off in ((40, 4.0), (90, 14.0))]
+        inner = peel(i0, inner[0], 1) + inner + peel(i1, inner[-1], -1)[::-1]
+    pts = [main[i0]] + inner + [main[i1]]
     p, _k = catmull(pts)
     p = resample(p)
     fx = np.zeros(len(p), bool)
@@ -897,6 +909,12 @@ lowered = ~on_floor & ~WALL & (bank_cap < H)   # the curve walls stay as built
 H = np.where(lowered, bank_cap, H)
 print("BANKS lowered", round(float(lowered.mean() * 100), 2), "% of the map")
 del bank_cap, lowered
+# Player, 2026-10-30: "passo ao lado do salto e vou em frente bater no abismo" - the land round the road is open now,
+# so the hero jump's ramp runs along the whole near lip of the ravine: whatever the line, the craft meets a 5 m ramp
+# over its last 50 m and leaves from its edge.
+lip_zone = (rv_s > -100.0) & (rv_s < -50.0) & (rv_l > -400.0) & (rv_l < 380.0) & ~on_floor
+H = np.where(lip_zone, H + 5.0 * smoothstep(-100.0, -50.0, rv_s), H).astype(H.dtype)
+print("HERO LIP ramp over", int(lip_zone.sum() * CELL * CELL), "m2")
 
 # 5i. Lone spikes go (they render as sharp cones).
 # Three passes: a small cluster of spikes loses its outer cells first, then the rest.

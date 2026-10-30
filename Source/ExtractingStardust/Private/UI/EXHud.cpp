@@ -3,6 +3,7 @@
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Components/SplineComponent.h"
 #include "EngineUtils.h"
 #include "Flight/EXHoverCraft.h"
 #include "EXGameMode.h"
@@ -224,6 +225,37 @@ void AEXHud::DrawMinimap(const TArray<FVector2D>& Route, const FVector2D& Here, 
 	{
 		return FMath::Abs(S.X - Centre.X) < Half && FMath::Abs(S.Y - Centre.Y) < Half;
 	};
+	// The shortcuts (player, 2026-10-30: "atalhos visíveis no mapa"): light blue, under the race line.
+	if (!bBranchesRead && GetWorld())
+	{
+		bBranchesRead = true;
+		for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+		{
+			USplineComponent* Line = It->ActorHasTag(TEXT("EXBranch")) ? It->FindComponentByClass<USplineComponent>() : nullptr;
+			if (!Line)
+			{
+				continue;
+			}
+			TArray<FVector2D>& Points = BranchLines.AddDefaulted_GetRef();
+			for (float Distance = 0.0f; Distance <= Line->GetSplineLength(); Distance += 2000.0f)
+			{
+				const FVector P = Line->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
+				Points.Add(FVector2D(P.X / 100.0f, P.Y / 100.0f));
+			}
+		}
+	}
+	for (const TArray<FVector2D>& Points : BranchLines)
+	{
+		for (int32 K = 0; K + 1 < Points.Num(); ++K)
+		{
+			const FVector2D A = ToScreen(Points[K]);
+			const FVector2D B = ToScreen(Points[K + 1]);
+			if (Inside(A) && Inside(B))
+			{
+				DrawLine(A.X, A.Y, B.X, B.Y, FLinearColor(0.35f, 0.8f, 1.0f, 0.9f), 2.0f * Scale);
+			}
+		}
+	}
 	// The race line: 20 m steps; the next 2 km ahead bright, the rest dimmer.
 	const int32 Count = Route.Num();
 	for (int32 Step = 0; Step < Count; Step += 4)
