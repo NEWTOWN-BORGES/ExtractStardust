@@ -210,7 +210,7 @@ void AEXHangarStage::Build()
 	FillSpot = AddSpot(FVector(-700.0f, -600.0f, 650.0f), FVector(0.0f, 0.0f, 100.0f), FillSpotWork, FLinearColor(0.86f, 0.9f, 1.0f), 34.0f);
 	TopSpot = AddSpot(FVector(0.0f, 0.0f, RoomH - 70.0f), FVector(0.0f, 0.0f, 0.0f), TopSpotWork, FLinearColor(1.0f, 0.95f, 0.88f), 26.0f);
 	// A cool rim light from high behind, outlining the hull against the room.
-	AddSpot(FVector(-900.0f, 350.0f, 750.0f), FVector(0.0f, 0.0f, 120.0f), RimSpotLumens, FLinearColor(0.7f, 0.84f, 1.0f), 30.0f);
+	AddSpot(FVector(-900.0f, 350.0f, 750.0f), FVector(0.0f, 0.0f, 120.0f), RimSpotLumens, FLinearColor(0.7f, 0.84f, 1.0f), 30.0f)->SetCastShadows(false);
 
 	// Turntable: base, glowing rim, steel top.
 	AddPart(CylinderMesh, FVector(0.0f, 0.0f, 11.0f), None, FVector(920.0f, 920.0f, 22.0f), PlatformDark);

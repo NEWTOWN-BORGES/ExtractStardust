@@ -28,18 +28,12 @@ AEXCheckpointGate::AEXCheckpointGate()
 	PrimaryActorTick.bStartWithTickEnabled = false;
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("Root")));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube"));
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Paint(TEXT("/Game/Ships/M_ShipPBR.M_ShipPBR"));
-	UMaterialInterface* PaintMaterial = Paint.Object;
-	auto Make = [this, PaintMaterial](const TCHAR* Name, UStaticMesh* Mesh)
+	auto Make = [this](const TCHAR* Name, UStaticMesh* Mesh)
 	{
 		UStaticMeshComponent* Component = CreateDefaultSubobject<UStaticMeshComponent>(Name);
 		Component->SetupAttachment(GetRootComponent());
 		Component->SetStaticMesh(Mesh);
 		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		if (PaintMaterial)
-		{
-			Component->SetMaterial(0, PaintMaterial);
-		}
 		return Component;
 	};
 	// Two square pylons, the bar across their tops, and a dark foot under each pylon.
@@ -53,8 +47,11 @@ AEXCheckpointGate::AEXCheckpointGate()
 
 void AEXCheckpointGate::Setup(const FVector& Left, const FVector& Right)
 {
-	FrameMaterial = UMaterialInstanceDynamic::Create(PylonL->GetMaterial(0), this);
-	BeamMaterial = UMaterialInstanceDynamic::Create(BeamL->GetMaterial(0), this);
+	// Loaded here, not in the constructor: a class default holding the ships' master material kept it loaded in the
+	// editor and Scripts/make_ship_materials.py could no longer rebuild it (it asserted).
+	UMaterialInterface* Paint = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Ships/M_ShipPBR.M_ShipPBR"));
+	FrameMaterial = Paint ? UMaterialInstanceDynamic::Create(Paint, this) : nullptr;
+	BeamMaterial = Paint ? UMaterialInstanceDynamic::Create(Paint, this) : nullptr;
 	for (UMaterialInstanceDynamic* Mid : { FrameMaterial.Get(), BeamMaterial.Get() })
 	{
 		if (Mid)

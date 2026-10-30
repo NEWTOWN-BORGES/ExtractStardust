@@ -689,10 +689,11 @@ def section(lat, idx, bed_, w_, kinds_, bank_, curv_):
     u = np.abs(lat)
     t = np.clip(u / w_, 0, 1.5)
     z = bed_.copy()
-    z += np.where(kinds_ == "top", 6.0 * t ** 2, 0.0)  # a natural wash between the domes
+    # Player, 2026-10-29: in the open sectors the road is no longer a hole: a flat floor, level with the land round it.
+    z += np.where(kinds_ == "top", 0.0 * t ** 2, 0.0)
     z += np.where(kinds_ == "floor", 4.0 * t ** 2, 0.0)
     z += np.where(kinds_ == "wash", 16.0 * t ** 2, 0.0)  # the Wash: a half-pipe riverbed
-    z += np.where(kinds_ == "rim", 1.0 * t ** 2, 0.0)
+    z += np.where(kinds_ == "rim", 0.0 * t ** 2, 0.0)
     z += np.where(kinds_ == "cave", 6.0 * t ** 2, 0.0)  # the cave floor curls up into the foot of the vault
     outer = np.sign(lat) == -np.sign(curv_)  # outside of the bend
     z += np.where((bank_ > 0) & outer, u * np.tan(bank_), 0.0)
@@ -847,14 +848,24 @@ print("ROUTE CARVED", "lips", len(lips))
 # Player, 2026-10-27: the talus apron with a cliff behind it (2026-10-26) looked like small walls along a narrow road
 # and the craft rode up on them: the smooth oval bank of 2026-10-20 is back everywhere.
 BANK_E, BANK_A, BANK_B = 24.0, math.radians(25.0), math.radians(45.0) / 24.0
-APRON_H = np.zeros(N)            # kept for bank_line's signature; the oval bank does not use them
+# Player, 2026-10-29: "a estrada normal deixa de ser um buraco e passa a ser mais plana com o resto do mapa" - in the
+# open sectors (the basin and the mesa top, the arches desert, the White Rim) the land round the road comes down to it
+# over a wide band: 3 degrees for the first 120 m, steepening slowly (35 degrees at 400 m), out to OPEN_REACH m, so the
+# craft can roam the map from checkpoint to checkpoint. The canyons, the zig-zag with its walls and the cave stay.
+OPEN_KINDS = ["top", "desert", "rim"]
+OPEN_REACH = 500.0
+APRON_H = np.where(np.isin(kind, OPEN_KINDS), -1.0, 0.0)   # -1: the open, gentle bank; else the oval bank
 APRON_TAN = np.zeros(N)
 
 
 def bank_rise(e, apron_h=None, apron_tan=None):
     e1 = np.clip(e, 0.0, BANK_E)
-    return ((math.log(math.cos(BANK_A)) - np.log(np.cos(BANK_A + BANK_B * e1))) / BANK_B
+    oval = ((math.log(math.cos(BANK_A)) - np.log(np.cos(BANK_A + BANK_B * e1))) / BANK_B
             + np.maximum(e - BANK_E, 0.0) * math.tan(math.radians(70.0)))
+    if apron_h is None:
+        return oval
+    gentle = e * math.tan(math.radians(3.0)) + np.maximum(e - 120.0, 0.0) ** 2 * 0.00116
+    return np.where(np.asarray(apron_h) < -0.5, gentle, oval)
 
 
 bank_cap = np.full(H.shape, np.inf, np.float32)
@@ -878,7 +889,8 @@ for name, b in branches.items():
     bk = np.full(n_, {"slot": "floor", "slabs": "top", "cave": "cave", "surface": "rim"}[b["kind"]])
     bank_line(b["p"], b["z"], np.full(n_, float(b["w"])), bk, np.zeros(n_), curvature(b["p"], 61),
               np.full(n_, b["kind"] in ("cave", "surface", "slabs")), np.full(n_, 10.0), np.full(n_, math.tan(math.radians(32.0))))
-bank_line(main, bed, half_w, kind, bank, curv, gap | (kind == "desert") | (kind == "cave"), APRON_H, APRON_TAN)
+bank_line(main, bed, half_w, kind, bank, curv, gap | (kind == "desert") | (kind == "cave") | np.isin(kind, OPEN_KINDS), APRON_H, APRON_TAN)
+bank_line(main, bed, half_w, kind, bank, curv, gap | ~np.isin(kind, OPEN_KINDS), APRON_H, APRON_TAN, reach=OPEN_REACH)
 lowered = ~on_floor & ~WALL & (bank_cap < H)   # the curve walls stay as built
 H = np.where(lowered, bank_cap, H)
 print("BANKS lowered", round(float(lowered.mean() * 100), 2), "% of the map")

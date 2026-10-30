@@ -29,7 +29,8 @@ namespace
 	constexpr float TestTimeLimitS = 1500.0f;
 	constexpr int32 MenuItems = 4;          // 0 solo, 1 bots, 2 hangar, 3 quit
 	/** Bot pace against the ideal line, by bot (the tuning knob for how good the bots are). */
-	constexpr float BotSkills[] = { 0.95f, 0.94f, 0.93f, 0.92f, 0.91f, 0.90f, 0.89f, 0.88f, 0.87f, 0.87f, 0.86f, 0.85f, 0.84f, 0.83f, 0.82f };
+	// Player, 2026-10-30 ("os bots têm de ser mais difíceis"): 100 % down to 90 % of the ideal pace (was 95 to 82).
+	constexpr float BotSkills[] = { 1.0f, 0.99f, 0.98f, 0.97f, 0.96f, 0.96f, 0.95f, 0.94f, 0.94f, 0.93f, 0.92f, 0.92f, 0.91f, 0.90f, 0.90f };
 
 	FString DirectorClock(float Seconds)
 	{
@@ -177,6 +178,22 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 		}
 	}
 	UpdateStandings();
+	// The pack stays with the player: a bot behind gains up to 15 % (1.6 km back), one far ahead gives back up to 6 %.
+	if (const AEXHoverCraft* Me = PlayerCraft())
+	{
+		const float Mine = Me->GetRaceProgressM();
+		for (FEXRacer& Racer : Racers)
+		{
+			if (Racer.bPlayer || !IsValid(Racer.Craft) || Racer.bOut || Racer.bFinished)
+			{
+				continue;
+			}
+			const float Behind = Mine - Racer.Craft->GetRaceProgressM();
+			const float CatchUp = Behind > 0.0f ? 1.0f + 0.15f * FMath::Clamp((Behind - 100.0f) / 1500.0f, 0.0f, 1.0f)
+				: 1.0f - 0.06f * FMath::Clamp((-Behind - 300.0f) / 1500.0f, 0.0f, 1.0f);
+			Racer.Craft->SetBotCatchUp(IsPlayerDone() ? 1.0f : CatchUp);
+		}
+	}
 	if (RaceTime > 3.0f)
 	{
 		FpsTime += DeltaSeconds;
@@ -209,8 +226,43 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 	}
 }
 
+bool AEXRaceDirector::TogglePause()
+{
+	if (bMenu || !bReady || bOver || Mode == EEXRaceMode::Hangar || IsPlayerDone())
+	{
+		return false;
+	}
+	bPaused = !bPaused;
+	PauseChoice = 0;
+	UGameplayStatics::SetGamePaused(this, bPaused);
+	return true;
+}
+
 void AEXRaceDirector::MenuInput(int32 Step)
 {
+	if (bPaused)
+	{
+		if (Step != 0)
+		{
+			PauseChoice = (PauseChoice + Step + 3) % 3;
+			return;
+		}
+		if (PauseChoice == 0)
+		{
+			TogglePause();
+		}
+		else if (PauseChoice == 1)
+		{
+			bPaused = false;
+			UGameplayStatics::SetGamePaused(this, false);
+			ReturnToMenu();
+		}
+		else if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PlayerController->ConsoleCommand(TEXT("quit"));
+		}
+		return;
+	}
 	if (!bMenu)
 	{
 		// On the results: Enter / X goes back to the menu. Past the line, before the results: it shows them at once.

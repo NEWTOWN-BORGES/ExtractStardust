@@ -27,6 +27,8 @@ class EXTRACTINGSTARDUST_API AEXHud : public AHUD
 
 public:
 	virtual void DrawHUD() override;
+	/** Over everything: the pause menu. */
+	virtual void PostRender() override;
 
 private:
 	void DrawMinimap(const TArray<FVector2D>& Route, const FVector2D& Here, const FVector2D& Forward, int32 Index,

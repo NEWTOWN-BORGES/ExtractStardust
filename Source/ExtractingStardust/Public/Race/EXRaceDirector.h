@@ -133,6 +133,11 @@ public:
 	int32 GetMenuChoice() const { return MenuChoice; }
 	/** From the player's craft: -1 up, +1 down, 0 confirm. */
 	void MenuInput(int32 Step);
+	/** Esc in the race (player, 2026-10-30: "quero o jogo com pausa"): pauses or resumes; false when there is no race
+	 *  to pause (the menu, the hangar, the results). The pause menu: 0 continue, 1 back to the menu, 2 quit. */
+	bool TogglePause();
+	bool IsPaused() const { return bPaused; }
+	int32 GetPauseChoice() const { return PauseChoice; }
 
 	EEXRaceMode GetMode() const { return Mode; }
 	bool IsReady() const { return bReady; }
@@ -193,6 +198,8 @@ private:
 	int32 CheckpointCount = 1, PlayerCheckpoint = 0;
 	TArray<FEXItem> PoolItems;
 	int32 LastCountdownBeep = 99;
+	bool bPaused = false;
+	int32 PauseChoice = 0;
 	TArray<FEXGate> Gates;
 	UPROPERTY() TArray<TObjectPtr<AEXCheckpointGate>> GateActors;
 	int32 MissedGate = 0, LastGateShot = -1;

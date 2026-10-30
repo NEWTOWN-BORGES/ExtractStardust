@@ -7,6 +7,7 @@
 #include "Flight/EXHoverCraft.h"
 #include "EXGameMode.h"
 #include "Race/EXRaceDirector.h"
+#include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "UnrealClient.h"
@@ -29,6 +30,41 @@ namespace
 	}
 }
 
+void AEXHud::PostRender()
+{
+	Super::PostRender();
+	AEXRaceDirector* Race = nullptr;
+	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
+	{
+		Race = *It;
+		break;
+	}
+	if (!Canvas || !Race || !Race->IsPaused())
+	{
+		return;
+	}
+	// PAUSA: the screen dimmed, three lines, the chosen one in orange (W/S or the d-pad, Enter or X; Esc resumes).
+	const float Scale = Canvas->ClipY / 720.0f;
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.6f), 0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY);
+	const float X = Canvas->ClipX * 0.5f - 130.0f * Scale;
+	float Y = Canvas->ClipY * 0.5f - 120.0f * Scale;
+	DrawText(TEXT("PAUSA"), FLinearColor(0.95f, 0.9f, 0.8f), X, Y, nullptr, 3.0f * Scale);
+	Y += 80.0f * Scale;
+	const TCHAR* const Lines[3] = { TEXT("CONTINUAR"), TEXT("VOLTAR AO MENU"), TEXT("SAIR DO JOGO") };
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		const bool bOn = Race->GetPauseChoice() == Index;
+		if (bOn)
+		{
+			DrawRect(FLinearColor(0.92f, 0.34f, 0.1f, 0.85f), X - 14.0f * Scale, Y - 4.0f * Scale, 300.0f * Scale, 34.0f * Scale);
+		}
+		DrawText(Lines[Index], bOn ? FLinearColor::White : FLinearColor(0.8f, 0.75f, 0.65f), X, Y, nullptr, 1.6f * Scale);
+		Y += 44.0f * Scale;
+	}
+	DrawText(TEXT("W/S  escolher  \u00B7  Enter  confirmar  \u00B7  Esc  continuar"), FLinearColor(0.7f, 0.65f, 0.55f), X - 30.0f * Scale, Y + 16.0f * Scale,
+		nullptr, 1.0f * Scale);
+}
+
 void AEXHud::DrawHUD()
 {
 	Super::DrawHUD();
@@ -38,6 +74,11 @@ void AEXHud::DrawHUD()
 		FParse::Value(FCommandLine::Get(), TEXT("EXShotAfter="), ShotAfterS);
 	}
 	const float Clock = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0f;
+	// Frame hitches in the menu and the hangar too (the race logs its own): EXHUD hitch in the log.
+	if ((bShowroomGraphics) && Clock > 8.0f && FApp::GetDeltaTime() > 0.06)
+	{
+		UE_LOG(LogTemp, Display, TEXT("EXHUD hitch %.0f ms in the %s"), FApp::GetDeltaTime() * 1000.0, TEXT("showroom"));
+	}
 	if (ShotAfterS > 0.0f && ShotTakenAt < 0.0f && Clock > ShotAfterS)
 	{
 		ShotTakenAt = Clock;

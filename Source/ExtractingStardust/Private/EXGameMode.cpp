@@ -5,6 +5,7 @@
 #include "Components/SkyLightComponent.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/Engine.h"
+#include "GameFramework/GameUserSettings.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/SkyLight.h"
 #include "Kismet/KismetMaterialLibrary.h"
@@ -41,6 +42,20 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 		GEngine->Exec(World, TEXT("DisableAllScreenMessages"));
 	}
 	ApplyGraphics(World, false);
+	// Full screen, borderless, over the taskbar (player, 2026-10-30: "janela cheia sem barra do Windows ou da janela");
+	// -windowed (the tests) keeps a window.
+	if (GEngine && !FParse::Param(FCommandLine::Get(), TEXT("windowed")))
+	{
+		if (UGameUserSettings* Settings = GEngine->GetGameUserSettings())
+		{
+			if (Settings->GetFullscreenMode() != EWindowMode::WindowedFullscreen)
+			{
+				Settings->SetFullscreenMode(EWindowMode::WindowedFullscreen);
+				Settings->SetScreenResolution(Settings->GetDesktopResolution());
+				Settings->ApplySettings(false);
+			}
+		}
+	}
 	ApplyStyle(World);
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -119,10 +134,10 @@ void AEXGameMode::ApplyGraphics(UWorld* World, bool bShowroom)
 	else if (bShowroom || bUltra)
 	{
 		Commands = { TEXT("r.DynamicGlobalIlluminationMethod 1"), TEXT("r.ReflectionMethod 1"), TEXT("r.Shadow.Virtual.Enable 1"),
-			TEXT("r.AntiAliasingMethod 4"), TEXT("r.ScreenPercentage 100"), TEXT("r.TSR.History.ScreenPercentage 200"),
-			TEXT("r.VolumetricFog.GridPixelSize 8"), TEXT("r.VolumetricCloud.ViewRaySampleMaxCount 512"),
+			TEXT("r.AntiAliasingMethod 4"), TEXT("r.ScreenPercentage 100"), TEXT("r.TSR.History.ScreenPercentage 100"),
+			TEXT("r.VolumetricFog.GridPixelSize 12"), TEXT("r.VolumetricCloud.ViewRaySampleMaxCount 256"),
 			TEXT("r.Lumen.Reflections.DownsampleFactor 1"), TEXT("r.Lumen.Reflections.MaxRoughnessToTrace 0.6"),
-			TEXT("r.Shadow.Virtual.ResolutionLodBiasDirectional -0.5"), TEXT("r.Shadow.Virtual.ResolutionLodBiasLocal -0.5") };
+			TEXT("r.Shadow.Virtual.ResolutionLodBiasDirectional 0"), TEXT("r.Shadow.Virtual.ResolutionLodBiasLocal 0") };   // sharper ones stuttered the hangar
 	}
 	else
 	{

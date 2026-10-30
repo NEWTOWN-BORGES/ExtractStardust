@@ -260,7 +260,7 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction(TEXT("Drift"), IE_Pressed, this, &AEXHoverCraft::DriftPressed);
 	PlayerInputComponent->BindAction(TEXT("Drift"), IE_Released, this, &AEXHoverCraft::DriftReleased);
 	PlayerInputComponent->BindAction(TEXT("ResetCraft"), IE_Pressed, this, &AEXHoverCraft::ResetToStart);
-	PlayerInputComponent->BindAction(TEXT("QuitGame"), IE_Pressed, this, &AEXHoverCraft::QuitPressed);
+	PlayerInputComponent->BindAction(TEXT("QuitGame"), IE_Pressed, this, &AEXHoverCraft::QuitPressed).bExecuteWhenPaused = true;
 	PlayerInputComponent->BindAction(TEXT("NextShip"), IE_Pressed, this, &AEXHoverCraft::NextShip);
 	PlayerInputComponent->BindAction(TEXT("PrevShip"), IE_Pressed, this, &AEXHoverCraft::PrevShip);
 	PlayerInputComponent->BindAction(TEXT("Ship1"), IE_Pressed, this, &AEXHoverCraft::Ship1);
@@ -273,9 +273,10 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction(TEXT("Consumable2"), IE_Pressed, this, &AEXHoverCraft::Quick2);
 	PlayerInputComponent->BindAction(TEXT("Consumable3"), IE_Pressed, this, &AEXHoverCraft::Quick3);
 	PlayerInputComponent->BindAction(TEXT("Consumable4"), IE_Pressed, this, &AEXHoverCraft::Quick4);
-	PlayerInputComponent->BindAction(TEXT("MenuUp"), IE_Pressed, this, &AEXHoverCraft::MenuUp);
-	PlayerInputComponent->BindAction(TEXT("MenuDown"), IE_Pressed, this, &AEXHoverCraft::MenuDown);
-	PlayerInputComponent->BindAction(TEXT("MenuConfirm"), IE_Pressed, this, &AEXHoverCraft::MenuConfirm);
+	// The pause menu works while the game is paused.
+	PlayerInputComponent->BindAction(TEXT("MenuUp"), IE_Pressed, this, &AEXHoverCraft::MenuUp).bExecuteWhenPaused = true;
+	PlayerInputComponent->BindAction(TEXT("MenuDown"), IE_Pressed, this, &AEXHoverCraft::MenuDown).bExecuteWhenPaused = true;
+	PlayerInputComponent->BindAction(TEXT("MenuConfirm"), IE_Pressed, this, &AEXHoverCraft::MenuConfirm).bExecuteWhenPaused = true;
 	PlayerInputComponent->BindAxis(TEXT("HangarPitch"), this, &AEXHoverCraft::InputHangarPitch);
 	PlayerInputComponent->BindAxis(TEXT("HangarYaw"), this, &AEXHoverCraft::InputHangarYaw);
 	PlayerInputComponent->BindAxis(TEXT("HangarOrbit"), this, &AEXHoverCraft::InputHangarOrbit);
@@ -1335,10 +1336,11 @@ void AEXHoverCraft::DriveBot(float Dt)
 	}
 	// Weaker bots misjudge bends now and then: a slow swell of their cornering speed, up to 8 % too fast.
 	const float Misjudge = 1.0f + (1.0f - BotSkill) * 0.45f * FMath::Max(0.0f, FMath::Sin(BotTime * 0.31f + 2.0f * BotPhase));
-	const float TargetSpeed = FMath::Min(MaxSpeedMps * BotSkill, FMath::Sqrt(22.0f * TightestM) * (0.8f + 0.2f * BotSkill) * Misjudge);
+	// Harder bots (player, 2026-10-30): more grip in the bends (~2.6 g), the catch-up on top.
+	const float TargetSpeed = FMath::Min(MaxSpeedMps * BotSkill * BotCatchUp, FMath::Sqrt(26.0f * TightestM) * (0.85f + 0.15f * BotSkill) * Misjudge * BotCatchUp);
 	ThrottleInput = ForwardSpeedMps < TargetSpeed ? 1.0f : 0.0f;
 	BrakeInput = (ForwardSpeedMps > TargetSpeed + 6.0f || (FMath::Abs(AngleDeg) > 50.0f && ForwardSpeedMps > 30.0f)) ? 1.0f : 0.0f;
-	bBoostHeld = BotSkill > 0.91f && TightestM > 900.0f && FMath::Abs(AngleDeg) < 8.0f;
+	bBoostHeld = BotSkill > 0.88f && TightestM > 600.0f && FMath::Abs(AngleDeg) < 10.0f;   // nitro on every fair straight
 	bDriftHeld = false;
 	// Stuck against a wall or in a hole: back on the line after 3 s, as a player would press R.
 	BotStuckSeconds = !bRaceHold && BotTime > 8.0f && ForwardSpeedMps < 5.0f ? BotStuckSeconds + Dt : 0.0f;
@@ -1360,6 +1362,15 @@ void AEXHoverCraft::QuitPressed()
 	if (GFrameCounter == HangarBackFrame)
 	{
 		return;
+	}
+	// In a race Esc pauses (and resumes) instead of quitting.
+	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
+	{
+		if (It->TogglePause())
+		{
+			return;
+		}
+		break;
 	}
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
@@ -2225,6 +2236,7 @@ float AEXHoverCraft::SpeedCapMul() const
 	Mul *= RepairLeft > 0.0f ? 1.0f - RepairSlow : 1.0f;
 	// REDLINE-X: above 90% of the top speed, 3% more.
 	Mul *= bRedline && ForwardSpeedMps > 0.9f * MaxSpeedMps ? 1.03f : 1.0f;
+	Mul *= bBot ? BotCatchUp : 1.0f;
 	return Mul;
 }
 

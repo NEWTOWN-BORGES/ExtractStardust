@@ -223,6 +223,7 @@ public:
 	float GetTopSpeedKmh() const { return MaxSpeedMps * 3.6f; }
 	/** A sound call-out on this craft (UEXCraftAudio::Chime kinds). */
 	void PlayChime(int32 Kind);
+	void SetBotCatchUp(float Value) { BotCatchUp = Value; }
 	/** Furthest point reached along the race line, in metres (never jumps more than 600 m at once). */
 	float GetRaceProgressM() const { return RaceProgressM; }
 	int32 GetRouteIndex() const { return RouteIndex; }
@@ -395,6 +396,8 @@ private:
 	float HangarYawInput = 0.0f;
 	void FillAudioOthers(FEXCraftAudioInput& Sound) const;
 	float BotSkill = 1.0f, BotLaneM = 0.0f, BotPhase = 0.0f, BotStuckSeconds = 0.0f, BotTime = 0.0f;
+	/** The race director's catch-up for a bot: its pace and top speed times this (behind the player > 1). */
+	float BotCatchUp = 1.0f;
 
 	// Hangar mode state.
 	bool bInHangar = false, bHangarAutoRotate = true;
