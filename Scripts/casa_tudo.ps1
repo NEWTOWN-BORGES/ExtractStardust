@@ -50,6 +50,7 @@ Step "3b. Importar as naves novas" $EditorCmd @($Project, "-run=pythonscript", "
 Step "3c. Importar os modulos das naves" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/import_ship_modules.py", "-unattended")
 Step "3d. Importar os icones e as fotos do hangar" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/import_ui_icons.py", "-unattended")
 Step "3d. Importar o porquinho HD do HUD" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/import_piggy.py", "-unattended")
+Step "3d. Explosao e destrocos (texturas e materiais)" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/make_fx_assets.py", "-unattended")
 Step "3e. Materiais fotorrealistas das naves" $EditorCmd @($Project, "-run=pythonscript", "-script=$RootFwd/Scripts/make_ship_materials.py", "-unattended")
 if (-not $SemPista) {
     Step "4. Montar o mapa Expedition" $Editor @($Project, "-ExecutePythonScript=$RootFwd/Scripts/build_expedition_map.py")

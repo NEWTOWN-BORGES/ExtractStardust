@@ -14,6 +14,7 @@
 #include "Flight/EXCraftAudio.h"
 #include "Flight/EXCraftFx.h"
 #include "Flight/EXExplosion.h"
+#include "Flight/EXWreck.h"
 #include "GameFramework/PlayerStart.h"
 #include "World/EXDesertTerrain.h"
 #include "GameFramework/PlayerController.h"
@@ -299,6 +300,10 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (bEliminated)
 	{
+		if (bCrashCam && IsPlayerControlled())
+		{
+			UpdateCrashCam(DeltaSeconds);
+		}
 		if (Audio)
 		{
 			// The explosion rings out for the player who blew up, then silence.
@@ -328,6 +333,13 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	}
 	HitCooldown = FMath::Max(0.0f, HitCooldown - DeltaSeconds);
 	AudioHitCooldown = FMath::Max(0.0f, AudioHitCooldown - DeltaSeconds);
+	if (TakedownSlowmo > 0.0f)
+	{
+		// A takedown (the player blew a rival up): a short slow motion, then back to speed.
+		TakedownSlowmo -= DeltaSeconds / FMath::Max(0.05f, UGameplayStatics::GetGlobalTimeDilation(this));
+		UGameplayStatics::SetGlobalTimeDilation(this, TakedownSlowmo <= 0.0f ? 1.0f
+			: (TakedownSlowmo > 0.3f ? 0.4f : FMath::Lerp(1.0f, 0.4f, TakedownSlowmo / 0.3f)));
+	}
 	const bool bViewer = IsPlayerControlled();
 	if (bBot)
 	{
@@ -755,6 +767,8 @@ void AEXHoverCraft::StepFlight(float Dt)
 				Audio->Landing(FMath::Clamp(LandingSpeed / 20.0f, 0.2f, 1.0f));
 			}
 		}
+		LastLandingTime = GetWorld()->GetTimeSeconds();
+		LastLandingSpeed = LandingSpeed;
 		if (LandingSpeed > 20.0f)
 		{
 			ApplyHullDamage((LandingSpeed - 20.0f) * 1.0f);   // a hard landing (race rules only)
@@ -832,6 +846,9 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 				// What the impact speed has above 16 m/s (player, 2026-10-26: destroyed too easily); ApplyHullDamage caps
 				// one hit at 40 % of the hull. The ships' knocks are CrashWith's.
 				const float ImpactMps = -IntoSpeed / CmPerM;
+				LastKnockDV = Normal * ImpactMps * (1.0f + WallBounce);
+				LastKnockPoint = Hit.ImpactPoint;
+				LastKnockTime = GetWorld()->GetTimeSeconds();
 				if (ImpactMps > 16.0f)
 				{
 					ApplyHullDamage((ImpactMps - 16.0f) * 0.85f);
@@ -889,6 +906,10 @@ void AEXHoverCraft::CrashWith(AEXHoverCraft& Other, const FHitResult& Hit, float
 	if (Other.bEliminated && !bEliminated)
 	{
 		UE_LOG(LogTemp, Display, TEXT("EXRACE TAKEDOWN %s%s -> %s"), *GetShipName(), bBot ? TEXT("") : TEXT(" (jogador)"), *Other.GetShipName());
+		if (IsPlayerControlled())
+		{
+			TakedownSlowmo = 0.9f;   // a short slow motion as the rival's wreck goes (Burnout)
+		}
 	}
 	if (bPhysLog || Other.bPhysLog)
 	{
@@ -908,6 +929,12 @@ void AEXHoverCraft::TakeCrash(const FVector& DeltaVMps, const FVector& Point, co
 	const FVector DV = DeltaVMps * Anchor;
 	const float Kick = DV.Size();
 	VelocityCmps += DV * CmPerM;
+	if (Kick > 3.0f)
+	{
+		LastKnockDV = DV;
+		LastKnockPoint = Point;
+		LastKnockTime = GetWorld()->GetTimeSeconds();
+	}
 	// An off-centre knock spins the ship: on the rear quarter it turns it round, on the nose it pushes it aside.
 	const FVector Lever = (Point - GetActorLocation()) / CmPerM;
 	const float Torque = FVector::DotProduct(FVector::CrossProduct(Lever, DV), SurfaceUp);
@@ -980,8 +1007,79 @@ void AEXHoverCraft::Revive()
 	Hull = HullMax;
 	Lives = MaxLives;
 	CrashSpin = CrashWobble = ScrapePending = 0.0f;
+	if (bCrashCam)
+	{
+		bCrashCam = false;
+		UGameplayStatics::SetGlobalTimeDilation(this, 1.0f);
+	}
 	RespawnOnRoute();
 	bGridLock = false;
+}
+
+void AEXHoverCraft::EXBoom(int32 Cause)
+{
+	// The last knock or landing as each way of dying leaves it, then the end of the hull (Eliminate reads them).
+	if (bEliminated || !GetWorld())
+	{
+		return;
+	}
+	const float Now = GetWorld()->GetTimeSeconds();
+	const FVector Fwd = Heading.GetSafeNormal();
+	const FVector Right = FVector::CrossProduct(SurfaceUp, Fwd).GetSafeNormal();
+	const float Mps = FMath::Max(VelocityCmps.Size() / CmPerM, 1.0f);
+	LastKnockTime = LastLandingTime = -100.0f;
+	if (Cause == 1 || Cause == 2 || Cause == 4)
+	{
+		LastKnockDV = Cause == 1 ? -Fwd * FMath::Max(10.0f, 1.3f * Mps) : (Cause == 2 ? Right * 22.0f : Fwd * 12.0f + Right * 4.0f);
+		LastKnockPoint = GetActorLocation() + (Cause == 1 ? Fwd * 250.0f : (Cause == 2 ? -Right * 120.0f : -Fwd * 250.0f - Right * 60.0f));
+		LastKnockTime = Now;
+		VelocityCmps += LastKnockDV * CmPerM;
+	}
+	else if (Cause == 3)
+	{
+		LastLandingTime = Now;
+		LastLandingSpeed = 25.0f;
+	}
+	UE_LOG(LogTemp, Display, TEXT("EXRACE BOOM %s cause %d at %.0f km/h"), *GetShipName(), Cause, Mps * 3.6f);
+	Hull = 0.0f;
+	Lives = 0;
+	Eliminate();
+}
+
+void AEXHoverCraft::UpdateCrashCam(float Dt)
+{
+	// Real time (the world runs slowed): 1.6 s of slow motion, then back to speed over 0.8 s.
+	const float Real = Dt / FMath::Max(0.05f, UGameplayStatics::GetGlobalTimeDilation(this));
+	CrashCamReal += Real;
+	const float Dilation = CrashCamReal < 1.6f ? 0.3f : FMath::Lerp(0.3f, 1.0f, FMath::Clamp((CrashCamReal - 1.6f) / 0.8f, 0.0f, 1.0f));
+	UGameplayStatics::SetGlobalTimeDilation(this, Dilation);
+	const AEXWreck* Wreck = CrashWreck.Get();
+	if (!Wreck)
+	{
+		return;
+	}
+	// The camera goes round the hull, from beside and behind it to beside and ahead, close and a little above.
+	const FVector WreckAt = Wreck->GetMainLocation();   // not "Hull": that is the craft's hull points
+	FVector Flat = Wreck->GetMainVelocity();
+	Flat.Z = 0.0;
+	if (Flat.Size() > 300.0)
+	{
+		CrashCamDir = FMath::VInterpNormalRotationTo(CrashCamDir, Flat.GetSafeNormal(), Real, 90.0f);
+	}
+	const FVector Side = FVector::CrossProduct(FVector::UpVector, CrashCamDir).GetSafeNormal();
+	const float Orbit = FMath::DegreesToRadians(FMath::Min(-115.0f + 45.0f * CrashCamReal, 20.0f));
+	const FVector Desired = WreckAt + (CrashCamDir * FMath::Cos(Orbit) + Side * FMath::Sin(Orbit)) * 1500.0f + FVector(0.0, 0.0, 450.0);
+	CrashCamPos = FMath::VInterpTo(CrashCamPos, Desired, Real, 3.5f);
+	FVector Position = CrashCamPos;
+	FHitResult Block;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(EXCrashCam), false, this);
+	if (GetWorld()->SweepSingleByChannel(Block, WreckAt + FVector(0.0, 0.0, 150.0), CrashCamPos, FQuat::Identity, ECC_Camera,
+		FCollisionShape::MakeSphere(35.0f), Params))
+	{
+		Position = Block.Location;
+	}
+	Camera->SetWorldLocationAndRotation(Position, (WreckAt - Position).Rotation());
+	Camera->SetFieldOfView(HorizontalFov(FMath::Lerp(58.0f, 48.0f, FMath::Clamp(CrashCamReal / 2.0f, 0.0f, 1.0f))));
 }
 
 void AEXHoverCraft::UpdateVisuals(float Dt)
@@ -1376,9 +1474,95 @@ void AEXHoverCraft::Eliminate()
 	// The hull is gone: the craft blows up (fireball, flash, debris, smoke) where it was, carried on by its speed.
 	FActorSpawnParameters BlastParams;
 	BlastParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	const FVector V = VelocityCmps / CmPerM;
+	const float Speed = V.Size();
 	if (AEXExplosion* Blast = GetWorld()->SpawnActor<AEXExplosion>(GetActorLocation(), FRotator::ZeroRotator, BlastParams))
 	{
-		Blast->Ignite(VelocityCmps, 1.0f);
+		Blast->Ignite(VelocityCmps, FMath::Clamp(0.7f + Speed / 200.0f, 0.7f, 1.3f));
+	}
+	// The wreck (player, 2026-11-01): the charred hull flies on with the speed it had and tumbles, each module a piece
+	// of its own. How it died sets the tumble (Scripts/physics_sandbox/wreck.py, Docs/DESTROCOS.md).
+	if (AEXWreck* Wreck = GetWorld()->SpawnActor<AEXWreck>(GetActorLocation(), FRotator::ZeroRotator, BlastParams))
+	{
+		const FVector Fwd = Heading.GetSafeNormal();
+		const FVector Up = SurfaceUp;
+		const FVector Right = FVector::CrossProduct(Up, Fwd).GetSafeNormal();
+		const float Now = GetWorld()->GetTimeSeconds();
+		const bool bKnock = Now - LastKnockTime < 0.4f && LastKnockDV.Size() > 3.0f;
+		const bool bLanding = Now - LastLandingTime < 0.4f && LastLandingSpeed > 15.0f;
+		const FVector Knock = bKnock ? LastKnockDV : FVector::ZeroVector;
+		const float KnockSize = Knock.Size();
+		const float Tumble = FMath::Clamp(Speed / 12.0f, 3.0f, 11.0f);
+		FRandomStream Random(FMath::Rand());
+		// The blast kicks it up a little.
+		FVector HullVel = V + Up * Random.FRandRange(5.0f, 9.0f) + Right * Random.FRandRange(-1.5f, 1.5f);
+		FVector Spin;
+		if (bKnock && FVector::DotProduct(Knock, Fwd) < -0.5f * KnockSize && KnockSize > 8.0f)
+		{
+			// Head on (a rock, a wall, a ship the other way): the nose stops and the tail goes over it, a backflip.
+			Spin = Right * (-0.9f * Tumble) + Fwd * Random.FRandRange(-2.0f, 2.0f) + Up * Random.FRandRange(-1.0f, 1.0f);
+			HullVel += Up * 3.0f;
+		}
+		else if (bKnock && FMath::Abs(FVector::DotProduct(Knock, Right)) > 0.6f * KnockSize)
+		{
+			// From the side (a T-bone, a shove into the wall): it barrel-rolls away from the hit, the top going the way it is
+			// pushed, so the ground under it keeps the roll going (a roll the other way dies on the first touch).
+			const float Side = FMath::Sign(FVector::DotProduct(Knock, Right));
+			Spin = Fwd * (-Side * 1.35f * Tumble) + Up * Random.FRandRange(-3.0f, 3.0f) + Right * Random.FRandRange(-1.5f, 1.5f);
+			HullVel += Up * 3.0f;
+		}
+		else if (bLanding)
+		{
+			// Nose first into the ground after a jump: it cartwheels on forward.
+			Spin = Right * (0.6f * Tumble) + Fwd * Random.FRandRange(-1.0f, 1.0f);
+			HullVel += Up * 2.0f;
+		}
+		else
+		{
+			// From behind (a PIT) or worn out by the scrapes: end over end, forward, with a twist ("cambalhotas").
+			Spin = Right * Tumble + Fwd * Random.FRandRange(-3.0f, 3.0f) + Up * Random.FRandRange(-2.5f, 2.5f);
+			HullVel += Fwd * (bKnock ? 4.0f : 0.0f);
+		}
+		if (bKnock)
+		{
+			// The knock's own lever adds its spin.
+			Spin += FVector::CrossProduct((LastKnockPoint - GetActorLocation()) / CmPerM, Knock) / 4.0f;
+		}
+		auto MaterialsOf = [](const UStaticMeshComponent* Component)
+		{
+			TArray<UMaterialInterface*> Out;
+			for (int32 Index = 0; Index < Component->GetNumMaterials(); ++Index)
+			{
+				Out.Add(Component->GetMaterial(Index));
+			}
+			return Out;
+		};
+		if (ShipMesh && ShipMesh->GetStaticMesh())
+		{
+			Wreck->AddPiece(ShipMesh->GetStaticMesh(), MaterialsOf(ShipMesh), ShipMesh->GetComponentTransform(), GetCrashMassKg(), HullVel * CmPerM, Spin);
+		}
+		// The modules come off, charred, thrown out from the hull and spinning on their own.
+		for (UStaticMeshComponent* Module : ModuleMeshes)
+		{
+			if (!Module || !Module->GetStaticMesh() || !Module->IsVisible())
+			{
+				continue;
+			}
+			const FVector Out = (Module->Bounds.Origin - GetActorLocation()).GetSafeNormal();
+			const FVector PieceVel = V * 0.95f + Out * Random.FRandRange(7.0f, 14.0f) + Up * Random.FRandRange(3.0f, 8.0f) + Random.VRand() * 1.5f;
+			Wreck->AddPiece(Module->GetStaticMesh(), MaterialsOf(Module), Module->GetComponentTransform(), 110.0f, PieceVel * CmPerM,
+				Random.VRand() * Random.FRandRange(6.0f, 14.0f));
+		}
+		if (IsPlayerControlled())
+		{
+			// Burnout's crash camera: slow motion, the camera round the flying wreck.
+			CrashWreck = Wreck;
+			bCrashCam = true;
+			CrashCamReal = 0.0f;
+			CrashCamDir = Speed > 2.0f ? FVector(V.X, V.Y, 0.0f).GetSafeNormal() : Fwd;
+			CrashCamPos = Camera->GetComponentLocation();
+			UGameplayStatics::SetGlobalTimeDilation(this, 0.3f);
+		}
 	}
 	if (Audio)
 	{

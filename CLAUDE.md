@@ -34,6 +34,20 @@ O jogador fala português (PT). Responder em português.
   - **Em casa:** `Scripts\jogar.ps1 -Modo Sandbox` (rampas, mesa, lombas, queda de 14 m, costelas e 7 bots, com linhas
     `EXPHYS` no log). Afinar pela tabela da secção 5.
 
+- **Destroços e explosão nova** (`Docs/DESTROCOS.md`, fotos `Docs/DESTROCOS_<causa>.jpg`; o jogador pediu e autorizou).
+  - **Destroços:** quando o casco acaba, o casco carbonizado e cada módulo voam como peças separadas, com a velocidade
+    da nave (`AEXWreck`: caixas que batem pelos cantos; o nariz enterra-se e a carroçaria esmaga-se).
+  - **A causa decide as voltas:** de frente, cambalhota para trás; de lado, barrel roll; de nariz, cambalhota para a
+    frente; por trás ou por desgaste, cambalhotas com torção. Simulado em `Scripts/physics_sandbox/wreck.py` (números)
+    e `wreck_sims.py` (fotos em Blender).
+  - **Câmara:** câmara lenta 0,3× à volta do casco (tipo Burnout). Num takedown há uma câmara lenta curta.
+  - **Explosão:** texturas animadas feitas em Blender (`make_fx_flipbooks.py`, `SourceArt/FX`): clarão, 5 bolas de fogo
+    que arrefecem em fumo, segunda explosão, anel de choque e de poeira, fumo negro. O casco arde e deita fumo, com
+    fuligem e brasas (`M_FX_Char`).
+  - **Em casa:** passo 3d (`make_fx_assets.py`, ver `FXASSETS ... 0 problems`), depois `Scripts\jogar.ps1 -Modo Sandbox` e,
+    na consola, `EXBoom 0` a `4` (0 desgaste, 1 de frente, 2 lateral, 3 nariz, 4 traseira). Se as chamas saírem de
+    cabeça para baixo, pôr `FlipV = 1` no `M_FX_Flipbook`.
+
 - **Checkpoints:** o último era a meta B e não tinha portão: agora há um portão de extração dourado em B. Os pilares
   de todos os portões ficam na borda real da estrada (antes procuravam o chão a partir de 60 m e podiam ficar em cima
   de saliências, fora de vista: o penúltimo estava invisível). Cada portão escreve `EXRACE gate ...` no log.

@@ -12,6 +12,7 @@ class UEXCraftAudio;
 struct FEXCraftAudioInput;
 class UEXProfileSave;
 class UEXHangarModel;
+class AEXWreck;
 class AEXHangarStage;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
@@ -199,6 +200,11 @@ public:
 	void SetRoute(const TArray<FVector>& PointsCm);
 	/** The physics sandbox brings a blown-up ship back on its loop, whole. */
 	void Revive();
+	/** Console, to see each wreck (Docs/DESTROCOS.md): "EXBoom <cause>" blows this ship up as if it died that way:
+	 *  0 worn out by the scrapes (end over end), 1 head on into a rock (backflip), 2 hit from the side (barrel roll),
+	 *  3 nose first after a jump (cartwheel), 4 shoved from behind (end over end, pushed on). Best in the sandbox
+	 *  (Scripts\jogar.ps1 -Modo Sandbox), where the ship comes back 3 s later. */
+	UFUNCTION(Exec) void EXBoom(int32 Cause = 0);
 	bool IsEliminated() const { return bEliminated; }
 
 	// ---- Race rules (Docs/MODOS_DE_JOGO.md), switched on by AEXRaceDirector; off in free flight and the tests.
@@ -376,6 +382,17 @@ private:
 	 *  taken, and a short guard between two big knocks. */
 	float CrashSpin = 0.0f, CrashWobble = 0.0f, ScrapePending = 0.0f, CrashCooldown = 0.0f, CrashSparkCooldown = 0.0f;
 	void CrashWith(AEXHoverCraft& Other, const FHitResult& Hit, float Dt);
+	/** How the ship dies decides how its wreck tumbles (Eliminate): the last knock (its change of speed, m/s, where, when)
+	 *  and the last hard landing. */
+	FVector LastKnockDV = FVector::ZeroVector, LastKnockPoint = FVector::ZeroVector;
+	float LastKnockTime = -100.0f, LastLandingTime = -100.0f, LastLandingSpeed = 0.0f;
+	/** The crash camera (the player blown up): slow motion and a camera round the flying wreck, like Burnout's; and the
+	 *  short slow motion of a takedown. Real seconds, not slowed ones. */
+	TWeakObjectPtr<AEXWreck> CrashWreck;
+	bool bCrashCam = false;
+	float CrashCamReal = 0.0f, TakedownSlowmo = 0.0f;
+	FVector CrashCamPos = FVector::ZeroVector, CrashCamDir = FVector::ForwardVector;
+	void UpdateCrashCam(float Dt);
 	/** The sandbox's numbers (-EXPhysLog or the sandbox): the jump under way. */
 	bool bPhysLog = false;
 	float JumpPeakZCm = 0.0f, JumpTakeoffMps = 0.0f;
