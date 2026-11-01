@@ -213,6 +213,8 @@ public:
 	/** The hull (player, 2026-10-26: a health bar as in the Unity version, not lives): 0..1 of the ship's maximum. */
 	float GetHullFrac() const { return HullMax > 0.0f ? FMath::Clamp(Hull / HullMax, 0.0f, 1.0f) : 0.0f; }
 	float GetHull() const { return Hull; }
+	/** Puts the craft back on the race line where it is (the R key; the track inspector uses it when stuck). */
+	void PutBackOnLine() { RespawnOnRoute(); }
 	float GetHullMax() const { return HullMax; }
 	int32 GetMaxLives() const { return MaxLives; }
 	/** World time of the last life lost (the HUD flashes it), -1 if none. */

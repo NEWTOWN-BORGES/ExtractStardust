@@ -14,6 +14,7 @@ namespace
 	const FLinearColor GateNext(0.3f, 0.9f, 1.0f);
 	const FLinearColor GatePassed(0.3f, 1.0f, 0.45f);
 	const FLinearColor GateMissed(1.0f, 0.18f, 0.1f);
+	const FLinearColor GateFinish(1.0f, 0.72f, 0.18f);
 }
 
 AEXCheckpointGate::AEXCheckpointGate()
@@ -88,7 +89,7 @@ void AEXCheckpointGate::SetState(int32 InState)
 	Age = 0.0f;
 	SetActorHiddenInGame(State == 0);
 	SetActorTickEnabled(State != 0);
-	const FLinearColor Colour = State == 2 ? GatePassed : (State == 3 ? GateMissed : GateNext);
+	const FLinearColor Colour = State == 2 ? GatePassed : (State == 3 ? GateMissed : (bFinish ? GateFinish : GateNext));
 	if (FrameMaterial)
 	{
 		FrameMaterial->SetVectorParameterValue(GateColorParam, Colour);
@@ -135,4 +136,20 @@ void AEXCheckpointGate::Tick(float DeltaSeconds)
 	{
 		BeamMaterial->SetScalarParameterValue(GateIntensityParam, Beam);
 	}
+}
+
+void AEXCheckpointGate::SetFinish()
+{
+	bFinish = true;
+	for (UStaticMeshComponent* Part : { PylonL.Get(), PylonR.Get(), BeamL.Get(), BeamR.Get() })
+	{
+		if (Part)
+		{
+			const FVector Scale = Part->GetComponentScale();
+			Part->SetWorldScale3D(FVector(Scale.X * 1.6f, Scale.Y * 1.6f, Scale.Z * 1.35f));
+		}
+	}
+	const int32 Was = State;
+	State = -1;
+	SetState(Was);
 }

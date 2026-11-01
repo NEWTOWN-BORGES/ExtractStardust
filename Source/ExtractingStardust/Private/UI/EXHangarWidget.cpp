@@ -12,6 +12,7 @@
 #include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
+#include "Components/UniformGridPanel.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Components/WrapBox.h"
@@ -46,6 +47,9 @@ namespace
 	constexpr float CardGap = 19.0f;
 	constexpr float CardGlow = 22.0f;
 	constexpr float CardRaise = 10.0f;
+	constexpr int32 VaultCols = 4;              // the vault's grid: 4 cards across, 3 rows in sight
+	constexpr int32 VaultRowsShown = 3;
+	constexpr float VaultCardScale = 0.78f;
 	constexpr float GridW = CardW * 5.0f + CardGap * 4.0f + CardGlow * 2.0f;
 	constexpr float GridH = CardH * 2.0f + CardGap + CardGlow * 2.0f + CardRaise;
 
@@ -151,6 +155,8 @@ void UEXHangarWidget::BuildTree()
 	EXUi::AddO(Root, SlotsPanel, HAlign_Left, VAlign_Top, FMargin(PanelLeft, PanelTop, 0.0f, 0.0f));
 	ListPanel = BuildListPanel();
 	EXUi::AddO(Root, ListPanel, HAlign_Left, VAlign_Top, FMargin(PanelLeft, PanelTop, 0.0f, 0.0f));
+	VaultPanel = BuildVaultPanel();
+	EXUi::AddO(Root, VaultPanel, HAlign_Left, VAlign_Top, FMargin(PanelLeft, PanelTop, 0.0f, 0.0f));
 	QuickPanel = BuildQuickPanel();
 	EXUi::AddO(Root, QuickPanel, HAlign_Left, VAlign_Top, FMargin(PanelLeft, PanelTop, 0.0f, 0.0f));
 	CandidatesPanel = BuildCandidatesPanel();
@@ -607,6 +613,28 @@ UWidget* UEXHangarWidget::BuildListPanel()
 	ListMore = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 700, 120);
 	EXUi::AddV(Column, ListMore, FMargin(2.0f, 2.0f, 0.0f, 0.0f));
 	return MakePanel(Column, 504.0f, false);
+}
+
+UWidget* UEXHangarWidget::BuildVaultPanel()
+{
+	UWidgetTree* Tree = WidgetTree;
+	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	VaultTitle = EXUi::WeightText(Tree, TEXT("COFRE"), 11, EXUi::Rust(), 700, 220);
+	EXUi::AddV(Column, VaultTitle, FMargin(0.0f, 0.0f, 0.0f, 12.0f));
+	UUniformGridPanel* Grid = Tree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+	Grid->SetSlotPadding(FMargin(5.0f));
+	for (int32 Index = 0; Index < VaultCols * VaultRowsShown; ++Index)
+	{
+		FCardView View = MakeCard(CardW * VaultCardScale, CardH * VaultCardScale, CardArt * VaultCardScale);
+		UBorder* Frame = EXUi::Box(Tree, FLinearColor::Transparent, FMargin(3.0f), View.Root);
+		Grid->AddChildToUniformGrid(Frame, Index / VaultCols, Index % VaultCols);
+		VaultViews.Add(View);
+		VaultFrames.Add(Frame);
+	}
+	EXUi::AddV(Column, Grid);
+	VaultMore = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 700, 120);
+	EXUi::AddV(Column, VaultMore, FMargin(2.0f, 6.0f, 0.0f, 0.0f));
+	return MakePanel(Column, VaultCols * (CardW * VaultCardScale + 16.0f) + 34.0f, false);
 }
 
 UWidget* UEXHangarWidget::BuildQuickPanel()
@@ -1114,6 +1142,10 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 	case EEXHangarTab::Quick:
 		for (const FTileView& View : TileViews) { Roots.Add(View.Root); }
 		break;
+	case EEXHangarTab::Vault:
+		for (UBorder* Frame : VaultFrames) { Roots.Add(Frame); }
+		First = LeftFirst;
+		break;
 	default:
 		for (const FItemView& View : ListViews) { Roots.Add(View.Frame.Root); }
 		First = LeftFirst;
@@ -1184,6 +1216,7 @@ void UEXHangarWidget::Refresh()
 	const bool bEquip = Tab == EEXHangarTab::Equip;
 	const bool bQuick = Tab == EEXHangarTab::Quick;
 	const bool bList = Tab == EEXHangarTab::Shop || Tab == EEXHangarTab::Vault;
+	const bool bVault = Tab == EEXHangarTab::Vault;
 	auto Show = [](UWidget* Widget, bool bOn)
 	{
 		if (Widget)
@@ -1193,7 +1226,8 @@ void UEXHangarWidget::Refresh()
 	};
 	Show(ShipTitleBox, bShip);
 	Show(SlotsPanel, bEquip);
-	Show(ListPanel, bShip || bList);
+	Show(ListPanel, bShip || (bList && !bVault));
+	Show(VaultPanel, bVault);
 	Show(QuickPanel, bQuick);
 	Show(CandidatesPanel, bEquip);
 	Show(StockPanel, bQuick);
@@ -1244,6 +1278,23 @@ void UEXHangarWidget::Refresh()
 			ShowItem(ListViews[Index], bList && Rows.IsValidIndex(RowIndex) ? &Rows[RowIndex] : nullptr, RowIndex == Selected);
 		}
 		EXUi::SetText(ListMore, bList && Rows.Num() > HangarListRows ? FString::Printf(TEXT("%d / %d"), Selected + 1, Rows.Num()) : FString());
+		if (bVault)
+		{
+			// The grid scrolls a row at a time so the picked card stays in sight (one row above it when it can).
+			EXUi::SetText(VaultTitle, Title);
+			const int32 AllRows = (Rows.Num() + VaultCols - 1) / VaultCols;
+			const int32 FirstRow = FMath::Clamp(Selected / VaultCols - 1, 0, FMath::Max(0, AllRows - VaultRowsShown));
+			LeftFirst = FirstRow * VaultCols;
+			for (int32 Index = 0; Index < VaultViews.Num(); ++Index)
+			{
+				const int32 RowIndex = LeftFirst + Index;
+				const FEXHangarRow* Row = Rows.IsValidIndex(RowIndex) ? &Rows[RowIndex] : nullptr;
+				ShowCard(VaultViews[Index], Row, true, false);
+				VaultFrames[Index]->SetBrushColor(Row && RowIndex == Selected ? EXUi::Rust() : FLinearColor::Transparent);
+				VaultFrames[Index]->SetVisibility(Row ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+			}
+			EXUi::SetText(VaultMore, Rows.Num() > VaultViews.Num() ? FString::Printf(TEXT("%d / %d"), Selected + 1, Rows.Num()) : FString());
+		}
 	}
 	else if (bQuick)
 	{

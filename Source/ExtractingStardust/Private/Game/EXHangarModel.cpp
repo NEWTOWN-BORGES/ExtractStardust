@@ -248,7 +248,7 @@ int32 UEXHangarModel::RowCount() const
 	case EEXHangarTab::Equip: return EXMeta::FamilyCount;
 	case EEXHangarTab::Quick: return EXMeta::QuickSlots;
 	case EEXHangarTab::Shop: return EXMeta::CacheCount + (Profile ? Profile->Shop.Num() : 0);
-	case EEXHangarTab::Vault: return (Profile ? Profile->Caches.Num() : 0) + VaultItems().Num();
+	case EEXHangarTab::Vault: return (Profile ? Profile->Caches.Num() : 0) + VaultItems().Num() + VaultConsumables().Num();
 	default: return 0;
 	}
 }
@@ -294,6 +294,20 @@ void UEXHangarModel::SyncCandidate()
 	const FEXBuild* Build = Profile ? Profile->FindBuild(GetShipName()) : nullptr;
 	const int32 Fitted = Build && Build->Slots.IsValidIndex(static_cast<int32>(CurrentSlot())) ? Build->Slots[static_cast<int32>(CurrentSlot())] : 0;
 	Candidate = FMath::Max(0, Candidates().IndexOfByKey(Fitted));
+}
+
+TArray<int32> UEXHangarModel::VaultConsumables() const
+{
+	TArray<int32> Out;
+	const UEXProfileSave* Profile = GetProfile();
+	for (int32 Kind = 1; Profile && Kind < EXMeta::ConsumableCount; ++Kind)
+	{
+		if (Profile->StockOf(static_cast<EEXConsumable>(Kind)) > 0)
+		{
+			Out.Add(Kind);
+		}
+	}
+	return Out;
 }
 
 TArray<int32> UEXHangarModel::VaultItems() const
@@ -793,6 +807,7 @@ void UEXHangarModel::OpenCache(int32 Index)
 		Card.Sub = Def.Effect;
 		Card.Colour = EXMeta::RarityColour(EEXRarity::Common);
 		Card.Icon = FString::Printf(TEXT("con_%s"), Def.Id);
+		Card.Thumb = Card.Icon;   // the 3D model's photo (Scripts/make_consumables.py)
 		Card.Value = Def.Price * PerKind[Kind];
 		FEXHangarChip& Chip = Card.Chips.AddDefaulted_GetRef();
 		Chip.Text = HangarConsumableChips[FMath::Clamp(Kind, 0, static_cast<int32>(UE_ARRAY_COUNT(HangarConsumableChips)) - 1)];
@@ -1059,6 +1074,7 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			R.Colour = Def.Colour;
 			R.bDim = Kind == EEXConsumable::None || Q.Count == 0;
 			R.Icon = Kind == EEXConsumable::None ? FString() : FString::Printf(TEXT("con_%s"), Def.Id);
+			R.Thumb = R.Icon;
 			R.Count = Kind == EEXConsumable::None ? 0 : Q.Count;
 			R.MaxCount = EXMeta::PerQuickSlot;
 		}
@@ -1114,6 +1130,24 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			{
 				Out.Add(ItemRow(*Item, true));
 			}
+		}
+		// The consumables in the safe stock (player, 2026-11-01: the vault shows the modules and the items, with their
+		// pictures); they are fitted in the CONSUMÍVEIS tab.
+		for (const int32 Kind : VaultConsumables())
+		{
+			const EXMeta::FConsumableDef& Def = EXMeta::Consumable(static_cast<EEXConsumable>(Kind));
+			FEXHangarRow& R = Out.AddDefaulted_GetRef();
+			R.Label = TEXT("CONSUM\u00CDVEL");
+			R.Rarity = FString::Printf(TEXT("CONSUM\u00CDVEL  \u00D7%d"), Profile->StockOf(static_cast<EEXConsumable>(Kind)));
+			R.Title = Def.Name;
+			R.Maker = TEXT("Consum\u00EDvel");
+			R.Sub = Def.Effect;
+			R.Colour = Def.Colour;
+			R.Icon = FString::Printf(TEXT("con_%s"), Def.Id);
+			R.Thumb = R.Icon;
+			R.Count = Profile->StockOf(static_cast<EEXConsumable>(Kind));
+			R.Value = Def.Price * R.Count;
+			R.Right = FString::Printf(TEXT("\u00D7%d"), R.Count);
 		}
 		return;
 	}
@@ -1226,6 +1260,7 @@ void UEXHangarModel::BuildRight(FString& Title, TArray<FEXHangarRow>& Out, int32
 			R.Right = FString::Printf(TEXT("\u00D7%d"), Profile ? Profile->StockOf(static_cast<EEXConsumable>(Kind)) : 0);
 			R.Colour = Def.Colour;
 			R.Icon = FString::Printf(TEXT("con_%s"), Def.Id);
+			R.Thumb = R.Icon;
 			R.Count = Profile ? Profile->StockOf(static_cast<EEXConsumable>(Kind)) : 0;
 			R.Button = FString::Printf(TEXT("COMPRAR %d"), Def.Price);
 			R.Value = Def.Price;
@@ -1283,6 +1318,15 @@ void UEXHangarModel::BuildRight(FString& Title, TArray<FEXHangarRow>& Out, int32
 			DescribeItem(*Item, Detail);
 			Detail += bShop ? FString::Printf(TEXT("\nEnter compra por %s STARDUST."), *HangarDust(EXMeta::ShopPrice(*Item)))
 				: FString::Printf(TEXT("\nValor %s \u00B7 vende por %s (Enter duas vezes)."), *HangarDust(Item->Value), *HangarDust(EXMeta::SellValue(*Item)));
+		}
+		else if (!bShop && VaultConsumables().IsValidIndex(Index - Caches - VaultItems().Num()))
+		{
+			const EEXConsumable Kind = static_cast<EEXConsumable>(VaultConsumables()[Index - Caches - VaultItems().Num()]);
+			const EXMeta::FConsumableDef& Def = EXMeta::Consumable(Kind);
+			Title = Def.Name;
+			Line(TEXT("NO STOCK"), FString::Printf(TEXT("\u00D7%d"), Profile ? Profile->StockOf(Kind) : 0), FString(), Def.Colour);
+			Line(TEXT("PRE\u00C7O"), FString::Printf(TEXT("%d STARDUST"), Def.Price), FString(), FLinearColor(0.92f, 0.88f, 0.80f));
+			Detail = FString::Printf(TEXT("%s. Leva-se no separador CONSUM\u00CDVEIS (4 slots, teclas 1-4)."), Def.Effect);
 		}
 		else
 		{

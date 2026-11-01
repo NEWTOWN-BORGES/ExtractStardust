@@ -159,6 +159,8 @@ private:
 	void SyncCandidate();
 	/** The vault's list: caches first, then the modules, best first. */
 	TArray<int32> VaultItems() const;
+	/** The consumable kinds in the safe stock, shown after the modules in the vault. */
+	TArray<int32> VaultConsumables() const;
 	/** The shop or vault item under the cursor, if it is a module. */
 	const FEXItem* LookedItem() const;
 	void Note(const FString& Text);

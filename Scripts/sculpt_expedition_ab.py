@@ -257,11 +257,6 @@ def plan_image(path, background=None, extra=()):
     out.save()
 
 
-if PLAN:
-    plan_image(f"{OUT}/ab_plan.png")
-    print("PLAN", f"{OUT}/ab_plan.png")
-    raise SystemExit
-
 # ---- 4. Branches. Each leaves the main route and rejoins it: ("@", x, y) = the main route point nearest (x, y).
 # kind: "slot" (a narrow slot canyon carved to the bed), "slabs" (over slab tops: route jumps), "cave" (second cave
 # arm), "surface" (the ground as it is). Bed heights run linearly between the two junctions unless given.
@@ -280,18 +275,49 @@ def at_main(x, y):
     return int(np.argmin(np.hypot(main[:, 0] - x, main[:, 1] - y)))
 
 
+def fork_guides(i, toward, sign_dir):
+    """Points that take a branch off (sign_dir +1) or back onto (-1) the main route like a fork in a road: along the
+    main route's direction, drifting gently to the branch's side (player, 2026-11-01: the shortcuts were 90-degree turns
+    in and out; they have to be bifurcations)."""
+    t = main[min(i + 8, N - 1)] - main[max(i - 8, 0)]
+    t = t / max(np.linalg.norm(t), 1e-6) * sign_dir
+    nrm = np.array([-t[1], t[0]])
+    rel = np.asarray(toward, float) - main[i]
+    side = 1.0 if float(np.dot(rel, nrm)) >= 0 else -1.0
+    ahead = float(np.dot(rel, t))
+    lead = float(np.clip(ahead * 0.6, 90.0, 240.0))           # how long the two roads run side by side
+    out = []
+    for f, off in ((0.25, 0.0), (0.5, 0.05), (0.75, 0.16), (1.0, 0.34)):   # together first, then the gap opens
+        j = int(np.clip(i + sign_dir * lead * f, 0, N - 1))
+        out.append(main[j] + nrm * side * lead * off)
+    return out if sign_dir > 0 else out[::-1]
+
+
 branches = {}
 for name, bkind, bw, brmin, wps in BRANCHES:
     i0, i1 = at_main(*wps[0][1:3]), at_main(*wps[-1][1:3])
-    pts = [main[i0]] + [np.array(w_[:2], float) for w_ in wps[1:-1]] + [main[i1]]
+    mids = [np.array(w_[:2], float) for w_ in wps[1:-1]]
+    pts = [main[i0]] + fork_guides(i0, mids[0], 1) + mids + fork_guides(i1, mids[-1], -1) + [main[i1]]
     p, _k = catmull(pts)
     p = resample(p)
     fx = np.zeros(len(p), bool)
-    fx[:3] = fx[-3:] = True
+    keep = min(60, len(p) // 6)                                 # the fork itself keeps its shape while relaxing
+    fx[:keep] = fx[-keep:] = True
     p, _s = relax(p, brmin, fixed=fx, iters=300)
+    head = (p[min(30, len(p) - 1)] - p[0]) / max(np.linalg.norm(p[min(30, len(p) - 1)] - p[0]), 1e-6)
+    tmain = (main[min(i0 + 30, N - 1)] - main[i0]) / max(np.linalg.norm(main[min(i0 + 30, N - 1)] - main[i0]), 1e-6)
+    tail = (p[-1] - p[max(len(p) - 31, 0)]) / max(np.linalg.norm(p[-1] - p[max(len(p) - 31, 0)]), 1e-6)
+    tmain1 = (main[i1] - main[max(i1 - 30, 0)]) / max(np.linalg.norm(main[i1] - main[max(i1 - 30, 0)]), 1e-6)
+    print("FORK %-26s leaves at %4.0f deg, rejoins at %4.0f deg" % (name, math.degrees(math.acos(np.clip(head @ tmain, -1, 1))),
+                                                                     math.degrees(math.acos(np.clip(tail @ tmain1, -1, 1)))))
     z = np.interp(np.arange(len(p)), [0, len(p) - 1], [zmain[i0], zmain[i1]])
     branches[name] = dict(p=p, z=z, w=bw, kind=bkind, leave=i0, rejoin=i1)
     print("BRANCH %-26s %5.0f m (main %5.0f m)" % (name, len(p), i1 - i0))
+
+if PLAN:
+    plan_image(f"{OUT}/ab_plan.png", extra=[(b["p"][::2], (0.05, 0.05, 0.05), 1) for b in branches.values()])
+    print("PLAN", f"{OUT}/ab_plan.png")
+    raise SystemExit
 
 # ---- 5. Terrain. Grid, noise.
 NX, NY = int(SX / CELL), int(SY / CELL)

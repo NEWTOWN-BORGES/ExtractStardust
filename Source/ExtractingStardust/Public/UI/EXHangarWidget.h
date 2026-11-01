@@ -186,6 +186,8 @@ private:
 	UWidget* BuildShipTitle();
 	UWidget* BuildSlotsPanel();
 	UWidget* BuildListPanel();
+	/** COFRE: the caches, modules and consumables as a grid of cards with their pictures (player, 2026-11-01). */
+	UWidget* BuildVaultPanel();
 	UWidget* BuildQuickPanel();
 	UWidget* BuildCandidatesPanel();
 	UWidget* BuildStockPanel();
@@ -226,6 +228,11 @@ private:
 	TArray<FStatView> StatViews;
 	TArray<FCalloutView> CalloutViews;
 	FCardView LookedCard;
+	TArray<FCardView> VaultViews;
+	TArray<UBorder*> VaultFrames;
+	UWidget* VaultPanel = nullptr;
+	UTextBlock* VaultTitle = nullptr;
+	UTextBlock* VaultMore = nullptr;
 	UTextBlock* WalletText = nullptr;
 	UTextBlock* ShipTitle = nullptr;
 	UTextBlock* ShipSubtitle = nullptr;
