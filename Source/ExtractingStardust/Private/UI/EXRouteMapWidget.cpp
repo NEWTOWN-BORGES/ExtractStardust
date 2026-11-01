@@ -30,10 +30,118 @@ void UEXRouteMapWidget::SetRoute(const TArray<FVector2D>& RouteM)
 	Points.Add(FVector2f(static_cast<float>((Last.X - MinX) / Span), static_cast<float>((Last.Y - MinY) / Span)));
 }
 
+void UEXRouteMapWidget::SetRadar(const TArray<FVector2D>& RouteM, float WindowM)
+{
+	bRadar = true;
+	RadarRoute = RouteM;
+	RadarWindowM = FMath::Max(200.0f, WindowM);
+	SetClipping(EWidgetClipping::ClipToBounds);
+}
+
+void UEXRouteMapWidget::SetRadarView(const FVector2D& HereM, const FVector2D& Forward, int32 RouteIndex, const TArray<FVector2D>& RivalsM,
+	const TArray<FVector2D>& GatesM, int32 GatesPassed, int32 MissedGate)
+{
+	RadarHere = HereM;
+	RadarForward = Forward.IsNearlyZero() ? FVector2D(1.0f, 0.0f) : Forward.GetSafeNormal();
+	RadarIndex = RouteIndex;
+	RadarRivals = RivalsM;
+	RadarGates = GatesM;
+	RadarPassed = GatesPassed;
+	RadarMissed = MissedGate;
+	Invalidate(EInvalidateWidgetReason::Paint);
+}
+
+int32 UEXRouteMapWidget::PaintRadar(const FGeometry& Geometry, FSlateWindowElementList& Out, int32 Layer) const
+{
+	const FVector2f Size(static_cast<float>(Geometry.GetLocalSize().X), static_cast<float>(Geometry.GetLocalSize().Y));
+	const FVector2f Centre(Size.X * 0.5f, Size.Y * 0.62f);          // the craft a little low: more of the road ahead
+	const float PxPerM = Size.X / RadarWindowM;
+	const FVector2D Right(-RadarForward.Y, RadarForward.X);
+	auto ToBox = [&](const FVector2D& P)
+	{
+		const FVector2D D = P - RadarHere;
+		return Centre + FVector2f(static_cast<float>(D | Right), static_cast<float>(-(D | RadarForward))) * PxPerM;
+	};
+	const FPaintGeometry Paint = Geometry.ToPaintGeometry();
+	const int32 N = RadarRoute.Num();
+	if (N > 2)
+	{
+		// The road behind (dim) and ahead (bright), each as a wide soft glow, the track and a bright core.
+		const int32 Back = FMath::RoundToInt(RadarWindowM * 0.6f / 5.0f);
+		const int32 Ahead = FMath::RoundToInt(RadarWindowM * 1.0f / 5.0f);
+		TArray<FVector2f> Behind, Front;
+		for (int32 I = FMath::Max(0, RadarIndex - Back); I <= RadarIndex && I < N; I += 2)
+		{
+			Behind.Add(ToBox(RadarRoute[I]));
+		}
+		for (int32 I = FMath::Clamp(RadarIndex, 0, N - 1); I < N && I <= RadarIndex + Ahead; I += 2)
+		{
+			Front.Add(ToBox(RadarRoute[I]));
+		}
+		if (Behind.Num() > 1)
+		{
+			FSlateDrawElement::MakeLines(Out, Layer + 1, Paint, Behind, ESlateDrawEffect::None, FLinearColor(0.15f, 0.55f, 0.9f, 0.35f), true, 7.0f);
+		}
+		if (Front.Num() > 1)
+		{
+			FSlateDrawElement::MakeLines(Out, Layer + 1, Paint, Front, ESlateDrawEffect::None, FLinearColor(0.2f, 0.75f, 1.0f, 0.22f), true, 16.0f);
+			FSlateDrawElement::MakeLines(Out, Layer + 2, Paint, Front, ESlateDrawEffect::None, FLinearColor(0.25f, 0.82f, 1.0f, 0.85f), true, 7.0f);
+			FSlateDrawElement::MakeLines(Out, Layer + 3, Paint, Front, ESlateDrawEffect::None, FLinearColor(0.85f, 0.97f, 1.0f, 1.0f), true, 2.2f);
+		}
+	}
+	auto Ring = [&](const FVector2f& At, float Radius, const FLinearColor& Colour, float Thick, int32 L)
+	{
+		TArray<FVector2f> Circle;
+		for (int32 K = 0; K <= 16; ++K)
+		{
+			const float A = K * 2.0f * PI / 16.0f;
+			Circle.Add(At + FVector2f(FMath::Cos(A), FMath::Sin(A)) * Radius);
+		}
+		FSlateDrawElement::MakeLines(Out, L, Paint, Circle, ESlateDrawEffect::None, Colour, true, Thick);
+	};
+	// The checkpoints: passed gold, the next one big and bright (red while it is missed), the rest blue; B, the finish.
+	for (int32 G = 0; G < RadarGates.Num(); ++G)
+	{
+		const FVector2f At = ToBox(RadarGates[G]);
+		const bool bNext = G == RadarPassed;
+		const bool bMissed = RadarMissed == G + 1;
+		const FLinearColor C = bMissed ? FLinearColor(1.0f, 0.25f, 0.15f) : (G < RadarPassed ? FLinearColor(1.0f, 0.78f, 0.25f)
+			: (bNext ? FLinearColor(0.6f, 0.95f, 1.0f) : FLinearColor(0.25f, 0.55f, 1.0f)));
+		Ring(At, bNext || bMissed ? 9.0f : 6.0f, C, bNext || bMissed ? 3.5f : 3.0f, Layer + 4);
+		Ring(At, 2.5f, C, 3.0f, Layer + 4);
+	}
+	if (N > 2)
+	{
+		const FVector2f B = ToBox(RadarRoute.Last());
+		for (int32 K = 0; K < 4; ++K)
+		{
+			const FVector2f O(static_cast<float>(K % 2) * 6.0f - 6.0f, static_cast<float>(K / 2) * 6.0f - 6.0f);
+			TArray<FVector2f> Square = { B + O, B + O + FVector2f(6.0f, 0.0f), B + O + FVector2f(6.0f, 6.0f), B + O + FVector2f(0.0f, 6.0f), B + O };
+			FSlateDrawElement::MakeLines(Out, Layer + 5, Paint, Square, ESlateDrawEffect::None, (K == 0 || K == 3) ? FLinearColor::White
+				: FLinearColor(0.05f, 0.05f, 0.08f), true, 6.0f);
+		}
+	}
+	// The rivals: warm dots.
+	for (const FVector2D& R : RadarRivals)
+	{
+		Ring(ToBox(R), 3.0f, FLinearColor(1.0f, 0.45f, 0.2f), 4.0f, Layer + 6);
+	}
+	// The craft: a white arrowhead pointing up (the map turns with it), with a soft halo.
+	Ring(Centre, 13.0f, FLinearColor(0.4f, 0.85f, 1.0f, 0.25f), 6.0f, Layer + 6);
+	const TArray<FVector2f> Arrow = { Centre + FVector2f(0.0f, -11.0f), Centre + FVector2f(8.0f, 8.0f), Centre + FVector2f(0.0f, 4.0f),
+		Centre + FVector2f(-8.0f, 8.0f), Centre + FVector2f(0.0f, -11.0f) };
+	FSlateDrawElement::MakeLines(Out, Layer + 7, Paint, Arrow, ESlateDrawEffect::None, FLinearColor::White, true, 3.0f);
+	return Layer + 7;
+}
+
 int32 UEXRouteMapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
 	FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
 	const int32 BaseLayer = Super::NativePaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+	if (bRadar)
+	{
+		return PaintRadar(AllottedGeometry, OutDrawElements, BaseLayer);
+	}
 	if (Points.Num() < 2)
 	{
 		return BaseLayer;

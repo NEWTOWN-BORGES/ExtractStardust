@@ -46,7 +46,11 @@ O jogador fala português (PT). Responder em português.
   `README.md` da pasta (faltas no original assinaladas). Versão HD 2× por IA em `HD2x/` (Real-ESRGAN anime, sem
   PyTorch: `upscale_hd.py`); **o HUD da corrida já usa o porquinho HD animado** (`UEXRaceHudWidget::RefreshPiggySprite`:
   teletransporte à entrada, idle/piscar, moedas quando o porquinho cresce, salto e celebração na extração, choro se for
-  destruído). Importar com `Scripts/import_piggy.py` (passo 3d). **A seguir:** a HUD nova (o jogador vai mandar a imagem).
+  destruído). Importar com `Scripts/import_piggy.py` (passo 3d).
+- **HUD da corrida novo** (`Docs/HUD_CORRIDA.md`, maqueta `Docs/HUD_CORRIDA_MAQUETA.png`), a partir do conceito do jogador:
+  posição e classificação, cronómetro com checkpoint e barra A→B, porquinho com espólios, radar, PERIGO!, toast de
+  checkpoint, consumíveis em hexágonos, velocímetro com BOOST e estado da nave com planta. Arte em `make_hud_art.py`
+  (passo 3d importa os `hud_*`).
 - **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos
   flancos; radiador = duas entradas NACA no deck com grelhas de saída; grid = tomadas laterais rentes e grelha atrás;
   épica = guelras longas e NACA com contorno em carbono; lendária = canal longo no flanco com aletas lá dentro e saída
