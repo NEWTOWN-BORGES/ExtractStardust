@@ -34,7 +34,12 @@ FLAMES = {
     "razor": ((0.55, 0.25, 1.0), (0.92, 0.85, 1.0), 1.3, 0.6, 0),           # APEX Razor-S: thin violet jet
     "redline": ((1.0, 0.08, 0.06), (1.0, 0.85, 0.8), 1.6, 0.9, 4),           # REDLINE-X (legendary)
     "epic": ((1.0, 0.55, 0.18), (1.0, 1.0, 0.95), 1.6, 0.9, 3),              # an epic engine: hotter, whiter core
-    "legendary": ((0.5, 0.28, 1.0), (1.0, 0.97, 1.0), 2.0, 0.8, 5),          # a legendary engine: its own plasma
+    "legendary": ((0.5, 0.28, 1.0), (1.0, 0.97, 1.0), 2.0, 0.8, 5),          # a legendary engine: its own plasma,
+    "legendary_vortex": ((1.0, 0.12, 0.24), (1.0, 0.95, 0.96), 2.0, 0.8, 5),  # in each ship's own colour
+    "legendary_bastion": ((1.0, 0.74, 0.16), (1.0, 0.98, 0.9), 2.0, 0.8, 5),  # (EXMeta::LegendaryPlasma)
+    "legendary_strix": ((0.22, 0.56, 1.0), (0.94, 0.97, 1.0), 2.0, 0.8, 5),
+    "legendary_wraith": ((0.12, 1.0, 0.52), (0.92, 1.0, 0.95), 2.0, 0.8, 5),
+    "legendary_nomad": ((0.5, 0.28, 1.0), (1.0, 0.97, 1.0), 2.0, 0.8, 5),
 }
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -410,7 +415,7 @@ if "thumbs" in SHOTS:
             tshot("tail" + t, yaw_deg=58, pitch_deg=-3 if MAN.get("tail") == "below" else 14, dist=5.0, target=(0, 1.9, 0.95))
         if show(["skeleton", "engine" + t]):                 # the engine's insides, in the x-ray view, its own flame
             reactor_glow(REACTOR[0])
-            flames("legendary" if t == "_lg" else "epic", 0.9)
+            flames(("legendary_" + SHIP if "legendary_" + SHIP in FLAMES else "legendary") if t == "_lg" else "epic", 0.9)
             tshot("engine" + t, yaw_deg=62, pitch_deg=18, dist=5.2, target=(0, 1.7, 1.05))
             flames(None)
     for k in ("mast", "dome", "drone"):                           # utility: inside the nose, in the skeleton, close

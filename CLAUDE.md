@@ -23,14 +23,15 @@ O jogador fala português (PT). Responder em português.
   altura da linha, sem refazer o mapa.
 - **Consumíveis em 3D** (`Scripts/make_consumables.py`): 6 modelos (`SourceArt/Consumables`), fotos nas cartas
   (`SourceArt/UI/Thumbs/con_<id>.jpg`, passo 3d). **Cofre em grelha** de cartas (caixas, módulos e consumíveis).
-- **Épicos e lendários com design próprio** (`ship_modules.py`, secção 7; o jogador rejeitou peças comuns com dourado e
-  luzes, "brega"). Comum, incomum e raro partilham a peça; o épico e o lendário são peças novas, na pintura da nave,
-  inspiradas em aerodinâmica real: **asa** com fenda de dois elementos / **asa em caixa** (Prandtl); **cauda** em V / em
-  T; **kit** aero (canards, lâmina no flanco, splitter) / **streamliner** (carenagens laterais que continuam além da
-  popa, como os longtail de Le Mans). **Motor:** por fora muda só a chama/plasma (épico mais quente, com diamantes;
-  lendário com plasma violeta próprio, `EXMeta::Flame`); por dentro, no raio-X, bobinas de confinamento / câmara de
-  plasma toroidal. Ficheiros `<nave>_<família>_ep/_lg.fbx` (wing, tail, armor, cooling, engine); `AEXHoverCraft`
-  monta-os pela raridade (o do motor só no raio-X) e as cartas usam `<nave>_<família>_ep/_lg.jpg`. As naves não mudaram.
+- **Épicos e lendários com design próprio, um por nave** (`ship_modules.py`, `TIER_DESIGNS`; tabela em `Docs/MODULOS.md` 8c).
+  O jogador rejeitou as peças comuns com dourado e luzes ("brega") e depois o mesmo desenho em todas as naves. Agora cada
+  chassi tem as suas peças, na pintura da nave e inspiradas em aerodinâmica real. Exemplos: a BASTION tem asa em caixa,
+  a WRAITH tem asas em tandem e ponte entre as pontas da forquilha, a NOMAD tem cápsulas nas pontas das asas e câmaras de
+  plasma nas cápsulas. Comum, incomum e raro partilham a peça. **Motor:** por fora muda só a chama. O épico é mais
+  quente. O lendário tem plasma na cor da nave (`EXMeta::Flame(Engine, Nave)`: VORTEX carmim, BASTION ouro, STRIX azul,
+  WRAITH esmeralda, NOMAD violeta). Por dentro, no raio-X, cada nave tem o seu interior. Ficheiros
+  `<nave>_<família>_ep/_lg.fbx` (wing, tail, armor, cooling, engine) e cartas `<nave>_<família>_ep/_lg.jpg`.
+  `AEXHoverCraft` monta-os pela raridade; o do motor só aparece no raio-X. As naves não mudaram.
 - **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos
   flancos; radiador = duas entradas NACA no deck com grelhas de saída; grid = tomadas laterais rentes e grelha atrás;
   épica = guelras longas e NACA com contorno em carbono; lendária = canal longo no flanco com aletas lá dentro e saída

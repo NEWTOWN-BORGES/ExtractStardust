@@ -2135,7 +2135,7 @@ void AEXHoverCraft::RefreshModuleVisuals()
 		}
 	}
 	// The engine's flame and the nitro's colour, out of the ship's real nozzles.
-	const EXMeta::FFlameStyle Flame = EXMeta::Flame(Fitted(EEXFamily::Engine));
+	const EXMeta::FFlameStyle Flame = EXMeta::Flame(Fitted(EEXFamily::Engine), Ship);
 	Fx->SetFlameStyle(Flame.Outer, Flame.Core, Flame.Length, Flame.Radius, Flame.Diamonds, Flame.bSparks, EXMeta::NitroColour(Fitted(EEXFamily::Propulsion)));
 	TArray<FVector> Anchors;
 	float NozzleRadiusCm = 0.0f;

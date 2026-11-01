@@ -620,14 +620,25 @@ namespace
 		return false;
 	}
 
-	FFlameStyle Flame(const FEXItem* Engine)
+	/** A legendary engine's plasma, each ship its own (Scripts/render_modules.py FLAMES "legendary_<ship>"). */
+	static FLinearColor LegendaryPlasma(const FString& ShipName)
+	{
+		if (ShipName.Equals(TEXT("VORTEX"), ESearchCase::IgnoreCase)) return FLinearColor(1.0f, 0.12f, 0.24f);   // crimson
+		if (ShipName.Equals(TEXT("BASTION"), ESearchCase::IgnoreCase)) return FLinearColor(1.0f, 0.74f, 0.16f);  // molten gold
+		if (ShipName.Equals(TEXT("STRIX"), ESearchCase::IgnoreCase)) return FLinearColor(0.22f, 0.56f, 1.0f);    // electric blue
+		if (ShipName.Equals(TEXT("WRAITH"), ESearchCase::IgnoreCase)) return FLinearColor(0.12f, 1.0f, 0.52f);   // emerald
+		return FLinearColor(0.50f, 0.28f, 1.0f);                                                                 // NOMAD: violet
+	}
+
+	FFlameStyle Flame(const FEXItem* Engine, const FString& ShipName)
 	{
 		FFlameStyle Style = Flames[FlameIndex(Engine)];
 		const EEXRarity Rarity = Engine ? static_cast<EEXRarity>(Engine->Rarity) : EEXRarity::Common;
 		// Outside, an engine shows its rarity only in what comes out of it (player, 2026-11-01): rares burn a little
 		// longer and brighter; an epic burns hotter (a whiter core, a longer, tighter jet with shock diamonds and
-		// sparks); a legendary throws plasma of its own (a white-hot core in an electric violet sheath, long and narrow,
-		// a train of diamonds). Inside, the x-ray view shows their own insides (Scripts/ship_modules.py).
+		// sparks); a legendary throws plasma of its own (a white-hot core in a sheath of the ship's own colour, long
+		// and narrow, a train of diamonds). Inside, the x-ray view shows their own insides, each ship its own
+		// (Scripts/ship_modules.py TIER_DESIGNS).
 		if (Rarity == EEXRarity::Rare)
 		{
 			Style.Length *= 1.15f;
@@ -643,7 +654,7 @@ namespace
 		}
 		else if (Rarity == EEXRarity::Legendary)
 		{
-			Style.Outer = FLinearColor(0.50f, 0.28f, 1.0f);
+			Style.Outer = LegendaryPlasma(ShipName);
 			Style.Core = FLinearColor(1.0f, 0.97f, 1.0f) * 1.6f;
 			Style.Length *= 1.4f;
 			Style.Radius *= 0.8f;

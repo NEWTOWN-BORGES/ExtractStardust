@@ -262,26 +262,34 @@ Como as cópias do Dragon Ball Legends: cada **cópia de uma nave** dá-lhe **1 
 **Perfil novo:** 3 000 STARDUST, uma STANDARD CACHE no cofre e os consumíveis do jogo antigo (2 Repair Foam,
 1 Fuel Cell, 1 Coolant Cell).
 
-## 8c. Épicos e lendários com design próprio (pedido do jogador, 2026-11-01)
+## 8c. Épicos e lendários com design próprio, um por nave (pedido do jogador, 2026-11-01)
 
-Comuns, incomuns e raros partilham o desenho 3D de cada peça. **Épicos e lendários são peças novas** (não a peça comum
-com enfeites: a primeira tentativa, com dourado e luzes, foi rejeitada como "brega"), na pintura da própria nave e
-inspiradas em aerodinâmica real, reconhecíveis em pista:
+Comuns, incomuns e raros partilham o desenho 3D de cada peça. **Épicos e lendários são peças novas e cada nave tem as
+suas**, feitas a partir da estrutura dela ("cada nave tem de ter o seu próprio módulo épico e lendário conforme a sua
+estrutura, para ser mais exclusivo e adaptado a cada chassi"). Ficam na pintura da própria nave e inspiram-se em
+aerodinâmica real, sem enfeites: a primeira tentativa, peças comuns com dourado e luzes, foi rejeitada como "brega".
+A segunda usava o mesmo desenho em todas as naves e também foi posta de parte. Reconhecem-se em pista.
+Cada célula da tabela diz **épico / lendário**.
 
-| Família | Épico | Lendário |
-| --- | --- | --- |
-| Asas | asa de dois elementos com fenda (plano principal e flap, como nas asas de corrida), placa na ponta | **asa em caixa** de Prandtl: asa de baixo e asa de cima unidas nas pontas por uma barbatana |
-| Cauda | cauda em **V** (borboleta) | cauda em **T**, com estabilizador em flecha e bala de titânio na junção |
-| Blindagem | kit aero: canards nos cantos do nariz, lâmina ao longo de cada flanco, splitter | **streamliner**: carenagens laterais contínuas que seguem além da popa (longtail de Le Mans) |
-| Refrigeração | guelras longas e entradas NACA com contorno em carbono | canal longo no flanco com aletas lá dentro e saída perfurada em titânio |
-| Motor | por fora só a chama: mais quente, núcleo mais branco, jato mais longo com diamantes de choque e faíscas; por dentro (raio-X) bobinas de confinamento magnético e um anel de injetores | por fora um **plasma** próprio (núcleo branco numa bainha violeta, longo e estreito, cinco diamantes); por dentro uma **câmara de plasma toroidal** com janelas a brilhar e ímanes supercondutores |
+| Nave (chassi) | Asas | Cauda | Blindagem (kit) | Refrigeração | Motor (raio-X) |
+| --- | --- | --- | --- | --- | --- |
+| **VORTEX**: dardo em delta, motor na cauda | delta com quebra e pontas dobradas / asa ogival com pontas caídas | duas barbatanas no cone da cauda / barbatana dorsal alta com strake | kit aero / quinas vivas e nariz em lança | guelras longas / canal no flanco com aletas | bobinas de confinamento / toro de plasma |
+| **BASTION**: cápsula numa asa plana, motor colossal | asa em laje com slat / **asa em caixa** (Prandtl) | duas barbatanas por fora / três barbatanas | escudos laterais / saias de carapaça e aríete | NACA grandes / leque de grelhas curvas | quadros aceleradores retangulares / pilha de anéis magnéticos |
+| **STRIX**: agulha com delta a descer e dois motores empilhados | asa de gaivota invertida / asa em flecha invertida com extensões na raiz | barbatanas em V / T invertido | quinas e canards / manga na agulha e carenagens | guelras na carenagem do motor / três NACA | bobinas nos dois motores / um anel à volta dos dois |
+| **WRAITH**: forquilha com o cockpit entre as pontas, três motores | asa em cimitarra / asas em tandem | duas barbatanas nos cantos / cauda em H | lâminas nas pontas da forquilha / ponte entre as pontas | guelras por dentro da forquilha / canais ao longo das pontas | coletor de injetores / barramento de plasma |
+| **NOMAD**: nave de carga com cápsulas nos braços | asa longa com sharklets / asa em flecha com cápsulas nas pontas | barbatanas nas cápsulas / cauda em Y | cones no nariz das cápsulas / cones e caudas de barco | tomadas nas cápsulas / cápsulas perfuradas | bobinas nas cápsulas / câmaras de plasma nas cápsulas |
 
+- **Motor:** por fora muda só a chama. O épico arde mais quente: núcleo mais branco e jato mais longo, com diamantes de
+  choque e faíscas. O lendário deita um plasma próprio na cor da nave: núcleo branco, longo e estreito, com cinco
+  diamantes. As cores são VORTEX carmim, BASTION ouro fundido, STRIX azul elétrico, WRAITH esmeralda e NOMAD violeta
+  (`EXMeta::Flame(Engine, Nave)`). Por dentro só se vê no raio-X.
 - **Ficheiros:** `SourceArt/TestShips/modules/<nave>_<família>_ep.fbx` / `_lg.fbx` (wing, tail, armor, cooling, engine),
-  feitos por `ship_modules.py` (secção 7); fotos das cartas `SourceArt/UI/Thumbs/<nave>_<família>_ep/_lg.jpg`
-  (`render_modules.py ... thumbs`, `THUMB_ONLY=_ep,_lg` só estas).
-- **No jogo:** `AEXHoverCraft::RefreshModuleVisuals` monta `<família>_ep/_lg` conforme a raridade do item (a peça comum se
-  a variante faltar); o interior do motor épico/lendário aparece só no raio-X (slot `ModuleEngine`) e a chama muda em
-  `EXMeta::Flame`. As cartas usam `TierThumb`.
+  feitos por `ship_modules.py` (`TIER_DESIGNS`, uma função por desenho: `w_*`, `t_*`, `a_*`, `c_*`, `e_*`). As fotos das
+  cartas são `SourceArt/UI/Thumbs/<nave>_<família>_ep/_lg.jpg`, feitas com `render_modules.py ... thumbs`
+  (`THUMB_ONLY=_ep,_lg` faz só estas).
+- **No jogo:** `AEXHoverCraft::RefreshModuleVisuals` monta `<família>_ep/_lg` conforme a raridade do item. Se a variante
+  faltar, monta a peça comum. O interior do motor épico ou lendário aparece só no raio-X (slot `ModuleEngine`). As
+  cartas usam `TierThumb`.
 
 ### 8d. Refrigeração dentro da carroçaria (pedido do jogador, 2026-11-01)
 
