@@ -46,6 +46,8 @@ struct FEXHangarRow
 	FString Icon;
 	/** The photo of the ship with the module fitted (EXUi::Thumb): <ship>_<piece>, <ship>_engine_<flame>... */
 	FString Thumb;
+	/** An epic or legendary design's own photo (<ship>_<family>_ep/_lg); shown instead of Thumb when imported. */
+	FString TierThumb;
 	/** The line under the name: "Vanta Works  ·  classe S  ·  −10 kg" (a row), "Blindagem  ·  M  ·  +90 kg" (a card). */
 	FString Maker;
 	/** The rarity in small capitals on the right ("ÉPICO"). */

@@ -114,6 +114,21 @@ namespace
 		}
 	}
 
+	/** The card photo of an epic or legendary item with a design of its own (Scripts/ship_modules.py section 7):
+	 *  <ship>_<family>_ep / _lg; empty for the others (the common photo then). */
+	FString HangarTierThumbKey(const EXMeta::FModuleDef& Def, const FString& Ship, EEXRarity Rarity)
+	{
+		const TCHAR* Family = Def.Family == EEXFamily::Wings ? TEXT("wing") : Def.Family == EEXFamily::Tail ? TEXT("tail")
+			: Def.Family == EEXFamily::Armor ? TEXT("armor") : Def.Family == EEXFamily::Cooling ? TEXT("cooling")
+			: Def.Family == EEXFamily::Engine ? TEXT("exhaust") : nullptr;
+		if (!Family || Rarity < EEXRarity::Epic)
+		{
+			return FString();
+		}
+		return FString::Printf(TEXT("%s_%s%s"), *(Def.Ship.IsEmpty() ? Ship : Def.Ship).ToLower(), Family,
+			Rarity == EEXRarity::Legendary ? TEXT("_lg") : TEXT("_ep"));
+	}
+
 	/** "+9 Manobra"-style chips: the gains first, then the drawbacks (mass left out), then the legendary's perk. */
 	void HangarChips(const FEXItem& Item, bool bCard, TArray<FEXHangarChip>& Out)
 	{
@@ -925,6 +940,7 @@ FEXHangarRow UEXHangarModel::ItemRow(const FEXItem& Item, bool bWithPlace) const
 	{
 		R.Icon = FString::Printf(TEXT("fam_%d"), static_cast<int32>(Def->Family));
 		R.Thumb = HangarThumbKey(*Def, GetShipName());
+		R.TierThumb = HangarTierThumbKey(*Def, GetShipName(), Rarity);   // its own design's photo, when imported
 		R.Flame = Def->Family == EEXFamily::Engine ? EXMeta::FlameLook(&Item) : INDEX_NONE;
 		// "Vanta Works  ·  classe S  ·  −10 kg", "Oryx Reclamation  ·  asa própria  ·  ponta dobrada"; a legendary's perk.
 		if (Def->bLegendary)
@@ -974,6 +990,7 @@ FEXHangarRow UEXHangarModel::ItemCard(const FEXItem& Item) const
 	{
 		Card.Icon = FString::Printf(TEXT("fam_%d"), static_cast<int32>(Def->Family));
 		Card.Thumb = HangarThumbKey(*Def, GetShipName());
+		Card.TierThumb = HangarTierThumbKey(*Def, GetShipName(), Rarity);   // its own design's photo, when imported
 		Card.Flame = Def->Family == EEXFamily::Engine ? EXMeta::FlameLook(&Item) : INDEX_NONE;
 		const FString Family = HangarFamilyWords[FMath::Clamp(static_cast<int32>(Def->Family), 0, EXMeta::FamilyCount - 1)];
 		if (Def->Family == EEXFamily::Wings)

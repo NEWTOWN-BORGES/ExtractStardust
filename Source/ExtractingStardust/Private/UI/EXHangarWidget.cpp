@@ -1040,7 +1040,8 @@ void UEXHangarWidget::ShowCard(const FCardView& View, const FEXHangarRow* Card, 
 	View.ArtLine->SetBrushColor(Colour);
 	View.GlowInner->SetColorAndOpacity(WithAlpha(Colour, bShine ? 0.25f : 0.18f));
 	// The photo of the ship wearing the module; without one, the icon glowing in the art box.
-	UTexture2D* Photo = EXUi::Thumb(Card->Thumb);
+	UTexture2D* Photo = Card->TierThumb.IsEmpty() ? nullptr : EXUi::Thumb(Card->TierThumb);   // an epic/legendary design
+	Photo = Photo ? Photo : EXUi::Thumb(Card->Thumb);
 	EXUi::SetImage(View.Photo, Photo);
 	UTexture2D* IconTexture = Photo ? nullptr : EXUi::Icon(Card->Icon);
 	const FLinearColor IconColour = Card->Maker.Equals(TEXT("Consumível")) ? EXMeta::Consumable(EEXConsumable::None).Colour : Colour;

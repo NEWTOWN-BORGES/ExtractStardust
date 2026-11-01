@@ -143,12 +143,14 @@ def piece(name):
 
 
 def show(names):
+    """Shows just these pieces; True when the last one exists (the piece being photographed)."""
     want = set()
     for n in names:
         want.update(piece(n))
     for objs in LOADED.values():
         for o in objs:
             o.hide_render = o not in want
+    return bool(piece(names[-1])) if names else False
 
 
 FLAME_OBJS = []
@@ -387,12 +389,27 @@ if "thumbs" in SHOTS:
     for k in ("light", "guard", "bulwark", "shell", "aegis"):     # body kits: from the front and low, along the skirt
         show(["core", stock_wing, "armor_" + k])
         tshot("armor_" + k, yaw_deg=-28, pitch_deg=11, dist=6.6, target=(0, 0.0, 0.95))
-    for k in ("vents", "radiator", "grid"):                       # cooling: from above
+    for k in ("vents", "radiator", "grid"):                       # cooling, flush in the bodywork: from above
         show(["core", stock_wing, "cooling_" + k])
         tshot("cooling_" + k, yaw_deg=28, pitch_deg=44, dist=4.8, target=(0, 0.7, 1.0))
     for k in ("compact", "twin", "keel"):                         # tails: from behind
         show(["core", stock_wing, "tail_" + k])
         tshot("tail_" + k, yaw_deg=58, pitch_deg=-3 if MAN.get("tail") == "below" else 14, dist=4.8, target=(0, 1.9, 0.9))
+    # the epic and legendary designs of their own (Scripts/ship_modules.py section 7): <family>_ep / _lg
+    # (THUMB_ONLY=_ep,_lg renders just these)
+    for t in ("_ep", "_lg"):
+        if show(["core", "wing" + t]):
+            tshot("wing" + t, yaw_deg=58, pitch_deg=30, dist=5.6, target=(0.0, 0.9, 0.95))
+        if show(["core", stock_wing, "armor" + t]):
+            tshot("armor" + t, yaw_deg=-34, pitch_deg=12, dist=6.8, target=(0, 0.2, 0.9))
+        if show(["core", stock_wing, "cooling" + t]):
+            tshot("cooling" + t, yaw_deg=28, pitch_deg=44, dist=4.8, target=(0, 0.7, 1.0))
+        if show(["core", stock_wing, "tail" + t]):
+            tshot("tail" + t, yaw_deg=58, pitch_deg=-3 if MAN.get("tail") == "below" else 14, dist=5.0, target=(0, 1.9, 0.95))
+        if show(["core", stock_wing, "exhaust" + t]):
+            flames("stock", 0.45)
+            tshot("exhaust" + t, yaw_deg=72, pitch_deg=10, dist=4.6, target=(0, 2.0, 0.8))
+            flames(None)
     for k in ("mast", "dome", "drone"):                           # utility: inside the nose, in the skeleton, close
         show(["skeleton", "utility_" + k])
         reactor_glow(REACTOR[0])

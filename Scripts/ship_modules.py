@@ -153,6 +153,7 @@ class Builder:
                          for i in p.vertices)
         glass = [v for v in glass if v.z > mid]
         self.canopy_y = min(v.y for v in glass) if glass else self.y_min + 0.4 * (self.y_max - self.y_min)
+        self.canopy_y1 = max(v.y for v in glass) if glass else self.canopy_y + 1.0
         self.wing_bvh = mesh_bvh(self.meshes(self.is_wing))
         self.hover_bvh = mesh_bvh(self.meshes(lambda o: under(o, self.G["Hover"]))) if "Hover" in self.G else None
 
@@ -654,60 +655,7 @@ class Builder:
         self.export(made, "armor_" + kind)
         self.drop(made)
 
-    # ------------------------------------------------------------ 4. vents and radiators
-    def cooling(self, kind):
-        c = self.sock.get("Socket_Cooling")
-        if c is None:
-            return
-        sc = self.scale
-        made = []
-        g = self.group("Module_Cooling_" + kind)
-        part = K.Part("Cooling_" + kind.capitalize())
-        if kind == "vents":
-            for s in (-1, 1):
-                for dy in (-0.26, 0.26):
-                    # the hull side may be lower than the socket (a flat ship): look down for it, 0.1 m at a time
-                    loc, nor = None, None
-                    for drop in (0.0, 0.1, 0.2, 0.3, 0.45, 0.6):
-                        loc, nor = self.side_hit(s, c.y + dy * sc, c.z + 0.08 - drop)
-                        if loc is not None:
-                            break
-                    if loc is None:
-                        continue
-                    R = frame_of(nor)
-                    part.box(loc + nor * 0.035, (0.46 * sc, 0.22 * sc, 0.06), "Graphite", R)
-                    for k in range(5):
-                        part.box(loc + nor * 0.068 + R @ Vector((0, (k - 2) * 0.038 * sc, 0)), (0.42 * sc, 0.010, 0.014),
-                                 "Black", R)
-        else:
-            big = kind == "grid"
-            ln, wd, ht = (1.10, 0.16, 0.26) if big else (0.70, 0.13, 0.20)
-            ln, wd, ht = ln * sc, wd * sc, ht * sc
-            for s in (-1, 1):
-                edge, _ = self.side_hit(s, c.y, c.z + 0.05)
-                half = abs(edge.x) if edge is not None else 0.4
-                x = s * half * (0.62 if big else 0.55)
-                loc, nor = self.top_hit(x, c.y)
-                if loc is None:
-                    continue
-                base = loc + Vector((0, 0, 0.01))
-                part.box(base + Vector((0, 0, 0.02)), (wd + 0.04, ln + 0.04, 0.04), "Metal")       # mount
-                part.box(base + Vector((0, 0, 0.04 + ht / 2)), (wd, ln, ht), "Black")              # core
-                n = 10 if big else 6
-                for k in range(n):
-                    yk = base.y - ln / 2 + ln * (k + 0.5) / n
-                    part.box(Vector((x, yk, base.z + 0.04 + ht / 2)), (wd + 0.03, 0.006, ht + 0.02), "Metal_Bright")
-                part.box(base + Vector((0, 0, 0.05 + ht)), (wd + 0.02, ln + 0.02, 0.012), self.edge)  # top rail
-                if big:
-                    part.box(base + Vector((0, 0, 0.06 + ht)), (wd * 0.4, ln * 0.9, 0.006), "Emit_Hot")
-                part.tube([base + Vector((0, -ln / 2, 0.06)), base + Vector((-s * 0.12, -ln / 2 - 0.08, 0.01))],
-                          0.016, "Metal", 8)
-        if part.bm.faces:
-            made.append(part.finish(g, bevel=0.0012))
-        self.export(made, "cooling_" + kind)
-        self.drop(made)
-
-    # ------------------------------------------------------------ 5. tail fins
+    # ------------------------------------------------------------ 4. tail fins (the cooling is in section 7, flush)
     def tail_fins(self, kind):
         c = self.sock.get("Socket_Tail")
         if c is None:
@@ -904,6 +852,443 @@ class Builder:
                 part.box(at(dx, 0, 0.92), (0.06 * hs.x, 1.9 * hs.y, 0.10 * hs.z), "Metal")
 
     # ------------------------------------------------------------ the list for the game
+    # ------------------------------------------------------------ 7. epic and legendary designs, of their own
+    # Player, 2026-11-01: an epic or a legendary is not the common piece with gold and lights stuck on ("brega"): each
+    # has a design of its own, recognisable on the track, in the ship's own paint, from real aerodynamics:
+    # - wings: the epic a two-element slotted wing (a main plane and a flap behind it with a gap, as on race cars);
+    #   the legendary a box wing (Prandtl's "best wing system": a lower and an upper wing joined at the tips by a fin);
+    # - tails: the epic a V (butterfly) tail, the legendary a T tail;
+    # - body kits: the epic an aero kit (canards on the nose corners, a blade along each flank, a splitter); the
+    #   legendary a streamliner (sweeping side fairings running on past the stern, like a Le Mans longtail);
+    # - cooling, in the bodywork like every cooling module now: the epic long gills and NACA ducts with carbon
+    #   surrounds, the legendary a long flank channel with fins deep inside and a perforated outlet;
+    # - exhausts round the real nozzles: the epic a flat thrust-vectoring nozzle, the legendary an aerospike plug.
+    # Exported as <family>_ep / <family>_lg (wing, tail, armor, cooling, exhaust); AEXHoverCraft fits them for an
+    # epic / legendary item of that family.
+    TIER_MATS = (("Carbon_Tier", "#1C1C21", 0.25, 0.30, 0.0), ("Titanium", "#8E939A", 1.0, 0.34, 0.0),
+                 ("Ceramic_Dark", "#3A3633", 0.0, 0.7, 0.0), ("Emit_HotDim", "#FF7A2E", 0.0, 0.4, 1.4))
+
+    @staticmethod
+    def foil(le, te, mid, th, camber=0.0, pitch=0.0, n=8):
+        """An aerofoil from le to te along y round height mid (NACA 4-digit thickness th in metres, a light camber,
+        the trailing edge raised by 'pitch'): a closed loop of 2n (y, z), the top first from the leading edge."""
+        c = te - le
+        us = [0.004 + 0.996 * (1 - math.cos(math.pi * k / n)) / 2 for k in range(n + 1)]
+
+        def half(u):
+            return 5 * th * (0.2969 * math.sqrt(u) - 0.126 * u - 0.3516 * u ** 2 + 0.2843 * u ** 3 - 0.1036 * u ** 4)
+
+        def line(u):
+            return mid + camber * c * 4 * u * (1 - u) + pitch * u
+
+        return [(le + u * c, line(u) + half(u)) for u in us] + [(le + u * c, line(u) - half(u)) for u in reversed(us[1:-1])]
+
+    @staticmethod
+    def plate(part, pts, th, m):
+        """A flat plate th thick over the outline pts (3D, in one plane)."""
+        pts = [Vector(p) for p in pts]
+        n = (pts[1] - pts[0]).cross(pts[-1] - pts[0]).normalized()
+        part.loft([[p + n * th / 2 for p in pts], [p - n * th / 2 for p in pts]], lambda i, j: m, closed_u=True, cap0=m, cap1=m)
+
+    def foil_mats(self, top, bottom, le, n=8):
+        return lambda i, j: le if j in (0, 2 * n - 1) else (top if j < n else bottom)
+
+    def tier_pieces(self):
+        for name, col, metal, rough, emit in self.TIER_MATS:
+            ensure_mat(name, col, metal, rough, emit)
+        for leg in (False, True):
+            self.wing_tier(leg)
+            self.tail_tier(leg)
+            self.armor_tier(leg)
+            self.cooling_tier(leg)
+            self.exhaust_tier(leg)
+
+    def wing_tier(self, leg):
+        ns = self.ns
+        if not self.wings or "wing_at" not in ns:
+            return
+        WING, stock_at = ns["WING"], ns["wing_at"]
+        x0 = (ns.get("WING_X") or [r[0] for r in WING])[0]
+        x1 = WING[-1][0]
+        r0 = stock_at(x0)
+        side, _ = self.side_hit(1, (r0[0] + r0[1]) / 2, r0[2] + 0.06)
+        hull_x = abs(side.x) if side is not None else x0 + 0.10
+        xs = max(x0 + 0.06, min(hull_x + 0.04, x0 + 0.5 * (x1 - x0)))
+        les, tes, mids, ths = stock_at(xs)
+        let, tet, midt, tht = stock_at(x1)
+        if leg:      # box wing: the lower wing swept back a little more, joined to the upper one by a fin
+            xt, tle, tch, anf, tth = xs + (x1 - xs) * 1.12, les + (let - les) * 1.30, (tet - let) * 0.80, 0.45, tht * 0.9
+        else:        # slotted wing: a longer main plane, a flap over its trailing edge
+            xt, tle, tch, anf, tth = xs + (x1 - xs) * 1.30, les + (let - les) * 1.15, (tet - let) * 0.72, 0.6, tht * 0.85
+        tte = tle + tch
+        tmid = mids - (xt - xs) * math.tan(math.atan2(mids - midt, x1 - xs) * anf)
+
+        def at(x):
+            if x <= xs:
+                return stock_at(x)
+            f = min(1.0, (x - xs) / (xt - xs))
+            return les + (tle - les) * f, tes + (tte - tes) * f, mids + (tmid - mids) * f, ths + (tth - ths) * f
+
+        made = []
+        stations = [x0 - 0.02, xs] + [xs + (xt - xs) * k / 6 for k in range(1, 7)]
+        for s, sd in ((1, "R"), (-1, "L")):
+            g = self.group("Module_Wing_%s_%s" % ("lg" if leg else "ep", sd))
+            part = K.Part("Wing_%s_%s" % ("Box" if leg else "Slotted", sd))
+            part.loft([[Vector((s * x, y, z)) for y, z in self.foil(*at(x), camber=0.015)] for x in stations],
+                      self.foil_mats(self.main, "Graphite", self.edge), closed_u=True, cap0=self.edge, cap1=self.edge)
+            if not leg:
+                rows = []
+                for k in range(6):
+                    x = xs + 0.05 + (xt - 0.03 - xs - 0.05) * k / 5
+                    le, te, mid, th = at(x)
+                    fc = 0.36 * (te - le)
+                    fle = te - 0.14 * fc
+                    rows.append([Vector((s * x, y, z)) for y, z in self.foil(fle, fle + fc, mid + 0.6 * th + 0.03, 0.11 * fc,
+                                                                              camber=0.05, pitch=0.03)])
+                part.loft(rows, self.foil_mats(self.accent, "Carbon_Tier", self.edge), closed_u=True, cap0=self.edge,
+                          cap1=self.edge)
+                le, te, mid, th = at(xt)
+                c = te - le
+                ztop = mid + 0.6 * th + 0.03 + 0.11 * c
+                xp = s * (xt + 0.008)
+                self.plate(part, [(xp, le + 0.05 * c, mid - th * 0.8 - 0.03), (xp, te + 0.34 * c, mid - th * 0.5 - 0.02),
+                                  (xp, te + 0.40 * c, ztop + 0.07), (xp, le + 0.48 * c, mid + 0.10)], 0.014, self.edge)
+                self.plate(part, [(xp + s * 0.008, le + 0.50 * c, mid + 0.075), (xp + s * 0.008, te + 0.34 * c, ztop + 0.045),
+                                  (xp + s * 0.008, te + 0.36 * c, ztop + 0.055), (xp + s * 0.008, le + 0.50 * c, mid + 0.088)],
+                           0.004, self.accent)
+            else:
+                H = 0.34 * self.scale
+                fle_t = tle + 0.30 * tch
+                fte_t = fle_t + 0.85 * tch
+                rows = []
+                for k in range(6):                       # the tip fin, a vertical aerofoil from wing to wing
+                    f = k / 5
+                    le_, te_ = tle + (fle_t - tle) * f, tte + (fte_t - tte) * f
+                    rows.append([Vector((s * xt + s * v, y, tmid + H * f)) for y, v in self.foil(le_, te_, 0.0, 0.11 * (te_ - le_))])
+                part.loft(rows, self.foil_mats(self.edge, self.edge, self.edge), closed_u=True, cap0=self.edge, cap1=self.edge)
+                yc_r = (les + tes) / 2 + 0.45 * (tes - les)
+                xr = zr = None
+                for k in range(14):                      # the upper wing's root: on the hull side, up the flank
+                    zr = mids + H * 0.85 - 0.03 * k
+                    xr = self.side_x(s, yc_r, zr)
+                    if xr is not None:
+                        break
+                if xr is None or zr < mids + 0.10:       # a low hull: the upper wing stands on the deck's shoulder
+                    xr, zr = None, None
+                    for f in (0.70, 0.60, 0.50, 0.40):
+                        loc, _ = self.top_hit(s * hull_x * f, yc_r)
+                        if loc is not None:
+                            xr, zr = abs(loc.x), loc.z - 0.01
+                            break
+                if xr is not None:
+                    c_r = 0.9 * (tes - les)
+                    rows = []
+                    for k in range(6):
+                        f = k / 5
+                        x = xr - 0.02 + (xt - (xr - 0.02)) * f
+                        le_ = (yc_r - c_r / 2) + (fle_t - (yc_r - c_r / 2)) * f
+                        te_ = (yc_r + c_r / 2) + (fte_t - (yc_r + c_r / 2)) * f
+                        z = zr + (tmid + H - zr) * f
+                        th = 0.8 * ths + (0.8 * tth - 0.8 * ths) * f
+                        rows.append([Vector((s * x, y, zz)) for y, zz in self.foil(le_, te_, z, th, camber=0.015)])
+                    part.loft(rows, self.foil_mats(self.accent, "Graphite", self.edge), closed_u=True, cap0=self.edge,
+                              cap1=self.edge)
+                    part.tube([Vector((s * (xr + 0.02 + (xt - xr - 0.06) * f), (yc_r + c_r / 2) + (fte_t - (yc_r + c_r / 2)) * f + 0.004,
+                                       zr + (tmid + H - zr) * f)) for f in (0.0, 0.5, 1.0)], 0.004, "Emit_Hover", 6)
+            made.append(part.finish(g, bevel=0.0015, smooth_angle=40))
+        self.export(made, "wing_lg" if leg else "wing_ep")
+        self.drop(made)
+
+    def tail_tier(self, leg):
+        c = self.sock.get("Socket_Tail")
+        if c is None:
+            return
+        below = self.tail == "below"
+        sc, y_end, up = self.scale, c.y, (-1.0 if below else 1.0)
+
+        def base_fn(x):
+            def f(y):
+                loc, _ = self.top_hit(x, y, below)
+                if loc is None:
+                    loc, _ = self.top_hit(x, y_end - 0.6, below)
+                return loc.z if loc is not None else c.z
+            return f
+
+        g = self.group("Module_Tail_" + ("lg" if leg else "ep"))
+        part = K.Part("Tail_" + ("T" if leg else "V"))
+        if not leg:              # V tail: two fins from the centre line, 38 degrees out each
+            for s in (-1, 1):
+                cant = math.pi - math.radians(38) if below else math.radians(38)
+                K.shark_fin(part, base_fn(s * 0.03), s * 0.03, (y_end - 1.00 * sc, y_end - 0.05), (y_end - 0.42 * sc, y_end + 0.10),
+                            0.50 * sc, 0.042, self.main, "Carbon_Tier", cant, s)
+            f = base_fn(0.0)
+            part.tube([Vector((0, y, f(y) + 0.012 * up)) for y in np.linspace(y_end - 0.95 * sc, y_end - 0.06, 8)], 0.028,
+                      self.edge, 10)
+        else:                    # T tail: a tall fin, a swept stabiliser on top, a titanium bullet at the joint
+            root, tip, height = (y_end - 1.25 * sc, y_end - 0.02), (y_end - 0.50 * sc, y_end + 0.12), 0.58 * sc
+            K.shark_fin(part, base_fn(0.0), 0.0, root, tip, height, 0.05, self.main, self.edge, math.pi if below else 0.0, 1)
+            le_t, te_t = tip[0] + 0.4 * (tip[1] - tip[0]), tip[1] - 0.35 * (tip[1] - tip[0])
+            ztop = base_fn(0.0)((le_t + te_t) / 2) - 0.01 + up * height
+            S = 0.46 * sc
+            rows = []
+            for x in (-S, -0.5 * S, 0.0, 0.5 * S, S):
+                f = abs(x) / S
+                cc = (0.40 - 0.20 * f) * sc
+                le = le_t - 0.12 * sc + 0.20 * sc * f
+                rows.append([Vector((x, y, z)) for y, z in self.foil(le, le + cc, ztop - up * 0.04 * sc * f, 0.10 * cc)])
+            part.loft(rows, self.foil_mats(self.accent, "Graphite", self.edge), closed_u=True, cap0=self.edge, cap1=self.edge)
+            part.lathe((0, le_t - 0.14 * sc, ztop), (0, te_t + 0.12 * sc, ztop), [(0, 0.0), (0.15, 0.028), (0.6, 0.036), (1, 0.0)],
+                       lambda k: "Titanium", 20)
+        made = [part.finish(g, bevel=0.0015, smooth_angle=50)]
+        self.export(made, "tail_lg" if leg else "tail_ep")
+        self.drop(made)
+
+    def armor_tier(self, leg):
+        g = self.group("Module_Armor_" + ("lg" if leg else "ep"))
+        part = K.Part("Armor_" + ("Streamliner" if leg else "Aero"))
+        sc, L = self.scale, self.y_max - self.y_min
+        if not leg:
+            for s in (-1, 1):
+                for k, fy in enumerate((0.10, 0.17)):       # two canards on each nose corner
+                    y = self.y_min + fy * L
+                    span = self.side_span(s, y)
+                    if not span:
+                        continue
+                    z = span[0] + 0.40 * (span[1] - span[0])
+                    x = self.side_x(s, y, z)
+                    if x is None:
+                        continue
+                    w = (0.15 - 0.03 * k) * sc
+                    self.plate(part, [(s * (x - 0.01), y - 0.09 * sc, z), (s * (x + w), y - 0.02 * sc, z + 0.035),
+                                      (s * (x + w), y + 0.03 * sc, z + 0.035), (s * (x - 0.01), y + 0.07 * sc, z)], 0.012, self.accent)
+                rows = []                                    # a sharp blade along the flank
+                ys = np.linspace(self.y_min + 0.24 * L, self.y_max - 0.10 * L, 26)
+                for i, y in enumerate(ys):
+                    span = self.side_span(s, y)
+                    if not span:
+                        continue
+                    z = span[0] + 0.45 * (span[1] - span[0])
+                    x = self.side_x(s, y, z)
+                    if x is None:
+                        continue
+                    t = i / (len(ys) - 1)
+                    out = 0.05 * sc * smooth(t / 0.12) * smooth((1 - t) / 0.2) + 0.004
+                    rows.append([Vector((s * (x - 0.006), y, z - 0.022)), Vector((s * (x + out), y, z - 0.004)),
+                                 Vector((s * (x + out), y, z + 0.004)), Vector((s * (x - 0.006), y, z + 0.016))])
+                if len(rows) > 3:
+                    part.loft(rows, lambda i, j: self.edge if j == 1 else self.accent, closed_u=True, cap0=self.accent,
+                              cap1=self.accent)
+            y0 = self.y_min + 0.08 * L                       # a splitter under the nose
+            fp = self.footprint(y0)
+            if fp:
+                xs_ = [p[0] for b in fp for p in b]
+                zb = min(p[1] for b in fp for p in b)
+                w, xc = (max(xs_) - min(xs_)) / 2 * 0.95, (max(xs_) + min(xs_)) / 2
+                self.plate(part, [(xc - w, y0 + 0.10, zb - 0.006), (xc + w, y0 + 0.10, zb - 0.006),
+                                  (xc + 0.8 * w, self.y_min - 0.10 * sc, zb + 0.004), (xc - 0.8 * w, self.y_min - 0.10 * sc, zb + 0.004)],
+                           0.014, self.edge)
+        else:
+            for s in (-1, 1):
+                ys = np.linspace(self.y_min + 0.20 * L, self.y_max - 0.02, 30)
+                prof = []
+                for i, y in enumerate(ys):
+                    span = self.side_span(s, y)
+                    if not span:
+                        continue
+                    t = i / (len(ys) - 1)
+                    zlo, ztop = span[0] + 0.01, span[0] + (0.22 + 0.28 * t) * (span[1] - span[0])
+                    col = [(self.side_x(s, y, ztop + (zlo - ztop) * k / 6), ztop + (zlo - ztop) * k / 6) for k in range(7)]
+                    if any(x is None for x, _ in col):
+                        continue
+                    prof.append((y, col, 0.05 * sc * smooth(t / 0.18) * (0.6 + 0.4 * t)))
+                if len(prof) < 4:
+                    continue
+                y_l, col_l, off_l = prof[-1]
+                for k in range(1, 5):                        # the longtail: on past the stern, closing to a blade
+                    f = k / 4
+                    top = col_l[0][1]
+                    prof.append((y_l + 0.30 * sc * f, [(x, top + (z - top) * (1 - 0.6 * f)) for x, z in col_l], off_l * (1 - 0.85 * f)))
+                rows = [[Vector((s * (x + off), y, z)) for x, z in col] + [Vector((s * (x - 0.004), y, z)) for x, z in reversed(col)]
+                        for y, col, off in prof]
+                n_out = len(prof[0][1])
+                part.loft(rows, lambda i, j: self.accent if j == 0 else (self.main if j < n_out - 1 else
+                                                                        (self.edge if j == n_out - 1 else "Graphite")),
+                          closed_u=True, cap0=self.main, cap1=self.edge)
+        made = [part.finish(g, bevel=0.0015, smooth_angle=40)] if part.bm.faces else []
+        if made:
+            self.export(made, "armor_lg" if leg else "armor_ep")
+            self.drop(made)
+
+    # ---- cooling in the bodywork: flush patches that hug the hull (gills, NACA ducts, intakes, louvres)
+    def hull_sheet(self, part, s, uv, nu, nv, lift, m, top=False, closed=False):
+        """A thin sheet hugging the hull 'lift' off it: uv(u, v) -> (y, z) on side s, or (x, y) on the deck (top)."""
+        rows = []
+        for i in range(nv + 1):
+            row = []
+            for j in range(nu + (0 if closed else 1)):
+                a, b = uv(j / nu, i / nv)
+                loc, nor = self.top_hit(a, b) if top else self.side_hit(s, a, b)
+                if loc is None:
+                    return False
+                if (nor.z < 0) if top else (nor.x * s < 0):
+                    nor = -nor
+                row.append(loc + nor * lift)
+            rows.append(row)
+        part.loft(rows, lambda i, j: m, closed_u=closed)
+        return True
+
+    def gills(self, part, s, yc, zc, n, length, pitch, surround=None, lip=None):
+        """n slanted gill slits on the side s round (yc, zc), dark inside, a lip on each trailing edge."""
+        sl = math.tan(math.radians(24))
+        w = 0.022 * self.scale
+        if surround:
+            self.hull_sheet(part, s, lambda u, v: (yc + (u - 0.5) * (n * pitch + 0.06) + (v - 0.5) * length * sl,
+                                                   zc + (v - 0.5) * (length + 0.05)), 6, 3, 0.0012, surround)
+        for k in range(n):
+            y = yc + (k - (n - 1) / 2) * pitch
+            self.hull_sheet(part, s, lambda u, v, y=y: (y + (u - 0.5) * w + (v - 0.5) * length * sl, zc + (v - 0.5) * length),
+                            1, 4, 0.0022, "Black")
+            self.hull_sheet(part, s, lambda u, v, y=y: (y + w / 2 + u * 0.007 + (v - 0.5) * length * sl, zc + (v - 0.5) * length),
+                            1, 4, 0.0045, lip or self.edge)
+
+    def naca(self, part, xc, y_f, length, w0, w1, lip=None):
+        """A NACA duct on the deck: narrow in front, opening to the rear, flush, dark inside, sharp lips."""
+        def half(v):
+            return w0 + (w1 - w0) * (3 * v * v - 2 * v ** 3)
+        self.hull_sheet(part, 0, lambda u, v: (xc + (u - 0.5) * 2 * half(v), y_f + v * length), 2, 8, 0.0022, "Black", top=True)
+        for e in (0, 1):
+            self.hull_sheet(part, 0, lambda u, v, e=e: (xc + (e - 0.5) * 2 * half(v) + (e - 0.5) * 2 * u * 0.006, y_f + v * length),
+                            1, 8, 0.0045, lip or self.edge, top=True)
+        self.hull_sheet(part, 0, lambda u, v: (xc + (u - 0.5) * 2 * w1, y_f + length + v * 0.01), 4, 1, 0.007, lip or self.edge,
+                        top=True)
+
+    def louvres(self, part, s, uv_box, n, slat, top=False, base="Black"):
+        """A field of n louvre slats over a dark panel; uv_box(u, v) maps the panel."""
+        self.hull_sheet(part, s, uv_box, 4, 4, 0.0018, base, top=top)
+        for k in range(n):
+            v0 = (k + 0.25) / n
+            self.hull_sheet(part, s, lambda u, v, v0=v0: uv_box(0.04 + 0.92 * u, v0 + v * 0.45 / n), 4, 1, 0.005, slat, top=top)
+
+    def cooling_site(self):
+        """Where the cooling goes: the socket's y kept behind the canopy, the flank height and the deck's half width."""
+        c = self.sock.get("Socket_Cooling")
+        if c is None:
+            return None
+        y = max(c.y, self.canopy_y1 + 0.12)
+        span = self.side_span(1, y)
+        mid = (span[0] + span[1]) / 2 if span else c.z
+        half = self.side_x(1, y, mid) or 0.4
+        return c, y, span, half
+
+    def cooling(self, kind):
+        """Cooling in the bodywork (player, 2026-11-01: the square radiators on the deck spoilt the lines and the
+        aerodynamics): vents are gills in the flanks, the radiator two NACA ducts on the deck with louvred outlets,
+        the grid flush side intakes and a louvred outlet; dark inside, sharp lips, nothing standing up."""
+        site = self.cooling_site()
+        if site is None:
+            return
+        c, y, span, half = site
+        sc = self.scale
+        g = self.group("Module_Cooling_" + kind)
+        part = K.Part("Cooling_" + kind.capitalize())
+        if kind == "vents" and span:
+            for s in (-1, 1):
+                self.gills(part, s, y, span[0] + 0.62 * (span[1] - span[0]), 4, 0.16 * sc, 0.07 * sc)
+        elif kind == "radiator":
+            for s in (-1, 1):
+                xc = s * half * 0.42
+                self.naca(part, xc, y - 0.20 * sc, 0.48 * sc, 0.022, 0.11 * sc)
+                self.louvres(part, 0, lambda u, v, xc=xc: (xc + (u - 0.5) * 0.20 * sc, y + 0.40 * sc + v * 0.16 * sc), 4,
+                             self.main, top=True)
+        elif kind == "grid" and span:
+            zc = span[0] + 0.40 * (span[1] - span[0])
+            for s in (-1, 1):
+                a, b = 0.22 * sc, 0.055 * sc
+                self.hull_sheet(part, s, lambda u, v: (y + a * v * math.cos(2 * math.pi * u), zc + b * v * math.sin(2 * math.pi * u)),
+                                24, 3, 0.0022, "Black", closed=True)
+                self.hull_sheet(part, s, lambda u, v: (y + a * (1.0 + 0.10 * v) * math.cos(math.pi * (0.1 + 0.8 * u)),
+                                                       zc + b * (1.0 + 0.25 * v) * math.sin(math.pi * (0.1 + 0.8 * u))), 12, 1, 0.006,
+                                self.edge)
+            self.louvres(part, 0, lambda u, v: ((u - 0.5) * 0.46 * sc, y + 0.55 * sc + v * 0.28 * sc), 7, self.main, top=True)
+        made = [part.finish(g, bevel=0.0, smooth_angle=30)] if part.bm.faces else []
+        self.export(made, "cooling_" + kind)
+        self.drop(made)
+
+    def cooling_tier(self, leg):
+        site = self.cooling_site()
+        if site is None:
+            return
+        c, y, span, half = site
+        sc = self.scale
+        g = self.group("Module_Cooling_" + ("lg" if leg else "ep"))
+        part = K.Part("Cooling_" + ("Channel" if leg else "Gills"))
+        if not leg:
+            if span:
+                for s in (-1, 1):
+                    self.gills(part, s, y + 0.05 * sc, span[0] + 0.58 * (span[1] - span[0]), 6, 0.22 * sc, 0.075 * sc,
+                               surround="Carbon_Tier", lip="Titanium")
+            for s in (-1, 1):
+                self.naca(part, s * half * 0.40, y - 0.25 * sc, 0.55 * sc, 0.022, 0.12 * sc, lip="Carbon_Tier")
+        else:
+            if span:
+                zc = span[0] + 0.55 * (span[1] - span[0])
+                Lc, hc = 0.85 * sc, 0.045 * sc
+                for s in (-1, 1):
+                    def box(u, v, zc=zc):
+                        return y + (u - 0.5) * Lc, zc + (v - 0.5) * hc + (u - 0.5) * 0.03
+                    self.hull_sheet(part, s, box, 12, 2, 0.0022, "Black")
+                    self.hull_sheet(part, s, lambda u, v: box(0.03 + 0.94 * u, 0.42 + 0.16 * v), 12, 1, 0.0026, "Emit_HotDim")
+                    for k in range(12):                      # fins deep inside the channel
+                        self.hull_sheet(part, s, lambda u, v, k=k: box((k + 0.5) / 12 + (u - 0.5) * 0.006, 0.1 + 0.8 * v), 1, 1,
+                                        0.0034, "Titanium")
+                    self.hull_sheet(part, s, lambda u, v: box(u, 1.0 + v * 0.18), 12, 1, 0.005, self.edge)
+            px, py = 0.40 * sc, 0.26 * sc                    # a perforated titanium outlet on the deck
+            if self.hull_sheet(part, 0, lambda u, v: ((u - 0.5) * px, y + 0.50 * sc + v * py), 4, 4, 0.0018, "Titanium", top=True):
+                for i in range(6):
+                    for j in range(14):
+                        cx, cy = (j + 0.5) / 14, (i + 0.5) / 6
+                        self.hull_sheet(part, 0, lambda u, v, cx=cx, cy=cy: ((cx - 0.5 + (u - 0.5) * 0.035) * px,
+                                                                            y + 0.50 * sc + (cy + (v - 0.5) * 0.09) * py),
+                                        1, 1, 0.0026, "Black", top=True)
+        made = [part.finish(g, bevel=0.0, smooth_angle=30)] if part.bm.faces else []
+        if made:
+            self.export(made, "cooling_lg" if leg else "cooling_ep")
+            self.drop(made)
+
+    def exhaust_tier(self, leg):
+        nozzles = [Vector(v) for n, v in sorted(self.sock.items()) if n.startswith("Socket_Propulsion")]
+        if not nozzles:
+            return
+        r = self.nozzle_r
+        grow = max(1.0, r / 0.15) ** 0.5
+        g = self.group("Module_Exhaust_" + ("lg" if leg else "ep"))
+        part = K.Part("Exhaust_" + ("Aerospike" if leg else "Vector"))
+        for c in nozzles:
+            if not leg:       # flat thrust-vectoring nozzle: upper and lower flaps closing in, side walls, a square mouth
+                W, Hh, y0, y1 = r * 1.18, r * 0.92, c.y - 0.02, c.y + 0.30 * grow
+                for sg in (-1, 1):
+                    self.plate(part, [(c.x - W, y0, c.z + sg * Hh), (c.x + W, y0, c.z + sg * Hh),
+                                      (c.x + 0.96 * W, y1, c.z + sg * 0.78 * Hh), (c.x - 0.96 * W, y1, c.z + sg * 0.78 * Hh)], 0.02, "Titanium")
+                    self.plate(part, [(c.x + sg * W, y0, c.z - Hh), (c.x + sg * W, y0, c.z + Hh),
+                                      (c.x + sg * 0.96 * W, y1 - 0.05, c.z + 0.8 * Hh), (c.x + sg * 0.96 * W, y1 - 0.05, c.z - 0.8 * Hh)],
+                               0.016, "Carbon_Tier")
+                    part.box((c.x, y1 - 0.012, c.z + sg * 0.78 * Hh), (1.92 * W, 0.024, 0.012), "Ceramic_Dark")
+            else:             # aerospike: a ceramic plug on three titanium struts inside a short collar
+                part.lathe((c.x, c.y - 0.04, c.z), (c.x, c.y + 0.08, c.z), [(0, r * 1.10), (1, r * 1.06)], lambda k: "Titanium", 36)
+                part.lathe((c.x, c.y - 0.04, c.z), (c.x, c.y + 0.08, c.z), [(0, r * 1.02), (1, r * 0.99)], lambda k: "Graphite", 36)
+                Lp = 0.42 * grow
+                part.lathe((c.x, c.y - 0.05, c.z), (c.x, c.y + Lp, c.z), [(0, r * 0.62), (0.25, r * 0.58), (0.7, r * 0.34), (1.0, r * 0.10)],
+                           lambda k: "Ceramic_Dark", 32, cap0="Ceramic_Dark", cap1="Titanium")
+                for k in range(3):
+                    a = k * 2 * math.pi / 3 + math.pi / 2
+                    d = Vector((math.cos(a), 0, math.sin(a)))
+                    self.plate(part, [c + d * r * 0.55 + Vector((0, -0.03, 0)), c + d * r * 1.02 + Vector((0, -0.03, 0)),
+                                      c + d * r * 1.0 + Vector((0, 0.07, 0)), c + d * r * 0.50 + Vector((0, 0.10, 0))], 0.014, "Titanium")
+        made = [part.finish(g, bevel=0.001, smooth_angle=40)] if part.bm.faces else []
+        if made:
+            self.export(made, "exhaust_lg" if leg else "exhaust_ep")
+            self.drop(made)
+
     def manifest(self):
         nozzles = [[round(v.x, 4), round(v.y, 4), round(v.z, 4), self.nozzle_r]
                    for n, v in sorted(self.sock.items()) if n.startswith("Socket_Propulsion")]
@@ -931,4 +1316,5 @@ def build_modules(ns, wings, palette, tail="above", scale=1.0, nozzle_r=0.15):
         b.tail_fins(kind)
     for kind in UTILITY_KINDS:
         b.utility(kind)
+    b.tier_pieces()
     b.manifest()

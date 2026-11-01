@@ -105,8 +105,11 @@ namespace
 		{ TEXT("BASTION"), 0.30f, 1, { { 0.0f, 3.33f, 0.66f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } } },
 	};
 	/** The module pieces on the ship mesh (utility inside the nose), in the order of AEXHoverCraft::ModuleMeshes. */
-	const EEXFamily CraftExterior[] = { EEXFamily::Wings, EEXFamily::Tail, EEXFamily::Armor, EEXFamily::Cooling, EEXFamily::Utility };
-	const TCHAR* const CraftExteriorNames[] = { TEXT("ModuleWings"), TEXT("ModuleTail"), TEXT("ModuleArmor"), TEXT("ModuleCooling"), TEXT("ModuleUtility") };
+	// The engine's slot shows only an epic or legendary exhaust collar round the nozzles (Scripts/ship_modules.py).
+	const EEXFamily CraftExterior[] = { EEXFamily::Wings, EEXFamily::Tail, EEXFamily::Armor, EEXFamily::Cooling, EEXFamily::Utility,
+		EEXFamily::Engine };
+	const TCHAR* const CraftExteriorNames[] = { TEXT("ModuleWings"), TEXT("ModuleTail"), TEXT("ModuleArmor"), TEXT("ModuleCooling"),
+		TEXT("ModuleUtility"), TEXT("ModuleExhaust") };
 
 	/** The previous game used vertical FOV; Unreal cameras take horizontal FOV. */
 	float HorizontalFov(float VerticalDeg)
@@ -2063,7 +2066,22 @@ void AEXHoverCraft::RefreshModuleVisuals()
 		{
 			const FEXItem* Item = Fitted(CraftExterior[K]);
 			const EXMeta::FModuleDef* Def = Item ? EXMeta::Find(*Item) : nullptr;
-			Mesh = Def && !Def->Piece.IsEmpty() ? LoadPiece(Ship, Def->Piece) : nullptr;
+			// Epics and legendaries have designs of their own (player, 2026-11-01; Scripts/ship_modules.py section 7):
+			// <family>_ep / <family>_lg (a slotted or a box wing, a V or a T tail, an aero kit or a streamliner, gills or
+			// a flank channel, a vectoring nozzle or an aerospike); the common piece when the variant is not imported.
+			const EEXRarity Rarity = Item ? static_cast<EEXRarity>(Item->Rarity) : EEXRarity::Common;
+			const TCHAR* Tier = Rarity == EEXRarity::Legendary ? TEXT("_lg") : (Rarity == EEXRarity::Epic ? TEXT("_ep") : nullptr);
+			const TCHAR* Family = CraftExterior[K] == EEXFamily::Wings ? TEXT("wing") : CraftExterior[K] == EEXFamily::Tail ? TEXT("tail")
+				: CraftExterior[K] == EEXFamily::Armor ? TEXT("armor") : CraftExterior[K] == EEXFamily::Cooling ? TEXT("cooling")
+				: CraftExterior[K] == EEXFamily::Engine ? TEXT("exhaust") : nullptr;
+			if (Item && Tier && Family)
+			{
+				Mesh = LoadPiece(Ship, FString(Family) + Tier);
+			}
+			if (!Mesh && CraftExterior[K] != EEXFamily::Engine && Def && !Def->Piece.IsEmpty())
+			{
+				Mesh = LoadPiece(Ship, Def->Piece);
+			}
 			if (!Mesh && CraftExterior[K] == EEXFamily::Wings)
 			{
 				Mesh = LoadPiece(Ship, TEXT("wing_stock"));

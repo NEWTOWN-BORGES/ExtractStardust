@@ -262,6 +262,34 @@ Como as cópias do Dragon Ball Legends: cada **cópia de uma nave** dá-lhe **1 
 **Perfil novo:** 3 000 STARDUST, uma STANDARD CACHE no cofre e os consumíveis do jogo antigo (2 Repair Foam,
 1 Fuel Cell, 1 Coolant Cell).
 
+## 8c. Épicos e lendários com design próprio (pedido do jogador, 2026-11-01)
+
+Comuns, incomuns e raros partilham o desenho 3D de cada peça. **Épicos e lendários são peças novas** (não a peça comum
+com enfeites: a primeira tentativa, com dourado e luzes, foi rejeitada como "brega"), na pintura da própria nave e
+inspiradas em aerodinâmica real, reconhecíveis em pista:
+
+| Família | Épico | Lendário |
+| --- | --- | --- |
+| Asas | asa de dois elementos com fenda (plano principal e flap, como nas asas de corrida), placa na ponta | **asa em caixa** de Prandtl: asa de baixo e asa de cima unidas nas pontas por uma barbatana |
+| Cauda | cauda em **V** (borboleta) | cauda em **T**, com estabilizador em flecha e bala de titânio na junção |
+| Blindagem | kit aero: canards nos cantos do nariz, lâmina ao longo de cada flanco, splitter | **streamliner**: carenagens laterais contínuas que seguem além da popa (longtail de Le Mans) |
+| Refrigeração | guelras longas e entradas NACA com contorno em carbono | canal longo no flanco com aletas lá dentro e saída perfurada em titânio |
+| Motor (por fora) | bocal de vetorização plano (retangular) | bocal **aerospike** (cone central em cerâmica) |
+
+- **Ficheiros:** `SourceArt/TestShips/modules/<nave>_<família>_ep.fbx` / `_lg.fbx` (wing, tail, armor, cooling, exhaust),
+  feitos por `ship_modules.py` (secção 7); fotos das cartas `SourceArt/UI/Thumbs/<nave>_<família>_ep/_lg.jpg`
+  (`render_modules.py ... thumbs`, `THUMB_ONLY=_ep,_lg` só estas).
+- **No jogo:** `AEXHoverCraft::RefreshModuleVisuals` monta `<família>_ep/_lg` conforme a raridade do item (a peça comum se
+  a variante faltar); o motor épico/lendário mostra o bocal no slot `ModuleExhaust`. As cartas usam `TierThumb`.
+
+### 8d. Refrigeração dentro da carroçaria (pedido do jogador, 2026-11-01)
+
+Os radiadores quadrados em cima das naves saíram (estragavam as linhas e a aerodinâmica). Todas as peças de refrigeração
+ficam **rentes ao casco**, escuras por dentro, com lábios finos:
+- **Vents** (S): quatro guelras inclinadas em cada flanco;
+- **Radiador** (M): duas entradas **NACA** no deck, atrás do cockpit, com pequenas grelhas de saída;
+- **Grid** (L): uma tomada de ar oval rente em cada flanco e uma grelha de saída no deck de trás.
+
 ## 9. Fim da expedição: perdas e espólio com peças reais
 
 - **Prémio por posição** (Doc 03, secção 3):

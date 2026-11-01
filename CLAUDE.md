@@ -8,6 +8,33 @@ espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde)
 
 O jogador fala português (PT). Responder em português.
 
+## PEDIDOS DE 2026-11-01 (nuvem, por compilar e testar em casa)
+
+- **Checkpoints:** o último era a meta B e não tinha portão: agora há um portão de extração dourado em B. Os pilares
+  de todos os portões ficam na borda real da estrada (antes procuravam o chão a partir de 60 m e podiam ficar em cima
+  de saliências, fora de vista: o penúltimo estava invisível). Cada portão escreve `EXRACE gate ...` no log.
+- **Inspetor da pista:** `Scripts\jogar.ps1 -Modo Inspecao` (`-EXInspect`). A nave corre a pista sozinha e escreve
+  `Saved\Inspect\relatorio.txt` com fotos: presa, fora da pista, embates, quedas, saltos longos, portões tapados ou
+  fora do sítio, fps baixos. Só percorre a linha principal (não os atalhos).
+- **Atalhos em bifurcação** (`sculpt_expedition_ab.py`, `fork_guides`): saem e voltam à estrada em Y (~2° na junção),
+  em vez de curvas de 90°. **Regerar a pista** (passos 2-4 do `casa_tudo.ps1`) para se verem no jogo. O modo `plan`
+  desenha agora também os atalhos.
+- **Setas de nitro (tipo Sonic)** antes de cada salto (`AEXBoostArrows`): encontradas no início da corrida pelo perfil de
+  altura da linha, sem refazer o mapa.
+- **Consumíveis em 3D** (`Scripts/make_consumables.py`): 6 modelos (`SourceArt/Consumables`), fotos nas cartas
+  (`SourceArt/UI/Thumbs/con_<id>.jpg`, passo 3d). **Cofre em grelha** de cartas (caixas, módulos e consumíveis).
+- **Épicos e lendários com design próprio** (`ship_modules.py`, secção 7; o jogador rejeitou peças comuns com dourado e
+  luzes, "brega"). Comum, incomum e raro partilham a peça; o épico e o lendário são peças novas, na pintura da nave,
+  inspiradas em aerodinâmica real: **asa** com fenda de dois elementos / **asa em caixa** (Prandtl); **cauda** em V / em
+  T; **kit** aero (canards, lâmina no flanco, splitter) / **streamliner** (carenagens laterais que continuam além da
+  popa, como os longtail de Le Mans); **escape** de vetorização plano / **aerospike**. Ficheiros
+  `<nave>_<família>_ep/_lg.fbx` (wing, tail, armor, cooling, exhaust); `AEXHoverCraft` monta-os pela raridade e as
+  cartas usam `<nave>_<família>_ep/_lg.jpg`. As naves não mudaram.
+- **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos
+  flancos; radiador = duas entradas NACA no deck com grelhas de saída; grid = tomadas laterais rentes e grelha atrás;
+  épica = guelras longas e NACA com contorno em carbono; lendária = canal longo no flanco com aletas lá dentro e saída
+  perfurada em titânio. Importar com os passos 3c e 3d.
+
 ## FEITO EM CASA A 2026-10-26 (ramo ccr-6888126d-pxbtcg, commits locais; builds `Builds\Naves*`)
 
 - **Câmara e condução de 2026-10-20 repostas** (valores de c79fecb). O jogador rejeitou a câmara de ápice e a
