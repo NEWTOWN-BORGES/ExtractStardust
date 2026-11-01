@@ -10,7 +10,7 @@ import core
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'SourceArt', 'UI', 'Piggy')
 os.makedirs(os.path.join(OUT, 'frames'), exist_ok=True)
-MARGIN, GAP = 6, 8
+MARGIN, GAP = int(round(6 * core.S)), int(round(8 * core.S))
 
 def split_2d(rgba, body, n, P=None):
     """The n pigs of a panel, found by their pink bodies (they never touch, unlike the glows and lines between
@@ -88,6 +88,7 @@ def extract_char(name, align):
     frames = []
     if res:
         pigs, full = res
+        solids = []
         for i, p in enumerate(pigs):
             # the pig itself is opaque paint: its silhouette from the pink skin (the ink-only body can have gaps)
             core.drop_dark_pockets.P = P
@@ -101,14 +102,19 @@ def extract_char(name, align):
                 rgba[ring, 3] = soft[ring] * 255
             ys, xs = np.where(solid)
             p['x0'], p['x1'], p['y1'] = xs.min(), xs.max() + 1, ys.max() + 1
-            c = cut_mask(rgba, full == i)
-            frames.append(dict(c=c, px=(p['x0'] + p['x1']) / 2, feet=p['y1']))
+        # full resolution: the same frames, pivots and feet, scaled
+        rgba4 = core.render_hi(name, rgba)
+        full4 = core.owner_hi(name, full, rgba4)
+        for i, p in enumerate(pigs):
+            c = cut_mask(rgba4, full4 == i)
+            frames.append(dict(c=c, px=(p['x0'] + p['x1']) / 2 * core.S, feet=p['y1'] * core.S))
     else:  # no solid pigs (holograms): even cells, centred on what is strong there
+        rgba4 = core.render_hi(name, rgba)
         b = even_cells(rgba.shape[1], n)
         for i in range(n):
             strong = cut(rgba, b[i], b[i + 1], thr=60)
-            c = cut(rgba, b[i], b[i + 1])
-            frames.append(dict(c=c, px=(strong['bx0'] + strong['bx1']) / 2, feet=strong['by1']))
+            c = cut(rgba4, int(round(b[i] * core.S)), int(round(b[i + 1] * core.S)))
+            frames.append(dict(c=c, px=(strong['bx0'] + strong['bx1']) / 2 * core.S, feet=strong['by1'] * core.S))
     ground = max(f['feet'] for f in frames)
     for f in frames:
         f['dy'] = (ground - f['feet']) if align == 'feet' else 0   # move down so the feet sit on the ground
@@ -193,19 +199,21 @@ def fx_items():
             c = cut_mask(rgba, m)
             if c is None:
                 continue
-            sub = c['img'][c['by0']:c['by1'], c['bx0']:c['bx1']].copy()
-            l2, k2 = ndi.label(sub[..., 3] > 2)
+            mm = m & (rgba[..., 3] > 2)
+            l2, k2 = ndi.label(mm)
             for q in range(1, k2 + 1):
                 mq = l2 == q
-                if (sub[..., :3].max(axis=2)[mq] > 120).sum() < 4:
-                    sub[mq] = 0
-            ys, xs = np.where(sub[..., 3] > 2)
-            if not len(ys):
+                if (rgba[..., :3].max(axis=2)[mq] > 120).sum() < 4:
+                    mm[mq] = False
+            if (rgba[..., :3].max(axis=2)[mm] > 120).sum() < 15:
                 continue
-            sub = sub[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-            if (sub[..., :3].max(axis=2) > 120).sum() < 15:
-                continue
-            items.append(dict(cls=pieces[j][1], img=sub, x=(c['bx0'] + c['bx1']) / 2, y=(c['by0'] + c['by1']) / 2))
+            items.append(dict(cls=pieces[j][1], mask=mm, x=(c['bx0'] + c['bx1']) / 2, y=(c['by0'] + c['by1']) / 2))
+    rgba4 = core.render_hi('ELEMENTS', rgba)
+    h4, w4 = rgba4.shape[:2]
+    for t in items:
+        m4 = core.up(cv2.dilate(t['mask'].astype(np.uint8), np.ones((3, 3), np.uint8)), (w4, h4), nearest=True).astype(bool)
+        c = cut_mask(rgba4, m4)
+        t['img'] = c['img'][c['by0']:c['by1'], c['bx0']:c['bx1']]
     items.sort(key=lambda t: (round(t['y'] / 60), t['x']))
     return items
 
@@ -278,10 +286,11 @@ add('FX_GLOW', imgs, size, piv, 0, False, names=[t['cls'] for t in glows], note=
 # extra: the 4 UI icons
 P, valid = core.panel_valid('ICONS')
 rgba, body = core.matte(P, valid, 'icon')
+rgba4 = core.render_hi('ICONS', rgba)
 b = even_cells(rgba.shape[1], 4)
 icons = []
 for i in range(4):
-    c = cut(rgba, b[i], b[i + 1], thr=40)
+    c = cut(rgba4, int(round(b[i] * core.S)), int(round(b[i + 1] * core.S)), thr=40)
     icons.append(c['img'][c['by0']:c['by1'], c['bx0']:c['bx1']])
 imgs, size, piv = pad_center(icons)
 add('ICONS', imgs, size, piv, 0, False, names=['normal', 'moeda', 'coroa', 'escudo'], note='Extra: ícones de UI do original.')
@@ -291,9 +300,9 @@ FILES = {'IDLE': 'Idle.png', 'BLINK': 'Blink.png', 'RECEIVE_COINS': 'Receive_Coi
          'FX_COINS': 'FX_Coins.png', 'FX_GLOW': 'FX_Glow.png', 'ICONS': 'Icons.png'}
 
 def to_img(a):
-    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), 'RGBA')
+    return Image.fromarray(np.clip(np.round(a), 0, 255).astype(np.uint8), 'RGBA')
 
-meta = {'source': 'reference sheet supplied by the player (1536x1024), cut and keyed, not redrawn',
+meta = {'source': 'reference sheet supplied by the player (%dx%d), cut and keyed, not redrawn' % (core.HI.shape[1], core.HI.shape[0]),
         'master': 'Piggy_Master_Spritesheet.png', 'gap_px': GAP, 'animations': []}
 rows = []
 for A in ANIMS:

@@ -1,24 +1,24 @@
 # Porquinho Mealheiro: sprite sheets 2D
 
-Recortados da folha de referência do jogador (`source/porquinho_referencia.png`), com o fundo removido e **sem
-redesenhar nada**: cada frame é o pixel original, só recortado e com transparência RGBA. Os brilhos ficam
+Recortados da folha de referência do jogador em 4K (`source/porquinho_referencia.png`, 4096 × 2731), com o fundo
+removido e **sem redesenhar nada**: cada frame é o pixel original, só recortado e com transparência RGBA. Os brilhos ficam
 semitransparentes, como luz por cima. Gerados por `Scripts/piggy_sprites/build.py`.
 
 ## Ficheiros
 
 | Ficheiro | Frames | Tamanho do frame | FPS | Loop |
 | --- | --- | --- | --- | --- |
-| `Idle.png` | 6 | 178 × 167 | 8 | sim |
-| `Blink.png` | 4 | 176 × 168 | 10 | sim (de vez em quando, por cima do Idle) |
-| `Receive_Coins.png` | 8 | 194 × 217 | 12 | não |
-| `Reward_Jump.png` | 4 | 288 × 206 | 10 | não |
-| `Celebrate.png` | 6 | 208 × 198 | 12 | sim |
-| `Reaction.png` | 12 | 182 × 204 | estados | não |
-| `Move.png` | 3 | 280 × 167 | 12 | sim |
-| `Teleport.png` | 3 | 158 × 163 | 10 | não |
-| `FX_Coins.png` | 5 | 68 × 69 | peças | – |
-| `FX_Glow.png` | 8 | 197 × 163 | peças | – |
-| `Icons.png` (extra) | 4 | 116 × 163 | peças | – |
+| `Idle.png` | 6 | 478 × 445 | 8 | sim |
+| `Blink.png` | 4 | 470 × 448 | 10 | sim (de vez em quando, por cima do Idle) |
+| `Receive_Coins.png` | 8 | 476 × 579 | 12 | não |
+| `Reward_Jump.png` | 4 | 752 × 549 | 10 | não |
+| `Celebrate.png` | 6 | 544 × 528 | 12 | sim |
+| `Reaction.png` | 12 | 488 × 528 | estados | não |
+| `Move.png` | 3 | 744 × 448 | 12 | sim |
+| `Teleport.png` | 3 | 420 × 435 | 10 | não |
+| `FX_Coins.png` | 5 | 183 × 182 | peças | – |
+| `FX_Glow.png` | 8 | 528 × 435 | peças | – |
+| `Icons.png` (extra) | 4 | 309 × 435 | peças | – |
 
 - `Piggy_Master_Spritesheet.png`: todas as animações, uma por linha, com 8 px transparentes entre frames e linhas.
 - `frames/<Animação>_NN.png`: cada frame solto, já no tamanho da sua animação.
@@ -44,5 +44,7 @@ semitransparentes, como luz por cima. Gerados por `Scripts/piggy_sprites/build.p
   - neutro_sorriso, alegria_olhos_fechados, choque_exclamacoes, choro, zanga_fumo, tonto_espiral, amor_coracoes,
     contente_sonolento.
 - A **placa de recompensa** ("+12,750") não foi exportada, porque tem o número escrito na imagem.
-- **Resolução:** a referência tem 1536 × 1024, por isso o porquinho fica com ~130 px. Com o original em 4K, voltar a
-  correr o script (basta substituir `source/porquinho_referencia.png`) dá frames ~2,7× maiores, com os mesmos cortes.
+- **Resolução:** os frames saem à resolução da folha em 4K (o porquinho tem ~350 px). As decisões de recorte (o que é
+  tinta, brilho ou fundo, e a que frame pertence cada pixel) são tomadas na primeira versão da mesma folha,
+  `source/porquinho_referencia_1536.png`, onde os limiares foram afinados. A cor e a transparência finais vêm sempre
+  dos pixels em 4K.

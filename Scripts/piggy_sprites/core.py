@@ -7,7 +7,17 @@ from scipy import ndimage as ndi
 
 import os
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'SourceArt', 'UI', 'Piggy', 'source', 'porquinho_referencia.png')
-IM = np.array(Image.open(SRC).convert('RGB')).astype(np.float32)
+# The decisions (what is ink, glow, background, which frame) are made at the layout's own scale (1536 wide); the
+# colours and the transparency are then worked out at the reference's full resolution (render_hi).
+# The layout-scale copy is the first version the player sent (1536 x 1024, the same art), on which the thresholds were
+# tuned; without it, the full-resolution sheet is scaled down.
+_SRC = np.array(Image.open(SRC).convert('RGB'))
+HI = _SRC.astype(np.float32)
+S = HI.shape[1] / 1536.0
+_LO = SRC.replace('.png', '_1536.png')
+IM = (np.array(Image.open(_LO).convert('RGB')).astype(np.float32) if os.path.exists(_LO) and S > 1.01 else
+      cv2.resize(_SRC, (1536, int(round(_SRC.shape[0] / S))), interpolation=cv2.INTER_AREA).astype(np.float32)
+      if S > 1.01 else HI)
 
 # panel inner rects (x0, y0, x1, y1, frames, kind); top border y for the tab band
 PANELS = {
@@ -143,6 +153,7 @@ def matte(P, valid, kind):
         dil = cv2.dilate(np.where(body[..., None], P, 0).astype(np.float32), np.ones((3, 3), np.uint8))
         rgb[ring] = dil[ring]
         alpha[ring] = soft[ring]
+    matte.ag = np.where(body, 1.0, ag)
     matte.ink = (strong | weak | maroon) & valid
     matte.lights = lights & valid
     matte.navy = navy
@@ -166,7 +177,9 @@ def pig_solid(pink_seed, region, ink, lights, navy, body):
     s0 = cv2.morphologyEx(s0.astype(np.uint8), cv2.MORPH_CLOSE, ell(5)).astype(bool)
     s0 = ndi.binary_fill_holes(s0)
     near = cv2.dilate(s0.astype(np.uint8), ell(91)).astype(bool) & region
-    cand = ((ink | lights | body) & near) | s0
+    ag = matte.ag
+    # bright light drawn over the pig (a ring round its legs) closes its outline too
+    cand = ((ink | lights | body | (ag > 0.6)) & near) | s0
     lab, n = ndi.label(cand)
     keep = np.unique(lab[s0 & (lab > 0)])
     cand = np.isin(lab, keep) & (lab > 0)           # only what is joined to the pig (a falling coin is not)
@@ -174,6 +187,14 @@ def pig_solid(pink_seed, region, ink, lights, navy, body):
     s1 = cv2.morphologyEx(s1.astype(np.uint8), cv2.MORPH_CLOSE, ell(5)).astype(bool)
     s1 = ndi.binary_fill_holes(s1) & (near | s0)
     s1 = drop_dark_pockets(s1, drop_dark_pockets.P, lights, keep=s0)
+    # what that closes but is only faint glow over the background (inside a ring, between rays) stays light
+    faint = s1 & ~s0 & (ag < 0.5) & ~ink & ~lights
+    lab, n = ndi.label(faint)
+    if n:
+        sizes = ndi.sum(np.ones_like(lab), lab, range(1, n + 1))
+        for i, sz in enumerate(sizes, 1):
+            if sz > 40:
+                s1[lab == i] = False
     # what the outline closes but is plain background (between legs, in a loop) stays out
     lab, n = ndi.label(s1 & ~s0 & navy)
     if n:
@@ -197,3 +218,46 @@ def drop_dark_pockets(mask, P, lights, keep=None):
         if m.sum() > 60 and not (m & near_l).any() and (keep is None or not (m & keep).any()):
             out[cv2.dilate(m.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool) & dark] = False
     return out
+
+
+def hi_rect(name):
+    x0, y0, x1, y1 = PANELS[name][:4]
+    return [int(round(v * S)) for v in (x0, y0, x1, y1)]
+
+def up(a, size, nearest=False):
+    return cv2.resize(a, size, interpolation=cv2.INTER_NEAREST if nearest else cv2.INTER_LINEAR)
+
+def render_hi(name, rgba1):
+    """The panel at full resolution: opaque where the layout-scale result is opaque (edges smoothed), and the glows
+    keyed again from the full-resolution pixels over the background model, only where the layout-scale result kept
+    something."""
+    x0, y0, x1, y1 = PANELS[name][:4]
+    X0, Y0, X1, Y1 = hi_rect(name)
+    P4 = HI[Y0:Y1, X0:X1]
+    h4, w4 = P4.shape[:2]
+    if S <= 1.01:
+        return rgba1.copy()
+    Bg1, _ = background(IM[y0:y1, x0:x1])
+    Bg4 = up(Bg1, (w4, h4))
+    D = P4 - Bg4
+    a = np.clip(np.max(D / np.maximum(255.0 - Bg4, 1.0), axis=2), 0, 1)
+    a[np.linalg.norm(D, axis=2) < 16] = 0
+    g4 = np.clip((a - 0.07) / 0.93, 0, 1)
+    F4 = np.clip(Bg4 + D / np.maximum(a, 1e-3)[..., None], 0, 255)
+    A1 = rgba1[..., 3] / 255.0
+    op4 = np.clip((up((A1 >= 0.999).astype(np.float32), (w4, h4)) - 0.35) / 0.3, 0, 1)
+    g4 *= (up((A1 > 0.004).astype(np.float32), (w4, h4)) > 0.5).astype(np.float32)
+    alpha = op4 + (1 - op4) * g4
+    prem = op4[..., None] * P4 + ((1 - op4) * g4)[..., None] * F4
+    rgb = prem / np.maximum(alpha, 1e-4)[..., None]
+    return np.dstack([rgb, alpha * 255]).astype(np.float32)
+
+def owner_hi(name, full1, rgba4):
+    """The frame each full-resolution pixel belongs to (the layout-scale map, filled out to the new soft edges)."""
+    h4, w4 = rgba4.shape[:2]
+    f = up((full1 + 1).astype(np.float32), (w4, h4), nearest=True).astype(np.int32) - 1
+    vis = rgba4[..., 3] > 0
+    if (f >= 0).any():
+        _, (iy, ix) = ndi.distance_transform_edt(f < 0, return_indices=True)
+        f = np.where(vis, f[iy, ix], -1)
+    return f
