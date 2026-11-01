@@ -48,3 +48,8 @@ semitransparentes, como luz por cima. Gerados por `Scripts/piggy_sprites/build.p
   tinta, brilho ou fundo, e a que frame pertence cada pixel) são tomadas na primeira versão da mesma folha,
   `source/porquinho_referencia_1536.png`, onde os limiares foram afinados. A cor e a transparência finais vêm sempre
   dos pixels em 4K.
+
+## Versão HD 2×
+
+A pasta `HD2x/` tem só as folhas por animação, ao dobro do tamanho, feitas com ampliação por IA (Real-ESRGAN anime).
+Servem para promoção; no jogo usam-se as desta pasta. Ver `HD2x/README.md`.

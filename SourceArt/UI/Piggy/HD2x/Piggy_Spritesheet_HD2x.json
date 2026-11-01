@@ -1,0 +1,653 @@
+{
+ "source": "reference sheet supplied by the player (4096x2731), cut and keyed, not redrawn; HD 2x by AI upscaling (Real-ESRGAN realesr-animevideov3, x4 then area x0.5)",
+ "scale_from_native": 2,
+ "gap_px": 42,
+ "animations": [
+  {
+   "name": "IDLE",
+   "file": "Idle.png",
+   "frames": 6,
+   "frame_width": 956,
+   "frame_height": 890,
+   "fps": 8,
+   "loop": true,
+   "pivot_px": [
+    478,
+    812
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9124
+   ],
+   "frame_names": null,
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     956,
+     890
+    ],
+    [
+     998,
+     0,
+     956,
+     890
+    ],
+    [
+     1996,
+     0,
+     956,
+     890
+    ],
+    [
+     2994,
+     0,
+     956,
+     890
+    ],
+    [
+     3992,
+     0,
+     956,
+     890
+    ],
+    [
+     4990,
+     0,
+     956,
+     890
+    ]
+   ],
+   "note": null
+  },
+  {
+   "name": "BLINK",
+   "file": "Blink.png",
+   "frames": 4,
+   "frame_width": 940,
+   "frame_height": 896,
+   "fps": 10,
+   "loop": true,
+   "pivot_px": [
+    470,
+    822
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9174
+   ],
+   "frame_names": null,
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     940,
+     896
+    ],
+    [
+     982,
+     0,
+     940,
+     896
+    ],
+    [
+     1964,
+     0,
+     940,
+     896
+    ],
+    [
+     2946,
+     0,
+     940,
+     896
+    ]
+   ],
+   "note": "Tocar de vez em quando por cima do IDLE."
+  },
+  {
+   "name": "RECEIVE_COINS",
+   "file": "Receive_Coins.png",
+   "frames": 8,
+   "frame_width": 952,
+   "frame_height": 1158,
+   "fps": 12,
+   "loop": false,
+   "pivot_px": [
+    476,
+    1068
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9223
+   ],
+   "frame_names": null,
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     952,
+     1158
+    ],
+    [
+     994,
+     0,
+     952,
+     1158
+    ],
+    [
+     1988,
+     0,
+     952,
+     1158
+    ],
+    [
+     2982,
+     0,
+     952,
+     1158
+    ],
+    [
+     3976,
+     0,
+     952,
+     1158
+    ],
+    [
+     4970,
+     0,
+     952,
+     1158
+    ],
+    [
+     5964,
+     0,
+     952,
+     1158
+    ],
+    [
+     6958,
+     0,
+     952,
+     1158
+    ]
+   ],
+   "note": null
+  },
+  {
+   "name": "REWARD_JUMP",
+   "file": "Reward_Jump.png",
+   "frames": 4,
+   "frame_width": 1504,
+   "frame_height": 1098,
+   "fps": 10,
+   "loop": false,
+   "pivot_px": [
+    752,
+    1056
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9617
+   ],
+   "frame_names": null,
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     1504,
+     1098
+    ],
+    [
+     1546,
+     0,
+     1504,
+     1098
+    ],
+    [
+     3092,
+     0,
+     1504,
+     1098
+    ],
+    [
+     4638,
+     0,
+     1504,
+     1098
+    ]
+   ],
+   "note": "Falta um frame de descida: o 3.º é o ápice e o 4.º já é a aterragem (não foi desenhado)."
+  },
+  {
+   "name": "CELEBRATE",
+   "file": "Celebrate.png",
+   "frames": 6,
+   "frame_width": 1088,
+   "frame_height": 1056,
+   "fps": 12,
+   "loop": true,
+   "pivot_px": [
+    544,
+    992
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9394
+   ],
+   "frame_names": null,
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     1088,
+     1056
+    ],
+    [
+     1130,
+     0,
+     1088,
+     1056
+    ],
+    [
+     2260,
+     0,
+     1088,
+     1056
+    ],
+    [
+     3390,
+     0,
+     1088,
+     1056
+    ],
+    [
+     4520,
+     0,
+     1088,
+     1056
+    ],
+    [
+     5650,
+     0,
+     1088,
+     1056
+    ]
+   ],
+   "note": null
+  },
+  {
+   "name": "REACTION",
+   "file": "Reaction.png",
+   "frames": 12,
+   "frame_width": 976,
+   "frame_height": 1056,
+   "fps": 0,
+   "loop": false,
+   "pivot_px": [
+    488,
+    998
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9451
+   ],
+   "frame_names": [
+    "surpresa_exclamacao",
+    "duvida_interrogacao",
+    "alerta_aviso",
+    "sono_zz",
+    "neutro_sorriso",
+    "alegria_olhos_fechados",
+    "choque_exclamacoes",
+    "choro",
+    "zanga_fumo",
+    "tonto_espiral",
+    "amor_coracoes",
+    "contente_sonolento"
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     976,
+     1056
+    ],
+    [
+     1018,
+     0,
+     976,
+     1056
+    ],
+    [
+     2036,
+     0,
+     976,
+     1056
+    ],
+    [
+     3054,
+     0,
+     976,
+     1056
+    ],
+    [
+     4072,
+     0,
+     976,
+     1056
+    ],
+    [
+     5090,
+     0,
+     976,
+     1056
+    ],
+    [
+     6108,
+     0,
+     976,
+     1056
+    ],
+    [
+     7126,
+     0,
+     976,
+     1056
+    ],
+    [
+     8144,
+     0,
+     976,
+     1056
+    ],
+    [
+     9162,
+     0,
+     976,
+     1056
+    ],
+    [
+     10180,
+     0,
+     976,
+     1056
+    ],
+    [
+     11198,
+     0,
+     976,
+     1056
+    ]
+   ],
+   "note": "Estados (um frame cada), não uma sequência: escolher o frame pelo nome."
+  },
+  {
+   "name": "MOVE",
+   "file": "Move.png",
+   "frames": 3,
+   "frame_width": 1488,
+   "frame_height": 896,
+   "fps": 12,
+   "loop": true,
+   "pivot_px": [
+    744,
+    816
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9107
+   ],
+   "frame_names": null,
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     1488,
+     896
+    ],
+    [
+     1530,
+     0,
+     1488,
+     896
+    ],
+    [
+     3060,
+     0,
+     1488,
+     896
+    ]
+   ],
+   "note": "Só 3 frames no original: ciclo curto."
+  },
+  {
+   "name": "TELEPORT",
+   "file": "Teleport.png",
+   "frames": 3,
+   "frame_width": 840,
+   "frame_height": 870,
+   "fps": 10,
+   "loop": false,
+   "pivot_px": [
+    420,
+    838
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9632
+   ],
+   "frame_names": [
+    "entrada_feixe",
+    "materializado",
+    "saida_feixe"
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     840,
+     870
+    ],
+    [
+     882,
+     0,
+     840,
+     870
+    ],
+    [
+     1764,
+     0,
+     840,
+     870
+    ]
+   ],
+   "note": "Só 3 frames no original: não há frame de desaparecimento completo nem de reaparecimento separado; para a saída tocar ao contrário."
+  },
+  {
+   "name": "FX_COINS",
+   "file": "FX_Coins.png",
+   "frames": 5,
+   "frame_width": 366,
+   "frame_height": 364,
+   "fps": 0,
+   "loop": false,
+   "pivot_px": [
+    182,
+    182
+   ],
+   "pivot_norm": [
+    0.4973,
+    0.5
+   ],
+   "frame_names": [
+    "coin",
+    "coin_sparkle",
+    "coin",
+    "coin",
+    "coin_sparkle"
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     366,
+     364
+    ],
+    [
+     408,
+     0,
+     366,
+     364
+    ],
+    [
+     816,
+     0,
+     366,
+     364
+    ],
+    [
+     1224,
+     0,
+     366,
+     364
+    ],
+    [
+     1632,
+     0,
+     366,
+     364
+    ]
+   ],
+   "note": "Peças soltas para partículas."
+  },
+  {
+   "name": "FX_GLOW",
+   "file": "FX_Glow.png",
+   "frames": 8,
+   "frame_width": 1056,
+   "frame_height": 870,
+   "fps": 0,
+   "loop": false,
+   "pivot_px": [
+    528,
+    434
+   ],
+   "pivot_norm": [
+    0.5,
+    0.4989
+   ],
+   "frame_names": [
+    "energy_pad",
+    "star",
+    "star",
+    "energy_pad",
+    "star",
+    "star",
+    "star",
+    "energy_ring"
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     1056,
+     870
+    ],
+    [
+     1098,
+     0,
+     1056,
+     870
+    ],
+    [
+     2196,
+     0,
+     1056,
+     870
+    ],
+    [
+     3294,
+     0,
+     1056,
+     870
+    ],
+    [
+     4392,
+     0,
+     1056,
+     870
+    ],
+    [
+     5490,
+     0,
+     1056,
+     870
+    ],
+    [
+     6588,
+     0,
+     1056,
+     870
+    ],
+    [
+     7686,
+     0,
+     1056,
+     870
+    ]
+   ],
+   "note": "Peças soltas para efeitos."
+  },
+  {
+   "name": "ICONS",
+   "file": "Icons.png",
+   "frames": 4,
+   "frame_width": 618,
+   "frame_height": 870,
+   "fps": 0,
+   "loop": false,
+   "pivot_px": [
+    308,
+    434
+   ],
+   "pivot_norm": [
+    0.4984,
+    0.4989
+   ],
+   "frame_names": [
+    "normal",
+    "moeda",
+    "coroa",
+    "escudo"
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     618,
+     870
+    ],
+    [
+     660,
+     0,
+     618,
+     870
+    ],
+    [
+     1320,
+     0,
+     618,
+     870
+    ],
+    [
+     1980,
+     0,
+     618,
+     870
+    ]
+   ],
+   "note": "Extra: ícones de UI do original."
+  }
+ ]
+}
