@@ -268,14 +268,15 @@ Comuns, incomuns e raros partilham o desenho 3D de cada peça. **Épicos e lend�
 suas**, feitas a partir da estrutura dela ("cada nave tem de ter o seu próprio módulo épico e lendário conforme a sua
 estrutura, para ser mais exclusivo e adaptado a cada chassi"). Ficam na pintura da própria nave e inspiram-se em
 aerodinâmica real, sem enfeites: a primeira tentativa, peças comuns com dourado e luzes, foi rejeitada como "brega".
-A segunda usava o mesmo desenho em todas as naves e também foi posta de parte. Reconhecem-se em pista.
+A segunda usava o mesmo desenho em todas as naves e também foi posta de parte: esse primeiro conjunto ficou só para a
+VORTEX, onde foi desenhado ("só pedi que variassem as outras"). Reconhecem-se em pista.
 Cada célula da tabela diz **épico / lendário**.
 
 | Nave (chassi) | Asas | Cauda | Blindagem (kit) | Refrigeração |
 | --- | --- | --- | --- | --- |
-| **VORTEX**: dardo em delta, motor na cauda | delta com quebra e pontas dobradas / asa ogival com pontas caídas | duas barbatanas no cone da cauda / barbatana dorsal alta com strake | kit aero / quinas vivas e nariz em lança | guelras longas / canal no flanco com aletas |
+| **VORTEX**: dardo em delta, motor na cauda (fica com o primeiro conjunto, desenhado nela) | asa de dois elementos com fenda e placa na ponta / **asa em caixa** (Prandtl) | cauda em V / cauda em T com bala de titânio | kit aero (canards, lâmina no flanco, splitter) / **streamliner** (longtail de Le Mans) | guelras longas e NACA com contorno em carbono / canal no flanco com aletas e saída perfurada |
 | **BASTION**: cápsula numa asa plana, motor colossal | asa em laje com slat / **asa em caixa** (Prandtl) | duas barbatanas por fora / três barbatanas | escudos laterais / saias de carapaça e aríete | NACA grandes / leque de grelhas curvas |
-| **STRIX**: agulha com delta a descer e dois motores empilhados | asa de gaivota invertida / asa em flecha invertida com extensões na raiz | barbatanas em V / T invertido | quinas e canards / manga na agulha e carenagens | guelras na carenagem do motor / três NACA |
+| **STRIX**: agulha com delta a descer e dois motores empilhados (refeita a 2026-11-01) | delta dupla com quebra / asa ogival tipo Concorde | estabilizadores horizontais em flecha / estabilizadores em anédrico (F-4) | LERX (lâminas da raiz da asa até ao cockpit) / LERX com manga na agulha e carenagens | painel de grelhas no deck / três NACA |
 | **WRAITH**: forquilha com o cockpit entre as pontas, três motores | asa em cimitarra / asas em tandem | duas barbatanas nos cantos / cauda em H | lâminas nas pontas da forquilha / ponte entre as pontas | guelras por dentro da forquilha / canais ao longo das pontas |
 | **NOMAD**: nave de carga com cápsulas nos braços | asa longa com sharklets / asa em flecha com cápsulas nas pontas | barbatanas nas cápsulas / cauda em Y | cones no nariz das cápsulas / cones e caudas de barco | tomadas nas cápsulas / cápsulas perfuradas |
 
