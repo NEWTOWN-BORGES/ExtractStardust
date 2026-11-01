@@ -6,9 +6,11 @@
 #                                                                             Saved\Logs tem as linhas EXRACE)
 #   powershell -ExecutionPolicy Bypass -File Scripts\jogar.ps1 -Modo Inspecao   (a nave corre a pista toda sozinha e
 #                                                    escreve os problemas e fotos em Saved\Inspect\relatorio.txt)
+#   powershell -ExecutionPolicy Bypass -File Scripts\jogar.ps1 -Modo Sandbox   (a sandbox da fisica: saltos, lombas,
+#       queda de 14 m, costelas e 7 bots para chocar; linhas EXPHYS no log; Docs/FISICA.md)
 #   -Modo Livre: voo livre, sem vidas nem corrida. Sem -Modo: o menu do jogo (Solo / Bots / Livre / Hangar).
 param(
-    [ValidateSet("Menu", "Solo", "Bots", "Teste", "Inspecao", "Livre", "Hangar")][string]$Modo = "Menu",
+    [ValidateSet("Menu", "Solo", "Bots", "Teste", "Inspecao", "Livre", "Hangar", "Sandbox")][string]$Modo = "Menu",
     [string]$UE = "C:\Program Files\Epic Games\UE_5.8"
 )
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -22,5 +24,6 @@ switch ($Modo) {
     "Inspecao" { $Arguments += @("-EXMode=Solo", "-EXInspect") }   # a nave corre a pista sozinha; relatorio em Saved\Inspect\relatorio.txt
     "Livre" { $Arguments += "-EXNoMenu" }
     "Hangar" { $Arguments += "-EXMode=Hangar" }
+    "Sandbox" { $Arguments += @("-EXSandbox", "-EXNoMenu") }   # a fisica: rampas, lombas, queda, costelas e bots para chocar (Docs/FISICA.md)
 }
 & $Editor @Arguments

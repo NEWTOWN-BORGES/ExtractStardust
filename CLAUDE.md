@@ -21,6 +21,19 @@ O jogador fala português (PT). Responder em português.
 
 ## PEDIDOS DE 2026-11-01 (nuvem, por compilar e testar em casa)
 
+- **Física nova** (`Docs/FISICA.md`; o jogador pediu e autorizou mexer na física e na câmara).
+  - **Subir, descer e quedas:** quatro almofadas que só empurram. A gravidade conta inteira, a nave tem inércia de
+    inclinação e no ar o nariz segue a trajetória. As aterragens comprimem e perdem velocidade.
+  - **Câmara:** segue a altura da nave com atraso (saltos e quedas) e leva um empurrão nos choques. Fora disso é a de
+    2026-10-20.
+  - **Choques tipo Burnout:** a quantidade de movimento reparte-se pelas massas. Raspar trava e tira casco. A pancada
+    fora do centro faz rodar, e uma pancada grande tira aderência e direção. O dano conta pela velocidade que a pancada
+    muda.
+  - **Mantém-se:** a viragem, a aderência e o drift não mudaram, e os saltos da pista dão a mesma distância.
+  - **Estudado** numa sandbox numérica (`Scripts/physics_sandbox`, gráficos `Docs/FISICA_*.png`).
+  - **Em casa:** `Scripts\jogar.ps1 -Modo Sandbox` (rampas, mesa, lombas, queda de 14 m, costelas e 7 bots, com linhas
+    `EXPHYS` no log). Afinar pela tabela da secção 5.
+
 - **Checkpoints:** o último era a meta B e não tinha portão: agora há um portão de extração dourado em B. Os pilares
   de todos os portões ficam na borda real da estrada (antes procuravam o chão a partir de 60 m e podiam ficar em cima
   de saliências, fora de vista: o penúltimo estava invisível). Cada portão escreve `EXRACE gate ...` no log.

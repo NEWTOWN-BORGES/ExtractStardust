@@ -1,5 +1,6 @@
 #include "EXGameMode.h"
 
+#include "Arena/EXPhysicsSandbox.h"
 #include "Arena/EXTestArena.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -82,7 +83,14 @@ void AEXGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 	FString ModeName = UGameplayStatics::ParseOption(Options, TEXT("Mode"));
 	FParse::Value(FCommandLine::Get(), TEXT("EXMode="), ModeName);
 	const TCHAR* Line = FCommandLine::Get();
-	const bool bAutomated = FParse::Param(Line, TEXT("EXFlightTest")) || FParse::Param(Line, TEXT("EXTour"))
+	// The physics sandbox (Scripts\jogar.ps1 -Modo Sandbox): its own loop of ramps, crests, drops and a pack of bots,
+	// built high above whatever map is open; no race, no menu (Docs/FISICA.md).
+	const bool bSandbox = FParse::Param(Line, TEXT("EXSandbox"));
+	if (bSandbox)
+	{
+		World->SpawnActor<AEXPhysicsSandbox>(AEXPhysicsSandbox::Origin(), FRotator::ZeroRotator, Params);
+	}
+	const bool bAutomated = bSandbox || FParse::Param(Line, TEXT("EXFlightTest")) || FParse::Param(Line, TEXT("EXTour"))
 		|| FParse::Param(Line, TEXT("EXNoMenu")) || FCString::Strifind(Line, TEXT("EXLook=")) != nullptr;
 	if (ModeName.IsEmpty() && !bAutomated)
 	{
