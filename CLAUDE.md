@@ -29,7 +29,8 @@ O jogador fala português (PT). Responder em português.
   a WRAITH tem asas em tandem e ponte entre as pontas da forquilha, a NOMAD tem cápsulas nas pontas das asas e câmaras de
   plasma nas cápsulas. Comum, incomum e raro partilham a peça. **Motor:** por fora muda só a chama. O épico é mais
   quente. O lendário tem plasma na cor da nave (`EXMeta::Flame(Engine, Nave)`: VORTEX carmim, BASTION ouro, STRIX azul,
-  WRAITH esmeralda, NOMAD violeta). Por dentro, no raio-X, cada nave tem o seu interior. Ficheiros
+  WRAITH esmeralda, NOMAD violeta). Por dentro (raio-X), nada sai da carroçaria: o épico tem refrigeração regenerativa com tubos de cobre, coletores, cabos e
+  néon ciano; o lendário tem tubos em hélice e néon na cor da nave; há ligações conforme o chassi (STRIX e WRAITH). Ficheiros
   `<nave>_<família>_ep/_lg.fbx` (wing, tail, armor, cooling, engine) e cartas `<nave>_<família>_ep/_lg.jpg`.
   `AEXHoverCraft` monta-os pela raridade; o do motor só aparece no raio-X. As naves não mudaram.
 - **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos

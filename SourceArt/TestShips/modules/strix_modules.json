@@ -20,7 +20,17 @@
   "tail_keel",
   "utility_mast",
   "utility_dome",
-  "utility_drone"
+  "utility_drone",
+  "wing_ep",
+  "tail_ep",
+  "armor_ep",
+  "cooling_ep",
+  "engine_ep",
+  "wing_lg",
+  "tail_lg",
+  "armor_lg",
+  "cooling_lg",
+  "engine_lg"
  ],
  "wings": [
   "blade",
@@ -44,8 +54,8 @@
  ],
  "utility_bay": [
   0.0,
-  -1.44,
-  0.469,
+  -1.08,
+  0.462,
   0.21,
   0.3,
   0.11

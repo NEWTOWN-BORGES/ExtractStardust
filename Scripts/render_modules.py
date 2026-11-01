@@ -4,6 +4,7 @@
 # Usage: python3 Scripts/render_modules.py <modules_dir> <ship> <out_dir> [shot ...]
 #   shots: stock, wings, armor, cooling, tail, utility, skeleton, flames, build (default: all); and close looks at
 #   the body kits: armorclose (the nose), armorside (from the side), armorrear (the tail, from behind and below);
+#   enginecheck: the epic and legendary engines with the bodywork on (nothing of them may show);
 #   thumbs: the hangar's card photos (Scripts/import_ui_icons.py brings them into Unreal): the ship with each module
 #   fitted, 496 x 316 JPG, named <ship>_<key>.jpg (see THUMBS below)
 import json
@@ -297,6 +298,12 @@ if "armorrear" in SHOTS:                     # close: the skirt's back end and t
         show(["core", "wing_stock", "armor_" + k])
         shot("armorrear_" + k, yaw_deg=25, pitch_deg=4, dist=3.8, target=(0, 0.9, 0.75), ship_yaw=0)
         shot("armorunder_" + k, yaw_deg=60, pitch_deg=-5, dist=4.2, target=(0, 1.8, 0.75), ship_yaw=0)
+if "enginecheck" in SHOTS:                   # the epic / legendary engine dressing with the bodywork on: none of it
+    for t in ("_ep", "_lg"):                 # may show (it lives inside, for the x-ray view)
+        if show(["core", "wing_stock", "engine" + t]):
+            sc.cycles.samples, sc.render.resolution_percentage = 12, 50
+            for i, (yaw, pitch) in enumerate(((90, 12), (135, 25), (45, -6), (180, 8))):
+                shot("enginecheck%s_%d" % (t, i), yaw_deg=yaw, pitch_deg=pitch, dist=5.6, target=(0, 1.4, 0.9), ship_yaw=0)
 if "cooling" in SHOTS:
     for k in ("vents", "radiator", "grid"):
         show(["core", "wing_stock", "cooling_" + k])

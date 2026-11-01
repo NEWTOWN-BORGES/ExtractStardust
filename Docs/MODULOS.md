@@ -271,20 +271,30 @@ aerodinâmica real, sem enfeites: a primeira tentativa, peças comuns com dourad
 A segunda usava o mesmo desenho em todas as naves e também foi posta de parte. Reconhecem-se em pista.
 Cada célula da tabela diz **épico / lendário**.
 
-| Nave (chassi) | Asas | Cauda | Blindagem (kit) | Refrigeração | Motor (raio-X) |
-| --- | --- | --- | --- | --- | --- |
-| **VORTEX**: dardo em delta, motor na cauda | delta com quebra e pontas dobradas / asa ogival com pontas caídas | duas barbatanas no cone da cauda / barbatana dorsal alta com strake | kit aero / quinas vivas e nariz em lança | guelras longas / canal no flanco com aletas | bobinas de confinamento / toro de plasma |
-| **BASTION**: cápsula numa asa plana, motor colossal | asa em laje com slat / **asa em caixa** (Prandtl) | duas barbatanas por fora / três barbatanas | escudos laterais / saias de carapaça e aríete | NACA grandes / leque de grelhas curvas | quadros aceleradores retangulares / pilha de anéis magnéticos |
-| **STRIX**: agulha com delta a descer e dois motores empilhados | asa de gaivota invertida / asa em flecha invertida com extensões na raiz | barbatanas em V / T invertido | quinas e canards / manga na agulha e carenagens | guelras na carenagem do motor / três NACA | bobinas nos dois motores / um anel à volta dos dois |
-| **WRAITH**: forquilha com o cockpit entre as pontas, três motores | asa em cimitarra / asas em tandem | duas barbatanas nos cantos / cauda em H | lâminas nas pontas da forquilha / ponte entre as pontas | guelras por dentro da forquilha / canais ao longo das pontas | coletor de injetores / barramento de plasma |
-| **NOMAD**: nave de carga com cápsulas nos braços | asa longa com sharklets / asa em flecha com cápsulas nas pontas | barbatanas nas cápsulas / cauda em Y | cones no nariz das cápsulas / cones e caudas de barco | tomadas nas cápsulas / cápsulas perfuradas | bobinas nas cápsulas / câmaras de plasma nas cápsulas |
+| Nave (chassi) | Asas | Cauda | Blindagem (kit) | Refrigeração |
+| --- | --- | --- | --- | --- |
+| **VORTEX**: dardo em delta, motor na cauda | delta com quebra e pontas dobradas / asa ogival com pontas caídas | duas barbatanas no cone da cauda / barbatana dorsal alta com strake | kit aero / quinas vivas e nariz em lança | guelras longas / canal no flanco com aletas |
+| **BASTION**: cápsula numa asa plana, motor colossal | asa em laje com slat / **asa em caixa** (Prandtl) | duas barbatanas por fora / três barbatanas | escudos laterais / saias de carapaça e aríete | NACA grandes / leque de grelhas curvas |
+| **STRIX**: agulha com delta a descer e dois motores empilhados | asa de gaivota invertida / asa em flecha invertida com extensões na raiz | barbatanas em V / T invertido | quinas e canards / manga na agulha e carenagens | guelras na carenagem do motor / três NACA |
+| **WRAITH**: forquilha com o cockpit entre as pontas, três motores | asa em cimitarra / asas em tandem | duas barbatanas nos cantos / cauda em H | lâminas nas pontas da forquilha / ponte entre as pontas | guelras por dentro da forquilha / canais ao longo das pontas |
+| **NOMAD**: nave de carga com cápsulas nos braços | asa longa com sharklets / asa em flecha com cápsulas nas pontas | barbatanas nas cápsulas / cauda em Y | cones no nariz das cápsulas / cones e caudas de barco | tomadas nas cápsulas / cápsulas perfuradas |
 
 - **Motor:** por fora muda só a chama. O épico arde mais quente: núcleo mais branco e jato mais longo, com diamantes de
   choque e faíscas. O lendário deita um plasma próprio na cor da nave: núcleo branco, longo e estreito, com cinco
   diamantes. As cores são VORTEX carmim, BASTION ouro fundido, STRIX azul elétrico, WRAITH esmeralda e NOMAD violeta
-  (`EXMeta::Flame(Engine, Nave)`). Por dentro só se vê no raio-X.
+  (`EXMeta::Flame(Engine, Nave)`).
+- **Interior do motor (só no raio-X):** detalhado e sem extravagâncias (pedido do jogador: "cabos, tubos, regeneração,
+  alguns cabos néon"). Nada sai da carroçaria: cada peça fica presa à distância entre o motor e a carroçaria
+  (`engine_shape`/`spot`), e o `render_modules.py ... enginecheck` confirma-o com a nave fechada.
+  - **Épico:** camisa de **arrefecimento regenerativo** com tubos de cobre ao longo da câmara e do bocal, como nos
+    motores de foguete, entre dois coletores de titânio. Leva também linhas de refrigerante por baixo, dois cabos
+    entrançados com abraçadeiras e dois cabos néon ciano.
+  - **Lendário:** camisa em **três hélices** de cobre, parafusos no coletor do injetor e quatro cabos néon na cor da nave,
+    num quarto de volta.
+  - **Ligações, conforme o chassi:** tubos cruzados entre os dois motores empilhados da STRIX e coletor entre os três da
+    WRAITH. A NOMAD não tem ligações (as cápsulas estão nos braços); a VORTEX e a BASTION têm um motor só.
 - **Ficheiros:** `SourceArt/TestShips/modules/<nave>_<família>_ep.fbx` / `_lg.fbx` (wing, tail, armor, cooling, engine),
-  feitos por `ship_modules.py` (`TIER_DESIGNS`, uma função por desenho: `w_*`, `t_*`, `a_*`, `c_*`, `e_*`). As fotos das
+  feitos por `ship_modules.py` (`TIER_DESIGNS`, uma função por desenho: `w_*`, `t_*`, `a_*`, `c_*`; motores em `engine_tier`). As fotos das
   cartas são `SourceArt/UI/Thumbs/<nave>_<família>_ep/_lg.jpg`, feitas com `render_modules.py ... thumbs`
   (`THUMB_ONLY=_ep,_lg` faz só estas).
 - **No jogo:** `AEXHoverCraft::RefreshModuleVisuals` monta `<família>_ep/_lg` conforme a raridade do item. Se a variante
