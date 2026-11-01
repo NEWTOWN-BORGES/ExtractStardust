@@ -61,12 +61,17 @@ void UEXMainMenuWidget::BuildTree()
 
 	// Top: the expedition and the wallet.
 	UHorizontalBox* Top = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	EXUi::AddH(Top, EXUi::Text(Tree, TEXT("EXPEDI\u00C7\u00C3O 01  \u00B7  RED DUST DIVIDE"), 11, EXUi::Rust(), true, 220));
+	EXUi::AddH(Top, EXUi::LabelText(Tree, TEXT("EXPEDI\u00C7\u00C3O 01  \u00B7  RED DUST DIVIDE"), 11, EXUi::AccentHot(), 220));
 	EXUi::AddH(Top, EXUi::Sized(Tree, 1.0f, 1.0f), FMargin(0.0f), true);
-	EXUi::AddH(Top, EXUi::GemImage(Tree, 16.0f), FMargin(0.0f, 0.0f, 12.0f, 0.0f));
-	WalletText = EXUi::WeightText(Tree, TEXT("0"), 16, EXUi::Bone(), 800);
-	EXUi::AddH(Top, WalletText, FMargin(0.0f, 0.0f, 10.0f, 0.0f));
-	EXUi::AddH(Top, EXUi::Text(Tree, TEXT("STARDUST"), 11, EXUi::Sand(), true, 200));
+	// The wallet as the hangar's: the coin and the STARDUST in gold on a plate with a gold edge (the HUD's spoils).
+	UHorizontalBox* Wallet = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	EXUi::AddH(Wallet, EXUi::GemImage(Tree, 18.0f), FMargin(0.0f, 0.0f, 10.0f, 0.0f));
+	WalletText = EXUi::TitleText(Tree, TEXT("0"), 20, EXUi::Gold(), 40);
+	EXUi::AddH(Wallet, WalletText, FMargin(0.0f, 0.0f, 12.0f, 0.0f));
+	EXUi::AddH(Wallet, EXUi::LabelText(Tree, TEXT("STARDUST"), 10, EXUi::Quiet(), 200));
+	const EXUi::FFrame Purse = EXUi::Frame(Tree, EXUi::Gold(0.85f), EXUi::Plate(0.8f), 1.0f, FMargin(18.0f, 6.0f, 22.0f, 6.0f), -1.0f, 10.0f);
+	Purse.Fill->SetContent(Wallet);
+	EXUi::AddH(Top, Purse.Root);
 	EXUi::AddO(Root, EXUi::Sized(Tree, 0.0f, 77.0f, Top), HAlign_Fill, VAlign_Top, FMargin(58.0f, 0.0f, 58.0f, 0.0f));
 
 	// Left: the logo and the four lines.
@@ -79,12 +84,12 @@ void UEXMainMenuWidget::BuildTree()
 	}
 	else
 	{
-		EXUi::AddV(Left, EXUi::TitleText(Tree, TEXT("EXTRACT"), 20, EXUi::Bone(), 620), FMargin(0.0f, 19.0f, 0.0f, 0.0f));
+		EXUi::AddV(Left, EXUi::TitleText(Tree, TEXT("EXTRACT"), 20, EXUi::Fore(), 620), FMargin(0.0f, 19.0f, 0.0f, 0.0f));
 		UTextBlock* Logo = EXUi::TitleText(Tree, TEXT("STARDUST"), 68, EXUi::Hex(243, 154, 76), 60);
 		Logo->SetShadowOffset(FVector2D(0.0f, 3.0f));
 		Logo->SetShadowColorAndOpacity(EXUi::Hex(120, 30, 6, 0.85f));
 		EXUi::AddV(Left, Logo, FMargin(0.0f, -4.0f, 0.0f, 0.0f));
-		EXUi::AddV(Left, EXUi::TitleText(Tree, TEXT("RACE  \u00B7  SURVIVE  \u00B7  EXTRACT"), 13, EXUi::Rust(), 420), FMargin(0.0f, 6.0f, 0.0f, 46.0f));
+		EXUi::AddV(Left, EXUi::TitleText(Tree, TEXT("RACE  \u00B7  SURVIVE  \u00B7  EXTRACT"), 13, EXUi::Accent(), 420), FMargin(0.0f, 6.0f, 0.0f, 46.0f));
 	}
 	const TCHAR* const Titles[MenuLineCount] = { TEXT("EXPEDI\u00C7\u00C3O SOLO"), TEXT("PELOT\u00C3O 15"), TEXT("HANGAR"), TEXT("SAIR") };
 	const TCHAR* const Descriptions[MenuLineCount] = {
@@ -110,7 +115,7 @@ void UEXMainMenuWidget::BuildTree()
 	EXUi::AddH(Keys, EXUi::Sized(Tree, 1.0f, 1.0f), FMargin(0.0f), true);
 	EXUi::AddH(Keys, EXUi::Hint(Tree, TArray<FString>{ TEXT("Esc") }, TEXT("Sair")));
 	UVerticalBox* Bottom = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	EXUi::AddV(Bottom, EXUi::Sized(Tree, 0.0f, 1.0f, EXUi::Box(Tree, EXUi::Rust(0.5f))));
+	EXUi::AddV(Bottom, EXUi::Sized(Tree, 0.0f, 1.0f, EXUi::Box(Tree, EXUi::Accent(0.5f))));
 	EXUi::AddV(Bottom, EXUi::Sized(Tree, 0.0f, 55.0f, EXUi::Box(Tree, EXUi::Ink(0.92f), FMargin(58.0f, 0.0f, 58.0f, 0.0f), Keys)));
 	EXUi::AddO(Root, Bottom, HAlign_Fill, VAlign_Bottom);
 }
@@ -119,20 +124,26 @@ UWidget* UEXMainMenuWidget::BuildItem(int32 Index, const FString& Title, const F
 {
 	UWidgetTree* Tree = WidgetTree;
 	UOverlay* Line = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	// The highlight: an orange wash fading to the right and the bar on the left.
-	UWidget* Glow = EXUi::Fade(Tree, EXUi::Rust(), 0.30f, 0.0f, 12);
+	// The highlight, as a picked line of the hangar (the HUD's look): a navy plate with its corners cut, a cyan wash
+	// fading to the right, the glowing edge and the bar on the left.
+	UOverlay* Glow = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
+	UBorder* GlowFill = EXUi::Box(Tree, EXUi::Plate(0.86f));
+	EXUi::SetShapeBrush(GlowFill, EXUi::EShape::Plate, 12.0f);
+	EXUi::AddO(Glow, GlowFill, HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Glow, EXUi::ShapeImage(Tree, EXUi::EShape::Plate, TEXT("_wash"), 12.0f, EXUi::Accent(0.3f)), HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Glow, EXUi::ShapeImage(Tree, EXUi::EShape::Plate, TEXT("_edge"), 12.0f, EXUi::Accent(0.95f)), HAlign_Fill, VAlign_Fill);
 	EXUi::AddO(Line, Glow, HAlign_Fill, VAlign_Fill);
-	UWidget* Bar = EXUi::Sized(Tree, 5.0f, 0.0f, EXUi::Box(Tree, EXUi::Rust()));
-	EXUi::AddO(Line, Bar, HAlign_Left, VAlign_Fill);
+	UWidget* Bar = EXUi::Sized(Tree, 4.0f, 0.0f, EXUi::Box(Tree, EXUi::Accent()));
+	EXUi::AddO(Line, Bar, HAlign_Left, VAlign_Fill, FMargin(3.0f, 15.0f, 0.0f, 6.0f));
 
 	UVerticalBox* TextColumn = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UHorizontalBox* Head = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	UTextBlock* Number = EXUi::TitleText(Tree, FString::Printf(TEXT("%02d"), Index + 1), 12, EXUi::Dim(), 60);
 	EXUi::AddH(Head, EXUi::Sized(Tree, 53.0f, 0.0f, Number));
-	UTextBlock* TitleText = EXUi::TitleText(Tree, Title, 27, EXUi::Sand(), 80);
+	UTextBlock* TitleText = EXUi::TitleText(Tree, Title, 27, EXUi::Quiet(), 80);
 	EXUi::AddH(Head, TitleText);
 	EXUi::AddV(TextColumn, Head);
-	UTextBlock* DescriptionText = EXUi::Text(Tree, Description, 13, EXUi::Hex(215, 195, 160), false, 20);
+	UTextBlock* DescriptionText = EXUi::Text(Tree, Description, 13, EXUi::Fore(0.85f), false, 20);
 	EXUi::AddV(TextColumn, DescriptionText, FMargin(53.0f, 6.0f, 0.0f, 0.0f));
 	EXUi::AddO(Line, TextColumn, HAlign_Fill, VAlign_Center, FMargin(26.0f, 16.0f, 22.0f, 16.0f));
 
@@ -148,19 +159,19 @@ UWidget* UEXMainMenuWidget::BuildItem(int32 Index, const FString& Title, const F
 UWidget* UEXMainMenuWidget::BuildBriefing()
 {
 	UWidgetTree* Tree = WidgetTree;
-	const EXUi::FFrame Card = EXUi::Frame(Tree, EXUi::Rust(0.35f), EXUi::Plate(0.88f), 1.0f, FMargin(29.0f, 26.0f, 29.0f, 26.0f), 4.0f);
-	Card.Edges[0]->SetBrushColor(EXUi::Rust());   // the accent along the top
+	// A navy plate with its corners cut, the cyan edge and the bar along the top (the HUD's look).
+	const EXUi::FFrame Card = EXUi::Frame(Tree, EXUi::Accent(0.85f), EXUi::Plate(0.88f), 1.0f, FMargin(29.0f, 26.0f, 29.0f, 26.0f), 3.0f, 18.0f);
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	Card.Fill->SetContent(Column);
 
-	EXUi::AddV(Column, EXUi::Text(Tree, TEXT("BRIEFING DA EXPEDI\u00C7\u00C3O"), 11, EXUi::Rust(), true, 220));
-	EXUi::AddV(Column, EXUi::TitleText(Tree, TEXT("RED DUST DIVIDE"), 23, EXUi::Bone(), 60), FMargin(0.0f, 7.0f, 0.0f, 2.0f));
-	BriefSubText = EXUi::Text(Tree, TEXT(""), 12, EXUi::Sand(), false);
+	EXUi::AddV(Column, EXUi::LabelText(Tree, TEXT("BRIEFING DA EXPEDI\u00C7\u00C3O"), 11, EXUi::AccentHot(), 220));
+	EXUi::AddV(Column, EXUi::TitleText(Tree, TEXT("RED DUST DIVIDE"), 23, EXUi::Fore(), 60), FMargin(0.0f, 7.0f, 0.0f, 2.0f));
+	BriefSubText = EXUi::Text(Tree, TEXT(""), 12, EXUi::Quiet(), false);
 	EXUi::AddV(Column, BriefSubText);
 
 	// The race line from above.
 	RouteMap = Tree->ConstructWidget<UEXRouteMapWidget>(UEXRouteMapWidget::StaticClass());
-	const EXUi::FFrame MapFrame = EXUi::Frame(Tree, EXUi::Bone(0.12f), EXUi::Ink(0.45f), 1.0f, FMargin(0.0f));
+	const EXUi::FFrame MapFrame = EXUi::Frame(Tree, EXUi::AccentHot(0.3f), EXUi::Ink(0.55f), 1.0f, FMargin(0.0f), -1.0f, 10.0f);
 	MapFrame.Fill->SetContent(EXUi::Sized(Tree, 0.0f, 300.0f, RouteMap));
 	EXUi::AddV(Column, MapFrame.Root, FMargin(0.0f, 17.0f, 0.0f, 7.0f));
 
@@ -169,10 +180,12 @@ UWidget* UEXMainMenuWidget::BuildBriefing()
 	auto AddStat = [&](const FString& Value, const FString& Label, float RightGap) -> UTextBlock*
 	{
 		UVerticalBox* Tile = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-		UTextBlock* ValueText = EXUi::WeightText(Tree, Value, 20, EXUi::Bone(), 800);
+		UTextBlock* ValueText = EXUi::TitleText(Tree, Value, 20, EXUi::Fore(), 20);
 		EXUi::AddV(Tile, ValueText);
-		EXUi::AddV(Tile, EXUi::Text(Tree, Label, 10, EXUi::Sand(), true, 120), FMargin(0.0f, 3.0f, 0.0f, 0.0f));
-		EXUi::AddH(Stats, EXUi::Box(Tree, EXUi::Bone(0.04f), FMargin(14.0f, 12.0f), Tile), FMargin(0.0f, 0.0f, RightGap, 0.0f), true, VAlign_Fill);
+		EXUi::AddV(Tile, EXUi::LabelText(Tree, Label, 9, EXUi::Quiet(), 140), FMargin(0.0f, 4.0f, 0.0f, 0.0f));
+		UBorder* TileBox = EXUi::Box(Tree, EXUi::Plate(0.7f), FMargin(14.0f, 12.0f), Tile);
+		EXUi::SetShapeBrush(TileBox, EXUi::EShape::Plate, 8.0f);
+		EXUi::AddH(Stats, TileBox, FMargin(0.0f, 0.0f, RightGap, 0.0f), true, VAlign_Fill);
 		return ValueText;
 	};
 	DistanceText = AddStat(TEXT("--"), TEXT("DIST\u00C2NCIA"), 10.0f);
@@ -186,8 +199,8 @@ UWidget* UEXMainMenuWidget::BuildBriefing()
 		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		for (const FString& Chip : Chips)
 		{
-			const EXUi::FFrame ChipFrame = EXUi::Frame(Tree, EXUi::Rust(0.45f), EXUi::Rust(0.14f), 1.0f, FMargin(10.0f, 4.0f));
-			ChipFrame.Fill->SetContent(EXUi::Text(Tree, Chip, 11, EXUi::Hex(243, 211, 184), false));
+			const EXUi::FFrame ChipFrame = EXUi::Frame(Tree, EXUi::Accent(0.45f), EXUi::Accent(0.12f), 1.0f, FMargin(10.0f, 4.0f), -1.0f, 6.0f);
+			ChipFrame.Fill->SetContent(EXUi::Text(Tree, Chip, 11, EXUi::AccentHot(), false));
 			EXUi::AddH(Row, ChipFrame.Root, FMargin(0.0f, 0.0f, 7.0f, 0.0f));
 		}
 		EXUi::AddV(Column, Row, FMargin(0.0f, 7.0f, 0.0f, 0.0f), HAlign_Left);
@@ -200,21 +213,21 @@ UWidget* UEXMainMenuWidget::BuildBriefing()
 	{
 		if (bLineAbove)
 		{
-			EXUi::AddV(Column, EXUi::Sized(Tree, 0.0f, 1.0f, EXUi::Box(Tree, EXUi::Bone(0.1f))), FMargin(0.0f, 14.0f, 0.0f, 10.0f));
+			EXUi::AddV(Column, EXUi::Sized(Tree, 0.0f, 1.0f, EXUi::Box(Tree, EXUi::Fore(0.1f))), FMargin(0.0f, 14.0f, 0.0f, 10.0f));
 		}
 		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		EXUi::AddH(Row, EXUi::Text(Tree, Label, 13, EXUi::Bone(0.9f), false));
+		EXUi::AddH(Row, EXUi::Text(Tree, Label, 13, EXUi::Fore(0.9f), false));
 		EXUi::AddH(Row, EXUi::Sized(Tree, 1.0f, 1.0f), FMargin(0.0f), true);
 		EXUi::AddH(Row, Value);
 		EXUi::AddV(Column, Row, FMargin(0.0f, bLineAbove ? 0.0f : 6.0f, 0.0f, 0.0f));
 	};
-	ShipText = EXUi::Text(Tree, TEXT("-"), 13, EXUi::Bone(), true, 120);
+	ShipText = EXUi::Text(Tree, TEXT("-"), 13, EXUi::Fore(), true, 120);
 	AddRow(TEXT("A tua nave"), ShipText, true);
-	CargoText = EXUi::Text(Tree, TEXT("-"), 13, EXUi::Bone(), false);
+	CargoText = EXUi::Text(Tree, TEXT("-"), 13, EXUi::Fore(), false);
 	AddRow(TEXT("M\u00F3dulos e consum\u00EDveis"), CargoText, false);
-	RiskText = EXUi::Text(Tree, TEXT("0"), 13, EXUi::RustHot(), true);
+	RiskText = EXUi::Text(Tree, TEXT("0"), 13, EXUi::Gold(), true);
 	AddRow(TEXT("Em risco se fores destru\u00EDdo"), RiskText, true);
-	LastRunText = EXUi::Text(Tree, TEXT("-"), 13, EXUi::Sand(), true);
+	LastRunText = EXUi::Text(Tree, TEXT("-"), 13, EXUi::Quiet(), true);
 	AddRow(TEXT("\u00DAltima expedi\u00E7\u00E3o"), LastRunText, false);
 
 	return EXUi::Sized(Tree, BriefCardWidth, 0.0f, Card.Root);
@@ -231,8 +244,8 @@ void UEXMainMenuWidget::Refresh()
 			const bool bOn = Index == Choice;
 			ItemGlows[Index]->SetVisibility(bOn ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 			ItemBars[Index]->SetVisibility(bOn ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
-			ItemNumbers[Index]->SetColorAndOpacity(FSlateColor(bOn ? EXUi::Rust() : EXUi::Dim()));
-			ItemTitles[Index]->SetColorAndOpacity(FSlateColor(bOn ? EXUi::Bone() : EXUi::Sand()));
+			ItemNumbers[Index]->SetColorAndOpacity(FSlateColor(bOn ? EXUi::Accent() : EXUi::Dim()));
+			ItemTitles[Index]->SetColorAndOpacity(FSlateColor(bOn ? EXUi::Fore() : EXUi::Quiet()));
 			ItemDescriptions[Index]->SetVisibility(bOn ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 		}
 	}
@@ -287,7 +300,7 @@ void UEXMainMenuWidget::Refresh()
 	if (LastRunText && !LastRunText->GetText().ToString().Equals(LastRun))
 	{
 		LastRunText->SetText(FText::FromString(LastRun));
-		LastRunText->SetColorAndOpacity(FSlateColor(Profile->Expeditions == 0 ? EXUi::Sand() : (Profile->LastReward >= 0 ? EXUi::Ok() : EXUi::Rust())));
+		LastRunText->SetColorAndOpacity(FSlateColor(Profile->Expeditions == 0 ? EXUi::Quiet() : (Profile->LastReward >= 0 ? EXUi::Ok() : EXUi::Danger())));
 	}
 }
 

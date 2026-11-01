@@ -20,9 +20,10 @@ class UWrapBox;
 struct FEXHangarRow;
 
 /**
- * The hangar, as the mock-ups the player approved draw it (Docs/MENU_HANGAR.md, Docs/MODULOS.md sec. 10:
+ * The hangar, as the mock-ups the player approved lay it out (Docs/MENU_HANGAR.md, Docs/MODULOS.md sec. 10:
  * equip_wing.png, equip_engine.png, consumiveis.png, cofre.png): the workshop with the ship on the turntable and five
- * tabs over it, in the mock-ups' fonts (Inter, Orbitron), glows and icons.
+ * tabs over it. Drawn in the race HUD's look since 2026-11-01 (EXUi: navy plates with cut corners and cyan edges, gold
+ * STARDUST, Orbitron figures leaning forward), so the menu, the hangar and the race read as one game.
  * - NAVE: the roster (lives and stars of each ship), the ship's name over the turntable, its passive and what is at
  *   risk, the stats and LANÇAR EXPEDIÇÃO.
  * - EQUIPAR: the slots on the left (icon, module in its rarity's colour, class badge, insured shield), the pieces for
@@ -51,12 +52,12 @@ protected:
 private:
 	static constexpr int32 MaxChips = 6;
 
-	/** The frame round a line: fill, four edges, the colour bar on its left. */
+	/** The plate round a line: the fill, the selection's wash, the edge, the colour bar on its left. */
 	struct FLineFrame
 	{
 		UWidget* Root = nullptr;
 		UBorder* Fill = nullptr;
-		UBorder* Edges[4] = {};
+		UImage* Edge = nullptr;
 		UBorder* Bar = nullptr;
 		UImage* Wash = nullptr;
 	};
@@ -103,7 +104,7 @@ private:
 	{
 		UWidget* Root = nullptr;
 		UBorder* Fill = nullptr;
-		UBorder* Edges[4] = {};
+		UImage* Edge = nullptr;
 		UImage* Icon = nullptr;
 		UTextBlock* Name = nullptr;
 		UBorder* Pips[2] = {};
@@ -134,7 +135,7 @@ private:
 		UWidget* Back = nullptr;
 		UImage* GlowOuter = nullptr;
 		UImage* GlowInner = nullptr;
-		UBorder* Edges[4] = {};
+		UImage* Edge = nullptr;
 		UBorder* ArtLine = nullptr;
 		UImage* Photo = nullptr;
 		UImage* Halo = nullptr;
@@ -218,7 +219,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<AEXRaceDirector> RaceDirector;
 	// Plain pointers into the widget tree (it owns the widgets and lives as long as this widget).
 	TArray<UBorder*> TabFills;
-	TArray<UBorder*> TabEdges;
+	TArray<UImage*> TabEdges;
 	TArray<UTextBlock*> TabTexts;
 	TArray<FSlotView> SlotViews;
 	TArray<FItemView> ListViews;
@@ -264,7 +265,7 @@ private:
 	UTextBlock* ActionText = nullptr;
 	UTextBlock* LivesText = nullptr;
 	UTextBlock* PreviewText = nullptr;
-	UBorder* PreviewEdges[4] = {};
+	UImage* PreviewEdge = nullptr;
 	UBorder* PreviewDiamond = nullptr;
 	UTextBlock* CacheTitle = nullptr;
 	UTextBlock* CacheSummary = nullptr;

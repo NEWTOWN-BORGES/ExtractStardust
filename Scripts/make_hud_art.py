@@ -2,7 +2,11 @@
 the speedometer with its brackets, the danger banner, the checkpoint toast, the standings rows, the icons, a blueprint
 of each ship). Drawn at 4x and scaled down, written to SourceArt/UI/Icons/hud_*.png (Scripts/import_ui_icons.py brings
 them into Unreal as T_Icon_hud_*; UEXRaceHudWidget uses them).
-python3 Scripts/make_hud_art.py            (the plates and icons, numpy + pillow + opencv)
+The same look for the menu, the hangar, the vault and the results (player, 2026-11-01: "a mesma direção de arte"): the
+ui_* plates below are white, 9-sliced and tinted in the game (EXUi::Frame: the fill with the plate colour, the edge with
+the outline colour), so one set of art draws every panel, line, card, tab and chip.
+python3 Scripts/make_hud_art.py            (the HUD plates and icons and the menu art, numpy + pillow + opencv)
+python3 Scripts/make_hud_art.py menu       (only the menu art, ui_*)
 python3 Scripts/make_hud_art.py blueprints (also the ships seen from above, needs the bpy module)
 """
 import math
@@ -280,7 +284,71 @@ def blueprints():
     os.rmdir(tmp)
 
 
+# ---------------------------------------------------------------------------------------------------------------- menu
+# White shapes for EXUi (tinted in the game). The chamfer is CUT px at 128 px; the game draws them 9-sliced at
+# Corner / CUT of their size, so the corners stay sharp and the edge about 1.5 px at any size.
+CUT = 20
+
+
+def inner_stroke(mask, width):
+    r = max(1, int(round(width * K)))
+    er = cv2.erode(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1)),
+                   borderType=cv2.BORDER_CONSTANT, borderValue=0)
+    return np.clip(mask - er, 0, 1)
+
+
+def white(name, w, h, alpha):
+    L = Layer(w, h)
+    L.paint(alpha, (255, 255, 255))
+    L.save(name)
+
+
+def shape_set(prefix, w, h, pts, fill_bottom=0.78, wash=False, inset=False):
+    """<prefix> (the fill: white at the top to grey at the bottom), <prefix>_edge (the edge and its inner glow),
+    <prefix>_wash (the selection's wash, bright on the left), <prefix>_inset (a soft glow inside the edges), when asked."""
+    m = poly_mask(w, h, pts)
+    L = Layer(w, h)
+    shade = np.linspace(1.0, fill_bottom, h * K)[:, None, None] * 255.0
+    L.paint(m, np.broadcast_to(shade, (h * K, w * K, 1)).repeat(3, axis=2).astype(np.float32))
+    L.save(prefix)
+    st = inner_stroke(m, 2.6)
+    white(prefix + '_edge', w, h, np.clip(st + blur(st, 5) * m * 0.55, 0, 1))
+    if wash:
+        fade = np.clip(1.0 - np.linspace(0, 1, w * K)[None, :] * 1.05, 0, 1)
+        white(prefix + '_wash', w, h, m * fade)
+    if not inset:
+        return
+    core = cv2.erode(m, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * 9 * K + 1, 2 * 9 * K + 1)),
+                     borderType=cv2.BORDER_CONSTANT, borderValue=0)
+    white(prefix + '_inset', w, h, np.clip(blur(1.0 - core, 7) * m, 0, 1))
+
+
+def menu_art():
+    os.makedirs(OUT, exist_ok=True)
+    # panels, lines, chips: the top-left and bottom-right corners cut, as the HUD's plates
+    shape_set('ui_plate', 128, 128, [(CUT, 0), (128, 0), (128, 128 - CUT), (128 - CUT, 128), (0, 128), (0, CUT)], wash=True)
+    # cards: only the bottom-right corner cut (the photo fills the top)
+    shape_set('ui_card', 128, 128, [(0, 0), (128, 0), (128, 128 - CUT), (128 - CUT, 128), (0, 128)], inset=True)
+    # tabs: leaning forward like the figures (drawn at their own height: 9-sliced across only)
+    shape_set('ui_tab', 128, 48, [(10, 0), (128, 0), (118, 48), (0, 48)], fill_bottom=0.86)
+    # the primary button in its own colours: cyan to blue, a sheen on the top, a light edge
+    w, h, c = 256, 72, 16
+    m = poly_mask(w, h, [(c, 0), (w, 0), (w, h - c), (w - c, h), (0, h), (0, c)])
+    L = Layer(w, h)
+    t = np.linspace(0, 1, w * K)[None, :, None]
+    grad = np.array(CYAN, np.float32) * (1 - t) + np.array(BLUE, np.float32) * t
+    L.paint(m, np.broadcast_to(grad, (h * K, w * K, 3)))
+    sheen = np.clip(1.0 - np.linspace(0, 1, h * K)[:, None] / 0.45, 0, 1) * np.ones((1, w * K))
+    L.paint(m * sheen, (255, 255, 255), 0.22)
+    st = inner_stroke(m, 2.0)
+    L.paint(blur(st, 4) * m, (220, 250, 255), 0.5)
+    L.paint(st, (215, 248, 255), 0.95)
+    L.save('ui_btn')
+
+
 if __name__ == '__main__':
-    main_art()
+    if 'menu' not in sys.argv:
+        main_art()
+    menu_art()
     if 'blueprints' in sys.argv:
         blueprints()

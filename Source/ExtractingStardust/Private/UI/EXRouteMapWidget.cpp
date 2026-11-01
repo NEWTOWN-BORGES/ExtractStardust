@@ -161,7 +161,7 @@ int32 UEXRouteMapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& Al
 	FSlateDrawElement::MakeLines(OutDrawElements, BaseLayer + 1, AllottedGeometry.ToPaintGeometry(), Line, ESlateDrawEffect::None,
 		EXUi::Ink(0.9f), true, 6.0f);
 	FSlateDrawElement::MakeLines(OutDrawElements, BaseLayer + 2, AllottedGeometry.ToPaintGeometry(), Line, ESlateDrawEffect::None,
-		EXUi::Rust(), true, 3.0f);
+		EXUi::Accent(), true, 3.0f);
 	auto Marker = [&](const FVector2f& At, const FLinearColor& Colour, float Radius)
 	{
 		TArray<FVector2f> Diamond;
@@ -173,8 +173,8 @@ int32 UEXRouteMapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& Al
 		FSlateDrawElement::MakeLines(OutDrawElements, BaseLayer + 3, AllottedGeometry.ToPaintGeometry(), Diamond, ESlateDrawEffect::None,
 			Colour, true, 3.0f);
 	};
-	Marker(Line[0], EXUi::Bone(), 8.0f);
-	Marker(Line.Last(), EXUi::RustHot(), 8.0f);
-	Marker(Line.Last(), EXUi::Bone(), 3.0f);
+	Marker(Line[0], EXUi::Fore(), 8.0f);
+	Marker(Line.Last(), EXUi::AccentHot(), 8.0f);
+	Marker(Line.Last(), EXUi::Fore(), 3.0f);
 	return BaseLayer + 3;
 }

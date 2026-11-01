@@ -51,6 +51,10 @@ O jogador fala português (PT). Responder em português.
   posição e classificação, cronómetro com checkpoint e barra A→B, porquinho com espólios, radar, PERIGO!, toast de
   checkpoint, consumíveis em hexágonos, velocímetro com BOOST e estado da nave com planta. Arte em `make_hud_art.py`
   (passo 3d importa os `hud_*`).
+- **Menus, hangar, cofre, caixas e resultados no estilo do HUD** (`Docs/MENU_HANGAR.md`, última secção; maquetas em
+  `Docs/UI_MAQUETAS/`). Têm placas azul-escuras com cantos cortados e bordas ciano, o STARDUST em dourado (a moeda do
+  porquinho) e Orbitron inclinado. A arte `ui_*` vem do `make_hud_art.py menu` e importa-se no passo 3d. O anel do prato
+  giratório passou a ciano.
 - **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos
   flancos; radiador = duas entradas NACA no deck com grelhas de saída; grid = tomadas laterais rentes e grelha atrás;
   épica = guelras longas e NACA com contorno em carbono; lendária = canal longo no flanco com aletas lá dentro e saída
