@@ -34,6 +34,14 @@ O jogador fala português (PT). Responder em português.
   néon ciano; o lendário tem tubos em hélice e néon na cor da nave; há ligações conforme o chassi (STRIX e WRAITH). Ficheiros
   `<nave>_<família>_ep/_lg.fbx` (wing, tail, armor, cooling, engine) e cartas `<nave>_<família>_ep/_lg.jpg`.
   `AEXHoverCraft` monta-os pela raridade; o do motor só aparece no raio-X. As naves não mudaram.
+- **Cartas em todo o lado** (`EXHangarWidget`, `MakeMiniCard`): no EQUIPAR as peças do slot são cartas (2 × 2), nos
+  CONSUMÍVEIS o stock é cartas com a foto 3D (clicar põe-no no slot), a LOJA é uma grelha de cartas como o cofre.
+  **Cofre:** chips de filtro (TUDO, NÃO MONTADOS, MONTADOS, CAIXAS, CONSUMÍVEIS, por família), ordem (raridade, família,
+  valor) e "VENDER NÃO MONTADOS C/I" (comuns e incomuns por montar, confirma com segundo toque). Teclas no cofre: W/S
+  linha, A/D carta, Espaço filtro, T ordem, ⌫ vender não montados.
+- **Sinalética na pista** (`AEXTrackSigns`, posta pelo `AEXRaceDirector` no início): placas de chevrons do lado de fora
+  das curvas (raio < 450 m) e balizas com luz âmbar nas bordas onde não há parede (a areia); nada nos túneis.
+- **A seguir (o jogador vai mandar imagens):** porquinho/mealheiro e HUD da corrida novos.
 - **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos
   flancos; radiador = duas entradas NACA no deck com grelhas de saída; grid = tomadas laterais rentes e grelha atrás;
   épica = guelras longas e NACA com contorno em carbono; lendária = canal longo no flanco com aletas lá dentro e saída

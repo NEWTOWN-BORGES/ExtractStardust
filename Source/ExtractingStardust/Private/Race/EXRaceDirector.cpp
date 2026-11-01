@@ -4,6 +4,7 @@
 #include "Flight/EXHoverCraft.h"
 #include "Game/EXProfile.h"
 #include "Race/EXBoostArrows.h"
+#include "Race/EXTrackSigns.h"
 #include "Race/EXCheckpointGate.h"
 #include "UnrealClient.h"
 #include "GameFramework/PlayerController.h"
@@ -721,6 +722,16 @@ void AEXRaceDirector::PlaceGates(const AEXHoverCraft* Player)
 	if (BoostArrows)
 	{
 		BoostArrows->Build(Route, Heights, HalfWidths);
+	}
+	// Signs, so the way reads in the open sand: chevron boards in the bends, edge poles where no wall shows the road.
+	if (IsValid(TrackSigns))
+	{
+		TrackSigns->Destroy();
+	}
+	TrackSigns = World->SpawnActor<AEXTrackSigns>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
+	if (TrackSigns)
+	{
+		TrackSigns->Build(Route, Heights, HalfWidths);
 	}
 }
 

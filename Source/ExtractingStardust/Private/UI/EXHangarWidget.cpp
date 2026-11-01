@@ -9,6 +9,7 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
 #include "Components/Overlay.h"
+#include "Components/ScaleBox.h"
 #include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
@@ -30,8 +31,6 @@ namespace
 	constexpr int32 HangarSlotRows = 8;
 	constexpr int32 HangarListRows = 7;
 	constexpr int32 HangarShipRows = 5;
-	constexpr int32 HangarCandidateRows = 5;
-	constexpr int32 HangarStockRows = 6;
 	constexpr int32 HangarInfoRows = 6;
 	constexpr int32 HangarCards = 10;
 	constexpr int32 HangarCallouts = 2;
@@ -50,6 +49,12 @@ namespace
 	constexpr int32 VaultCols = 4;              // the vault's grid: 4 cards across, 3 rows in sight
 	constexpr int32 VaultRowsShown = 3;
 	constexpr float VaultCardScale = 0.78f;
+	constexpr int32 CandidateCols = 2;          // EQUIPAR: the pieces for the slot as cards, 2 x 2 in sight
+	constexpr int32 CandidateCardRows = 2;
+	constexpr float CandidateCardScale = 0.80f;
+	constexpr int32 StockCols = 3;              // CONSUMÍVEIS: the consumables as cards, 3 across
+	constexpr float StockCardScale = 0.66f;
+	constexpr int32 VaultChipCount = 8;
 	constexpr float GridW = CardW * 5.0f + CardGap * 4.0f + CardGlow * 2.0f;
 	constexpr float GridH = CardH * 2.0f + CardGap + CardGlow * 2.0f + CardRaise;
 
@@ -620,7 +625,23 @@ UWidget* UEXHangarWidget::BuildVaultPanel()
 	UWidgetTree* Tree = WidgetTree;
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	VaultTitle = EXUi::WeightText(Tree, TEXT("COFRE"), 11, EXUi::Rust(), 700, 220);
-	EXUi::AddV(Column, VaultTitle, FMargin(0.0f, 0.0f, 0.0f, 12.0f));
+	EXUi::AddV(Column, VaultTitle, FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+	// The filter chips (player, 2026-11-01): everything together, fitted or not, caches, consumables, a family, the
+	// order, and selling the loose commons; Space, T and Backspace do the same from the keyboard.
+	UWrapBox* Bar = Tree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
+	Bar->SetInnerSlotPadding(FVector2D(6.0f, 6.0f));
+	static const TCHAR* const ChipNames[VaultChipCount] = { TEXT("TUDO"), TEXT("NÃO MONTADOS"), TEXT("MONTADOS"), TEXT("CAIXAS"),
+		TEXT("CONSUMÍVEIS"), TEXT("FAMÍLIA ▸"), TEXT("ORDEM ▸"), TEXT("VENDER NÃO MONTADOS C/I") };
+	for (const TCHAR* Name : ChipNames)
+	{
+		UTextBlock* Text = EXUi::WeightText(Tree, Name, 10, EXUi::Sand(), 700, 120);
+		UBorder* Chip = EXUi::Box(Tree, EXUi::Bone(0.05f), FMargin(9.0f, 5.0f), Text);
+		Bar->AddChildToWrapBox(Chip);
+		VaultChips.Add(Chip);
+		VaultChipTexts.Add(Text);
+	}
+	VaultChipBar = Bar;
+	EXUi::AddV(Column, EXUi::Sized(Tree, VaultCols * (CardW * VaultCardScale + 16.0f), 0.0f, Bar), FMargin(0.0f, 0.0f, 0.0f, 10.0f));
 	UUniformGridPanel* Grid = Tree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
 	Grid->SetSlotPadding(FMargin(5.0f));
 	for (int32 Index = 0; Index < VaultCols * VaultRowsShown; ++Index)
@@ -635,6 +656,15 @@ UWidget* UEXHangarWidget::BuildVaultPanel()
 	VaultMore = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 700, 120);
 	EXUi::AddV(Column, VaultMore, FMargin(2.0f, 6.0f, 0.0f, 0.0f));
 	return MakePanel(Column, VaultCols * (CardW * VaultCardScale + 16.0f) + 34.0f, false);
+}
+
+UBorder* UEXHangarWidget::MakeMiniCard(float Scale, FCardView& OutView)
+{
+	OutView = MakeCard(CardW * VaultCardScale, CardH * VaultCardScale, CardArt * VaultCardScale);
+	UScaleBox* Scaler = WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass());
+	Scaler->SetStretch(EStretch::ScaleToFit);
+	Scaler->AddChild(OutView.Root);
+	return EXUi::Box(WidgetTree, FLinearColor::Transparent, FMargin(3.0f), EXUi::Sized(WidgetTree, CardW * Scale, CardH * Scale, Scaler));
 }
 
 UWidget* UEXHangarWidget::BuildQuickPanel()
@@ -685,13 +715,17 @@ UWidget* UEXHangarWidget::BuildCandidatesPanel()
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	CandidatesTitle = EXUi::WeightText(Tree, TEXT("-"), 11, EXUi::Rust(), 700, 220);
 	EXUi::AddV(Column, CandidatesTitle, FMargin(0.0f, 0.0f, 0.0f, 12.0f));
-	for (int32 Index = 0; Index < HangarCandidateRows; ++Index)
+	UUniformGridPanel* Grid = Tree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+	Grid->SetSlotPadding(FMargin(5.0f));
+	for (int32 Index = 0; Index < CandidateCols * CandidateCardRows; ++Index)
 	{
-		FItemView View = MakeItem(436.0f);
-		View.IconBox->SetVisibility(ESlateVisibility::Collapsed);
-		EXUi::AddV(Column, View.Frame.Root, FMargin(0.0f, 0.0f, 0.0f, 8.0f));
-		CandidateViews.Add(View);
+		FCardView View;
+		UBorder* Frame = MakeMiniCard(CandidateCardScale, View);
+		Grid->AddChildToUniformGrid(Frame, Index / CandidateCols, Index % CandidateCols);
+		CandidateCards.Add(View);
+		CandidateFrames.Add(Frame);
 	}
+	EXUi::AddV(Column, Grid);
 	CandidatesMore = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 700, 120);
 	EXUi::AddV(Column, CandidatesMore, FMargin(2.0f, 2.0f, 0.0f, 0.0f));
 	return MakePanel(Column, 470.0f, false);
@@ -703,13 +737,18 @@ UWidget* UEXHangarWidget::BuildStockPanel()
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	StockTitle = EXUi::WeightText(Tree, TEXT("-"), 11, EXUi::Rust(), 700, 220);
 	EXUi::AddV(Column, StockTitle, FMargin(0.0f, 0.0f, 0.0f, 12.0f));
-	for (int32 Index = 0; Index < HangarStockRows; ++Index)
+	UUniformGridPanel* Grid = Tree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+	Grid->SetSlotPadding(FMargin(5.0f));
+	for (int32 Index = 0; Index < EXMeta::ConsumableCount - 1; ++Index)
 	{
-		FStockView View = MakeStock();
-		EXUi::AddV(Column, View.Frame.Root, FMargin(0.0f, 0.0f, 0.0f, 7.0f));
-		StockViews.Add(View);
+		FCardView View;
+		UBorder* Frame = MakeMiniCard(StockCardScale, View);
+		Grid->AddChildToUniformGrid(Frame, Index / StockCols, Index % StockCols);
+		StockCards.Add(View);
+		StockFrames.Add(Frame);
 	}
-	return MakePanel(Column, 504.0f, false);
+	EXUi::AddV(Column, Grid);
+	return MakePanel(Column, StockCols * (CardW * StockCardScale + 16.0f) + 34.0f, false);
 }
 
 UWidget* UEXHangarWidget::BuildInfoPanel()
@@ -1132,6 +1171,33 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 	// change the consumable). On NAVE and EQUIPAR a click only picks (the piece is chosen on the right).
 	TArray<UWidget*> Roots;
 	int32 First = 0;
+	if (Tab == EEXHangarTab::Vault)
+	{
+		for (UBorder* Chip : VaultChips) { Roots.Add(Chip); }
+		const int32 Chip = FirstUnder(Roots, InMouseEvent, &UEXHangarWidget::IsUnder);
+		if (Chip != INDEX_NONE)
+		{
+			const int32 Filter = Model->GetVaultFilter();
+			if (Chip < 5)
+			{
+				Model->SetVaultFilter(Chip);
+			}
+			else if (Chip == 5)
+			{
+				Model->SetVaultFilter(Filter < 5 ? 5 : 5 + (Filter - 5 + 1) % EXMeta::FamilyCount);
+			}
+			else if (Chip == 6)
+			{
+				Model->CycleVaultSort();
+			}
+			else
+			{
+				Model->SellLoose();
+			}
+			return FReply::Handled();
+		}
+		Roots.Reset();
+	}
 	switch (Tab)
 	{
 	case EEXHangarTab::Equip:
@@ -1144,6 +1210,7 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 		for (const FTileView& View : TileViews) { Roots.Add(View.Root); }
 		break;
 	case EEXHangarTab::Vault:
+	case EEXHangarTab::Shop:
 		for (UBorder* Frame : VaultFrames) { Roots.Add(Frame); }
 		First = LeftFirst;
 		break;
@@ -1156,7 +1223,11 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 	if (Left != INDEX_NONE)
 	{
 		const int32 RowIndex = First + Left;
-		if (RowIndex != LeftSelected)
+		if (RowIndex != LeftSelected && (Tab == EEXHangarTab::Vault || Tab == EEXHangarTab::Shop))
+		{
+			Model->Select(RowIndex);   // the grids move by rows from the keyboard; a click picks the card itself
+		}
+		else if (RowIndex != LeftSelected)
 		{
 			Model->Move(RowIndex - LeftSelected);
 		}
@@ -1170,7 +1241,7 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 	if (Tab == EEXHangarTab::Equip)
 	{
 		Roots.Reset();
-		for (const FItemView& View : CandidateViews) { Roots.Add(View.Frame.Root); }
+		for (UBorder* Frame : CandidateFrames) { Roots.Add(Frame); }
 		const int32 Right = FirstUnder(Roots, InMouseEvent, &UEXHangarWidget::IsUnder);
 		if (Right != INDEX_NONE)
 		{
@@ -1183,6 +1254,18 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 			{
 				Model->Confirm();
 			}
+			return FReply::Handled();
+		}
+	}
+	// The consumables' cards on the right of CONSUMÍVEIS: a click puts that one in the quick slot looked at.
+	if (Tab == EEXHangarTab::Quick)
+	{
+		Roots.Reset();
+		for (UBorder* Frame : StockFrames) { Roots.Add(Frame); }
+		const int32 Right = FirstUnder(Roots, InMouseEvent, &UEXHangarWidget::IsUnder);
+		if (Right != INDEX_NONE)
+		{
+			Model->PickQuickKind(Right + 1);
 			return FReply::Handled();
 		}
 	}
@@ -1227,8 +1310,9 @@ void UEXHangarWidget::Refresh()
 	};
 	Show(ShipTitleBox, bShip);
 	Show(SlotsPanel, bEquip);
-	Show(ListPanel, bShip || (bList && !bVault));
-	Show(VaultPanel, bVault);
+	Show(ListPanel, bShip);
+	Show(VaultPanel, bList);
+	Show(VaultChipBar, bVault);
 	Show(QuickPanel, bQuick);
 	Show(CandidatesPanel, bEquip);
 	Show(StockPanel, bQuick);
@@ -1279,8 +1363,21 @@ void UEXHangarWidget::Refresh()
 			ShowItem(ListViews[Index], bList && Rows.IsValidIndex(RowIndex) ? &Rows[RowIndex] : nullptr, RowIndex == Selected);
 		}
 		EXUi::SetText(ListMore, bList && Rows.Num() > HangarListRows ? FString::Printf(TEXT("%d / %d"), Selected + 1, Rows.Num()) : FString());
-		if (bVault)
+		if (bList)
 		{
+			if (bVault)
+			{
+				const int32 Filter = Model->GetVaultFilter();
+				for (int32 Index = 0; Index < VaultChips.Num(); ++Index)
+				{
+					const bool bOn = Index < 5 ? Filter == Index : (Index == 5 && Filter >= 5);
+					VaultChips[Index]->SetBrushColor(bOn ? EXUi::Rust(0.28f) : (Index == 7 ? EXUi::Rust(0.10f) : EXUi::Bone(0.05f)));
+					VaultChipTexts[Index]->SetColorAndOpacity(FSlateColor(bOn ? EXUi::Bone() : EXUi::Sand()));
+				}
+				EXUi::SetText(VaultChipTexts[5], Filter >= 5 ? FString::Printf(TEXT("%s ▸"), *UEXHangarModel::VaultFilterName(Filter))
+					: FString(TEXT("FAMÍLIA ▸")));
+				EXUi::SetText(VaultChipTexts[6], FString::Printf(TEXT("POR %s ▸"), *UEXHangarModel::VaultSortName(Model->GetVaultSort())));
+			}
 			// The grid scrolls a row at a time so the picked card stays in sight (one row above it when it can).
 			EXUi::SetText(VaultTitle, Title);
 			const int32 AllRows = (Rows.Num() + VaultCols - 1) / VaultCols;
@@ -1327,21 +1424,30 @@ void UEXHangarWidget::Refresh()
 	if (bEquip)
 	{
 		EXUi::SetText(CandidatesTitle, Title);
-		const int32 First = Selected >= 0 ? FMath::Clamp(Selected - HangarCandidateRows / 2, 0, FMath::Max(0, Rows.Num() - HangarCandidateRows)) : 0;
+		// The pieces as cards, two across, scrolling a row at a time with the one looked at in sight.
+		const int32 AllRows = (Rows.Num() + CandidateCols - 1) / CandidateCols;
+		const int32 FirstRow = Selected >= 0 ? FMath::Clamp(Selected / CandidateCols - 1, 0, FMath::Max(0, AllRows - CandidateCardRows)) : 0;
+		const int32 First = FirstRow * CandidateCols;
 		RightFirst = First;
-		for (int32 Index = 0; Index < CandidateViews.Num(); ++Index)
+		for (int32 Index = 0; Index < CandidateCards.Num(); ++Index)
 		{
 			const int32 RowIndex = First + Index;
-			ShowItem(CandidateViews[Index], Rows.IsValidIndex(RowIndex) ? &Rows[RowIndex] : nullptr, RowIndex == Selected);
+			const FEXHangarRow* Row = Rows.IsValidIndex(RowIndex) ? &Rows[RowIndex] : nullptr;
+			ShowCard(CandidateCards[Index], Row, true, false);
+			CandidateFrames[Index]->SetBrushColor(Row && RowIndex == Selected ? EXUi::Rust() : FLinearColor::Transparent);
+			CandidateFrames[Index]->SetVisibility(Row ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 		}
-		EXUi::SetText(CandidatesMore, Rows.Num() > HangarCandidateRows ? FString::Printf(TEXT("%d / %d"), Selected + 1, Rows.Num()) : FString());
+		EXUi::SetText(CandidatesMore, Rows.Num() > CandidateCards.Num() ? FString::Printf(TEXT("%d / %d"), Selected + 1, Rows.Num()) : FString());
 	}
 	else if (bQuick)
 	{
 		EXUi::SetText(StockTitle, Title);
-		for (int32 Index = 0; Index < StockViews.Num(); ++Index)
+		for (int32 Index = 0; Index < StockCards.Num(); ++Index)
 		{
-			ShowStock(StockViews[Index], Rows.IsValidIndex(Index) ? &Rows[Index] : nullptr, Index == Selected);
+			const FEXHangarRow* Row = Rows.IsValidIndex(Index) ? &Rows[Index] : nullptr;
+			ShowCard(StockCards[Index], Row, true, false);
+			StockFrames[Index]->SetBrushColor(Row && Index == Selected ? EXUi::Rust() : FLinearColor::Transparent);
+			StockFrames[Index]->SetVisibility(Row ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 		}
 		EXUi::SetText(QuickSummaryText, Model->GetQuickSummary());
 	}

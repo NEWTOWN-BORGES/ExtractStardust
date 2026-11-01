@@ -8,6 +8,7 @@
 class AEXHoverCraft;
 class AEXCheckpointGate;
 class AEXBoostArrows;
+class AEXTrackSigns;
 
 /** A checkpoint gate on the race line: its middle (m), the floor's half width there (m) and how far along the line. */
 struct FEXGate
@@ -203,6 +204,7 @@ private:
 	TArray<FEXGate> Gates;
 	UPROPERTY() TArray<TObjectPtr<AEXCheckpointGate>> GateActors;
 	UPROPERTY(Transient) TObjectPtr<AEXCheckpointGate> FinishGate;
+	UPROPERTY(Transient) TObjectPtr<AEXTrackSigns> TrackSigns;     // chevron boards in the bends, edge poles in the sand
 	UPROPERTY(Transient) TObjectPtr<AEXBoostArrows> BoostArrows;   // the dash-panel arrows before the jumps   // B's extraction gate, shown after the last gate
 	int32 MissedGate = 0, LastGateShot = -1;
 	float GateNagTime = -100.0f, NextShotTime = 5.0f;

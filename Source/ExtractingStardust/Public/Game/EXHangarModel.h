@@ -150,6 +150,26 @@ public:
 	/** Seven pips, one filled per star (the empty ones show too), then "3/7 ESTRELAS". */
 	static FString StarText(int32 Stars);
 
+	/** The grids (COFRE and LOJA): this many cards across; W/S go a row up or down, A/D a card left or right. */
+	static constexpr int32 GridCols = 4;
+	/** A card picked with the mouse in a grid (COFRE, LOJA). */
+	void Select(int32 Index);
+	/** COFRE, what it shows (player, 2026-11-01: everything together, or by family, fitted or not, so the loose pieces
+	 *  are easy to sell): 0 TUDO, 1 NÃO MONTADOS, 2 MONTADOS, 3 CAIXAS, 4 CONSUMÍVEIS, then one per family (5 + family).
+	 *  Space goes to the next one; a click on its chip picks it. */
+	void SetVaultFilter(int32 Filter);
+	int32 GetVaultFilter() const { return VaultFilter; }
+	static int32 VaultFilterCount() { return 5 + EXMeta::FamilyCount; }
+	static FString VaultFilterName(int32 Filter);
+	/** COFRE, the order (T): 0 raridade, 1 família, 2 valor. */
+	void CycleVaultSort();
+	int32 GetVaultSort() const { return VaultSort; }
+	static FString VaultSortName(int32 Sort);
+	/** COFRE: sells every common and uncommon module fitted to no ship, on a second press within 3 s (Backspace). */
+	void SellLoose();
+	/** CONSUMÍVEIS: the consumable whose card was clicked goes into the quick slot looked at. */
+	void PickQuickKind(int32 Kind);
+
 private:
 	int32& Row() { return Rows[static_cast<int32>(CurrentTab)]; }
 	int32 RowOf(EEXHangarTab InTab) const { return Rows[static_cast<int32>(InTab)]; }
@@ -163,6 +183,10 @@ private:
 	TArray<int32> VaultItems() const;
 	/** The consumable kinds in the safe stock, shown after the modules in the vault. */
 	TArray<int32> VaultConsumables() const;
+	bool VaultShowsCaches() const { return VaultFilter == 0 || VaultFilter == 3; }
+	bool VaultShowsConsumables() const { return VaultFilter == 0 || VaultFilter == 4; }
+	/** How many rows of the vault are caches (the first ones, when the filter shows them). */
+	int32 VaultCacheRows() const;
 	/** The shop or vault item under the cursor, if it is a module. */
 	const FEXItem* LookedItem() const;
 	void Note(const FString& Text);
@@ -187,6 +211,9 @@ private:
 	FString Notice;
 	float NoticeTime = -100.0f;
 	int32 SellArmed = 0;
+	int32 VaultFilter = 0;
+	int32 VaultSort = 0;
+	float LooseArmedTime = -100.0f;
 	float SellArmedTime = -100.0f;
 	// The cache being opened: the cards turn over one after another.
 	bool bOpening = false;

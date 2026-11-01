@@ -181,6 +181,9 @@ private:
 	FStockView MakeStock();
 	FInfoView MakeInfo();
 	FCardView MakeCard(float Width, float Height, float ArtHeight);
+	/** A card built at the vault's size and shown at Scale of a full card (text and all), in a frame that shows the pick
+	 *  and takes the clicks: the cards everywhere (player, 2026-11-01), the pieces of EQUIPAR and the consumables. */
+	UBorder* MakeMiniCard(float Scale, FCardView& OutView);
 	UWidget* MakePanel(UWidget* Content, float Width, bool bAccentTop);
 	UWidget* BuildTopBar();
 	UWidget* BuildShipTitle();
@@ -221,8 +224,14 @@ private:
 	TArray<FItemView> ListViews;
 	TArray<FShipView> ShipViews;
 	TArray<FTileView> TileViews;
-	TArray<FItemView> CandidateViews;
-	TArray<FStockView> StockViews;
+	TArray<FCardView> CandidateCards;
+	TArray<UBorder*> CandidateFrames;
+	TArray<FCardView> StockCards;
+	TArray<UBorder*> StockFrames;
+	/** The vault's filter chips: TUDO, NÃO MONTADOS, MONTADOS, CAIXAS, CONSUMÍVEIS, FAMÍLIA, ORDEM, VENDER. */
+	TArray<UBorder*> VaultChips;
+	TArray<UTextBlock*> VaultChipTexts;
+	UWidget* VaultChipBar = nullptr;
 	TArray<FInfoView> InfoViews;
 	TArray<FCardView> CardViews;
 	TArray<FStatView> StatViews;
