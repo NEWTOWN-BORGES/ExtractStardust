@@ -8,6 +8,17 @@ espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde)
 
 O jogador fala português (PT). Responder em português.
 
+## ⚠ EM CASA: A INTERFACE TEM DE FICAR IGUAL ÀS MAQUETAS (jogador, 2026-11-01)
+
+"Espero que venha tudo como nas maquetes; deixe isso bem assinalado para aí em casa fazer exatamente assim."
+- **Referência:** `Docs/UI_MAQUETAS/` (menu, nave, equipar, consumíveis, cofre, caixa, resultados) e
+  `Docs/HUD_CORRIDA_MAQUETA.png`.
+- **Depois de compilar e importar** (`Scripts\casa_tudo.ps1 -SemPista`, com o passo 3d), tirar foto de cada ecrã
+  (`HighResShot 1`) e comparar com a maqueta.
+- **Se for diferente, corrige-se o código, não a maqueta.** A lista do que tem de se ver e os passos estão em
+  `Docs/UI_MAQUETAS/README.md`.
+- **Logótipo:** fica laranja até o jogador escolher (ciano e branco já lhe foram mostrados).
+
 ## PEDIDOS DE 2026-11-01 (nuvem, por compilar e testar em casa)
 
 - **Checkpoints:** o último era a meta B e não tinha portão: agora há um portão de extração dourado em B. Os pilares
