@@ -41,7 +41,10 @@ O jogador fala português (PT). Responder em português.
   linha, A/D carta, Espaço filtro, T ordem, ⌫ vender não montados.
 - **Sinalética na pista** (`AEXTrackSigns`, posta pelo `AEXRaceDirector` no início): placas de chevrons do lado de fora
   das curvas (raio < 450 m) e balizas com luz âmbar nas bordas onde não há parede (a areia); nada nos túneis.
-- **A seguir (o jogador vai mandar imagens):** porquinho/mealheiro e HUD da corrida novos.
+- **Porquinho mealheiro em sprites** (`SourceArt/UI/Piggy`, `Scripts/piggy_sprites/build.py`): recortado da folha do
+  jogador sem redesenhar (fundo removido, brilhos em RGBA), 10 animações + ícones, JSON com frames, pivot e FPS. Ver o
+  `README.md` da pasta (faltas no original assinaladas). **A seguir:** a HUD da corrida (o jogador vai mandar a imagem)
+  e pôr o porquinho no HUD.
 - **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos
   flancos; radiador = duas entradas NACA no deck com grelhas de saída; grid = tomadas laterais rentes e grelha atrás;
   épica = guelras longas e NACA com contorno em carbono; lendária = canal longo no flanco com aletas lá dentro e saída

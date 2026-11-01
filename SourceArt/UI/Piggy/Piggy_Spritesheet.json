@@ -1,0 +1,1053 @@
+{
+ "source": "reference sheet supplied by the player (1536x1024), cut and keyed, not redrawn",
+ "master": "Piggy_Master_Spritesheet.png",
+ "gap_px": 8,
+ "animations": [
+  {
+   "name": "IDLE",
+   "file": "Idle.png",
+   "frames": 6,
+   "frame_width": 178,
+   "frame_height": 167,
+   "fps": 8,
+   "loop": true,
+   "pivot_px": [
+    89,
+    152
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9102
+   ],
+   "frame_names": null,
+   "rects_master": [
+    [
+     0,
+     0,
+     178,
+     167
+    ],
+    [
+     186,
+     0,
+     178,
+     167
+    ],
+    [
+     372,
+     0,
+     178,
+     167
+    ],
+    [
+     558,
+     0,
+     178,
+     167
+    ],
+    [
+     744,
+     0,
+     178,
+     167
+    ],
+    [
+     930,
+     0,
+     178,
+     167
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     178,
+     167
+    ],
+    [
+     186,
+     0,
+     178,
+     167
+    ],
+    [
+     372,
+     0,
+     178,
+     167
+    ],
+    [
+     558,
+     0,
+     178,
+     167
+    ],
+    [
+     744,
+     0,
+     178,
+     167
+    ],
+    [
+     930,
+     0,
+     178,
+     167
+    ]
+   ],
+   "note": null
+  },
+  {
+   "name": "BLINK",
+   "file": "Blink.png",
+   "frames": 4,
+   "frame_width": 176,
+   "frame_height": 168,
+   "fps": 10,
+   "loop": true,
+   "pivot_px": [
+    88,
+    154
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9167
+   ],
+   "frame_names": null,
+   "rects_master": [
+    [
+     0,
+     175,
+     176,
+     168
+    ],
+    [
+     184,
+     175,
+     176,
+     168
+    ],
+    [
+     368,
+     175,
+     176,
+     168
+    ],
+    [
+     552,
+     175,
+     176,
+     168
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     176,
+     168
+    ],
+    [
+     184,
+     0,
+     176,
+     168
+    ],
+    [
+     368,
+     0,
+     176,
+     168
+    ],
+    [
+     552,
+     0,
+     176,
+     168
+    ]
+   ],
+   "note": "Tocar de vez em quando por cima do IDLE."
+  },
+  {
+   "name": "RECEIVE_COINS",
+   "file": "Receive_Coins.png",
+   "frames": 8,
+   "frame_width": 194,
+   "frame_height": 217,
+   "fps": 12,
+   "loop": false,
+   "pivot_px": [
+    97,
+    200
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9217
+   ],
+   "frame_names": null,
+   "rects_master": [
+    [
+     0,
+     351,
+     194,
+     217
+    ],
+    [
+     202,
+     351,
+     194,
+     217
+    ],
+    [
+     404,
+     351,
+     194,
+     217
+    ],
+    [
+     606,
+     351,
+     194,
+     217
+    ],
+    [
+     808,
+     351,
+     194,
+     217
+    ],
+    [
+     1010,
+     351,
+     194,
+     217
+    ],
+    [
+     1212,
+     351,
+     194,
+     217
+    ],
+    [
+     1414,
+     351,
+     194,
+     217
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     194,
+     217
+    ],
+    [
+     202,
+     0,
+     194,
+     217
+    ],
+    [
+     404,
+     0,
+     194,
+     217
+    ],
+    [
+     606,
+     0,
+     194,
+     217
+    ],
+    [
+     808,
+     0,
+     194,
+     217
+    ],
+    [
+     1010,
+     0,
+     194,
+     217
+    ],
+    [
+     1212,
+     0,
+     194,
+     217
+    ],
+    [
+     1414,
+     0,
+     194,
+     217
+    ]
+   ],
+   "note": null
+  },
+  {
+   "name": "REWARD_JUMP",
+   "file": "Reward_Jump.png",
+   "frames": 4,
+   "frame_width": 288,
+   "frame_height": 206,
+   "fps": 10,
+   "loop": false,
+   "pivot_px": [
+    144,
+    198
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9612
+   ],
+   "frame_names": null,
+   "rects_master": [
+    [
+     0,
+     576,
+     288,
+     206
+    ],
+    [
+     296,
+     576,
+     288,
+     206
+    ],
+    [
+     592,
+     576,
+     288,
+     206
+    ],
+    [
+     888,
+     576,
+     288,
+     206
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     288,
+     206
+    ],
+    [
+     296,
+     0,
+     288,
+     206
+    ],
+    [
+     592,
+     0,
+     288,
+     206
+    ],
+    [
+     888,
+     0,
+     288,
+     206
+    ]
+   ],
+   "note": "Falta um frame de descida: o 3.º é o ápice e o 4.º já é a aterragem (não foi desenhado)."
+  },
+  {
+   "name": "CELEBRATE",
+   "file": "Celebrate.png",
+   "frames": 6,
+   "frame_width": 208,
+   "frame_height": 198,
+   "fps": 12,
+   "loop": true,
+   "pivot_px": [
+    104,
+    177
+   ],
+   "pivot_norm": [
+    0.5,
+    0.8939
+   ],
+   "frame_names": null,
+   "rects_master": [
+    [
+     0,
+     790,
+     208,
+     198
+    ],
+    [
+     216,
+     790,
+     208,
+     198
+    ],
+    [
+     432,
+     790,
+     208,
+     198
+    ],
+    [
+     648,
+     790,
+     208,
+     198
+    ],
+    [
+     864,
+     790,
+     208,
+     198
+    ],
+    [
+     1080,
+     790,
+     208,
+     198
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     208,
+     198
+    ],
+    [
+     216,
+     0,
+     208,
+     198
+    ],
+    [
+     432,
+     0,
+     208,
+     198
+    ],
+    [
+     648,
+     0,
+     208,
+     198
+    ],
+    [
+     864,
+     0,
+     208,
+     198
+    ],
+    [
+     1080,
+     0,
+     208,
+     198
+    ]
+   ],
+   "note": null
+  },
+  {
+   "name": "REACTION",
+   "file": "Reaction.png",
+   "frames": 12,
+   "frame_width": 182,
+   "frame_height": 204,
+   "fps": 0,
+   "loop": false,
+   "pivot_px": [
+    91,
+    187
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9167
+   ],
+   "frame_names": [
+    "surpresa_exclamacao",
+    "duvida_interrogacao",
+    "alerta_aviso",
+    "sono_zz",
+    "neutro_sorriso",
+    "alegria_olhos_fechados",
+    "choque_exclamacoes",
+    "choro",
+    "zanga_fumo",
+    "tonto_espiral",
+    "amor_coracoes",
+    "contente_sonolento"
+   ],
+   "rects_master": [
+    [
+     0,
+     996,
+     182,
+     204
+    ],
+    [
+     190,
+     996,
+     182,
+     204
+    ],
+    [
+     380,
+     996,
+     182,
+     204
+    ],
+    [
+     570,
+     996,
+     182,
+     204
+    ],
+    [
+     760,
+     996,
+     182,
+     204
+    ],
+    [
+     950,
+     996,
+     182,
+     204
+    ],
+    [
+     1140,
+     996,
+     182,
+     204
+    ],
+    [
+     1330,
+     996,
+     182,
+     204
+    ],
+    [
+     1520,
+     996,
+     182,
+     204
+    ],
+    [
+     1710,
+     996,
+     182,
+     204
+    ],
+    [
+     1900,
+     996,
+     182,
+     204
+    ],
+    [
+     2090,
+     996,
+     182,
+     204
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     182,
+     204
+    ],
+    [
+     190,
+     0,
+     182,
+     204
+    ],
+    [
+     380,
+     0,
+     182,
+     204
+    ],
+    [
+     570,
+     0,
+     182,
+     204
+    ],
+    [
+     760,
+     0,
+     182,
+     204
+    ],
+    [
+     950,
+     0,
+     182,
+     204
+    ],
+    [
+     1140,
+     0,
+     182,
+     204
+    ],
+    [
+     1330,
+     0,
+     182,
+     204
+    ],
+    [
+     1520,
+     0,
+     182,
+     204
+    ],
+    [
+     1710,
+     0,
+     182,
+     204
+    ],
+    [
+     1900,
+     0,
+     182,
+     204
+    ],
+    [
+     2090,
+     0,
+     182,
+     204
+    ]
+   ],
+   "note": "Estados (um frame cada), não uma sequência: escolher o frame pelo nome."
+  },
+  {
+   "name": "MOVE",
+   "file": "Move.png",
+   "frames": 3,
+   "frame_width": 280,
+   "frame_height": 167,
+   "fps": 12,
+   "loop": true,
+   "pivot_px": [
+    140,
+    129
+   ],
+   "pivot_norm": [
+    0.5,
+    0.7725
+   ],
+   "frame_names": null,
+   "rects_master": [
+    [
+     0,
+     1208,
+     280,
+     167
+    ],
+    [
+     288,
+     1208,
+     280,
+     167
+    ],
+    [
+     576,
+     1208,
+     280,
+     167
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     280,
+     167
+    ],
+    [
+     288,
+     0,
+     280,
+     167
+    ],
+    [
+     576,
+     0,
+     280,
+     167
+    ]
+   ],
+   "note": "Só 3 frames no original: ciclo curto."
+  },
+  {
+   "name": "TELEPORT",
+   "file": "Teleport.png",
+   "frames": 3,
+   "frame_width": 158,
+   "frame_height": 163,
+   "fps": 10,
+   "loop": false,
+   "pivot_px": [
+    79,
+    157
+   ],
+   "pivot_norm": [
+    0.5,
+    0.9632
+   ],
+   "frame_names": [
+    "entrada_feixe",
+    "materializado",
+    "saida_feixe"
+   ],
+   "rects_master": [
+    [
+     0,
+     1383,
+     158,
+     163
+    ],
+    [
+     166,
+     1383,
+     158,
+     163
+    ],
+    [
+     332,
+     1383,
+     158,
+     163
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     158,
+     163
+    ],
+    [
+     166,
+     0,
+     158,
+     163
+    ],
+    [
+     332,
+     0,
+     158,
+     163
+    ]
+   ],
+   "note": "Só 3 frames no original: não há frame de desaparecimento completo nem de reaparecimento separado; para a saída tocar ao contrário."
+  },
+  {
+   "name": "FX_COINS",
+   "file": "FX_Coins.png",
+   "frames": 5,
+   "frame_width": 68,
+   "frame_height": 69,
+   "fps": 0,
+   "loop": false,
+   "pivot_px": [
+    34,
+    34
+   ],
+   "pivot_norm": [
+    0.5,
+    0.4928
+   ],
+   "frame_names": [
+    "coin",
+    "coin_sparkle",
+    "coin",
+    "coin",
+    "coin_sparkle"
+   ],
+   "rects_master": [
+    [
+     0,
+     1554,
+     68,
+     69
+    ],
+    [
+     76,
+     1554,
+     68,
+     69
+    ],
+    [
+     152,
+     1554,
+     68,
+     69
+    ],
+    [
+     228,
+     1554,
+     68,
+     69
+    ],
+    [
+     304,
+     1554,
+     68,
+     69
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     68,
+     69
+    ],
+    [
+     76,
+     0,
+     68,
+     69
+    ],
+    [
+     152,
+     0,
+     68,
+     69
+    ],
+    [
+     228,
+     0,
+     68,
+     69
+    ],
+    [
+     304,
+     0,
+     68,
+     69
+    ]
+   ],
+   "note": "Peças soltas para partículas."
+  },
+  {
+   "name": "FX_GLOW",
+   "file": "FX_Glow.png",
+   "frames": 8,
+   "frame_width": 197,
+   "frame_height": 163,
+   "fps": 0,
+   "loop": false,
+   "pivot_px": [
+    98,
+    81
+   ],
+   "pivot_norm": [
+    0.4975,
+    0.4969
+   ],
+   "frame_names": [
+    "energy_pad",
+    "star",
+    "star",
+    "energy_pad",
+    "star",
+    "star",
+    "star",
+    "energy_ring"
+   ],
+   "rects_master": [
+    [
+     0,
+     1631,
+     197,
+     163
+    ],
+    [
+     205,
+     1631,
+     197,
+     163
+    ],
+    [
+     410,
+     1631,
+     197,
+     163
+    ],
+    [
+     615,
+     1631,
+     197,
+     163
+    ],
+    [
+     820,
+     1631,
+     197,
+     163
+    ],
+    [
+     1025,
+     1631,
+     197,
+     163
+    ],
+    [
+     1230,
+     1631,
+     197,
+     163
+    ],
+    [
+     1435,
+     1631,
+     197,
+     163
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     197,
+     163
+    ],
+    [
+     205,
+     0,
+     197,
+     163
+    ],
+    [
+     410,
+     0,
+     197,
+     163
+    ],
+    [
+     615,
+     0,
+     197,
+     163
+    ],
+    [
+     820,
+     0,
+     197,
+     163
+    ],
+    [
+     1025,
+     0,
+     197,
+     163
+    ],
+    [
+     1230,
+     0,
+     197,
+     163
+    ],
+    [
+     1435,
+     0,
+     197,
+     163
+    ]
+   ],
+   "note": "Peças soltas para efeitos."
+  },
+  {
+   "name": "ICONS",
+   "file": "Icons.png",
+   "frames": 4,
+   "frame_width": 116,
+   "frame_height": 163,
+   "fps": 0,
+   "loop": false,
+   "pivot_px": [
+    58,
+    81
+   ],
+   "pivot_norm": [
+    0.5,
+    0.4969
+   ],
+   "frame_names": [
+    "normal",
+    "moeda",
+    "coroa",
+    "escudo"
+   ],
+   "rects_master": [
+    [
+     0,
+     1802,
+     116,
+     163
+    ],
+    [
+     124,
+     1802,
+     116,
+     163
+    ],
+    [
+     248,
+     1802,
+     116,
+     163
+    ],
+    [
+     372,
+     1802,
+     116,
+     163
+    ]
+   ],
+   "rects_own_sheet": [
+    [
+     0,
+     0,
+     116,
+     163
+    ],
+    [
+     124,
+     0,
+     116,
+     163
+    ],
+    [
+     248,
+     0,
+     116,
+     163
+    ],
+    [
+     372,
+     0,
+     116,
+     163
+    ]
+   ],
+   "note": "Extra: ícones de UI do original."
+  }
+ ]
+}
