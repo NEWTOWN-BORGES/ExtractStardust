@@ -54,7 +54,8 @@ O jogador fala português (PT). Responder em português.
 - **Menus, hangar, cofre, caixas e resultados no estilo do HUD** (`Docs/MENU_HANGAR.md`, última secção; maquetas em
   `Docs/UI_MAQUETAS/`). Têm placas azul-escuras com cantos cortados e bordas ciano, o STARDUST em dourado (a moeda do
   porquinho) e Orbitron inclinado. A arte `ui_*` vem do `make_hud_art.py menu` e importa-se no passo 3d. O anel do prato
-  giratório passou a ciano.
+  giratório passou a ciano. **Ícones 3D** em vez de planos: caixas em 3D (`make_caches.py`, `cache_<n>.jpg`), a peça
+  montada nos slots do EQUIPAR, os consumíveis nos slots rápidos e a nave com a peça nas cartas dos resultados.
 - **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos
   flancos; radiador = duas entradas NACA no deck com grelhas de saída; grid = tomadas laterais rentes e grelha atrás;
   épica = guelras longas e NACA com contorno em carbono; lendária = canal longo no flanco com aletas lá dentro e saída

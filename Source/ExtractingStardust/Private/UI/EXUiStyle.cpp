@@ -182,9 +182,15 @@ namespace EXUi
 		return Block;
 	}
 
+	FString OrbitronSafe(const FString& Value)
+	{
+		// Orbitron has no middle dot and no ordinal signs: a bullet and a degree sign stand in (1.º -> 1.°).
+		return Value.Replace(TEXT("\u00B7"), TEXT("\u2022")).Replace(TEXT("\u00BA"), TEXT("\u00B0")).Replace(TEXT("\u00AA"), TEXT("\u00B0"));
+	}
+
 	UTextBlock* TitleText(UWidgetTree* Tree, const FString& Value, int32 Size, const FLinearColor& Color, int32 Spacing)
 	{
-		UTextBlock* Block = Text(Tree, Value, Size, Color, true, Spacing);
+		UTextBlock* Block = Text(Tree, OrbitronSafe(Value), Size, Color, true, Spacing);
 		FSlateFontInfo Info = Orbitron(Size, Spacing);
 		Info.OutlineSettings.OutlineSize = FMath::Max(1, Size / 18);
 		Info.OutlineSettings.OutlineColor = Ink(0.85f);

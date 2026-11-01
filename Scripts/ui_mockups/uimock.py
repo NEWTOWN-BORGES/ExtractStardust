@@ -117,6 +117,7 @@ class Screen:
         return tw
 
     def title(self, x, y, s, size, col, spacing=0, align='l', alpha=1.0, shadow=False):
+        s = s.replace('·', '•').replace('º', '°').replace('ª', '°')   # EXUi::OrbitronSafe
         if shadow:
             self.text(x, y + 3, s, size, INK, 'orb', spacing, max(1, size // 18), -11, 0.45, align)
         return self.text(x, y, s, size, col, 'orb', spacing, max(1, size // 18), -11, alpha, align)

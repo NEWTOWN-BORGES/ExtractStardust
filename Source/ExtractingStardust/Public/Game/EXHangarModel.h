@@ -169,6 +169,9 @@ public:
 	void SellLoose();
 	/** CONSUMÍVEIS: the consumable whose card was clicked goes into the quick slot looked at. */
 	void PickQuickKind(int32 Kind);
+	/** The 3D photos of a module on a ship (FEXHangarRow::Thumb and TierThumb), for the cards outside the hangar too (the
+	 *  results). Empty when it has none. */
+	static void ItemPhotos(const FEXItem& Item, const FString& Ship, FString& OutThumb, FString& OutTierThumb);
 
 private:
 	int32& Row() { return Rows[static_cast<int32>(CurrentTab)]; }

@@ -12,7 +12,9 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/Texture2D.h"
 #include "Flight/EXHoverCraft.h"
+#include "Game/EXHangarModel.h"
 #include "Race/EXRaceDirector.h"
 #include "UI/EXUiStyle.h"
 
@@ -61,9 +63,9 @@ namespace
 		UTextBlock** OutAmount = nullptr)
 	{
 		UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		EXUi::AddH(Line, EXUi::WeightText(Tree, What, bTotal ? 15 : 13, bTotal ? EXUi::Fore() : EXUi::Quiet(), bTotal ? 800 : 600, bTotal ? 150 : 0),
+		EXUi::AddH(Line, EXUi::WeightText(Tree, What, 13, bTotal ? EXUi::Fore() : EXUi::Quiet(), bTotal ? 800 : 600, bTotal ? 120 : 0),
 			FMargin(0.0f), true, VAlign_Center);
-		UTextBlock* AmountText = bTotal ? EXUi::TitleText(Tree, Amount, 30, Colour, 20) : EXUi::WeightText(Tree, Amount, 14, Colour, 800);
+		UTextBlock* AmountText = bTotal ? EXUi::TitleText(Tree, Amount, 28, Colour, 20) : EXUi::WeightText(Tree, Amount, 14, Colour, 800);
 		if (OutAmount)
 		{
 			*OutAmount = AmountText;
@@ -171,7 +173,7 @@ UWidget* UEXResultsWidget::BuildVerdict(UWidgetTree* Tree)
 	EXUi::AddV(Column, EXUi::LabelText(Tree, TEXT("EXPEDIÇÃO  ·  RED DUST DIVIDE"), 11, EXUi::AccentHot(), 300));
 	const FString Title = Summary.State == 1 ? TEXT("EXTRAÍDO") : (Summary.State == 2 ? TEXT("DESTRUÍDO") : TEXT("ENCALHADO"));
 	UHorizontalBox* TitleLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	EXUi::AddH(TitleLine, EXUi::TitleText(Tree, Title, 64, Colour, 80), FMargin(0.0f), false, VAlign_Center);
+	EXUi::AddH(TitleLine, EXUi::TitleText(Tree, Title, 52, Colour, 60), FMargin(0.0f), false, VAlign_Center);
 	if (Summary.State == 1 && Summary.Place >= 1 && Summary.Place <= 3)
 	{
 		// The podium: a medal in gold, silver or bronze beside the verdict.
@@ -297,16 +299,32 @@ UWidget* UEXResultsWidget::MakeCard(UWidgetTree* Tree, const FEXItem& Item, int3
 	EXUi::AddO(Card, EXUi::ShapeImage(Tree, EXUi::EShape::Card, TEXT("_edge"), 12.0f, bLost ? EXUi::Danger(0.8f) : RarityColour), HAlign_Fill, VAlign_Fill);
 	EXUi::AddO(Card, EXUi::Sized(Tree, 0.0f, 6.0f, EXUi::Box(Tree, bLost ? EXUi::Hex(255, 70, 50) : RarityColour)), HAlign_Fill, VAlign_Top);
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	UTexture2D* Icon = Def ? EXUi::Icon(FString::Printf(TEXT("fam_%d"), static_cast<int32>(Def->Family))) : nullptr;
-	EXUi::AddV(Column, EXUi::Sized(Tree, 64.0f, 64.0f, EXUi::Image(Tree, Icon, bLost ? EXUi::Fore(0.45f) : RarityColour)), FMargin(0.0f, 4.0f, 0.0f, 0.0f), HAlign_Center);
-	EXUi::AddV(Column, EXUi::WeightText(Tree, EXMeta::RarityName(Rarity).ToUpper(), 10, RarityColour, 800, 200), FMargin(0.0f, 10.0f, 0.0f, 0.0f), HAlign_Center);
+	// The 3D photo of the ship wearing the piece, as the hangar's cards (player, 2026-11-01: "tem de mostrar os ícones
+	// 3D"); the family's icon while the photos are not imported.
+	const AEXHoverCraft* Craft = Cast<AEXHoverCraft>(GetOwningPlayerPawn());
+	FString ThumbKey, TierKey;
+	UEXHangarModel::ItemPhotos(Item, Craft ? Craft->GetShipName() : FString(), ThumbKey, TierKey);
+	UTexture2D* Photo = TierKey.IsEmpty() ? nullptr : EXUi::Thumb(TierKey);
+	Photo = Photo ? Photo : EXUi::Thumb(ThumbKey);
+	if (Photo)
+	{
+		UImage* Picture = EXUi::Image(Tree, Photo, bLost ? EXUi::Fore(0.5f) : FLinearColor::White);
+		EXUi::AddV(Column, EXUi::Sized(Tree, 0.0f, 92.0f, Picture));   // 144 wide: the photos are 496 x 316
+	}
+	else
+	{
+		UTexture2D* Icon = Def ? EXUi::Icon(FString::Printf(TEXT("fam_%d"), static_cast<int32>(Def->Family))) : nullptr;
+		EXUi::AddV(Column, EXUi::Sized(Tree, 64.0f, 64.0f, EXUi::Image(Tree, Icon, bLost ? EXUi::Fore(0.45f) : RarityColour)), FMargin(0.0f, 20.0f, 0.0f, 23.0f), HAlign_Center);
+	}
+	EXUi::AddV(Column, EXUi::Sized(Tree, 0.0f, 2.0f, EXUi::Box(Tree, bLost ? EXUi::Danger() : RarityColour)));
+	EXUi::AddV(Column, EXUi::WeightText(Tree, EXMeta::RarityName(Rarity).ToUpper(), 10, RarityColour, 800, 200), FMargin(0.0f, 9.0f, 0.0f, 0.0f), HAlign_Center);
 	UTextBlock* Name = EXUi::WeightText(Tree, EXMeta::ItemLabel(Item), 13, EXUi::Fore(), 700);
 	Name->SetAutoWrapText(true);
 	Name->SetJustification(ETextJustify::Center);
 	EXUi::AddV(Column, Name, FMargin(0.0f, 4.0f, 0.0f, 0.0f), HAlign_Center);
 	EXUi::AddV(Column, EXUi::WeightText(Tree, FString::Printf(TEXT("%s%s"), bLost ? TEXT("-") : TEXT(""), *EXUi::Thousands(Item.Value)), 14,
 		bLost ? EXUi::Danger() : EXUi::Gold(), 800), FMargin(0.0f, 8.0f, 0.0f, 0.0f), HAlign_Center);
-	const FString Tag = bLost ? TEXT("PERDIDA") : (bSaved ? TEXT("SEGURA  ·  FICOU CONTIGO") : (Kind == 3 ? TEXT("VITÓRIA") : TEXT("PORQUINHO")));
+	const FString Tag = bLost ? TEXT("PERDIDA") : (bSaved ? TEXT("SEGURA") : (Kind == 3 ? TEXT("VITÓRIA") : TEXT("PORQUINHO")));
 	const FLinearColor TagColour = bLost ? EXUi::Hex(255, 70, 50, 0.85f) : (bSaved ? EXUi::Hex(80, 230, 255, 0.8f) : (Kind == 3 ? EXUi::Hex(255, 200, 80, 0.95f) : EXUi::Accent(0.9f)));
 	UBorder* TagBox = EXUi::Box(Tree, TagColour, FMargin(10.0f, 3.0f), EXUi::WeightText(Tree, Tag, 9, EXUi::Ink(), 800, 150));
 	EXUi::SetShapeBrush(TagBox, EXUi::EShape::Plate, 4.0f);
@@ -321,7 +339,13 @@ UWidget* UEXResultsWidget::BuildPieces(UWidgetTree* Tree)
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	const bool bWon = Summary.State == 1;
 	UHorizontalBox* Head = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	EXUi::AddH(Head, EXUi::Sized(Tree, 26.0f, 26.0f, EXUi::Image(Tree, EXUi::Icon(TEXT("piggy")), bWon ? EXUi::Gold() : EXUi::Danger())),
+	// The piggy bank itself, as on the HUD (its HD frame: celebrating when the player extracted, crying otherwise); the flat
+	// icon while the frames are not imported.
+	const TCHAR* const PiggyFrame = bWon ? TEXT("T_Piggy_Celebrate_00") : TEXT("T_Piggy_Reaction_07");
+	UTexture2D* Piggy = LoadObject<UTexture2D>(nullptr, *FString::Printf(TEXT("/Game/UI/Piggy/%s.%s"), PiggyFrame, PiggyFrame), nullptr,
+		LOAD_NoWarn | LOAD_Quiet);
+	EXUi::AddH(Head, Piggy ? EXUi::Sized(Tree, bWon ? 56.0f : 50.0f, 54.0f, EXUi::Image(Tree, Piggy))
+		: EXUi::Sized(Tree, 26.0f, 26.0f, EXUi::Image(Tree, EXUi::Icon(TEXT("piggy")), bWon ? EXUi::Gold() : EXUi::Danger())),
 		FMargin(0.0f, 0.0f, 10.0f, 0.0f), false, VAlign_Center);
 	EXUi::AddH(Head, EXUi::WeightText(Tree, bWon ? TEXT("ESPÓLIO GANHO  ·  PORQUINHO") : (Summary.State == 2 ? TEXT("PEÇAS QUE CAÍRAM NO PORQUINHO") : TEXT("AS TUAS PEÇAS")),
 		11, bWon ? EXUi::Gold() : EXUi::Danger(), 800, 300), FMargin(0.0f), false, VAlign_Center);
@@ -387,12 +411,12 @@ UWidget* UEXResultsWidget::BuildStandings(UWidgetTree* Tree)
 		EXUi::AddH(Line, EXUi::WeightText(Tree, Racer.bPlayer ? TEXT("TU") : Racer.Name, 13, Colour, Racer.bPlayer ? 800 : 600), FMargin(6.0f, 0.0f, 0.0f, 0.0f), true, VAlign_Center);
 		const FString Result = State == 1 ? (Racer.bProjected ? FString::Printf(TEXT("~%s"), *ResultClock(Racer.FinishTime)) : ResultClock(Racer.FinishTime))
 			: (State == 2 ? FString::Printf(TEXT("km %s"), *FString::Printf(TEXT("%.1f"), Racer.OutAtM / 1000.0f).Replace(TEXT("."), TEXT(","))) : FString(TEXT("a caminho")));
-		EXUi::AddH(Line, EXUi::Sized(Tree, 96.0f, 0.0f, EXUi::WeightText(Tree, Result, 12, Colour, 700)), FMargin(8.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
+		EXUi::AddH(Line, EXUi::Sized(Tree, 80.0f, 0.0f, EXUi::WeightText(Tree, Result, 12, Colour, 700)), FMargin(8.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
 		const FString Tag = State == 1 ? TEXT("EXTRAÍDO") : (State == 2 ? TEXT("DESTRUÍDO") : TEXT("ENCALHADO"));
 		EXUi::AddH(Line, EXUi::Sized(Tree, 92.0f, 0.0f, EXUi::WeightText(Tree, Tag, 10, State == 2 ? EXUi::Danger() : (State == 1 ? EXUi::Ok() : EXUi::Quiet()), 800, 100)),
 			FMargin(8.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
 		const FString Money = State == 1 ? FString::Printf(TEXT("+%s"), *EXUi::Thousands(Racer.Reward)) : (State == 2 && Racer.LostValue > 0 ? FString::Printf(TEXT("-%s"), *EXUi::Thousands(Racer.LostValue)) : FString());
-		EXUi::AddH(Line, EXUi::Sized(Tree, 70.0f, 0.0f, EXUi::WeightText(Tree, Money, 12, State == 2 ? EXUi::Danger() : EXUi::Gold(), 800)),
+		EXUi::AddH(Line, EXUi::Sized(Tree, 64.0f, 0.0f, EXUi::WeightText(Tree, Money, 12, State == 2 ? EXUi::Danger() : EXUi::Gold(), 800)),
 			FMargin(8.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
 		UBorder* PlayerRow = Racer.bPlayer ? EXUi::Box(Tree, EXUi::Accent(0.16f), FMargin(8.0f, 4.0f), Line) : nullptr;
 		EXUi::SetShapeBrush(PlayerRow, EXUi::EShape::Plate, 6.0f);

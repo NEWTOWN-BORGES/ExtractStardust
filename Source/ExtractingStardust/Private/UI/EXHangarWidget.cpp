@@ -322,11 +322,18 @@ UEXHangarWidget::FSlotView UEXHangarWidget::MakeSlot()
 	UWidgetTree* Tree = WidgetTree;
 	FSlotView View;
 	UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	// The slot's icon in a small dark square.
+	// The fitted piece's 3D photo in a thin frame (player, 2026-11-01: "tem de mostrar os ícones 3D"); the slot's icon in a
+	// small dark square while the photos are not imported.
 	const EXUi::FFrame IconFrame = EXUi::Frame(Tree, EXUi::AccentHot(0.25f), EXUi::Ink(0.45f), 1.0f, FMargin(9.0f), -1.0f, 6.0f);
 	View.Icon = EXUi::Image(Tree, nullptr, EXUi::AccentHot());
 	IconFrame.Fill->SetContent(View.Icon);
-	EXUi::AddH(Line, EXUi::Sized(Tree, 41.0f, 41.0f, IconFrame.Root), FMargin(0.0f, 0.0f, 12.0f, 0.0f));
+	View.IconBox = EXUi::Sized(Tree, 41.0f, 41.0f, IconFrame.Root);
+	View.Photo = EXUi::Image(Tree, nullptr);
+	View.PhotoBox = EXUi::Sized(Tree, 66.0f, 42.0f, EXUi::Box(Tree, EXUi::AccentHot(0.3f), FMargin(1.0f), View.Photo));
+	UOverlay* Picture = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
+	EXUi::AddO(Picture, View.IconBox, HAlign_Left, VAlign_Center);
+	EXUi::AddO(Picture, View.PhotoBox, HAlign_Left, VAlign_Center);
+	EXUi::AddH(Line, EXUi::Sized(Tree, 66.0f, 42.0f, Picture), FMargin(0.0f, 0.0f, 12.0f, 0.0f));
 	UVerticalBox* Text = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	View.Label = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Quiet(), 700, 180);
 	View.Title = EXUi::WeightText(Tree, TEXT(""), 13, EXUi::Fore(), 700);
@@ -421,6 +428,20 @@ UEXHangarWidget::FTileView UEXHangarWidget::MakeTile(int32 QuickIndex)
 	View.Fill = EXUi::Box(Tree, EXUi::Plate(0.6f));
 	EXUi::SetShapeBrush(View.Fill, EXUi::EShape::Plate, 12.0f);
 	EXUi::AddO(Root, View.Fill, HAlign_Fill, VAlign_Fill);
+	// The consumable's 3D photo (its icon while the photos are not imported), its name and count.
+	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	View.Icon = EXUi::Image(Tree, nullptr);
+	View.IconBox = EXUi::Sized(Tree, 40.0f, 40.0f, View.Icon);
+	View.Photo = EXUi::Image(Tree, nullptr);
+	View.PhotoBox = EXUi::Sized(Tree, 108.0f, 69.0f, View.Photo);
+	UOverlay* Picture = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
+	EXUi::AddO(Picture, View.IconBox, HAlign_Center, VAlign_Center);
+	EXUi::AddO(Picture, View.PhotoBox, HAlign_Center, VAlign_Center);
+	EXUi::AddV(Column, Picture, FMargin(0.0f), HAlign_Center);
+	View.Name = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Fore(), 700);
+	EXUi::AddV(Column, View.Name, FMargin(0.0f, 6.0f, 0.0f, 0.0f), HAlign_Center);
+	EXUi::AddV(Column, Diamonds(Tree, 2, 9.0f, 7.0f, View.Pips), FMargin(0.0f, 6.0f, 0.0f, 0.0f), HAlign_Center);
+	EXUi::AddO(Root, Column, HAlign_Center, VAlign_Center, FMargin(0.0f, 16.0f, 0.0f, 0.0f));
 	// The key in a small box (top left) and the d-pad arrow (top right).
 	const EXUi::FFrame Key = EXUi::Frame(Tree, EXUi::AccentHot(0.7f), EXUi::Ink(0.0f), 1.0f, FMargin(0.0f), -1.0f, 4.0f);
 	UTextBlock* KeyText = EXUi::WeightText(Tree, FString::FromInt(QuickIndex + 1), 10, EXUi::Fore(), 800);
@@ -429,13 +450,6 @@ UEXHangarWidget::FTileView UEXHangarWidget::MakeTile(int32 QuickIndex)
 	Key.Fill->SetVerticalAlignment(VAlign_Center);
 	EXUi::AddO(Root, EXUi::Sized(Tree, 22.0f, 22.0f, Key.Root), HAlign_Left, VAlign_Top, FMargin(9.0f));
 	EXUi::AddO(Root, EXUi::WeightText(Tree, QuickArrows[QuickIndex], 10, EXUi::Accent(), 700), HAlign_Right, VAlign_Top, FMargin(0.0f, 8.0f, 10.0f, 0.0f));
-	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	View.Icon = EXUi::Image(Tree, nullptr);
-	EXUi::AddV(Column, EXUi::Sized(Tree, 40.0f, 40.0f, View.Icon), FMargin(0.0f), HAlign_Center);
-	View.Name = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Fore(), 700);
-	EXUi::AddV(Column, View.Name, FMargin(0.0f, 9.0f, 0.0f, 0.0f), HAlign_Center);
-	EXUi::AddV(Column, Diamonds(Tree, 2, 9.0f, 7.0f, View.Pips), FMargin(0.0f, 7.0f, 0.0f, 0.0f), HAlign_Center);
-	EXUi::AddO(Root, Column, HAlign_Center, VAlign_Center, FMargin(0.0f, 14.0f, 0.0f, 0.0f));
 	View.Edge = EXUi::ShapeImage(Tree, EXUi::EShape::Plate, TEXT("_edge"), 12.0f, EXUi::AccentHot(0.2f));
 	EXUi::AddO(Root, View.Edge, HAlign_Fill, VAlign_Fill);
 	View.Root = EXUi::Sized(Tree, 142.0f, 142.0f, Root);
@@ -939,6 +953,11 @@ void UEXHangarWidget::ShowSlot(const FSlotView& View, const FEXHangarRow* Row, b
 	View.Frame.Root->SetVisibility(ESlateVisibility::HitTestInvisible);
 	ShowLineFrame(View.Frame, Row->Colour, bSelected, EXUi::Accent());
 	EXUi::SetImage(View.Icon, EXUi::Icon(Row->Icon), bSelected ? EXUi::AccentHot() : EXUi::Fore(0.85f));
+	UTexture2D* Photo = Row->TierThumb.IsEmpty() ? nullptr : EXUi::Thumb(Row->TierThumb);   // an epic/legendary design
+	Photo = Photo ? Photo : EXUi::Thumb(Row->Thumb);
+	EXUi::SetImage(View.Photo, Photo);
+	View.PhotoBox->SetVisibility(Photo ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	View.IconBox->SetVisibility(Photo ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 	EXUi::SetText(View.Label, Row->Label);
 	EXUi::SetText(View.Title, Row->Title);
 	View.Title->SetColorAndOpacity(FSlateColor(Row->bDim ? EXUi::Dim() : (Row->Colour.R + Row->Colour.G + Row->Colour.B < 1.4f ? EXUi::Fore(0.8f) : Row->Colour)));
@@ -1401,6 +1420,10 @@ void UEXHangarWidget::Refresh()
 			View.Fill->SetBrushColor(bOn ? PickFill() : EXUi::Plate(0.6f));
 			View.Edge->SetColorAndOpacity(bOn ? EXUi::Accent(0.95f) : EXUi::AccentHot(0.2f));
 			EXUi::SetImage(View.Icon, Row ? EXUi::Icon(Row->Icon) : nullptr, Row ? Row->Colour : EXUi::Fore());
+			UTexture2D* Photo = Row && !Row->Thumb.IsEmpty() ? EXUi::Thumb(Row->Thumb) : nullptr;
+			EXUi::SetImage(View.Photo, Photo);
+			View.PhotoBox->SetVisibility(Photo ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+			View.IconBox->SetVisibility(Photo ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 			EXUi::SetText(View.Name, Row ? Row->Title : FString());
 			for (int32 Pip = 0; Pip < 2; ++Pip)
 			{

@@ -59,6 +59,8 @@ namespace EXUi
 	/** Text in Orbitron (see Orbitron), leaning forward with a dark outline round the letters: the titles and figures of
 	 *  every screen, as the HUD's. */
 	UTextBlock* TitleText(UWidgetTree* Tree, const FString& Value, int32 Size, const FLinearColor& Color, int32 Spacing = 0);
+	/** The text with the signs Orbitron lacks swapped for ones it has (the middle dot, the ordinal signs). */
+	FString OrbitronSafe(const FString& Value);
 	/** A label as the HUD's: Inter extra bold in spaced capitals, a thin dark outline, leaning a little. */
 	UTextBlock* LabelText(UWidgetTree* Tree, const FString& Value, int32 Size, const FLinearColor& Color, int32 Spacing = 160);
 	/** Text in Inter at a weight (see Inter). */

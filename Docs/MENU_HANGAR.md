@@ -111,3 +111,18 @@ Pedido do jogador: "a mesma direção de arte para os menus iniciais, hangar e c
   (`Scripts/ui_mockups/hangar_scene.py`), com a arte, as posições e os tamanhos do código.
 - **Importar e compilar:** o passo 3d do `casa_tudo.ps1` traz os `ui_*` novos (pelo `import_ui_icons.py`). Depois,
   compilar com `Scripts\casa_tudo.ps1 -SemPista`.
+- **Ícones 3D** (pedido do jogador, 2026-11-01: "tem de mostrar os ícones 3D"). Onde havia um ícone plano, aparece agora
+  a foto 3D:
+  - as caixas STANDARD, ADVANCED e ELITE são caixotes 3D próprios (`Scripts/make_caches.py`), com as fotos em
+    `SourceArt/UI/Thumbs/cache_<n>.jpg` e os modelos em `SourceArt/Caches`. A cor de cada uma é ciano, azul e dourado;
+  - os slots do EQUIPAR mostram a peça montada. A peça de série mostra a nave;
+  - os slots rápidos dos CONSUMÍVEIS mostram o consumível em 3D;
+  - as cartas dos resultados mostram a nave com a peça, e o porquinho HD aparece no título do espólio.
+
+  O ícone plano só aparece enquanto as fotos não estiverem importadas (passo 3d).
+- **Resultados:**
+  - o título passa a 52, para caber com a medalha;
+  - o total e as colunas da classificação já não se sobrepõem;
+  - a etiqueta passa a ser só "SEGURA";
+  - o Orbitron não tem "·" nem "º", por isso o `TitleText` troca-os por "•" e "°" (`EXUi::OrbitronSafe`).
+

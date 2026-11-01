@@ -129,6 +129,20 @@ namespace
 			Rarity == EEXRarity::Legendary ? TEXT("_lg") : TEXT("_ep"));
 	}
 
+	/** A cache's colour (its card's edge and glow, the HUD's look): STANDARD cyan, ADVANCED the rare's blue, ELITE the
+	 *  legendary's gold. */
+	FLinearColor HangarCacheColour(int32 Kind)
+	{
+		static const FColor Colours[] = { FColor(0x46, 0xDC, 0xFF), FColor(0x4A, 0xA3, 0xFF), FColor(0xFF, 0xC2, 0x3D) };
+		return FLinearColor(Colours[FMath::Clamp(Kind, 0, 2)]);
+	}
+
+	/** The stock part's colour (de série): the quiet steel of the UI. */
+	FLinearColor HangarStockColour()
+	{
+		return FLinearColor(FColor(0x8C, 0xA5, 0xC4));
+	}
+
 	/** "+9 Manobra"-style chips: the gains first, then the drawbacks (mass left out), then the legendary's perk. */
 	void HangarChips(const FEXItem& Item, bool bCard, TArray<FEXHangarChip>& Out)
 	{
@@ -215,6 +229,13 @@ void UEXHangarModel::Open()
 		EXEconomy::SanitizeQuick(Profile);
 	}
 	Touch();
+}
+
+void UEXHangarModel::ItemPhotos(const FEXItem& Item, const FString& Ship, FString& OutThumb, FString& OutTierThumb)
+{
+	const EXMeta::FModuleDef* Def = EXMeta::Find(Item);
+	OutThumb = Def ? HangarThumbKey(*Def, Ship) : FString();
+	OutTierThumb = Def ? HangarTierThumbKey(*Def, Ship, static_cast<EEXRarity>(Item.Rarity)) : FString();
 }
 
 FString UEXHangarModel::TabName(EEXHangarTab Tab)
@@ -1248,7 +1269,10 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			const EXMeta::FModuleDef* ItemDef = Item ? EXMeta::Find(*Item) : nullptr;
 			const uint8 Badge = ItemDef ? ItemDef->Size : Def.Sizes[Slot];
 			R.Size = Badge == EXMeta::SizeAny ? FString() : EXMeta::SizeText(Badge);
-			R.Colour = Item ? EXMeta::RarityColour(static_cast<EEXRarity>(Item->Rarity)) : FLinearColor(0.42f, 0.36f, 0.30f);
+			R.Colour = Item ? EXMeta::RarityColour(static_cast<EEXRarity>(Item->Rarity)) : HangarStockColour();
+			// The fitted piece's 3D photo; the stock part shows the ship as it was built.
+			R.Thumb = ItemDef ? HangarThumbKey(*ItemDef, Ship) : Ship.ToLower() + TEXT("_ship");
+			R.TierThumb = ItemDef ? HangarTierThumbKey(*ItemDef, Ship, static_cast<EEXRarity>(Item->Rarity)) : FString();
 			R.bInsured = Item && Build && Build->Insured == Item->Serial;
 			R.Tag = R.bInsured ? FString(TEXT("SEGURA")) : FString();
 		}
@@ -1288,9 +1312,10 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			R.Sub = Def.Promise;
 			R.Maker = Def.Promise;
 			R.Right = HangarDust(Def.Price);
-			R.Colour = FLinearColor(1.0f, 0.34f, 0.10f);
+			R.Colour = HangarCacheColour(Kind);
 			R.bDim = Profile && Profile->Stardust < Def.Price;
 			R.Icon = FString::Printf(TEXT("cache_%d"), Kind);
+			R.Thumb = R.Icon;   // the 3D crate's photo (Scripts/make_caches.py)
 			R.Value = Def.Price;
 		}
 		for (int32 Offer = 0; Profile && Offer < Profile->Shop.Num(); ++Offer)
@@ -1316,8 +1341,10 @@ void UEXHangarModel::BuildLeft(FString& Title, TArray<FEXHangarRow>& Out, int32&
 			R.Sub = Def.Promise;
 			R.Maker = Def.Promise;
 			R.Right = TEXT("ABRIR");
-			R.Colour = FLinearColor(1.0f, 0.34f, 0.10f);
-			R.Icon = FString::Printf(TEXT("cache_%d"), FMath::Min(static_cast<int32>(Profile->Caches[Index]), EXMeta::CacheCount - 1));
+			const int32 Kind = FMath::Min(static_cast<int32>(Profile->Caches[Index]), EXMeta::CacheCount - 1);
+			R.Colour = HangarCacheColour(Kind);
+			R.Icon = FString::Printf(TEXT("cache_%d"), Kind);
+			R.Thumb = R.Icon;   // the 3D crate's photo (Scripts/make_caches.py)
 			R.Tag = TEXT("ABRIR");
 		}
 		for (const int32 Serial : VaultItems())
@@ -1424,9 +1451,10 @@ void UEXHangarModel::BuildRight(FString& Title, TArray<FEXHangarRow>& Out, int32
 				R.Sub = TEXT("sem b\u00F3nus, nunca se perde");
 				R.Maker = R.Sub;
 				R.Rarity = TEXT("DE S\u00C9RIE");
-				R.Colour = FLinearColor(0.42f, 0.36f, 0.30f);
+				R.Colour = HangarStockColour();
 				R.Tag = FittedSerial == 0 ? FString(TEXT("MONTADO")) : FString();
 				R.Icon = FString::Printf(TEXT("fam_%d"), static_cast<int32>(CurrentSlot()));
+				R.Thumb = GetShipName().ToLower() + TEXT("_ship");   // the ship as it was built
 				continue;
 			}
 			Out.Add(ItemRow(*Item, true));

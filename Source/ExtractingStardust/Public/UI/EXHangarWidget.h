@@ -66,6 +66,10 @@ private:
 	{
 		FLineFrame Frame;
 		UImage* Icon = nullptr;
+		UWidget* IconBox = nullptr;
+		/** The fitted piece's 3D photo (the icon while the photos are not imported). */
+		UImage* Photo = nullptr;
+		UWidget* PhotoBox = nullptr;
 		UTextBlock* Label = nullptr;
 		UTextBlock* Title = nullptr;
 		UWidget* SizeBox = nullptr;
@@ -106,6 +110,10 @@ private:
 		UBorder* Fill = nullptr;
 		UImage* Edge = nullptr;
 		UImage* Icon = nullptr;
+		UWidget* IconBox = nullptr;
+		/** The consumable's 3D photo (the icon while the photos are not imported). */
+		UImage* Photo = nullptr;
+		UWidget* PhotoBox = nullptr;
 		UTextBlock* Name = nullptr;
 		UBorder* Pips[2] = {};
 	};
