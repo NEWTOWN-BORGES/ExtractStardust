@@ -53,3 +53,16 @@ semitransparentes, como luz por cima. Gerados por `Scripts/piggy_sprites/build.p
 
 A pasta `HD2x/` tem só as folhas por animação, ao dobro do tamanho, feitas com ampliação por IA (Real-ESRGAN anime).
 Servem para promoção; no jogo usam-se as desta pasta. Ver `HD2x/README.md`.
+
+## No jogo
+
+O HUD da corrida (`UEXRaceHudWidget`) usa os frames HD (`HD2x/frames`, importados para `/Game/UI/Piggy/T_Piggy_*` por
+`Scripts/import_piggy.py`, no passo 3d do `casa_tudo.ps1`). O porquinho:
+- entra a teletransportar-se quando a corrida aparece;
+- fica em Idle e pisca de vez em quando;
+- recebe as moedas quando uma nave é destruída e o porquinho cresce;
+- salta e celebra quando o jogador extrai;
+- chora quando o jogador é destruído ou fica encalhado.
+
+No jogo as texturas ficam a 512 px no máximo (`max_texture_size`), o que chega para o HUD. Para capturas de promoção,
+subir esse valor. Se os frames não estiverem importados, o HUD mostra o ícone simples de antes.

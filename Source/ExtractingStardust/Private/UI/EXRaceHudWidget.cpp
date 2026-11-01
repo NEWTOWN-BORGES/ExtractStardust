@@ -2,6 +2,8 @@
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
@@ -11,6 +13,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "Flight/EXHoverCraft.h"
 #include "Game/EXProfile.h"
@@ -238,6 +241,33 @@ UWidget* UEXRaceHudWidget::BuildProgressBar(UWidgetTree* Tree)
 	return Column;
 }
 
+namespace
+{
+	/** The piggy's animations (SourceArt/UI/Piggy/HD2x/Piggy_Spritesheet_HD2x.json; frames padded to multiples of 4):
+	 *  file stem, frames, frame size, pivot at the feet, frames per second, loop. */
+	struct FPiggyAnim
+	{
+		const TCHAR* File;
+		int32 Frames;
+		float W, H, PX, PY, Fps;
+		bool bLoop;
+	};
+	enum EPiggy : int32 { PiggyIdle, PiggyBlink, PiggyCoins, PiggyJump, PiggyCelebrate, PiggyReaction, PiggyMove, PiggyTeleport };
+	const FPiggyAnim PiggyAnims[8] = {
+		{ TEXT("Idle"), 6, 956.0f, 892.0f, 478.0f, 812.0f, 8.0f, true },
+		{ TEXT("Blink"), 4, 940.0f, 896.0f, 470.0f, 822.0f, 10.0f, false },
+		{ TEXT("Receive_Coins"), 8, 952.0f, 1160.0f, 476.0f, 1068.0f, 12.0f, false },
+		{ TEXT("Reward_Jump"), 4, 1504.0f, 1100.0f, 752.0f, 1056.0f, 10.0f, false },
+		{ TEXT("Celebrate"), 6, 1088.0f, 1056.0f, 544.0f, 992.0f, 12.0f, true },
+		{ TEXT("Reaction"), 12, 976.0f, 1056.0f, 488.0f, 998.0f, 0.0f, false },
+		{ TEXT("Move"), 3, 1488.0f, 896.0f, 744.0f, 816.0f, 12.0f, true },
+		{ TEXT("Teleport"), 3, 840.0f, 872.0f, 420.0f, 838.0f, 10.0f, false },
+	};
+	constexpr float PiggyBox = 150.0f;            // the piggy's square on the HUD
+	constexpr float PiggyScale = 0.125f;          // HD frame pixels to HUD pixels (the idle pig ~120 px wide)
+	constexpr int32 PiggyCrying = 7;              // REACTION frame: crying (the player destroyed)
+}
+
 UWidget* UEXRaceHudWidget::BuildPiggy(UWidgetTree* Tree)
 {
 	// Player, 2026-10-26: the piggy bank of the old game back on the race screen. The icon glows gold and jumps when a
@@ -246,9 +276,38 @@ UWidget* UEXRaceHudWidget::BuildPiggy(UWidgetTree* Tree)
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UHorizontalBox* Top = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	UOverlay* Icon = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	EXUi::AddO(Icon, EXUi::Glow(Tree, FLinearColor(Gold.R, Gold.G, Gold.B, 0.45f)), HAlign_Fill, VAlign_Fill);
-	EXUi::AddO(Icon, EXUi::Image(Tree, EXUi::Icon(TEXT("piggy")), Gold), HAlign_Fill, VAlign_Fill, FMargin(6.0f));
-	PiggyIconBox = EXUi::Sized(Tree, 64.0f, 64.0f, Icon);
+	EXUi::AddO(Icon, EXUi::Glow(Tree, FLinearColor(Gold.R, Gold.G, Gold.B, 0.30f)), HAlign_Fill, VAlign_Fill, FMargin(18.0f));
+	// The HD piggy (player, 2026-11-01): its frames, if imported; otherwise the flat icon of before.
+	PiggyFrameAll.Reset();
+	for (int32 Anim = 0; Anim < 8; ++Anim)
+	{
+		PiggyFirst[Anim] = PiggyFrameAll.Num();
+		for (int32 Frame = 0; Frame < PiggyAnims[Anim].Frames; ++Frame)
+		{
+			const FString Name = FString::Printf(TEXT("T_Piggy_%s_%02d"), PiggyAnims[Anim].File, Frame);
+			PiggyFrameAll.Add(LoadObject<UTexture2D>(nullptr, *FString::Printf(TEXT("/Game/UI/Piggy/%s.%s"), *Name, *Name), nullptr,
+				LOAD_NoWarn | LOAD_Quiet));
+		}
+	}
+	const bool bHd = PiggyFrameAll.Num() > 0 && PiggyFrameAll[0] != nullptr;
+	float Box = 64.0f;
+	if (bHd)
+	{
+		UCanvasPanel* Stage = Tree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
+		PiggySprite = EXUi::Image(Tree, PiggyFrameAll[0], FLinearColor::White);
+		PiggySpriteSlot = Stage->AddChildToCanvas(PiggySprite);
+		PiggySpriteSlot->SetAutoSize(false);
+		EXUi::AddO(Icon, Stage, HAlign_Fill, VAlign_Fill);
+		Box = PiggyBox;
+		PiggyAnim = PiggyTeleport;      // it beams in when the race screen comes up
+		PiggyTime = 0.0f;
+		PiggyShownAnim = -1;
+	}
+	else
+	{
+		EXUi::AddO(Icon, EXUi::Image(Tree, EXUi::Icon(TEXT("piggy")), Gold), HAlign_Fill, VAlign_Fill, FMargin(6.0f));
+	}
+	PiggyIconBox = EXUi::Sized(Tree, Box, Box, Icon);
 	PiggyIconBox->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
 	EXUi::AddH(Top, PiggyIconBox, FMargin(0.0f), false, VAlign_Center);
 	UVerticalBox* Text = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
@@ -378,6 +437,82 @@ void UEXRaceHudWidget::Refresh()
 	RefreshPiggy(GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.016f);
 }
 
+void UEXRaceHudWidget::RefreshPiggySprite(float Dt)
+{
+	PiggyTime += Dt;
+	// What the player's race has come to: extracted (a jump, then the celebration), destroyed or stranded (tears).
+	uint8 PlayerState = 0;
+	for (const FEXRacer& Racer : RaceDirector->GetStandings())
+	{
+		if (Racer.bPlayer)
+		{
+			PlayerState = Racer.State;
+			break;
+		}
+	}
+	auto Play = [this](int32 Anim)
+	{
+		if (PiggyAnim != Anim)
+		{
+			PiggyAnim = Anim;
+			PiggyTime = 0.0f;
+		}
+	};
+	const FPiggyAnim& Now = PiggyAnims[PiggyAnim];
+	const bool bDone = !Now.bLoop && Now.Fps > 0.0f && PiggyTime * Now.Fps >= Now.Frames;
+	if (PlayerState == 1)
+	{
+		if (PiggyAnim != PiggyJump && PiggyAnim != PiggyCelebrate)
+		{
+			Play(PiggyJump);
+		}
+		else if (PiggyAnim == PiggyJump && bDone)
+		{
+			Play(PiggyCelebrate);
+		}
+	}
+	else if (PlayerState >= 2)
+	{
+		Play(PiggyReaction);
+	}
+	else
+	{
+		// A racer destroyed: its pieces fall into the piggy.
+		const float PoolTime = RaceDirector->GetLastPoolTime();
+		if (RaceDirector->GetLastPoolGain() > 0 && PoolTime != PiggyLastPool && PoolTime > 0.0f)
+		{
+			PiggyLastPool = PoolTime;
+			Play(PiggyCoins);
+		}
+		else if ((PiggyAnim == PiggyCoins || PiggyAnim == PiggyTeleport || PiggyAnim == PiggyBlink) && bDone)
+		{
+			Play(PiggyIdle);
+			PiggyBlinkAt = FMath::FRandRange(3.0f, 6.0f);
+		}
+		else if (PiggyAnim == PiggyIdle && PiggyTime >= PiggyBlinkAt)
+		{
+			Play(PiggyBlink);
+		}
+	}
+	const FPiggyAnim& Anim = PiggyAnims[PiggyAnim];
+	int32 Frame = PiggyAnim == PiggyReaction ? PiggyCrying : FMath::FloorToInt(PiggyTime * Anim.Fps);
+	Frame = Anim.bLoop ? Frame % Anim.Frames : FMath::Clamp(Frame, 0, Anim.Frames - 1);
+	const int32 At = PiggyFirst[PiggyAnim] + Frame;
+	UTexture2D* Texture = PiggyFrameAll.IsValidIndex(At) ? PiggyFrameAll[At].Get() : nullptr;
+	if (!Texture)
+	{
+		Texture = PiggyFrameAll[0];
+	}
+	EXUi::SetImage(PiggySprite, Texture, FLinearColor::White);
+	if (PiggyShownAnim != PiggyAnim && PiggySpriteSlot)
+	{
+		// Every animation has its own canvas: keep the feet on the same spot of the HUD.
+		PiggyShownAnim = PiggyAnim;
+		PiggySpriteSlot->SetSize(FVector2D(Anim.W, Anim.H) * PiggyScale);
+		PiggySpriteSlot->SetPosition(FVector2D(PiggyBox * 0.5f - Anim.PX * PiggyScale, PiggyBox - 8.0f - Anim.PY * PiggyScale));
+	}
+}
+
 void UEXRaceHudWidget::RefreshPiggy(float Dt)
 {
 	const int32 Pool = RaceDirector->GetPool();
@@ -395,8 +530,15 @@ void UEXRaceHudWidget::RefreshPiggy(float Dt)
 		EXUi::SetText(PiggyGain, FString::Printf(TEXT("+%s"), *EXUi::Thousands(RaceDirector->GetLastPoolGain())));
 		PiggyGain->SetRenderOpacity(FMath::Clamp((2.5f - Since) / 0.6f, 0.0f, 1.0f));
 	}
-	const float Jump = bGain ? FMath::Max(0.0f, 1.0f - Since / 0.5f) : 0.0f;
-	PiggyIconBox->SetRenderScale(FVector2D(1.0f + 0.35f * Jump * FMath::Abs(FMath::Sin(Since * 18.0f))));
+	if (PiggySprite)
+	{
+		RefreshPiggySprite(Dt);   // the HD piggy plays its own coins animation instead of the jump
+	}
+	else
+	{
+		const float Jump = bGain ? FMath::Max(0.0f, 1.0f - Since / 0.5f) : 0.0f;
+		PiggyIconBox->SetRenderScale(FVector2D(1.0f + 0.35f * Jump * FMath::Abs(FMath::Sin(Since * 18.0f))));
+	}
 	EXUi::SetText(RivalsText, FString::Printf(TEXT("%d / %d"), Left, Total));
 	// One pip per rival: racing (bone), extracted (gold), destroyed (red).
 	int32 Pip = 0;

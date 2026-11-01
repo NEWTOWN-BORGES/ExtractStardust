@@ -100,7 +100,7 @@ def main():
     sess = build_model(ck.get('params', ck))
     meta = json.load(open(os.path.join(PIGGY, 'Piggy_Spritesheet.json')))
     os.makedirs(OUT, exist_ok=True)
-    only = set(sys.argv[1:])
+    only = set(a for a in sys.argv[1:] if not a.startswith('--'))
     for a in meta['animations']:
         if only and a['name'] not in only:
             continue
@@ -131,5 +131,31 @@ def main():
     with open(os.path.join(OUT, 'Piggy_Spritesheet_HD2x.json'), 'w') as f:
         json.dump(hd, f, indent=1, ensure_ascii=False)
 
+CHAR_ANIMS = ('IDLE', 'BLINK', 'RECEIVE_COINS', 'REWARD_JUMP', 'CELEBRATE', 'REACTION', 'MOVE', 'TELEPORT')
+
+
+def write_frames():
+    """The pig's frames cut from the HD sheets for the game (HD2x/frames/<Anim>_NN.png), padded at the right and the
+    bottom to multiples of 4 (block compression); the pivot stays where it was (top-left origin)."""
+    meta = json.load(open(os.path.join(OUT, 'Piggy_Spritesheet_HD2x.json')))
+    d = os.path.join(OUT, 'frames')
+    os.makedirs(d, exist_ok=True)
+    for a in meta['animations']:
+        if a['name'] not in CHAR_ANIMS:
+            continue
+        sheet = Image.open(os.path.join(OUT, a['file'])).convert('RGBA')
+        W, H = a['frame_width'], a['frame_height']
+        W4, H4 = (W + 3) // 4 * 4, (H + 3) // 4 * 4
+        for i, (x, y, w, h) in enumerate(a['rects_own_sheet']):
+            f = Image.new('RGBA', (W4, H4), (0, 0, 0, 0))
+            f.paste(sheet.crop((x, y, x + w, y + h)), (0, 0))
+            f.save(os.path.join(d, '%s_%02d.png' % (a['file'][:-4], i)), optimize=True)
+        print('frames', a['name'], len(a['rects_own_sheet']), '%dx%d' % (W4, H4))
+
+
 if __name__ == '__main__':
-    main()
+    if '--frames' in sys.argv:
+        write_frames()
+    else:
+        main()
+        write_frames()

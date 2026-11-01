@@ -87,6 +87,20 @@ private:
 	TArray<UBorder*> SpeedSegments;
 	// The piggy bank (o porquinho): what the destroyed dropped, live, and the rivals still racing.
 	UWidget* PiggyIconBox = nullptr;
+	/** The piggy itself, animated from its HD frames (SourceArt/UI/Piggy, Scripts/import_piggy.py): idle with a blink now
+	 *  and then, coins falling in when the pool grows, a jump and a celebration when the player extracts, tears when the
+	 *  player is destroyed. Falls back to the flat icon if the frames are not imported. */
+	class UImage* PiggySprite = nullptr;
+	class UCanvasPanelSlot* PiggySpriteSlot = nullptr;
+	/** Every frame of every animation, one after the other (held here so they are not collected); PiggyFirst[anim]. */
+	UPROPERTY(Transient) TArray<TObjectPtr<class UTexture2D>> PiggyFrameAll;
+	int32 PiggyFirst[8] = {};
+	int32 PiggyAnim = 7;
+	float PiggyTime = 0.0f;
+	float PiggyBlinkAt = 4.0f;
+	float PiggyLastPool = -1.0f;
+	int32 PiggyShownAnim = -1;
+	void RefreshPiggySprite(float Dt);
 	UTextBlock* PiggyValue = nullptr;
 	UTextBlock* PiggyGain = nullptr;
 	UTextBlock* PiggySub = nullptr;

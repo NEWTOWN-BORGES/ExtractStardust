@@ -43,8 +43,10 @@ O jogador fala português (PT). Responder em português.
   das curvas (raio < 450 m) e balizas com luz âmbar nas bordas onde não há parede (a areia); nada nos túneis.
 - **Porquinho mealheiro em sprites** (`SourceArt/UI/Piggy`, `Scripts/piggy_sprites/build.py`): recortado da folha do
   jogador sem redesenhar (fundo removido, brilhos em RGBA), 10 animações + ícones, JSON com frames, pivot e FPS. Ver o
-  `README.md` da pasta (faltas no original assinaladas). **A seguir:** a HUD da corrida (o jogador vai mandar a imagem)
-  e pôr o porquinho no HUD.
+  `README.md` da pasta (faltas no original assinaladas). Versão HD 2× por IA em `HD2x/` (Real-ESRGAN anime, sem
+  PyTorch: `upscale_hd.py`); **o HUD da corrida já usa o porquinho HD animado** (`UEXRaceHudWidget::RefreshPiggySprite`:
+  teletransporte à entrada, idle/piscar, moedas quando o porquinho cresce, salto e celebração na extração, choro se for
+  destruído). Importar com `Scripts/import_piggy.py` (passo 3d). **A seguir:** a HUD nova (o jogador vai mandar a imagem).
 - **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos
   flancos; radiador = duas entradas NACA no deck com grelhas de saída; grid = tomadas laterais rentes e grelha atrás;
   épica = guelras longas e NACA com contorno em carbono; lendária = canal longo no flanco com aletas lá dentro e saída
