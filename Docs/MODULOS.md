@@ -274,13 +274,14 @@ inspiradas em aerodinâmica real, reconhecíveis em pista:
 | Cauda | cauda em **V** (borboleta) | cauda em **T**, com estabilizador em flecha e bala de titânio na junção |
 | Blindagem | kit aero: canards nos cantos do nariz, lâmina ao longo de cada flanco, splitter | **streamliner**: carenagens laterais contínuas que seguem além da popa (longtail de Le Mans) |
 | Refrigeração | guelras longas e entradas NACA com contorno em carbono | canal longo no flanco com aletas lá dentro e saída perfurada em titânio |
-| Motor (por fora) | bocal de vetorização plano (retangular) | bocal **aerospike** (cone central em cerâmica) |
+| Motor | por fora só a chama: mais quente, núcleo mais branco, jato mais longo com diamantes de choque e faíscas; por dentro (raio-X) bobinas de confinamento magnético e um anel de injetores | por fora um **plasma** próprio (núcleo branco numa bainha violeta, longo e estreito, cinco diamantes); por dentro uma **câmara de plasma toroidal** com janelas a brilhar e ímanes supercondutores |
 
-- **Ficheiros:** `SourceArt/TestShips/modules/<nave>_<família>_ep.fbx` / `_lg.fbx` (wing, tail, armor, cooling, exhaust),
+- **Ficheiros:** `SourceArt/TestShips/modules/<nave>_<família>_ep.fbx` / `_lg.fbx` (wing, tail, armor, cooling, engine),
   feitos por `ship_modules.py` (secção 7); fotos das cartas `SourceArt/UI/Thumbs/<nave>_<família>_ep/_lg.jpg`
   (`render_modules.py ... thumbs`, `THUMB_ONLY=_ep,_lg` só estas).
 - **No jogo:** `AEXHoverCraft::RefreshModuleVisuals` monta `<família>_ep/_lg` conforme a raridade do item (a peça comum se
-  a variante faltar); o motor épico/lendário mostra o bocal no slot `ModuleExhaust`. As cartas usam `TierThumb`.
+  a variante faltar); o interior do motor épico/lendário aparece só no raio-X (slot `ModuleEngine`) e a chama muda em
+  `EXMeta::Flame`. As cartas usam `TierThumb`.
 
 ### 8d. Refrigeração dentro da carroçaria (pedido do jogador, 2026-11-01)
 

@@ -27,9 +27,10 @@ O jogador fala português (PT). Responder em português.
   luzes, "brega"). Comum, incomum e raro partilham a peça; o épico e o lendário são peças novas, na pintura da nave,
   inspiradas em aerodinâmica real: **asa** com fenda de dois elementos / **asa em caixa** (Prandtl); **cauda** em V / em
   T; **kit** aero (canards, lâmina no flanco, splitter) / **streamliner** (carenagens laterais que continuam além da
-  popa, como os longtail de Le Mans); **escape** de vetorização plano / **aerospike**. Ficheiros
-  `<nave>_<família>_ep/_lg.fbx` (wing, tail, armor, cooling, exhaust); `AEXHoverCraft` monta-os pela raridade e as
-  cartas usam `<nave>_<família>_ep/_lg.jpg`. As naves não mudaram.
+  popa, como os longtail de Le Mans). **Motor:** por fora muda só a chama/plasma (épico mais quente, com diamantes;
+  lendário com plasma violeta próprio, `EXMeta::Flame`); por dentro, no raio-X, bobinas de confinamento / câmara de
+  plasma toroidal. Ficheiros `<nave>_<família>_ep/_lg.fbx` (wing, tail, armor, cooling, engine); `AEXHoverCraft`
+  monta-os pela raridade (o do motor só no raio-X) e as cartas usam `<nave>_<família>_ep/_lg.jpg`. As naves não mudaram.
 - **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos
   flancos; radiador = duas entradas NACA no deck com grelhas de saída; grid = tomadas laterais rentes e grelha atrás;
   épica = guelras longas e NACA com contorno em carbono; lendária = canal longo no flanco com aletas lá dentro e saída

@@ -120,7 +120,7 @@ namespace
 	{
 		const TCHAR* Family = Def.Family == EEXFamily::Wings ? TEXT("wing") : Def.Family == EEXFamily::Tail ? TEXT("tail")
 			: Def.Family == EEXFamily::Armor ? TEXT("armor") : Def.Family == EEXFamily::Cooling ? TEXT("cooling")
-			: Def.Family == EEXFamily::Engine ? TEXT("exhaust") : nullptr;
+			: Def.Family == EEXFamily::Engine ? TEXT("engine") : nullptr;
 		if (!Family || Rarity < EEXRarity::Epic)
 		{
 			return FString();

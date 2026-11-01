@@ -105,11 +105,12 @@ namespace
 		{ TEXT("BASTION"), 0.30f, 1, { { 0.0f, 3.33f, 0.66f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } } },
 	};
 	/** The module pieces on the ship mesh (utility inside the nose), in the order of AEXHoverCraft::ModuleMeshes. */
-	// The engine's slot shows only an epic or legendary exhaust collar round the nozzles (Scripts/ship_modules.py).
+	// The engine's slot shows only an epic or legendary engine's insides, in the x-ray view (Scripts/ship_modules.py);
+	// outside, an engine changes only its flame or plasma (EXMeta::Flame).
 	const EEXFamily CraftExterior[] = { EEXFamily::Wings, EEXFamily::Tail, EEXFamily::Armor, EEXFamily::Cooling, EEXFamily::Utility,
 		EEXFamily::Engine };
 	const TCHAR* const CraftExteriorNames[] = { TEXT("ModuleWings"), TEXT("ModuleTail"), TEXT("ModuleArmor"), TEXT("ModuleCooling"),
-		TEXT("ModuleUtility"), TEXT("ModuleExhaust") };
+		TEXT("ModuleUtility"), TEXT("ModuleEngine") };
 
 	/** The previous game used vertical FOV; Unreal cameras take horizontal FOV. */
 	float HorizontalFov(float VerticalDeg)
@@ -2068,12 +2069,13 @@ void AEXHoverCraft::RefreshModuleVisuals()
 			const EXMeta::FModuleDef* Def = Item ? EXMeta::Find(*Item) : nullptr;
 			// Epics and legendaries have designs of their own (player, 2026-11-01; Scripts/ship_modules.py section 7):
 			// <family>_ep / <family>_lg (a slotted or a box wing, a V or a T tail, an aero kit or a streamliner, gills or
-			// a flank channel, a vectoring nozzle or an aerospike); the common piece when the variant is not imported.
+			// a flank channel, confinement coils or a plasma torus inside the engine); the common piece when the variant
+			// is not imported.
 			const EEXRarity Rarity = Item ? static_cast<EEXRarity>(Item->Rarity) : EEXRarity::Common;
 			const TCHAR* Tier = Rarity == EEXRarity::Legendary ? TEXT("_lg") : (Rarity == EEXRarity::Epic ? TEXT("_ep") : nullptr);
 			const TCHAR* Family = CraftExterior[K] == EEXFamily::Wings ? TEXT("wing") : CraftExterior[K] == EEXFamily::Tail ? TEXT("tail")
 				: CraftExterior[K] == EEXFamily::Armor ? TEXT("armor") : CraftExterior[K] == EEXFamily::Cooling ? TEXT("cooling")
-				: CraftExterior[K] == EEXFamily::Engine ? TEXT("exhaust") : nullptr;
+				: CraftExterior[K] == EEXFamily::Engine ? TEXT("engine") : nullptr;
 			if (Item && Tier && Family)
 			{
 				Mesh = LoadPiece(Ship, FString(Family) + Tier);
@@ -2089,8 +2091,9 @@ void AEXHoverCraft::RefreshModuleVisuals()
 		}
 		ModuleMeshes[K]->SetStaticMesh(Mesh);
 		ModuleMeshes[K]->EmptyOverrideMaterials();
-		// The utility module sits inside the nose (Scripts/ship_modules.py): only the x-ray view shows it, glowing.
-		const bool bInside = CraftExterior[K] == EEXFamily::Utility;
+		// The utility module sits inside the nose and an epic/legendary engine's insides inside the engine
+		// (Scripts/ship_modules.py): only the x-ray view shows them.
+		const bool bInside = CraftExterior[K] == EEXFamily::Utility || CraftExterior[K] == EEXFamily::Engine;
 		ModuleMeshes[K]->SetVisibility(Mesh != nullptr && bShowSkeleton == bInside);
 		if (bInside && Mesh && GlowMaterial)
 		{

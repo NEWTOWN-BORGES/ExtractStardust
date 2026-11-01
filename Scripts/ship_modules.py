@@ -862,11 +862,13 @@ class Builder:
     #   legendary a streamliner (sweeping side fairings running on past the stern, like a Le Mans longtail);
     # - cooling, in the bodywork like every cooling module now: the epic long gills and NACA ducts with carbon
     #   surrounds, the legendary a long flank channel with fins deep inside and a perforated outlet;
-    # - exhausts round the real nozzles: the epic a flat thrust-vectoring nozzle, the legendary an aerospike plug.
-    # Exported as <family>_ep / <family>_lg (wing, tail, armor, cooling, exhaust); AEXHoverCraft fits them for an
-    # epic / legendary item of that family.
+    # - engines change inside only (the x-ray view) and, outside, in their flame or plasma (EXMeta::Flame): the epic
+    #   with magnetic confinement coils, the legendary with a toroidal plasma chamber.
+    # Exported as <family>_ep / <family>_lg (wing, tail, armor, cooling, engine); AEXHoverCraft fits them for an
+    # epic / legendary item of that family (the engine's in the x-ray view only).
     TIER_MATS = (("Carbon_Tier", "#1C1C21", 0.25, 0.30, 0.0), ("Titanium", "#8E939A", 1.0, 0.34, 0.0),
-                 ("Ceramic_Dark", "#3A3633", 0.0, 0.7, 0.0), ("Emit_HotDim", "#FF7A2E", 0.0, 0.4, 1.4))
+                 ("Ceramic_Dark", "#3A3633", 0.0, 0.7, 0.0), ("Emit_HotDim", "#FF7A2E", 0.0, 0.4, 1.4),
+                 ("Copper_Coil", "#C8743A", 1.0, 0.3, 0.0))
 
     @staticmethod
     def foil(le, te, mid, th, camber=0.0, pitch=0.0, n=8):
@@ -901,7 +903,7 @@ class Builder:
             self.tail_tier(leg)
             self.armor_tier(leg)
             self.cooling_tier(leg)
-            self.exhaust_tier(leg)
+            self.engine_tier(leg)
 
     def wing_tier(self, leg):
         ns = self.ns
@@ -1255,38 +1257,83 @@ class Builder:
             self.export(made, "cooling_lg" if leg else "cooling_ep")
             self.drop(made)
 
-    def exhaust_tier(self, leg):
+    def world_verts(self, objs):
+        dg = bpy.context.evaluated_depsgraph_get()
+        pts = []
+        for o in objs:
+            ev = o.evaluated_get(dg)
+            me = ev.to_mesh()
+            pts.extend(tuple(o.matrix_world @ v.co) for v in me.vertices)
+            ev.to_mesh_clear()
+        return np.array(pts, float) if pts else np.zeros((0, 3))
+
+    def engine_tier(self, leg):
+        """Inside the engine, seen only in the x-ray view (player, 2026-11-01: an epic or legendary engine changes
+        inside, and on the outside only its flame or plasma): the epic with magnetic confinement coils on titanium
+        bus bars and an injector ring round the chamber; the legendary with a toroidal plasma chamber glowing through
+        its ports, superconducting magnets round it and plasma lines to the nozzle."""
         nozzles = [Vector(v) for n, v in sorted(self.sock.items()) if n.startswith("Socket_Propulsion")]
-        if not nozzles:
+        G = self.G.get("Propulsion")
+        if not nozzles or G is None:
             return
+        skins = set(K.SKINS)
+        V = self.world_verts([o for o in K.SHIP.objects if o.type == 'MESH' and under(o, G) and o not in skins])
         r = self.nozzle_r
-        grow = max(1.0, r / 0.15) ** 0.5
-        g = self.group("Module_Exhaust_" + ("lg" if leg else "ep"))
-        part = K.Part("Exhaust_" + ("Aerospike" if leg else "Vector"))
+        g = self.group("Module_Engine_" + ("lg" if leg else "ep"))
+        part = K.Part("Engine_" + ("Plasma_Torus" if leg else "Coils"))
         for c in nozzles:
-            if not leg:       # flat thrust-vectoring nozzle: upper and lower flaps closing in, side walls, a square mouth
-                W, Hh, y0, y1 = r * 1.18, r * 0.92, c.y - 0.02, c.y + 0.30 * grow
-                for sg in (-1, 1):
-                    self.plate(part, [(c.x - W, y0, c.z + sg * Hh), (c.x + W, y0, c.z + sg * Hh),
-                                      (c.x + 0.96 * W, y1, c.z + sg * 0.78 * Hh), (c.x - 0.96 * W, y1, c.z + sg * 0.78 * Hh)], 0.02, "Titanium")
-                    self.plate(part, [(c.x + sg * W, y0, c.z - Hh), (c.x + sg * W, y0, c.z + Hh),
-                                      (c.x + sg * 0.96 * W, y1 - 0.05, c.z + 0.8 * Hh), (c.x + sg * 0.96 * W, y1 - 0.05, c.z - 0.8 * Hh)],
-                               0.016, "Carbon_Tier")
-                    part.box((c.x, y1 - 0.012, c.z + sg * 0.78 * Hh), (1.92 * W, 0.024, 0.012), "Ceramic_Dark")
-            else:             # aerospike: a ceramic plug on three titanium struts inside a short collar
-                part.lathe((c.x, c.y - 0.04, c.z), (c.x, c.y + 0.08, c.z), [(0, r * 1.10), (1, r * 1.06)], lambda k: "Titanium", 36)
-                part.lathe((c.x, c.y - 0.04, c.z), (c.x, c.y + 0.08, c.z), [(0, r * 1.02), (1, r * 0.99)], lambda k: "Graphite", 36)
-                Lp = 0.42 * grow
-                part.lathe((c.x, c.y - 0.05, c.z), (c.x, c.y + Lp, c.z), [(0, r * 0.62), (0.25, r * 0.58), (0.7, r * 0.34), (1.0, r * 0.10)],
-                           lambda k: "Ceramic_Dark", 32, cap0="Ceramic_Dark", cap1="Titanium")
-                for k in range(3):
-                    a = k * 2 * math.pi / 3 + math.pi / 2
+            sel = V[(np.hypot(V[:, 0] - c.x, V[:, 2] - c.z) < 1.8 * r) & (V[:, 1] < c.y + 0.05)] if len(V) else V
+            y_f = float(sel[:, 1].min()) if len(sel) else c.y - 1.2
+            Lc = float(np.clip(c.y - y_f, 0.5, 3.0))
+            y_f = c.y - Lc
+            Re = float(np.percentile(np.hypot(sel[:, 0] - c.x, sel[:, 2] - c.z), 90)) if len(sel) else r * 1.2
+            Re = max(Re, r * 1.05)
+
+            def ring(R, y, tube, m, n=40):
+                part.tube([Vector((c.x + R * math.cos(a), y, c.z + R * math.sin(a))) for a in np.linspace(0, 2 * math.pi, n + 1)],
+                          tube, m, 8)
+
+            if not leg:
+                ys = np.linspace(y_f + 0.18 * Lc, c.y - 0.16 * Lc, 5)
+                for y in ys:                                    # confinement coils, copper on titanium formers
+                    ring(Re * 1.08, y, 0.022, "Titanium")
+                    for k in range(3):
+                        ring(Re * 1.08 + 0.018, y - 0.02 + 0.02 * k, 0.008, "Copper_Coil")
+                for k in range(3):                              # bus bars along the chamber
+                    a = math.pi / 2 + k * 2 * math.pi / 3
                     d = Vector((math.cos(a), 0, math.sin(a)))
-                    self.plate(part, [c + d * r * 0.55 + Vector((0, -0.03, 0)), c + d * r * 1.02 + Vector((0, -0.03, 0)),
-                                      c + d * r * 1.0 + Vector((0, 0.07, 0)), c + d * r * 0.50 + Vector((0, 0.10, 0))], 0.014, "Titanium")
+                    part.tube([c + d * Re * 1.16 + Vector((0, ys[0] - c.y, 0)), c + d * Re * 1.16 + Vector((0, ys[-1] - c.y, 0))],
+                              0.012, "Titanium", 6)
+                y_i = y_f + 0.08 * Lc                           # the injector ring, its ports lit
+                ring(Re * 1.02, y_i, 0.03, "Titanium")
+                for k in range(8):
+                    a = k * math.pi / 4
+                    part.sphere((c.x + Re * 1.02 * math.cos(a), y_i - 0.025, c.z + Re * 1.02 * math.sin(a)), 0.016, "Emit_Plasma", segs=10, rings=6)
+            else:
+                y_t = y_f + 0.30 * Lc                           # the toroidal chamber round the front of the engine
+                Rt, rt = Re * 1.30, Re * 0.32
+                part.lathe((c.x, y_t - rt, c.z), (c.x, y_t + rt, c.z),
+                           [(f, Re * 1.30 + rt * math.sin(math.pi * f) * 0.95) for f in np.linspace(0, 1, 9)],
+                           lambda k: "Titanium", 40)
+                for k in range(6):                              # ports in the chamber, the plasma glowing in them
+                    a = k * math.pi / 3 + math.pi / 6
+                    d = Vector((math.cos(a), 0, math.sin(a)))
+                    p0 = c + d * (Rt + rt * 0.92) + Vector((0, y_t - c.y, 0))
+                    part.cyl(p0, p0 + d * 0.012, 0.045 * max(1.0, r / 0.15) ** 0.5, "Emit_Plasma", 14)
+                for k in range(4):                              # superconducting magnets over the chamber
+                    a = k * math.pi / 2
+                    d = Vector((math.cos(a), 0, math.sin(a)))
+                    q = c + d * (Rt + rt * 0.55) + Vector((0, y_t - c.y, 0))
+                    part.box(q, (0.09 if abs(d.x) > 0.5 else 0.16, rt * 2.4, 0.16 if abs(d.x) > 0.5 else 0.09), "Ceramic_Dark")
+                for k in range(4):                              # plasma lines from the chamber to the nozzle
+                    a = k * math.pi / 2 + math.pi / 4
+                    d = Vector((math.cos(a), 0, math.sin(a)))
+                    part.tube([c + d * (Re * 1.25) + Vector((0, y_t + rt - c.y, 0)), c + d * Re * 1.12 + Vector((0, -0.05 * Lc, 0))],
+                              0.011, "Emit_Plasma", 8)
+                ring(Re * 1.06, c.y - 0.05 * Lc, 0.024, "Titanium")
         made = [part.finish(g, bevel=0.001, smooth_angle=40)] if part.bm.faces else []
         if made:
-            self.export(made, "exhaust_lg" if leg else "exhaust_ep")
+            self.export(made, "engine_lg" if leg else "engine_ep")
             self.drop(made)
 
     def manifest(self):

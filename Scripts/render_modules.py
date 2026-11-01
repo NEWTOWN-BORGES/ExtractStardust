@@ -33,6 +33,8 @@ FLAMES = {
     "relic": ((0.35, 0.6, 1.0), (1.0, 1.0, 1.0), 2.2, 0.45, 0),              # Oryx Relic: thin beam
     "razor": ((0.55, 0.25, 1.0), (0.92, 0.85, 1.0), 1.3, 0.6, 0),           # APEX Razor-S: thin violet jet
     "redline": ((1.0, 0.08, 0.06), (1.0, 0.85, 0.8), 1.6, 0.9, 4),           # REDLINE-X (legendary)
+    "epic": ((1.0, 0.55, 0.18), (1.0, 1.0, 0.95), 1.6, 0.9, 3),              # an epic engine: hotter, whiter core
+    "legendary": ((0.5, 0.28, 1.0), (1.0, 0.97, 1.0), 2.0, 0.8, 5),          # a legendary engine: its own plasma
 }
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -406,9 +408,10 @@ if "thumbs" in SHOTS:
             tshot("cooling" + t, yaw_deg=28, pitch_deg=44, dist=4.8, target=(0, 0.7, 1.0))
         if show(["core", stock_wing, "tail" + t]):
             tshot("tail" + t, yaw_deg=58, pitch_deg=-3 if MAN.get("tail") == "below" else 14, dist=5.0, target=(0, 1.9, 0.95))
-        if show(["core", stock_wing, "exhaust" + t]):
-            flames("stock", 0.45)
-            tshot("exhaust" + t, yaw_deg=72, pitch_deg=10, dist=4.6, target=(0, 2.0, 0.8))
+        if show(["skeleton", "engine" + t]):                 # the engine's insides, in the x-ray view, its own flame
+            reactor_glow(REACTOR[0])
+            flames("legendary" if t == "_lg" else "epic", 0.9)
+            tshot("engine" + t, yaw_deg=62, pitch_deg=18, dist=5.2, target=(0, 1.7, 1.05))
             flames(None)
     for k in ("mast", "dome", "drone"):                           # utility: inside the nose, in the skeleton, close
         show(["skeleton", "utility_" + k])

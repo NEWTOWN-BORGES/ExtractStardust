@@ -624,15 +624,30 @@ namespace
 	{
 		FFlameStyle Style = Flames[FlameIndex(Engine)];
 		const EEXRarity Rarity = Engine ? static_cast<EEXRarity>(Engine->Rarity) : EEXRarity::Common;
-		// Rares burn longer and brighter; epics add shock diamonds and sparks; legendaries have their own flame.
-		if (Rarity >= EEXRarity::Rare && Rarity < EEXRarity::Legendary)
+		// Outside, an engine shows its rarity only in what comes out of it (player, 2026-11-01): rares burn a little
+		// longer and brighter; an epic burns hotter (a whiter core, a longer, tighter jet with shock diamonds and
+		// sparks); a legendary throws plasma of its own (a white-hot core in an electric violet sheath, long and narrow,
+		// a train of diamonds). Inside, the x-ray view shows their own insides (Scripts/ship_modules.py).
+		if (Rarity == EEXRarity::Rare)
 		{
 			Style.Length *= 1.15f;
 			Style.Core = Style.Core * 1.15f;
 		}
-		if (Rarity == EEXRarity::Epic)
+		else if (Rarity == EEXRarity::Epic)
 		{
-			Style.Diamonds = FMath::Max(Style.Diamonds, 2);
+			Style.Length *= 1.25f;
+			Style.Radius *= 0.92f;
+			Style.Core = FMath::Lerp(Style.Core, FLinearColor(1.0f, 1.0f, 1.0f), 0.45f) * 1.3f;
+			Style.Diamonds = FMath::Max(Style.Diamonds, 3);
+			Style.bSparks = true;
+		}
+		else if (Rarity == EEXRarity::Legendary)
+		{
+			Style.Outer = FLinearColor(0.50f, 0.28f, 1.0f);
+			Style.Core = FLinearColor(1.0f, 0.97f, 1.0f) * 1.6f;
+			Style.Length *= 1.4f;
+			Style.Radius *= 0.8f;
+			Style.Diamonds = 5;
 			Style.bSparks = true;
 		}
 		return Style;
