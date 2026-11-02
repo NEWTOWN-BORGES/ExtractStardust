@@ -41,10 +41,10 @@ g++ -O2 -std=c++17 -I Source/ExtractingStardust/Private/Flight Scripts/audio/ren
 
 Para ouvir uma afinação, mudar o código, correr o `render_sound` e escutar os WAVs. Só depois compilar o jogo.
 
-## Motor v2 (2026-11-02, por aprovar)
+## Motor v2 (2026-11-02, aprovado e ligado no jogo)
 
-Pedido do jogador: "sons de motores viciantes, com adrenalina". Está em `EXEngineVoice.h`, em C++ puro como o resto. O
-jogo continua a usar o motor antigo (`FEngine`) até o jogador aprovar.
+Pedido do jogador: "sons de motores viciantes, com adrenalina". É o `FEngineV2` do `EXSoundSynth.h`, que o `FMixer` usa
+para o motor do jogador e para os rivais. O `FEngine` antigo ficou no ficheiro só para o antes/depois.
 
 Para ouvir:
 - `Docs/SOM/motor_corrida_v2.mp3`: uma corrida com a STRIX;
@@ -73,15 +73,21 @@ O que tem:
   - BASTION: grave, com pancadas fundas, 4;
   - VORTEX: aguda, a gritar, 6.
 
-Pré-visualização:
+Pré-visualização só do motor:
 ```
 g++ -O2 -std=c++17 -I Source/ExtractingStardust/Private/Flight Scripts/audio/render_engine_preview.cpp -o render_engine
 ./render_engine <pasta>
 ```
 Com `EX_ENGINE_LOG=1` escreve o estágio e as rotações a cada 0,5 s.
 
-**Ligar no jogo, depois de aprovado:** no `FMixer`, trocar o `FEngine` do jogador e dos rivais pelo `FEngineV2` (é
-estéreo e recebe também `Grounded`), e tirar o `BoostKick` antigo, porque o novo já tem a ignição.
+**No jogo:**
+- O motor do jogador é estéreo e recebe o `Grounded`.
+- Os rivais usam a versão leve e soam a metade (`kOtherEngineGain`), para ficarem ao nível dos antigos.
+- O `BoostKick` ficou só com o sopro de ar, porque a pancada do nitro é agora a ignição do próprio motor.
+- Os filtros recalculam-se a cada 32 amostras. Com o jogador e 8 rivais, o som gasta o mesmo processador que o antigo
+  (cerca de 8 % de um núcleo na nuvem).
+- A mistura do jogo com o motor novo ouve-se em `Docs/SOM/jogo_corrida_v2.mp3` e `jogo_passagens_v2.mp3` (rivais a
+  passar). Faz-se com o `render_sound_preview.cpp`.
 
 **Sem gravações:** a rede da nuvem bloqueia o freesound e a Wikimedia. Para juntar camadas gravadas (CC0), o jogador tem
 de autorizar esses domínios no ambiente.

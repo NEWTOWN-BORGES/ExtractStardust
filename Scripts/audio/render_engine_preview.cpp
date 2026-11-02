@@ -1,8 +1,8 @@
-// Engine v2 preview (2026-11-02): renders what EXEngineVoice.h will sound like in the game, without the Unreal.
+// Engine v2 preview (2026-11-02): renders the engine v2 (FEngineV2, EXSoundSynth.h), without the Unreal.
 //   g++ -O2 -std=c++17 -I Source/ExtractingStardust/Private/Flight Scripts/audio/render_engine_preview.cpp -o render_engine
 //   ./render_engine <pasta>    ->  motor_corrida.wav, motores_naves.wav, antes_depois.wav
 // A light wind is added so the speed reads (the game has its own, richer one in FMixer).
-#include "EXEngineVoice.h"
+#include "EXSoundSynth.h"
 
 #include <cmath>
 #include <cstdint>
