@@ -249,6 +249,9 @@ documento.
 O som é sintetizado ao vivo (`EXSoundSynth.h`, em C++ puro): motor por nave, vento, paredes, eventos e rivais com
 Doppler. Antes de compilar ouve-se com `Scripts/audio/render_sound_preview.cpp`, que escreve WAVs. **Os binários Win64
 pré-compilados que estão no repositório ficam desatualizados**: compilar com `Scripts\casa_tudo.ps1 -SemPista`.
+- **Motor v2 (2026-11-02, por aprovar):** motores "viciantes, com adrenalina" em `EXEngineVoice.h`: mudanças de
+  potência, estalos, limitador na grelha, ignição do nitro. Ouvir `Docs/SOM/*_v2.mp3`; ainda não está ligado no jogo
+  (`Docs/SOM.md`, secção Motor v2).
 
 ## PARA FAZER EM CASA / NO PC COM O UNREAL (lista da sessão da nuvem, 2026-10-21)
 

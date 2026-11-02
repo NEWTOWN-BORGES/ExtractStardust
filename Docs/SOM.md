@@ -40,3 +40,45 @@ g++ -O2 -std=c++17 -I Source/ExtractingStardust/Private/Flight Scripts/audio/ren
 - `FillAudioOthers` (`EXHoverCraft.cpp`): distância, Doppler e quantos rivais se ouvem.
 
 Para ouvir uma afinação, mudar o código, correr o `render_sound` e escutar os WAVs. Só depois compilar o jogo.
+
+## Motor v2 (2026-11-02, por aprovar)
+
+Pedido do jogador: "sons de motores viciantes, com adrenalina". Está em `EXEngineVoice.h`, em C++ puro como o resto. O
+jogo continua a usar o motor antigo (`FEngine`) até o jogador aprovar.
+
+Para ouvir:
+- `Docs/SOM/motor_corrida_v2.mp3`: uma corrida com a STRIX;
+- `Docs/SOM/motores_naves_v2.mp3`: as 5 naves;
+- `Docs/SOM/antes_depois_v2.mp3`: o mesmo arranque, primeiro com o motor antigo e depois com o novo.
+
+O que tem:
+- **Mudanças de potência:** cada nave tem 4 a 6 estágios, e os primeiros são curtos. Dentro de cada um o tom sobe. Na
+  mudança há um corte de ignição, o tom cai e vem um "soco".
+- **Estalos (afterfire):** ao largar o acelerador e em cada mudança. Nas reduções há também um toque de acelerador.
+- **Limitador na grelha:** com o acelerador a fundo antes da partida, o motor bate no corte ("brap-brap").
+- **Nitro:** o motor "respira" (−7 dB), vem uma pancada grave a descer e depois o rugido, com o apito a subir.
+- **Realismo:**
+  - ressonâncias fixas do bocal e do casco;
+  - cada explosão diferente da anterior, na força e no tempo;
+  - rugido de jato turbulento em estéreo;
+  - a turbina vai atrasada em relação às rotações;
+  - saturação com o acelerador, e compressor.
+- **Cada nave:**
+  - STRIX: dois núcleos, equilibrada, 5 estágios;
+  - WRAITH: turbina suave, estágios quase sem corte, 6;
+  - NOMAD: áspera, com estoiros, 4;
+  - BASTION: grave, com pancadas fundas, 4;
+  - VORTEX: aguda, a gritar, 6.
+
+Pré-visualização:
+```
+g++ -O2 -std=c++17 -I Source/ExtractingStardust/Private/Flight Scripts/audio/render_engine_preview.cpp -o render_engine
+./render_engine <pasta>
+```
+Com `EX_ENGINE_LOG=1` escreve o estágio e as rotações a cada 0,5 s.
+
+**Ligar no jogo, depois de aprovado:** no `FMixer`, trocar o `FEngine` do jogador e dos rivais pelo `FEngineV2` (é
+estéreo e recebe também `Grounded`), e tirar o `BoostKick` antigo, porque o novo já tem a ignição.
+
+**Sem gravações:** a rede da nuvem bloqueia o freesound e a Wikimedia. Para juntar camadas gravadas (CC0), o jogador tem
+de autorizar esses domínios no ambiente.
