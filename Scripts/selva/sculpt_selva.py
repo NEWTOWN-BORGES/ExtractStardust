@@ -67,7 +67,7 @@ road, road_z, road_hw, road_s = dense(R["points"], R["z"], R["half_width"])
 road_sec = np.asarray(R["sector"])[np.clip((road_s / STEP).astype(int), 0, len(R["sector"]) - 1)]
 in_sec = np.flatnonzero(road_sec == KS)
 S0, S1_ = int(in_sec[0]), int(in_sec[-1])
-forks = [f for f in plan["forks"] if S0 <= f["leave_m"] <= S1_]
+forks = [f for f in plan["forks"] if S0 <= 0.5 * (f["leave_m"] + f["rejoin_m"]) <= S1_]   # where its middle is
 jumps = [j for j in plan["jumps"] if "at_m" in j and S0 <= j["at_m"] <= S1_]
 fork_jumps = [j for j in plan["jumps"] if "fork" in j and j["fork"] in [f["name"] for f in forks]]
 log(SNAME, "road %d-%d m," % (S0, S1_), "forks", [f["name"] for f in forks], "jumps", [j["what"] for j in jumps])
@@ -347,7 +347,35 @@ def recipe_s5():
     return -1000.0, G, np.zeros_like(G), dict()
 
 
-RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4, "S5": recipe_s5}
+def recipe_s6():
+    """S6 Mangue Labirinto (Niger delta / Amazon mouth): tidal mud a hand above or below the water, the plan's big
+    channels and a labyrinth of creeks between the mangroves; the road on a mud causeway, canals across it to jump."""
+    W = float(np.floor(RZ[S0 - rlo:S1_ - rlo].min() - 1.5))
+    rng = np.random.default_rng(611)
+    base = W + 0.2 + 1.3 * (fbm(XX, YY, 260.0, 613, 4) - 0.5) + 0.4 * (fbm(XX, YY, 45.0, 617, 3) - 0.5)
+    for rv in rivers:
+        dr, fr, _s = line_field(rv["P"], reach=3)
+        wr = 0.5 * rv["w"] * (1 + 0.2 * np.sin(fr / 150.0))
+        base = np.where(dr < wr + 30.0, np.minimum(base, W - 4.0 + 4.5 * smoothstep(0.7 * wr, wr + 30.0, dr)), base)
+    creeks = []
+    for j in jumps:
+        if j["what"].startswith("canal"):
+            i = int(j["at_m"]) - rlo
+            t = RP[min(i + 5, len(RP) - 1)] - RP[max(i - 5, 0)]
+            hd = math.atan2(t[1], t[0]) + math.pi / 2
+            creeks.append(np.vstack([creek(rng, RP[i], hd + math.pi, 900, 0.3)[::-1], creek(rng, RP[i], hd, 900, 0.3)[1:]]))
+    for k in range(16):
+        creeks.append(creek(rng, (rng.uniform(X0, X1), rng.uniform(Y0, Y1)), rng.uniform(0, 2 * np.pi), rng.uniform(700, 1600), 0.45))
+    for C in creeks:
+        dc, fi, _s = line_field(C, reach=2)
+        wc = 9.0 + 5.0 * np.sin(fi / 90.0)
+        base = np.where(dc < wc * 1.7, np.minimum(base, W - 2.0 + 3.0 * smoothstep(0.6 * wc, 1.7 * wc, dc)), base)
+    return W, base, np.zeros_like(base), dict()
+
+
+RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4, "S5": recipe_s5, "S6": recipe_s6}
+WET_TREES = {"S6"}                       # mangroves stand in the water
+NO_KAPOK = {"S6"}
 CAVE_SPAN = None
 if SECTOR == "S5":                       # from the mouth to the way out (the jumps 'boca' and 'saída' of the plan)
     CAVE_SPAN = (int(next(j["at_m"] for j in jumps if j["what"].startswith("boca"))) + 12,
@@ -377,6 +405,13 @@ HILLS = {"S1": 0.3, "S2": 1.0, "S3": 1.0, "S4": 1.0}
 MIXES["S4"] = MIXES["S2"]
 MIXES["S5"] = MIXES["S1"]
 HILLS["S5"] = 1.0
+PAL["S6"] = dict(road=(0.40, 0.35, 0.28), wet=(0.24, 0.21, 0.17), bank=(0.31, 0.28, 0.22))
+HILLS["S6"] = 0.3
+MIXES["S6"] = dict(interior=(("mangrove", .75), ("canopy_b", .08), ("acai", .07), ("shrub_b", .05), ("buriti", .05)),
+                   edge=(("mangrove", .62), ("shrub_b", .20), ("acai", .09), ("cecropia", .09)),
+                   band=(("mangrove", .58), ("shrub_b", .30), ("acai", .12)),
+                   wet=(("mangrove", .86), ("acai", .05), ("buriti", .03), ("shrub_b", .06)))
+CANOPY_H = {"S6": 12.0}                  # the canopy's height beyond the box (mangroves are low)
 PAL["S5"] = dict(road=(0.46, 0.36, 0.26), wet=(0.27, 0.21, 0.15), bank=(0.30, 0.30, 0.17), rock=(0.30, 0.25, 0.21))
 MIXES["S3"] = dict(interior=(("canopy_a", .30), ("canopy_b", .25), ("canopy_c", .15), ("acai", .12), ("shrub_a", .10), ("buriti", .08)),
                    edge=(("shrub_a", .30), ("cecropia", .20), ("acai", .20), ("canopy_b", .20), ("shrub_b", .10)),
@@ -426,7 +461,7 @@ def road_profile(P, z, natural, jumps_here):
     recs = []
     for j in jumps_here:
         i = int(j["i"])
-        if j["what"] == "igarapé" or j["what"].startswith(("afluente", "rápido")):   # kicker, water, far bank
+        if j["what"] == "igarapé" or j["what"].startswith(("afluente", "rápido", "canal", "último canal")):   # water gap
             s = np.arange(len(z)) - i
             g2 = 16 if j["what"] != "rápido" else 12
             kick = 2.6 * smoothstep(-70, -g2 - 2, s) * (s < -g2)
@@ -549,17 +584,17 @@ for fd in FD:
         fd["zs"] = zf
         fork_rec.append(dict(name=name, z_min=float(zf.min()), z_max=float(zf.max()), cave=True))
         continue
-    if "Igapó" in name:              # through the flooded forest, at water level: the ships skim between the trees
+    if "Igapó" in name or "Canal Estreito" in name:   # at water level: the ships skim between the trees
         n = len(zf)
         mid = smoothstep(0, 220, np.arange(n)) * smoothstep(0, 220, n - 1 - np.arange(n))
         zf = zf * (1 - mid) + (wl_at(fd["P"]) - 0.12) * mid
     high = np.zeros(len(zf), bool)
-    if fd["f"]["type"] == "CIMA":       # a bridge where it runs more than 6 m above the ground
+    if fd["f"]["type"] == "CIMA" or "Palafitas" in name:   # a bridge where it runs more than 6 m above the ground
         high = ndimage.binary_closing((zf - bilinear(H, fd["P"][:, 0], fd["P"][:, 1])) > 6.0, iterations=40)
     gaps = []
     for fj in [j for j in fork_jumps if j["fork"] == name]:
         i, s_ = int(fj["at"]), np.arange(len(zf)) - int(fj["at"])
-        if fj["what"] == "ponte partida":         # the broken bridge: a kick, 26 m of nothing, the deck goes on
+        if fj["what"] in ("ponte partida", "cais"):   # the broken bridge / the quay's end: a kick, 26 m of nothing
             zf = zf + 1.5 * smoothstep(-60, -14, s_) * (s_ < -13)
             gaps.append((i - 13, i + 13))
         elif fj["what"] == "tronco":              # a giant trunk across: the deck humps over it
@@ -708,7 +743,8 @@ pedge = grid_at(D_EDGE, px, py)
 pdepth = wl_at(np.c_[px, py]) - pz
 pig = grid_at(F.get("igapo", np.zeros_like(H)), px, py)
 pfar = grid_at(np.minimum(D_ROAD, D_FORK + 30), px, py)
-keep = (pedge > 9.0) & ((pdepth < -0.05) | ((pig > 0.3) & (pdepth < 1.6))) & (grid_at(SLOPE, px, py) < 0.85)
+keep = (pedge > 9.0) & ((pdepth < -0.05) | ((pig > 0.3) & (pdepth < 1.6)) | ((SECTOR in WET_TREES) & (pdepth < 1.8))) \
+    & (grid_at(SLOPE, px, py) < 0.85)
 if WALL_MASK is not None:
     keep &= ~grid_at(WALL_MASK, px, py)
 if CAVE is not None:                     # over the cave: the hill's forest, away from F8 and the skylights
@@ -727,7 +763,8 @@ def pick(u, spec):
 MIX = MIXES.get(SECTOR, MIXES["S1"])
 interior = pick(u, MIX["interior"])
 edgek = pick(u, MIX["edge"])
-wetk = np.select([u < 0.30, u < 0.50, u < 0.65, u < 0.90], [K["acai"], K["cecropia"], K["buriti"], K["canopy_b"]], K["shrub_b"])
+wetk = pick(u, MIX["wet"]) if "wet" in MIX else \
+    np.select([u < 0.30, u < 0.50, u < 0.65, u < 0.90], [K["acai"], K["cecropia"], K["buriti"], K["canopy_b"]], K["shrub_b"])
 igk = np.select([u < 0.35, u < 0.60, u < 0.80], [K["canopy_b"], K["acai"], K["buriti"]], K["canopy_a"])
 kind = np.where(pdepth > -0.9, wetk, interior)
 kind = np.where(pedge < 32.0, edgek, kind)
@@ -748,6 +785,8 @@ hx = RP[hero, 0] - tdir[:, 1] * hside * (RW[hero] + rng.uniform(34, 55, len(hero
 hy = RP[hero, 1] + tdir[:, 0] * hside * (RW[hero] + rng.uniform(34, 55, len(hero)))
 okh = (grid_at(D_EDGE, hx, hy) > 24.0) & (wl_at(np.c_[hx, hy]) - bilinear(GROUND, hx, hy) < -0.2)
 kx, ky = np.concatenate([kx[okk], hx[okh]]), np.concatenate([ky[okk], hy[okh]])
+if SECTOR in NO_KAPOK:
+    kx, ky = kx[:0], ky[:0]
 # no ordinary tree inside a kapok's crown
 if len(kx):
     dk = np.full(len(px), 1e9)
@@ -764,7 +803,8 @@ pfar = np.concatenate([pfar, grid_at(np.minimum(D_ROAD, D_FORK + 30), kx, ky)])
 # far from the road: blobs instead of leaf cards; the understory there is never seen
 FAR = 480.0
 far = pfar > FAR
-swap = {K["canopy_a"]: K["far_a"], K["canopy_b"]: K["far_b"], K["canopy_c"]: K["far_c"], K["kapok"]: K["far_kapok"]}
+swap = {K["canopy_a"]: K["far_a"], K["canopy_b"]: K["far_b"], K["canopy_c"]: K["far_c"], K["kapok"]: K["far_kapok"],
+        K["mangrove"]: K["far_mangrove"]}
 small = np.isin(kind, [K["shrub_a"], K["shrub_b"], K["acai"], K["cecropia"], K["buriti"]])
 keep = ~(far & small & (rng.random(len(kind)) < 0.85))
 EDGE_BAND = np.concatenate([EDGE_BAND, np.zeros(len(kx), bool)])[keep]
@@ -775,7 +815,7 @@ yaw = rng.uniform(0, 360, len(px))
 # the canopy bridges hang between pairs of kapoks every 70 m: their crowns spread just above the deck
 tw = []
 for fd in FD:
-    for a, b, _g in fd.get("decks", []):
+    for a, b, _g in (fd.get("decks", []) if "Copa" in fd["f"]["name"] else []):
         P_, Z_ = fd["P"][a:b], fd["zs"][a:b]
         T_ = np.gradient(P_, axis=0)
         T_ = T_ / np.maximum(np.linalg.norm(T_, axis=1, keepdims=True), 1e-9)
@@ -1018,7 +1058,7 @@ STEP_B, PAD_B = 40.0, 7000.0
 GXb, GYb = np.meshgrid(np.arange(X0 - PAD_B, X1 + PAD_B + 1, STEP_B), np.arange(Y0 - PAD_B, Y1 + PAD_B + 1, STEP_B))
 hxb, hyb = np.clip(GXb, X0, X1), np.clip(GYb, Y0, Y1)
 farb = np.hypot(GXb - hxb, GYb - hyb)
-ZB = bilinear(H_nat, hxb, hyb) + 24.0 + HILLS.get(SECTOR, 1.0) * (fbm(GXb, GYb, 1800.0, 61, 3) - 0.5) * np.minimum(farb * 0.04, 90.0)
+ZB = bilinear(H_nat, hxb, hyb) + CANOPY_H.get(SECTOR, 24.0) + HILLS.get(SECTOR, 1.0) * (fbm(GXb, GYb, 1800.0, 61, 3) - 0.5) * np.minimum(farb * 0.04, 90.0)
 nyb, nxb = GXb.shape
 vb = np.stack([GXb - cx, GYb - cy, ZB], -1).reshape(-1, 3)
 inner = (GXb > X0 + STEP_B) & (GXb < X1 - STEP_B) & (GYb > Y0 + STEP_B) & (GYb < Y1 - STEP_B)
@@ -1118,7 +1158,59 @@ def deck_material():
     return m
 
 
-def deck_object(name, P, Z, hw, gaps):
+def thatch_material():
+    m = bpy.data.materials.get("M_Thatch")
+    if m:
+        return m
+    m = bpy.data.materials.new("M_Thatch")
+    m.use_nodes = True
+    nt = m.node_tree
+    for nd in list(nt.nodes):
+        nt.nodes.remove(nd)
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    mp = nt.nodes.new("ShaderNodeMapping"); mp.inputs["Scale"].default_value = (1.0, 1.0, 12.0)
+    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+    nz = nt.nodes.new("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = 3.0; nz.inputs["Detail"].default_value = 8
+    nt.links.new(mp.outputs[0], nz.inputs["Vector"])
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (0.06, 0.04, 0.015, 1)
+    ramp.color_ramp.elements[1].color = (0.30, 0.21, 0.08, 1)
+    nt.links.new(nz.outputs["Fac"], ramp.inputs[0])
+    bs = nt.nodes.new("ShaderNodeBsdfPrincipled"); bs.inputs["Roughness"].default_value = 0.95
+    nt.links.new(ramp.outputs[0], bs.inputs["Base Color"])
+    jk.finish(m, bs.outputs[0])
+    return m
+
+
+def hut(mb, c, ang, zf, g):
+    """A stilt house (S6 Palafitas): 6 x 5 m on posts, plank walls, a thatched roof with eaves."""
+    ux, uy = np.array([math.cos(ang), math.sin(ang)]), np.array([-math.sin(ang), math.cos(ang)])
+
+    def P3(x, y, z):
+        q = c + ux * x + uy * y
+        return np.array([q[0] - cx, q[1] - cy, z])
+
+    def quad(a, b, c_, d, mat):
+        base = len(mb.v)
+        mb.v += [a, b, c_, d]
+        mb._face((base, base + 1, base + 2, base + 3), ((0, 0), (1, 0), (1, 1), (0, 1)), mat)
+    for x in (-3.0, 3.0):
+        for y in (-2.5, 2.5):
+            mb.tube([P3(x, y, g - 1.0), P3(x, y, zf)], 0.18, "deck", seg=4)
+    zt = zf + 3.0
+    cs = [(-3.0, -2.5), (3.0, -2.5), (3.0, 2.5), (-3.0, 2.5)]
+    quad(*[P3(x, y, zf) for x, y in cs], "deck")
+    for k in range(4):
+        (x0, y0), (x1, y1) = cs[k], cs[(k + 1) % 4]
+        quad(P3(x0, y0, zf), P3(x1, y1, zf), P3(x1, y1, zt), P3(x0, y0, zt), "deck")
+    o = 0.8
+    quad(P3(-3 - o, -2.5 - o, zt - 0.4), P3(3 + o, -2.5 - o, zt - 0.4), P3(3 + o, 0, zt + 2.2), P3(-3 - o, 0, zt + 2.2), "thatch")
+    quad(P3(3 + o, 2.5 + o, zt - 0.4), P3(-3 - o, 2.5 + o, zt - 0.4), P3(-3 - o, 0, zt + 2.2), P3(3 + o, 0, zt + 2.2), "thatch")
+    for x in (-3.0, 3.0):
+        quad(P3(x, -2.5, zt), P3(x, 2.5, zt), P3(x, 0, zt + 2.2), P3(x, 0.01, zt + 2.2), "deck")
+
+
+def deck_object(name, P, Z, hw, gaps, style="copa"):
     """A canopy bridge: plank deck (1.2 m thick) with rope rails on posts, hung between pairs of giant trunks every
     ~70 m, a cross-beam under each pair; 'gaps' (index ranges) are left open (the broken bridge)."""
     mb = jk.MB()
@@ -1151,7 +1243,22 @@ def deck_object(name, P, Z, hw, gaps):
             mb.tube([pt(i, side, 1.3) for i in seg], 0.07, "rope", seg=5)
             for i in seg[::2]:
                 mb.tube([pt(i, side, 0.0), pt(i, side, 1.4)], 0.11, "deck", seg=4)
-    for i in range(30, len(P) - 30, 70):         # the cross-beams between each pair of kapoks (section 6)
+    if style == "palafita":                       # a boardwalk on stilts, stilt houses beside it with a plank to each
+        mats_d["thatch"] = thatch_material()
+        for i in range(0, len(P), 8):
+            if not ok[min(i // 3, len(ok) - 1)]:
+                continue
+            for sd_ in (hw - 0.4, -(hw - 0.4)):
+                q = P[i] + N[i] * sd_
+                mb.tube([np.array([q[0] - cx, q[1] - cy, float(bilinear(H, q[0], q[1])) - 1.0]), pt(i, sd_, -1.2)], 0.22, "deck", seg=5)
+        for k, i in enumerate(range(40, len(P) - 40, 55)):
+            if not ok[min(i // 3, len(ok) - 1)]:
+                continue
+            side = 1 if k % 2 else -1
+            c_ = P[i] + N[i] * side * (hw + 9.0)
+            hut(mb, c_, math.atan2(N[i, 1], N[i, 0]), float(Z[i]), float(bilinear(H, c_[0], c_[1])))
+            mb.tube([pt(i, side * hw, -0.4), pt(i, side * (hw + 6.0), -0.4)], 0.45, "deck", seg=4)
+    for i in (range(30, len(P) - 30, 70) if style == "copa" else []):   # cross-beams between each pair of kapoks
         ends = [P[i] + N[i] * sd_ * (hw + 3.4) for sd_ in (1, -1)]
         if ok[min(i // 3, len(ok) - 1)] and all(grid_at(np.minimum(D_ROAD - HW_ROAD, D_GFORK), e_[0], e_[1]) >= 8.0 for e_ in ends):
             mb.tube([pt(i, hw + 3.4, -1.3), pt(i, -(hw + 3.4), -1.3)], 0.45, "bark", seg=6)
@@ -1380,7 +1487,7 @@ if SECTOR == "S3":
 for fd in FD:
     for k, (a, b, gaps) in enumerate(fd.get("decks", [])):
         deck_object("Ponte_%s_%d" % (fd["f"]["name"].split()[0], k), fd["P"][a:b], fd["zs"][a:b], fd["hw"],
-                    [(g0 - a, g1 - a) for g0, g1 in gaps])
+                    [(g0 - a, g1 - a) for g0, g1 in gaps], style="palafita" if "Palafitas" in fd["f"]["name"] else "copa")
     for i in fd.get("roots", []):       # a buttress root arching across the trail at the crest
         t = fd["P"][i + 5] - fd["P"][i - 5]
         t = t / np.linalg.norm(t)

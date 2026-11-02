@@ -20,7 +20,7 @@ import bmesh
 import numpy as np
 
 KINDS = ["kapok", "canopy_a", "canopy_b", "canopy_c", "acai", "buriti", "cecropia", "shrub_a", "shrub_b",
-         "far_a", "far_b", "far_c", "far_kapok", "stone_a", "stone_b", "branch", "fern"]
+         "far_a", "far_b", "far_c", "far_kapok", "stone_a", "stone_b", "branch", "fern", "mangrove", "far_mangrove"]
 # The last four lie on the road (jogador, 2026-11-02: "galhos, arbustos pequenos, pedras no meio da estrada; não podem
 # atrapalhar, as naves passam por cima"): all under 0.6 m, no collision.
 FOG = dict(color=(0.60, 0.69, 0.74), strength=1.0, dist=2600.0, start=90.0, amount=0.88)
@@ -666,6 +666,36 @@ def fern(rng, mats):
     return mb.build("fern", mats)
 
 
+def mangrove(rng, mats, far=False):
+    """A red mangrove (S6): a short leaning trunk on a cage of prop roots arching out and down into the mud, and a dense,
+    dark, rounded crown; far away the crown is blobs."""
+    mb = MB()
+    h = rng.uniform(9.0, 14.0)
+    zt = rng.uniform(2.5, 4.0)
+    lean = rng.normal(0, 0.5, 2)
+    P = np.stack([np.linspace(0, lean[0], 5), np.linspace(0, lean[1], 5), np.linspace(zt * 0.6, h * 0.6, 5)], 1)
+    mb.tube(P, np.linspace(0.36, 0.2, 5), "bark", seg=5 if far else 8)
+    nroots = 7 if far else int(rng.integers(11, 17))
+    for k in range(nroots):
+        a = 2 * math.pi * k / nroots + rng.normal(0, 0.2)
+        r_out, z0 = rng.uniform(2.5, 5.5), rng.uniform(zt * 0.5, zt * 1.2)
+        t = np.linspace(0, 1, 7)
+        hz = 0.3 + r_out * np.sin(t * np.pi / 2)
+        zz = z0 - (z0 + 0.6) * (1 - np.cos(t * np.pi / 2))
+        mb.tube(np.stack([math.cos(a) * hz, math.sin(a) * hz, zz], 1), np.linspace(0.13, 0.07, 7), "bark", seg=4 if far else 6)
+    for b in range(int(rng.integers(4, 7))):
+        az = 2 * math.pi * b / 6 + rng.normal(0, 0.3)
+        rr = rng.uniform(1.5, 3.5)
+        c = np.array([lean[0] + math.cos(az) * rr, lean[1] + math.sin(az) * rr, h * rng.uniform(0.62, 0.85)])
+        mb.tube(_bent(P[-1], c, 0.8, 4), np.linspace(0.16, 0.06, 4), "bark", seg=5)
+        r = np.array([rng.uniform(3.0, 4.5), rng.uniform(3.0, 4.5), rng.uniform(1.8, 2.6)])
+        if far:
+            mb.blob(c, r, "blob", rng, subdiv=2)
+        else:
+            _crown_cards(mb, rng, c, r, int(rng.integers(55, 80)), rng.uniform(2.2, 2.9), "leaf_broad", up_bias=0.5)
+    return mb.build("far_mangrove" if far else "mangrove", mats)
+
+
 def build_kit(tex_dir, seed=11):
     """All the kinds, in a collection 'JungleKit' (excluded from the view: the scatter instances it). Returns
     (collection, materials). Objects are named '<NN>_<kind>' so the scatter's index matches KINDS."""
@@ -685,6 +715,7 @@ def build_kit(tex_dir, seed=11):
     objs += [fa, fb, fc, kp]
     rng3 = np.random.default_rng(seed + 5)
     objs += [stone(rng3, mats, "stone_a", 0.55), stone(rng3, mats, "stone_b", 0.9), branch(rng3, mats), fern(rng3, mats)]
+    objs += [mangrove(np.random.default_rng(seed + 9), mats), mangrove(np.random.default_rng(seed + 9), mats, far=True)]
     coll = bpy.data.collections.get("JungleKit") or bpy.data.collections.new("JungleKit")
     for i, (o, kind) in enumerate(zip(objs, KINDS)):
         o.name = "%02d_%s" % (i, kind)

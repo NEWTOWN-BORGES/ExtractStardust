@@ -291,9 +291,25 @@ passam por cima".
 - **Para o Unreal:** o teto da gruta é uma malha à parte, como as `caves/*.fbx` do Red Dust. O relevo tem o chão da
   gruta e o teto tapa-o.
 
+### S6 Mangue Labirinto (feito, por aprovar)
+
+![S6](SELVA/S6_mangue_labirinto.jpg)
+
+- **Lama e água:** lama de maré um palmo acima ou abaixo da água (a 10 m).
+- **Canais:** os canais grandes do traçado e um labirinto de 18 igarapés entre os mangues.
+- **Estrada:** vai num aterro de lama com destroços baixos.
+- **Mangue no kit:** um mangue-vermelho com 11 a 16 raízes-escora em arco a entrar na lama e na água, e copa escura
+  e densa. Os mangues ficam dentro de água (até 1,8 m de fundo).
+- **Saltos:** dois canais (rampa de 2,6 m e 32 m de água) e uma raiz.
+- **F10 Canal Estreito:** rente à água, entre mangues que se refletem nela.
+- **F11 Palafitas:** um passadiço de tábuas a 12 m da água, sobre estacas. Tem casas de palafita de colmo dos dois
+  lados, cada uma com uma prancha até ao passadiço. O cais é um salto: 26 m sem tábuas.
+- **Ao longe:** a copa contínua fica à altura do mangue (12 m).
+- **Bifurcações:** passam a contar no setor onde fica o seu meio. O F12, o topo do tepui, é do S7.
+
 ### Depois
 
-1. **S6 Mangue Labirinto** e os setores seguintes, um a um, com as fotos.
+1. **S7 Tepui** e os setores seguintes, um a um, com as fotos.
 2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);
