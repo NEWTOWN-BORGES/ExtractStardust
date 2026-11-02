@@ -56,12 +56,15 @@ def photo(name, kind):
     return tex
 
 
-path = "/Game/World/M_World"
+# Another world can have its own copy (the Selva: EX_GROUND_MAT=/Game/Selva/M_Selva, EX_GROUND_DATA=/Game/Selva/T_Selva).
+path = os.environ.get("EX_GROUND_MAT", "/Game/World/M_World")
+DATA = os.environ.get("EX_GROUND_DATA", "/Game/World/T_World")
+TINT = os.environ.get("EX_GROUND_TINT", "1.0, 1.0, 1.0")   # the Selva darkens and greens its ground
 if eal.does_asset_exist(path):
     mat = eal.load_asset(path)
     mel.delete_all_material_expressions(mat)  # rebuilt in place, so the landscape keeps its reference
 else:
-    mat = tools.create_asset("M_World", "/Game/World", unreal.Material, unreal.MaterialFactoryNew())
+    mat = tools.create_asset(path.rsplit("/", 1)[1], path.rsplit("/", 1)[0], unreal.Material, unreal.MaterialFactoryNew())
 mat.set_editor_property("tangent_space_normal", False)
 y_cursor = [0]
 
@@ -108,10 +111,10 @@ normal_ws = expr(unreal.MaterialExpressionVertexNormalWS)
 camera = expr(unreal.MaterialExpressionCameraPositionWS)
 uv = custom("return (P.xy - float2(%f, %f)) / float2(%f, %f);" % (tuple(meta["surface_origin_cm"]) + tuple(meta["surface_size_cm"])),
             [("P", world, "")], F2)
-track = expr(unreal.MaterialExpressionTextureSample, texture=eal.load_asset("/Game/World/T_WorldTrack"),
+track = expr(unreal.MaterialExpressionTextureSample, texture=eal.load_asset(DATA + "Track"),
              sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_GRAYSCALE)
 link(uv, track, "UVs")
-surface = expr(unreal.MaterialExpressionTextureSample, texture=eal.load_asset("/Game/World/T_WorldSurface"),
+surface = expr(unreal.MaterialExpressionTextureSample, texture=eal.load_asset(DATA + "Surface"),
                sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
 link(uv, surface, "UVs")
 
@@ -334,6 +337,7 @@ float lumA = dot(col, float3(0.3, 0.59, 0.11));
 col = lerp(col, max(lerp(lumA.xxx, col, 1.55) * 1.1, 0.0), Sty);
 nWS = normalize(lerp(nWS, N, Sty * 0.6));
 rough = lerp(rough, 0.8, Sty * 0.5);
+col *= float3(GROUND_TINT);
 col = min(col, 0.85);
 NormalWS = nWS;
 Rough = saturate(lerp(lerp(rough, 0.92, 0.15), 0.2, glint));
@@ -341,6 +345,7 @@ AmbOcc = saturate(lerp(1.0, ao, 0.8));
 return col;
 """
 exec(open(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()) + "Scripts/style_mpc.py", encoding="utf-8").read())
+CODE = CODE.replace("GROUND_TINT", TINT)
 ins = [("P", world, ""), ("N", normal_ws, ""), ("C", camera, ""), ("T", track, ""), ("Gm", surface, "A"), ("Sty", style_input(), "")] + tex_inputs
 ground = custom(CODE, ins, F3, extra_outputs=(("NormalWS", F3), ("Rough", F1), ("AmbOcc", F1)))
 spec = expr(unreal.MaterialExpressionConstant, r=0.35)
@@ -353,19 +358,20 @@ if not mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECUL
 mel.recompile_material(mat)
 eal.save_asset(path)
 
-# Guide posts, as before.
-bpath = "/Game/World/M_Beacon"
-if eal.does_asset_exist(bpath):
-    mat = eal.load_asset(bpath)
-    mel.delete_all_material_expressions(mat)
-else:
-    mat = tools.create_asset("M_Beacon", "/Game/World", unreal.Material, unreal.MaterialFactoryNew())
-mat.set_editor_property("used_with_instanced_static_meshes", True)
-# Player, 2026-10-30: the yellow posts were lost on the sand; electric blue stands out.
-for value, prop in (((0.01, 0.02, 0.05), unreal.MaterialProperty.MP_BASE_COLOR), ((0.8, 3.0, 14.0), unreal.MaterialProperty.MP_EMISSIVE_COLOR)):
-    c = expr(unreal.MaterialExpressionConstant3Vector, constant=unreal.LinearColor(value[0], value[1], value[2], 1.0))
-    if not mel.connect_material_property(c, "", prop):
-        failures.append("beacon %s" % prop)
-mel.recompile_material(mat)
-eal.save_asset(bpath)
+if "EX_GROUND_MAT" not in os.environ:
+    # Guide posts, as before.
+    bpath = "/Game/World/M_Beacon"
+    if eal.does_asset_exist(bpath):
+        mat = eal.load_asset(bpath)
+        mel.delete_all_material_expressions(mat)
+    else:
+        mat = tools.create_asset("M_Beacon", "/Game/World", unreal.Material, unreal.MaterialFactoryNew())
+    mat.set_editor_property("used_with_instanced_static_meshes", True)
+    # Player, 2026-10-30: the yellow posts were lost on the sand; electric blue stands out.
+    for value, prop in (((0.01, 0.02, 0.05), unreal.MaterialProperty.MP_BASE_COLOR), ((0.8, 3.0, 14.0), unreal.MaterialProperty.MP_EMISSIVE_COLOR)):
+        c = expr(unreal.MaterialExpressionConstant3Vector, constant=unreal.LinearColor(value[0], value[1], value[2], 1.0))
+        if not mel.connect_material_property(c, "", prop):
+            failures.append("beacon %s" % prop)
+    mel.recompile_material(mat)
+    eal.save_asset(bpath)
 unreal.log("WORLDMAT saved %s (photoreal, %d photo layers), failures=%s" % (path, len(LAYERS), failures))

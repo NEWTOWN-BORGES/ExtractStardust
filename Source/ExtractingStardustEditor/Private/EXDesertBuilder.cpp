@@ -982,7 +982,10 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 	ALandscape* Landscape = World->SpawnActor<ALandscape>(FVector(OriginField[0]->AsNumber(), OriginField[1]->AsNumber(),
 		Meta->GetNumberField(TEXT("actor_z_cm"))), FRotator::ZeroRotator);
 	Landscape->SetActorRelativeScale3D(FVector(SpacingCm, SpacingCm, Meta->GetNumberField(TEXT("z_scale"))));
-	Landscape->LandscapeMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/World/M_World.M_World"));
+	// The world may name its own ground material (the Selva: /Game/Selva/M_Selva, with its own data maps).
+	FString GroundMaterial = TEXT("/Game/World/M_World.M_World");
+	Meta->TryGetStringField(TEXT("landscape_material"), GroundMaterial);
+	Landscape->LandscapeMaterial = LoadObject<UMaterialInterface>(nullptr, *GroundMaterial);
 	TMap<FGuid, TArray<uint16>> HeightData;
 	HeightData.Add(FGuid(), MoveTemp(Heights));
 	TMap<FGuid, TArray<FLandscapeImportLayerInfo>> LayerData;
@@ -1044,7 +1047,7 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 	{
 		UStaticMesh* Mesh = nullptr;
 		FString Folder;
-		for (const TCHAR* Candidate : { TEXT("/Game/World/Kit"), TEXT("/Game/Desert/Rocks"), TEXT("/Game/Desert/S01"), TEXT("/Game/Desert/Plants") })
+		for (const TCHAR* Candidate : { TEXT("/Game/World/Kit"), TEXT("/Game/Selva/Kit"), TEXT("/Game/Desert/Rocks"), TEXT("/Game/Desert/S01"), TEXT("/Game/Desert/Plants") })
 		{
 			Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("%s/%s.%s"), Candidate, *Group.Key, *Group.Key), nullptr, LOAD_NoWarn | LOAD_Quiet);
 			if (Mesh)
@@ -1067,6 +1070,35 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 		Placed += Group.Value.Num();
 	}
 	UE_LOG(LogTemp, Display, TEXT("EXWORLD props placed %d in %d meshes"), Placed, ByMesh.Num());
+
+	// Water (the Selva's rivers and lakes): a flat plane per sector at its water level, solid, so the craft ride on it.
+	const TArray<TSharedPtr<FJsonValue>>* WaterPlanes = nullptr;
+	FString WaterMaterialPath;
+	if (Meta->TryGetArrayField(TEXT("water_planes"), WaterPlanes) && Meta->TryGetStringField(TEXT("water_material"), WaterMaterialPath))
+	{
+		UStaticMesh* Plane = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+		UMaterialInterface* WaterMaterial = LoadObject<UMaterialInterface>(nullptr, *WaterMaterialPath);
+		int32 Planes = 0;
+		for (const TSharedPtr<FJsonValue>& Value : *WaterPlanes)
+		{
+			const TSharedPtr<FJsonObject> W = Value->AsObject();
+			AStaticMeshActor* Water = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(),
+				FTransform(WorldToUnreal(W->GetNumberField(TEXT("x")), W->GetNumberField(TEXT("y")), W->GetNumberField(TEXT("z")))));
+			if (!Water || !Plane)
+			{
+				continue;
+			}
+			UStaticMeshComponent* Mesh = Water->GetStaticMeshComponent();
+			Mesh->SetStaticMesh(Plane);
+			Mesh->SetWorldScale3D(FVector(W->GetNumberField(TEXT("sx")), W->GetNumberField(TEXT("sy")), 1.0));   // the plane is 1 m
+			Mesh->SetMaterial(0, WaterMaterial);
+			Mesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+			Mesh->SetCastShadow(false);
+			Water->SetActorLabel(FString::Printf(TEXT("Water_%s"), *W->GetStringField(TEXT("sector"))));
+			++Planes;
+		}
+		UE_LOG(LogTemp, Display, TEXT("EXWORLD water planes %d"), Planes);
+	}
 
 	// Tunnel roofs: the core's were exported in the core map's frame, the grand circuit's in the world's.
 	const TArray<TSharedPtr<FJsonValue>>& CoreOffset = Meta->GetArrayField(TEXT("core_tunnel_offset_m"));
