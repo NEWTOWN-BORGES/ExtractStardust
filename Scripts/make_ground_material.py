@@ -26,7 +26,15 @@ WORLD = os.environ.get("EX_WORLD_DIR", "C:/rdd/mundo")
 meta = json.load(open(WORLD + "/unreal/world_unreal.json"))
 SRC = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()) + "SourceArt/PolyHaven/"
 TEX = "/Game/World/Textures/"
-LAYERS = ["red_sand", "dry_ground_rocks", "cliff_side", "sandstone_cracks", "aerial_grass_rock"]
+# The five photo layers by their slot in the shader: Sa flat floor, Gr road and talus, Cl cliffs, Pl high rock, Gs grass.
+# Another world swaps them (the Selva, 2026-11-02: EX_GROUND_PHOTOS="Sa=forest_leaves_02,Gr=brown_mud_leaves_01,...").
+SLOTS = {"Sa": "red_sand", "Gr": "dry_ground_rocks", "Cl": "cliff_side", "Pl": "sandstone_cracks", "Gs": "aerial_grass_rock"}
+for pair_ in filter(None, os.environ.get("EX_GROUND_PHOTOS", "").split(",")):
+    slot_, _, name_ = pair_.partition("=")
+    if slot_.strip() in SLOTS and name_.strip():
+        SLOTS[slot_.strip()] = name_.strip()
+LAYERS = list(SLOTS.values())
+RIPPLES = os.environ.get("EX_GROUND_RIPPLES", "1.0")   # the desert's wind ripples, grain crests, quartz glints, streaks (0: none)
 failures = []
 
 
@@ -120,16 +128,14 @@ link(uv, surface, "UVs")
 
 # The photos as texture objects: the shader reads them all through the first one's sampler (one sampler, many
 # textures: well under the 16-sampler limit).
-SHORT = {"red_sand": "Sa", "dry_ground_rocks": "Gr", "cliff_side": "Cl",
-         "sandstone_cracks": "Pl", "aerial_grass_rock": "Gs"}
 tex_inputs = []
-for name in LAYERS:
+for short_name, name in SLOTS.items():
     for kind, suffix in (("diff", "D"), ("nor_dx", "N"), ("arm", "A")):
         tex = photo(name, kind)
         node = expr(unreal.MaterialExpressionTextureObject, texture=tex,
                     sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL if kind == "nor_dx"
                     else (unreal.MaterialSamplerType.SAMPLERTYPE_MASKS if kind == "arm" else unreal.MaterialSamplerType.SAMPLERTYPE_COLOR))
-        tex_inputs.append((SHORT[name] + suffix, node, ""))
+        tex_inputs.append((short_name + suffix, node, ""))
 
 CODE = r"""
 struct FEXGround
@@ -269,7 +275,7 @@ float3 flatN = 0;
     float r0 = (cos(6.2831 * k0) + 0.5 * cos(12.5662 * k0)) * 0.004 * (6.2831 / 0.12) * saturate(1.0 - dist / 22.0);
     float r1 = (cos(6.2831 * k1) + 0.5 * cos(12.5662 * k1)) * 0.012 * (6.2831 / 0.35) * nearF;
     float r2 = (cos(6.2831 * k2) + 0.4 * cos(12.5662 * k2)) * 0.05 * (6.2831 / 3.0) * saturate(1.0 - dist / 600.0);
-    float loose = wSand / max(wsum + wCliff, 1e-3) * (1.0 - road) + berm * 0.5;
+    float loose = (wSand / max(wsum + wCliff, 1e-3) * (1.0 - road) + berm * 0.5) * GROUND_RIPPLES;
     float2 ripple = -wind * (r0 + r1 + r2) * loose;
     // Ripple crests catch the light and are made of finer, paler grains; the troughs hold the coarser, darker ones.
     crest = (0.05 * sin(6.2831 * k1) * nearF + 0.035 * sin(6.2831 * k2) * saturate(1.0 - dist / 600.0)) * loose;
@@ -329,7 +335,7 @@ ao /= max(wsum, 1e-3);
 // The wide variation every real desert has: patches of lighter and darker ground, and wind streaks along the dunes.
 float macro = 0.84 + 0.32 * G.Fbm(q / 340.0);
 float wstreak = 0.94 + 0.12 * G.Value(float2(dot(q, float2(0.82, 0.57)) / 420.0, dot(q, float2(-0.57, 0.82)) / 35.0));
-col *= macro * lerp(wstreak, 1.0, steep);
+col *= macro * lerp(lerp(1.0, wstreak, GROUND_RIPPLES), 1.0, steep);
 col *= 1.0 + crest;
 col = lerp(col, col * 1.6, glint);
 // Arcade: livelier colours, smoother shading (Rocket League-like readability at speed).
@@ -345,7 +351,7 @@ AmbOcc = saturate(lerp(1.0, ao, 0.8));
 return col;
 """
 exec(open(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()) + "Scripts/style_mpc.py", encoding="utf-8").read())
-CODE = CODE.replace("GROUND_TINT", TINT)
+CODE = CODE.replace("GROUND_TINT", TINT).replace("GROUND_RIPPLES", RIPPLES)
 ins = [("P", world, ""), ("N", normal_ws, ""), ("C", camera, ""), ("T", track, ""), ("Gm", surface, "A"), ("Sty", style_input(), "")] + tex_inputs
 ground = custom(CODE, ins, F3, extra_outputs=(("NormalWS", F3), ("Rough", F1), ("AmbOcc", F1)))
 spec = expr(unreal.MaterialExpressionConstant, r=0.35)

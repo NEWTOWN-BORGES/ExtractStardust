@@ -5,6 +5,7 @@
 # Scripts/selva/build_selva_map.py builds /Game/Maps/Selva.
 #   UnrealEditor-Cmd.exe <project> -run=pythonscript -script=<project>/Scripts/selva/import_selva.py -unattended
 import glob
+import json
 import os
 import re
 
@@ -166,7 +167,19 @@ for source, name in (("world_surface.png", "T_SelvaSurface"), ("world_track.png"
 # ---- 3. the ground: the desert's photoreal material over the Selva's maps (forest floor, rock on the steep)
 os.environ["EX_GROUND_MAT"] = "/Game/Selva/M_Selva"
 os.environ["EX_GROUND_DATA"] = "/Game/Selva/T_Selva"
-os.environ["EX_GROUND_TINT"] = "0.45, 0.62, 0.36"   # a dark, wet forest floor
+# The forest floor's own photos (Poly Haven, CC0; Scripts/download_polyhaven.py writes the ones it found to
+# SourceArt/PolyHaven/selva_ground.json): leaf litter on the floor, mud with leaves on the road, leafy grass, and none of
+# the desert's ripples and glints. Without that file, the desert's photos darkened and greened.
+GROUND_PICKS = SCRIPTS[:-len("Scripts/")] + "SourceArt/PolyHaven/selva_ground.json"
+if os.path.exists(GROUND_PICKS):
+    picks = json.load(open(GROUND_PICKS, encoding="utf-8"))
+    os.environ["EX_GROUND_PHOTOS"] = ",".join("%s=%s" % (k, v) for k, v in picks.items())
+    os.environ["EX_GROUND_RIPPLES"] = "0.0"
+    os.environ["EX_GROUND_TINT"] = "0.82, 0.88, 0.8"   # the shade under the canopy
+    unreal.log("SELVAIMPORT ground photos %s" % os.environ["EX_GROUND_PHOTOS"])
+else:
+    os.environ["EX_GROUND_TINT"] = "0.45, 0.62, 0.36"   # a dark, wet forest floor
+    failures.append("no " + GROUND_PICKS + " (run Scripts/download_polyhaven.py): desert photos on the Selva")
 exec(open(SCRIPTS + "make_ground_material.py", encoding="utf-8").read(), {"__name__": "__main__"})
 
 # ---- 4. the water: dark green-brown, glossy, opaque
