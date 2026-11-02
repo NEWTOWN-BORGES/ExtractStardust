@@ -1,4 +1,5 @@
 // Extracting Stardust - engine v2 (2026-11-02): a plasma engine built for adrenaline (Docs/SOM.md, "Motor v2").
+// Tuned deeper at the player's request ("mais grave"): fundamentals about 6 semitones down, darker body, more sub.
 // Pure C++ with the primitives of EXSoundSynth.h, so Scripts/audio/render_engine_preview.cpp renders exactly what the
 // game will play. Not wired into the game yet: FMixer keeps FEngine until the player approves the preview.
 //
@@ -41,12 +42,12 @@ namespace EXSynth
 		switch (Ship)
 		{
 		//                     Base Range Eng Detune  Pulse   F1    F2    F3   Q     Bright Drive  Grit   Rasp   W1     W2     Whine  Roar   Sub St Drop    Crk   CrkHz Vent
-		case EShip::Wraith:  return { 44, 110, 3, 0.007f, 0.10f, 440, 1300, 2900, 3.5f, 6500, 1.3f, 0.16f, 0.20f, 11.3f, 16.9f, 0.20f, 0.85f, 0.35f, 6, 0.15f, 0.25f, 1700, 0.80f };  // smooth turbine, seamless stages
-		case EShip::Nomad:   return { 34,  84, 3, 0.019f, 0.35f, 300,  950, 2200, 4.0f, 4200, 2.6f, 0.60f, 0.55f,  7.2f, 10.9f, 0.06f, 0.75f, 0.50f, 4, 0.33f, 1.00f, 1100, 0.35f };  // rough, industrial, bangs
-		case EShip::Bastion: return { 28,  68, 1, 0.000f, 0.45f, 220,  700, 1800, 4.0f, 3600, 2.0f, 0.42f, 0.40f,  6.1f,  9.2f, 0.05f, 0.80f, 0.80f, 4, 0.30f, 0.70f,  750, 0.40f };  // deep, armoured, thumps
-		case EShip::Vortex:  return { 70, 175, 1, 0.000f, 0.05f, 800, 2400, 4800, 3.0f, 9000, 2.2f, 0.28f, 0.35f, 12.5f, 18.8f, 0.16f, 0.70f, 0.25f, 6, 0.24f, 0.80f, 2300, 0.60f };  // high, screaming
+		case EShip::Wraith:  return { 32,  79, 3, 0.007f, 0.10f, 350, 1040, 2320, 3.5f, 5500, 1.3f, 0.16f, 0.20f, 11.3f, 16.9f, 0.20f, 0.85f, 0.53f, 6, 0.15f, 0.25f, 1360, 0.80f };  // smooth turbine, seamless stages
+		case EShip::Nomad:   return { 24.5f, 60, 3, 0.019f, 0.35f, 240,  760, 1760, 4.0f, 3600, 2.6f, 0.60f, 0.55f,  7.2f, 10.9f, 0.06f, 0.75f, 0.75f, 4, 0.33f, 1.00f,  880, 0.35f };  // rough, industrial, bangs
+		case EShip::Bastion: return { 20,  49, 1, 0.000f, 0.45f, 176,  560, 1440, 4.0f, 3100, 2.0f, 0.42f, 0.40f,  6.1f,  9.2f, 0.05f, 0.80f, 1.00f, 4, 0.30f, 0.70f,  600, 0.40f };  // deep, armoured, thumps
+		case EShip::Vortex:  return { 50, 126, 1, 0.000f, 0.05f, 640, 1920, 3840, 3.0f, 7600, 2.2f, 0.28f, 0.35f, 12.5f, 18.8f, 0.16f, 0.70f, 0.38f, 6, 0.24f, 0.80f, 1840, 0.60f };  // high, screaming
 		case EShip::Strix:
-		default:             return { 52, 120, 2, 0.011f, 0.20f, 520, 1650, 3400, 3.2f, 7000, 1.8f, 0.34f, 0.40f,  9.1f, 13.7f, 0.12f, 0.80f, 0.30f, 5, 0.27f, 0.60f, 1800, 0.50f };  // twin stacked cores
+		default:             return { 37.5f, 86, 2, 0.011f, 0.20f, 415, 1320, 2720, 3.2f, 6000, 1.8f, 0.34f, 0.40f,  9.1f, 13.7f, 0.12f, 0.80f, 0.45f, 5, 0.27f, 0.60f, 1440, 0.50f };  // twin stacked cores
 		}
 	}
 
@@ -163,15 +164,15 @@ namespace EXSynth
 			Fm1.Run(Core, T.F1 * (1.0f + 0.08f * Rpm), T.FormQ, Fs);
 			Fm2.Run(Core, T.F2 * (1.0f + 0.08f * Rpm), T.FormQ, Fs);
 			Fm3.Run(Core, T.F3, T.FormQ, Fs);
-			float X = 0.6f * BodyLp.Lp + (Fm1.Bp + 0.7f * Fm2.Bp + 0.45f * Fm3.Bp) * (0.35f + 0.65f * Thr);
+			float X = 0.75f * BodyLp.Lp + (Fm1.Bp + 0.7f * Fm2.Bp + 0.35f * Fm3.Bp) * (0.35f + 0.65f * Thr);
 			RaspF.Run(Fire * Fire * Rng.Next(), 900.0f + 2500.0f * Thr + 1200.0f * Rpm, 1.6f, Fs);
 			X += RaspF.Bp * T.Rasp * (0.2f + 0.9f * Thr);
 			// The throttle drives it into saturation: grit is adrenaline.
 			X = 0.8f * SoftClip(X * (1.0f + T.Drive * (0.3f + 0.7f * Thr) + 1.5f * Boost));
 
-			const float SubHz = std::fmax(34.0f, 0.5f * F0);
+			const float SubHz = std::fmax(30.0f, 0.5f * F0);
 			SubPhase = Wrap(SubPhase + SubHz * Dt);
-			const float SubV = std::sin(2.0f * kPi * SubPhase) * T.Sub * (0.3f + 0.7f * Thr);
+			const float SubV = 0.75f * SoftClip(1.8f * std::sin(2.0f * kPi * SubPhase)) * T.Sub * (0.3f + 0.7f * Thr);  // saturated: phones still hear it
 
 			// ---- Turbine whine, on the lagging spool
 			const float Fs0 = (T.BaseHz + T.RangeHz * std::pow(Spool, 0.95f)) * (1.0f + 0.08f * Boost) * Pitch;
@@ -187,7 +188,7 @@ namespace EXSynth
 			WhineV *= T.Whine * (0.1f + 0.9f * Spool * Spool) * (0.6f + 0.4f * Thr);
 
 			// ---- Jet roar: decorrelated left/right, turbulent
-			const float RoarHz = 220.0f + 1400.0f * Rpm + 1800.0f * Boost;
+			const float RoarHz = 160.0f + 1000.0f * Rpm + 1300.0f * Boost;
 			RoarL.Run(PinkL.Next(Rng), RoarHz, 0.75f, Fs);
 			RoarR.Run(PinkR.Next(Rng), RoarHz * 1.07f, 0.75f, Fs);
 			const float RoarAmp = 2.2f * T.Roar * (0.12f + 0.6f * Thr * Thr + 0.25f * Rpm + 1.2f * Boost) * (1.0f + 0.35f * Turb1 + 0.2f * Turb2);
@@ -201,7 +202,7 @@ namespace EXSynth
 			PopEnv *= CPop;
 			const float Exc = Rng.Next() * PopEnv;
 			PopHi.Run(Exc, PopHz, 1.8f, Fs);
-			PopLo.Run(Exc, 150.0f, 0.8f, Fs);
+			PopLo.Run(Exc, 110.0f, 0.8f, Fs);
 			const float PopV = (1.4f * PopHi.Bp + 2.2f * PopLo.Lp) * T.Crackle;
 
 			// ---- Boost ignition: a deep falling thump and a burst of fire
@@ -209,7 +210,7 @@ namespace EXSynth
 			if (IgniteT >= 0.07f && IgniteT < 0.8f)
 			{
 				const float Tt = IgniteT - 0.07f;
-				IgnPhase = Wrap(IgnPhase + (38.0f + 120.0f * std::exp(-Tt / 0.07f)) * Dt);
+				IgnPhase = Wrap(IgnPhase + (32.0f + 100.0f * std::exp(-Tt / 0.07f)) * Dt);
 				IgnF.Run(Rng.Next(), 900.0f, 0.7f, Fs);
 				Ign = (1.2f * std::sin(2.0f * kPi * IgnPhase) + 1.5f * IgnF.Lp * std::exp(-Tt / 0.05f)) * std::exp(-Tt / 0.2f);
 			}

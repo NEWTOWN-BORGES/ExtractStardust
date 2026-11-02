@@ -63,6 +63,9 @@ O que tem:
   - rugido de jato turbulento em estéreo;
   - a turbina vai atrasada em relação às rotações;
   - saturação com o acelerador, e compressor.
+- **Mais grave** (jogador, 2026-11-02): o tom ficou cerca de 6 meios-tons abaixo e as ressonâncias 20 % abaixo. Há mais
+  sub, saturado para se ouvir também em colunas pequenas, e o rugido, os estalos e a ignição do nitro estão mais fundos.
+  Na corrida de teste, a energia abaixo de 150 Hz passou de 13 % para 36 %.
 - **Cada nave:**
   - STRIX: dois núcleos, equilibrada, 5 estágios;
   - WRAITH: turbina suave, estágios quase sem corte, 6;
