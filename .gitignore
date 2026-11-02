@@ -17,3 +17,4 @@ SourceArt/PolyHaven/
 SourceArt/WorldTex/
 # Over GitHub's 100 MB limit (no LFS): rebuilt by export_ab_unreal.py + import_world.py + build_world_map(..., 'Expedition')
 Content/Maps/Expedition.umap
+Content/Maps/Selva.umap

@@ -1061,6 +1061,29 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 			UE_LOG(LogTemp, Warning, TEXT("EXWORLD missing mesh %s (%d props)"), *Group.Key, Group.Value.Num());
 			continue;
 		}
+		if (Folder == TEXT("/Game/Selva/Kit"))
+		{
+			// The Selva's plants (2026-11-02, it ran at 3 fps with them as rocks): no collision (the craft fly over them),
+			// drawn up to a distance by kind, the small ones and the far canopies without shadows, and in 1 km blocks so a
+			// far-off sector is culled whole instead of looked at plant by plant.
+			const FString Kind = Group.Key.RightChop(9);   // after "SM_Selva_"
+			const bool bSmall = Kind.StartsWith(TEXT("fern")) || Kind.StartsWith(TEXT("branch")) || Kind.StartsWith(TEXT("stone")) || Kind.StartsWith(TEXT("shrub"));
+			const bool bLandmark = Kind == TEXT("kapok") || Kind == TEXT("baobab") || Kind == TEXT("acacia");
+			const bool bFar = Kind.StartsWith(TEXT("far_"));
+			const float CullM = bSmall ? 220.0f : (bLandmark ? 1500.0f : (bFar ? 5000.0f : 850.0f));
+			TMap<FIntPoint, TArray<FTransform>> Blocks;
+			for (const FTransform& Transform : Group.Value)
+			{
+				Blocks.FindOrAdd(FIntPoint(FMath::FloorToInt(Transform.GetLocation().X / 100000.0), FMath::FloorToInt(Transform.GetLocation().Y / 100000.0)))
+					.Add(Transform);
+			}
+			for (const TPair<FIntPoint, TArray<FTransform>>& Block : Blocks)
+			{
+				AddInstances(World, Mesh, Block.Value, false, CullM, TEXT("World/Selva"))->SetCastShadow(!bSmall && !bFar);
+			}
+			Placed += Group.Value.Num();
+			continue;
+		}
 		const bool bKit = !Folder.EndsWith(TEXT("Plants"));  // rocks of any kind
 		const bool bWood = Group.Key.Contains(TEXT("Dead"));
 		// The arches over the line (Arches Run, the finish) are landmarks to fly through, never walls to die on
