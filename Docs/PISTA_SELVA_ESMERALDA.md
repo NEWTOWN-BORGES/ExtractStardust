@@ -184,9 +184,27 @@ blender -b -P Scripts/selva/sculpt_selva.py -- C:/rdd/selva S1 [res=3] [samples=
 - **F2 Banco de Areia:** largo e em areia.
 - **Números:** cerca de 87 mil plantas e 220 sumaúmas. Há sumaúmas "heroínas" a cada ~420 m, junto à estrada.
 
+### S2 Serra Vermelha (feito, por aprovar)
+
+![S2](SELVA/S2_serra_vermelha.jpg)
+
+- **Serra:** o chão é uma superfície lisa que passa pelas alturas da própria estrada, para cada perna do zigue-zague
+  ficar no seu socalco. Longe da estrada há colinas, esporões e ravinas.
+- **Estrada:** laterite vermelha. As bermas cortadas e os aterros mostram a terra vermelha à vista.
+- **Pernas retas e ganchos semi-ovais** (jogador: "retas, com algumas partes semi-ovais"). Por fora de cada gancho
+  ergue-se uma parede semi-oval de 12 m, como num velódromo. Cresce na curva e desaparece nas retas.
+- **F3 Pontes da Copa:** onde vai a mais de 6 m do chão é uma ponte de tábuas com corrimão de corda. Está pendurada
+  entre pares de sumaúmas a cada 70 m, com as copas logo por cima do tabuleiro, e passa por cima de um gancho da
+  estrada.
+  - **Ponte partida:** um impulso e 26 m sem tábuas.
+  - **Tronco:** a ponte faz uma lomba por cima de um tronco atravessado.
+- **Salto da crista da serra:** uma lomba de 4 m no topo.
+- **Números:** cerca de 154 mil plantas. A floresta é a do Congo, sem as palmeiras da Amazónia, com embaúbas
+  (o *Musanga* africano é parecido).
+
 ### Depois
 
-1. **S2 Serra Vermelha** e os setores seguintes, um a um, com as fotos.
+1. **S3 Salto Kaieteur** e os setores seguintes, um a um, com as fotos.
 2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);

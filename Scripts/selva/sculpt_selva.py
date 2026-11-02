@@ -232,12 +232,52 @@ def recipe_s1():
     return W, base, wet_river, fields
 
 
-RECIPES = {"S1": recipe_s1}
+def membrane(step=25, blur=45.0):
+    """A smooth ground through the road's own heights (each switchback leg lies on its hillside): linear between road
+    points of the whole route near the box, then blurred."""
+    from scipy.interpolate import griddata
+    sel = (road[:, 0] > X0 - 1500) & (road[:, 0] < X1 + 1500) & (road[:, 1] > Y0 - 1500) & (road[:, 1] < Y1 + 1500)
+    idx = np.flatnonzero(sel)[::step]
+    lin = griddata(road[idx], road_z[idx], (XX, YY), method="linear")
+    near = griddata(road[idx], road_z[idx], (XX, YY), method="nearest")
+    return ndimage.gaussian_filter(np.where(np.isnan(lin), near, lin), blur / RES)
+
+
+def recipe_s2():
+    """S2 Serra Vermelha (Congo): the switchbacks climb a hillside of red laterite under the forest. The ground is a
+    smooth surface through the road's heights (each leg on its terrace), with hills, spurs and gullies away from it."""
+    G = membrane()
+    d, _fi, _sd = line_field(RP)
+    away = smoothstep(30.0, 400.0, d)
+    relief = 26.0 * (fbm(XX, YY, 520.0, 211, 4) - 0.5) + 7.0 * (fbm(XX, YY, 110.0, 223, 3) - 0.5)
+    gully = smoothstep(0.82, 0.95, 1 - np.abs(2 * fbm(XX, YY, 300.0, 227, 3) - 1))
+    return -1000.0, G + away * (relief - 9.0 * gully), np.zeros_like(G), dict()
+
+
+RECIPES = {"S1": recipe_s1, "S2": recipe_s2}
+# per sector: semi-oval walls on the outside of the hairpins (jogador, 2026-11-02: "retas, com algumas partes
+# semi-ovais"), the road and bank colours (sRGB), the jungle's mix, and how far hills roll beyond the box
+WALLS = {"S2": (12.0, 16.0)}
+PAL = {"S1": dict(road=(0.60, 0.50, 0.37), wet=(0.36, 0.29, 0.21), bank=None),
+       "S2": dict(road=(0.64, 0.31, 0.16), wet=(0.42, 0.20, 0.10), bank=(0.56, 0.25, 0.12))}
+MIXES = {"S1": dict(interior=(("canopy_a", .36), ("canopy_c", .32), ("canopy_b", .20), ("acai", .07), ("shrub_a", .05)),
+                    edge=(("shrub_a", .30), ("cecropia", .20), ("acai", .15), ("canopy_b", .20), ("shrub_b", .08), ("canopy_a", .07)),
+                    band=(("shrub_a", .40), ("shrub_b", .22), ("acai", .16), ("canopy_b", .12), ("cecropia", .10))),
+         "S2": dict(interior=(("canopy_a", .38), ("canopy_c", .36), ("canopy_b", .20), ("shrub_a", .06)),
+                    edge=(("shrub_a", .30), ("cecropia", .25), ("canopy_b", .25), ("shrub_b", .12), ("canopy_a", .08)),
+                    band=(("shrub_a", .40), ("shrub_b", .25), ("canopy_b", .20), ("cecropia", .15)))}
+HILLS = {"S1": 0.3, "S2": 1.0}
 W, H, WET, F = RECIPES[SECTOR]()
 log("natural ground %.1f-%.1f m, water at %.1f m" % (H.min(), H.max(), W))
 
 
 # ---------------------------------------------------------------------------------------------------- 4. the road
+def runs(mask):
+    """(start, end) of each run of True."""
+    m = np.diff(np.r_[0, np.asarray(mask, int), 0])
+    return list(zip(np.flatnonzero(m == 1), np.flatnonzero(m == -1)))
+
+
 def road_profile(P, z, natural, jumps_here):
     """The road's own height along it: the plan's height, across the river as a ford (12 cm under the surface: the
     ships skim it), with the jumps built in. Returns z per point and a list of jump records for the game."""
@@ -267,11 +307,35 @@ def road_profile(P, z, natural, jumps_here):
             ramp = 3.2 * smoothstep(-60, -4, s) * (s <= 4) + 3.2 * (1 - smoothstep(4, 26, s)) * (s > 4)
             z = z + ramp
             recs.append(dict(what=j["what"], at_m=int(j["at_m"]), crest=float(z[i]), ramp_m=3.2))
+        elif j["what"].startswith(("crista", "lomba", "rampa", "ilha", "raiz", "rochedo")):   # a crest: up, and off
+            s = np.arange(len(z)) - i
+            z = z + 4.0 * smoothstep(-90, -4, s) * (s <= 4) + 4.0 * (1 - smoothstep(4, 50, s)) * (s > 4)
+            recs.append(dict(what=j["what"], at_m=int(j["at_m"]), crest=float(z[i]), ramp_m=4.0))
     return z, recs
 
 
-def lay_road(H, P, z, hw, color_kind):
-    """Carve or build the road: flat across at its height, sand shoulders, banks blending into the ground."""
+def curvature(P, w=21):
+    q = np.stack([ndimage.uniform_filter1d(P[:, 0], w), ndimage.uniform_filter1d(P[:, 1], w)], 1)
+    d1 = np.gradient(q, axis=0)
+    d2 = np.gradient(d1, axis=0)
+    return (d1[:, 0] * d2[:, 1] - d1[:, 1] * d2[:, 0]) / (np.hypot(d1[:, 0], d1[:, 1]) ** 3 + 1e-9)
+
+
+def bends(P, rmax=260.0, rfull=140.0):
+    """Per point: how much of a hairpin it is (0 on the straights, 1 in a bend of rfull or tighter, growing into it and
+    dying away after it) and which way it turns (+1 left)."""
+    k = curvature(P)
+    b = ndimage.uniform_filter1d(smoothstep(1 / rmax, 1 / rfull, np.abs(k)), 60)
+    return np.clip(b * 1.6, 0, 1), np.sign(ndimage.uniform_filter1d(k, 60))
+
+
+WALL_MASK = None
+
+
+def lay_road(H, P, z, hw, color_kind, walls=None):
+    """Carve or build the road: flat across at its height, sand shoulders, banks blending into the ground; with
+    walls=(height, width), a semi-oval wall rises on the outside of each hairpin (like a velodrome)."""
+    global WALL_MASK
     d, fi, _sd = line_field(P)
     zr = at(z, fi)
     hwv = at(hw, fi) if np.ndim(hw) else np.full_like(d, hw)
@@ -279,6 +343,16 @@ def lay_road(H, P, z, hw, color_kind):
     bankw = 10.0 + 2.2 * np.clip(diff, 0, 8)
     t = smoothstep(hwv + 1.5, hwv + 1.5 + bankw, d)
     H2 = zr * (1 - t) + H * t
+    if walls:
+        wh, ww = walls
+        b, sg = bends(P)
+        bw, sgn = at(b, fi), at(sg, fi)
+        outside = (_sd * sgn < 0) & (d > hwv) & (bw > 0.01)
+        e = d - hwv
+        u = np.clip(e / ww, 0, 1)
+        top = np.where(e <= ww, wh * (1 - np.sqrt(np.clip(1 - u * u, 0, 1))), wh - np.maximum(0, e - ww - 5.0) / 1.3)
+        H2 = np.where(outside, np.maximum(H2, zr + bw * np.maximum(top, 0)), H2)
+        WALL_MASK = outside & (e < ww + 5.0 + wh * 1.3)
     return H2, d, hwv, t
 
 
@@ -293,7 +367,7 @@ for j in jumps:
     roadjumps.append(dict(j, i=int(j["at_m"]) - rlo))
 RZ2, JREC = road_profile(RP, RZ, H, roadjumps)
 H_nat = H.copy()
-H, D_ROAD, HW_ROAD, T_ROAD = lay_road(H, RP, RZ2, RW, "road")
+H, D_ROAD, HW_ROAD, T_ROAD = lay_road(H, RP, RZ2, RW, "road", WALLS.get(SECTOR))
 D_FORK = np.full_like(H, 1e9)
 T_FORK = np.ones_like(H)
 fork_rec = []
@@ -304,11 +378,29 @@ for fd in FD:
         n = len(zf)
         mid = smoothstep(0, 220, np.arange(n)) * smoothstep(0, 220, n - 1 - np.arange(n))
         zf = zf * (1 - mid) + (W - 0.12) * mid
-    Hn, dF, _hw, tF = lay_road(H, fd["P"], zf, fd["hw"], "fork")
-    H = Hn
-    D_FORK = np.minimum(D_FORK, dF - fd["hw"])
-    T_FORK = np.minimum(T_FORK, tF)
-    fork_rec.append(dict(name=name, z_min=float(zf.min()), z_max=float(zf.max())))
+    high = np.zeros(len(zf), bool)
+    if fd["f"]["type"] == "CIMA":       # a bridge where it runs more than 6 m above the ground
+        high = ndimage.binary_closing((zf - bilinear(H, fd["P"][:, 0], fd["P"][:, 1])) > 6.0, iterations=40)
+    gaps = []
+    for fj in [j for j in fork_jumps if j["fork"] == name]:
+        i, s_ = int(fj["at"]), np.arange(len(zf)) - int(fj["at"])
+        if fj["what"] == "ponte partida":         # the broken bridge: a kick, 26 m of nothing, the deck goes on
+            zf = zf + 1.5 * smoothstep(-60, -14, s_) * (s_ < -13)
+            gaps.append((i - 13, i + 13))
+        elif fj["what"] == "tronco":              # a giant trunk across: the deck humps over it
+            zf = zf + 2.2 * smoothstep(-45, -2, s_) * (s_ <= 2) + 2.2 * (1 - smoothstep(2, 24, s_)) * (s_ > 2)
+            fd.setdefault("logs", []).append(i)
+    for a, b in runs(~high):
+        if b - a > 5:
+            H, dF, _hw, tF = lay_road(H, fd["P"][a:b], zf[a:b], fd["hw"], "fork")
+            D_FORK = np.minimum(D_FORK, dF - fd["hw"])
+            T_FORK = np.minimum(T_FORK, tF)
+    for a, b in runs(high):
+        dF, _fi, _sd = line_field(fd["P"][a:b])
+        D_FORK = np.minimum(D_FORK, dF - fd["hw"] + 2.0)        # a corridor through the canopy for the bridge
+        fd.setdefault("decks", []).append((a, b, gaps))
+    fd["zs"] = zf
+    fork_rec.append(dict(name=name, z_min=float(zf.min()), z_max=float(zf.max()), bridge_m=int(high.sum())))
 D_EDGE = np.minimum(D_ROAD - HW_ROAD, D_FORK)              # metres from the nearest road or fork edge
 log("road laid: %d jumps, forks %s" % (len(JREC), [f["name"] for f in fork_rec]))
 
@@ -318,7 +410,8 @@ def srgb(c):
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
 
 
-SAND, WETSAND = srgb((0.60, 0.50, 0.37)), srgb((0.36, 0.29, 0.21))
+PALS = PAL.get(SECTOR, PAL["S1"])
+SAND, WETSAND = srgb(PALS["road"]), srgb(PALS["wet"])
 MUD, FLOOR, MOSS = srgb((0.30, 0.24, 0.17)), srgb((0.22, 0.17, 0.11)), srgb((0.20, 0.27, 0.11))
 MEADOW = srgb((0.42, 0.54, 0.17))
 nc = fbm(XX, YY, 25.0, 71, 3)
@@ -337,9 +430,12 @@ puddle = sand * smoothstep(0.62, 0.70, fbm(XX, YY, 14.0, 91, 4)) * (1 - T_ROAD) 
 wsand = np.maximum(wsand, 0.85 * puddle)
 col = col * (1 - wsand[..., None]) + WETSAND[None, None] * wsand[..., None]
 ED = np.minimum(np.abs(D_ROAD - HW_ROAD), np.abs(D_FORK))
-grass = smoothstep(5.0, 0.0, ED) * smoothstep(0.35, 0.55, fbm(XX, YY, 9.0, 97, 3)) * (H - W > 0.3)
+grass = smoothstep(5.0, 0.0, ED) * smoothstep(0.35, 0.55, fbm(XX, YY, 9.0, 97, 3)) * (H - W > 0.3) * (1 - sand)
 col = col * (1 - 0.8 * grass[..., None]) + MEADOW[None, None] * 0.8 * grass[..., None]
 WETNESS = np.clip(np.maximum(np.maximum(edge, wsand), puddle * 1.2), 0, 1)
+if PALS["bank"]:
+    bare = np.clip(np.abs(H - H_nat) - 0.8, 0, 1) * (1 - sand)
+    col = col * (1 - bare[..., None]) + (srgb(PALS["bank"]) * (0.85 + 0.3 * nc[..., None])) * bare[..., None]
 
 # ---------------------------------------------------------------------------------------------------- 6. the jungle
 rng = np.random.default_rng(KS * 1000 + 7)
@@ -369,21 +465,27 @@ pdepth = W - pz
 pig = grid_at(F.get("igapo", np.zeros_like(H)), px, py)
 pfar = grid_at(np.minimum(D_ROAD, D_FORK + 30), px, py)
 keep = (pedge > 9.0) & ((pdepth < -0.05) | ((pig > 0.3) & (pdepth < 1.6)))
+if WALL_MASK is not None:
+    keep &= ~grid_at(WALL_MASK, px, py)
 px, py, pz, pedge, pdepth, pig, pfar = px[keep], py[keep], pz[keep], pedge[keep], pdepth[keep], pig[keep], pfar[keep]
 EDGE_BAND = EDGE_BAND[keep]
 u = rng.random(len(px))
 K = {k: i for i, k in enumerate(jk.KINDS)}
 kind = np.full(len(px), K["canopy_a"])
-interior = np.select([u < 0.36, u < 0.68, u < 0.88, u < 0.95], [K["canopy_a"], K["canopy_c"], K["canopy_b"], K["acai"]],
-                     K["shrub_a"])
-edgek = np.select([u < 0.30, u < 0.50, u < 0.65, u < 0.85, u < 0.93], [K["shrub_a"], K["cecropia"], K["acai"], K["canopy_b"],
-                                                                      K["shrub_b"]], K["canopy_a"])
+def pick(u, spec):
+    edges = np.cumsum([p for _k, p in spec])
+    return np.select([u < e for e in edges[:-1]], [K[k] for k, _p in spec[:-1]], K[spec[-1][0]])
+
+
+MIX = MIXES.get(SECTOR, MIXES["S1"])
+interior = pick(u, MIX["interior"])
+edgek = pick(u, MIX["edge"])
 wetk = np.select([u < 0.30, u < 0.50, u < 0.65, u < 0.90], [K["acai"], K["cecropia"], K["buriti"], K["canopy_b"]], K["shrub_b"])
 igk = np.select([u < 0.35, u < 0.60, u < 0.80], [K["canopy_b"], K["acai"], K["buriti"]], K["canopy_a"])
 kind = np.where(pdepth > -0.9, wetk, interior)
 kind = np.where(pedge < 32.0, edgek, kind)
 kind = np.where(pig > 0.3, igk, kind)
-bandk = np.select([u < 0.40, u < 0.62, u < 0.78, u < 0.90], [K["shrub_a"], K["shrub_b"], K["acai"], K["canopy_b"]], K["cecropia"])
+bandk = pick(u, MIX["band"])
 kind = np.where(EDGE_BAND, bandk, kind)
 # emergent kapoks: sparse everywhere, and some heroes standing right by the road
 kx = rng.uniform(X0, X1, int((X1 - X0) * (Y1 - Y0) / 150.0 ** 2))
@@ -423,8 +525,29 @@ px, py, pz, kind, far = px[keep], py[keep], pz[keep], kind[keep], far[keep]
 for a, b in swap.items():
     kind = np.where(far & (kind == a), b, kind)
 yaw = rng.uniform(0, 360, len(px))
+# the canopy bridges hang between pairs of kapoks every 70 m: their crowns spread just above the deck
+tw = []
+for fd in FD:
+    for a, b, _g in fd.get("decks", []):
+        P_, Z_ = fd["P"][a:b], fd["zs"][a:b]
+        T_ = np.gradient(P_, axis=0)
+        T_ = T_ / np.maximum(np.linalg.norm(T_, axis=1, keepdims=True), 1e-9)
+        for i in range(30, len(P_) - 30, 70):
+            for side in (1, -1):
+                q = P_[i] + np.array([-T_[i, 1], T_[i, 0]]) * side * (fd["hw"] + 3.4)
+                g = float(bilinear(H, q[0], q[1]))
+                if grid_at(D_ROAD - HW_ROAD, q[0], q[1]) < 8.0 or (WALL_MASK is not None and grid_at(WALL_MASK, q[0], q[1])):
+                    continue                      # never on the road (where the bridge crosses over it) or a wall
+                tw.append((q[0], q[1], g, float(np.clip((Z_[i] - g + 5.0) / (0.74 * 51.0), 0.9, 1.45))))
+if tw:
+    tw = np.array(tw)
+    px, py, pz = np.r_[px, tw[:, 0]], np.r_[py, tw[:, 1]], np.r_[pz, tw[:, 2]]
+    kind = np.r_[kind, np.full(len(tw), K["kapok"])]
+    yaw = np.r_[yaw, rng.uniform(0, 360, len(tw))]
 scl = np.where(np.isin(kind, [K["kapok"], K["far_kapok"]]), rng.uniform(0.9, 1.12, len(px)), rng.uniform(0.75, 1.25, len(px)))
-young = EDGE_BAND & (kind == K["canopy_b"])
+if len(tw):
+    scl[-len(tw):] = tw[:, 3]
+young = np.r_[EDGE_BAND, np.zeros(len(px) - len(EDGE_BAND), bool)] & (kind == K["canopy_b"])
 scl = np.where(young, rng.uniform(0.45, 0.7, len(px)), scl)      # young trees at the edge
 log("jungle: %d plants (%s)" % (len(px), ", ".join("%s %d" % (k, int((kind == i).sum())) for i, k in enumerate(jk.KINDS))))
 
@@ -554,19 +677,21 @@ def water_material():
 me.materials.append(terrain_material())
 wme = bpy.data.meshes.new("Water")
 wme.from_pydata([(X0 - cx, Y0 - cy, W), (X1 - cx, Y0 - cy, W), (X1 - cx, Y1 - cy, W), (X0 - cx, Y1 - cy, W)], [], [(0, 1, 2, 3)])
-# beyond the box, for the photos only: the canopy goes on for ever (a frame at canopy height round the terrain)
-BIG, CZ = 40000.0, W + 24.0
-fv, ff = [], []
-ax_, ay_ = [-BIG, X0 - cx, X1 - cx, BIG], [-BIG, Y0 - cy, Y1 - cy, BIG]
-for a in range(3):
-    for b in range(3):
-        if a == 1 and b == 1:
-            continue
-        k0 = len(fv)
-        fv += [(ax_[a], ay_[b], CZ), (ax_[a + 1], ay_[b], CZ), (ax_[a + 1], ay_[b + 1], CZ), (ax_[a], ay_[b + 1], CZ)]
-        ff.append((k0, k0 + 1, k0 + 2, k0 + 3))
+# beyond the box, for the photos only: the canopy goes on for ever, over hills that roll on (a coarse ring of terrain
+# at canopy height round the box, its inner edge just inside it)
+STEP_B, PAD_B = 40.0, 7000.0
+GXb, GYb = np.meshgrid(np.arange(X0 - PAD_B, X1 + PAD_B + 1, STEP_B), np.arange(Y0 - PAD_B, Y1 + PAD_B + 1, STEP_B))
+hxb, hyb = np.clip(GXb, X0, X1), np.clip(GYb, Y0, Y1)
+farb = np.hypot(GXb - hxb, GYb - hyb)
+ZB = bilinear(H_nat, hxb, hyb) + 24.0 + HILLS.get(SECTOR, 1.0) * (fbm(GXb, GYb, 1800.0, 61, 3) - 0.5) * np.minimum(farb * 0.04, 90.0)
+nyb, nxb = GXb.shape
+vb = np.stack([GXb - cx, GYb - cy, ZB], -1).reshape(-1, 3)
+inner = (GXb > X0 + STEP_B) & (GXb < X1 - STEP_B) & (GYb > Y0 + STEP_B) & (GYb < Y1 - STEP_B)
+ib = np.arange(nxb * nyb).reshape(nyb, nxb)
+qb = np.stack([ib[:-1, :-1], ib[:-1, 1:], ib[1:, 1:], ib[1:, :-1]], -1)
+inq = inner[:-1, :-1] & inner[:-1, 1:] & inner[1:, 1:] & inner[1:, :-1]
 cme = bpy.data.meshes.new("CanopyBeyond")
-cme.from_pydata(fv, [], ff)
+cme.from_pydata(vb.tolist(), [], qb[~inq].tolist())
 wme.materials.append(water_material())
 water = bpy.data.objects.new("Water", wme)
 scene.collection.objects.link(water)
@@ -636,6 +761,84 @@ def log_object(at_m):
 for j in JREC:
     if j["what"] == "tronco caído":
         log_object(j["at_m"])
+
+
+def deck_material():
+    m = bpy.data.materials.new("M_Deck")
+    m.use_nodes = True
+    nt = m.node_tree
+    for nd in list(nt.nodes):
+        nt.nodes.remove(nd)
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    wv = nt.nodes.new("ShaderNodeTexWave"); wv.wave_type = "BANDS"; wv.bands_direction = "Y"
+    wv.inputs["Scale"].default_value = 1.0; wv.inputs["Distortion"].default_value = 2.0
+    nt.links.new(tc.outputs["UV"], wv.inputs["Vector"])
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (0.06, 0.035, 0.018, 1)
+    ramp.color_ramp.elements[1].color = (0.24, 0.15, 0.08, 1)
+    nt.links.new(wv.outputs["Fac"], ramp.inputs[0])
+    bs = nt.nodes.new("ShaderNodeBsdfPrincipled"); bs.inputs["Roughness"].default_value = 0.8
+    nt.links.new(ramp.outputs[0], bs.inputs["Base Color"])
+    jk.finish(m, bs.outputs[0])
+    return m
+
+
+def deck_object(name, P, Z, hw, gaps):
+    """A canopy bridge: plank deck (1.2 m thick) with rope rails on posts, hung between pairs of giant trunks every
+    ~70 m, a cross-beam under each pair; 'gaps' (index ranges) are left open (the broken bridge)."""
+    mb = jk.MB()
+    mats_d = {"deck": deck_material(), "bark": bpy.data.materials["M_Bark_Kapok"], "rope": bpy.data.materials["M_Bark_Cecropia"]}
+    T = np.gradient(P, axis=0)
+    T = T / np.maximum(np.linalg.norm(T, axis=1, keepdims=True), 1e-9)
+    N = np.stack([-T[:, 1], T[:, 0]], 1)
+    idx = np.arange(0, len(P), 3)
+    ok = np.ones(len(idx), bool)
+    for a, b in gaps:
+        ok &= ~((idx >= a) & (idx <= b))
+
+    def pt(i, side, dz):
+        q = P[i] + N[i] * side
+        return np.array([q[0] - cx, q[1] - cy, Z[i] + dz])
+    for k in range(len(idx) - 1):
+        if not (ok[k] and ok[k + 1]):
+            continue
+        i0, i1 = idx[k], idx[k + 1]
+        v0, v1 = i0 / 1.6, i1 / 1.6
+        for (sa, za), (sb, zb) in (((hw, 0), (-hw, 0)), ((-hw, -1.2), (hw, -1.2)), ((hw, -1.2), (hw, 0)), ((-hw, 0), (-hw, -1.2))):
+            base = len(mb.v)
+            mb.v += [pt(i0, sa, za), pt(i0, sb, zb), pt(i1, sb, zb), pt(i1, sa, za)]
+            mb._face((base, base + 1, base + 2, base + 3), ((0, v0), (1, v0), (1, v1), (0, v1)), "deck")
+    for a, b in runs(ok):
+        seg = idx[a:b]
+        if len(seg) < 3:
+            continue
+        for side in (hw - 0.3, -(hw - 0.3)):
+            mb.tube([pt(i, side, 1.3) for i in seg], 0.07, "rope", seg=5)
+            for i in seg[::2]:
+                mb.tube([pt(i, side, 0.0), pt(i, side, 1.4)], 0.11, "deck", seg=4)
+    for i in range(30, len(P) - 30, 70):         # the cross-beams between each pair of kapoks (section 6)
+        ends = [P[i] + N[i] * sd_ * (hw + 3.4) for sd_ in (1, -1)]
+        if ok[min(i // 3, len(ok) - 1)] and all(grid_at(D_ROAD - HW_ROAD, e_[0], e_[1]) >= 8.0 for e_ in ends):
+            mb.tube([pt(i, hw + 3.4, -1.3), pt(i, -(hw + 3.4), -1.3)], 0.45, "bark", seg=6)
+    mats_d["bark"] = bpy.data.materials["M_Bark"]
+    o = mb.build(name, mats_d)
+    scene.collection.objects.link(o)
+    return o
+
+
+for fd in FD:
+    for k, (a, b, gaps) in enumerate(fd.get("decks", [])):
+        deck_object("Ponte_%s_%d" % (fd["f"]["name"].split()[0], k), fd["P"][a:b], fd["zs"][a:b], fd["hw"],
+                    [(g0 - a, g1 - a) for g0, g1 in gaps])
+    for i in fd.get("logs", []):        # a trunk lying across the fork, under the hump
+        t = fd["P"][i + 5] - fd["P"][i - 5]
+        mb = jk.MB()
+        L = 2 * fd["hw"] + 10.0
+        mb.tube(np.stack([np.linspace(-L / 2, L / 2, 6), np.zeros(6), np.zeros(6)], 1), np.linspace(1.6, 1.3, 6), "bark", seg=12)
+        o = mb.build("Tronco_%d" % i, {"bark": bpy.data.materials["M_Bark"]})
+        o.location = (fd["P"][i, 0] - cx, fd["P"][i, 1] - cy, fd["zs"][i] - 1.6 + 0.9)
+        o.rotation_euler = (0, 0, math.atan2(t[1], t[0]) + math.pi / 2)
+        scene.collection.objects.link(o)
 
 # sky, sun, camera, render (as Red Dust Divide's photos: Scripts/sculpt_expedition_ab.py)
 w_ = bpy.data.worlds.new("Sky")
@@ -761,8 +964,26 @@ for j in JREC:
     side_view(tag.replace("piloto_", "salto_"), si(j["at_m"]))
 for fd in FD:
     nm = fd["f"]["name"].split()[0]
-    zf = bilinear(H, fd["P"][:, 0], fd["P"][:, 1])
-    pilot("piloto_" + nm, int(0.35 * len(fd["P"])), P=fd["P"], Z=zf)
+    zf = fd.get("zs", bilinear(H, fd["P"][:, 0], fd["P"][:, 1]))
+    at_f = int(0.35 * len(fd["P"]))
+    if fd.get("decks"):                   # on the bridge, a little before its middle
+        a, b, _g = max(fd["decks"], key=lambda r: r[1] - r[0])
+        at_f = a + int(0.3 * (b - a))
+    pilot("piloto_" + nm, at_f, P=fd["P"], Z=zf)
+if SECTOR in WALLS:                      # into a hairpin, its wall on the outside
+    bb, _sg = bends(RP)
+    inside = np.zeros(len(RP), bool)
+    inside[si(S0) + 300:si(S1_) - 300] = True
+    apex = int(np.argmax(np.where(inside, bb, 0)))
+    pilot("piloto_gancho", apex - 160, ahead=150)
+    t_ = RP[apex + 10] - RP[apex - 10]
+    t_ = t_ / np.linalg.norm(t_)
+    out_ = -_sg[apex] * np.array([-t_[1], t_[0]])
+    if ship is not None:
+        ship.hide_render = True
+    e_ = RP[apex] - t_ * 150 + out_ * 110
+    shot("gancho_ar", Vector((e_[0] - cx, e_[1] - cy, float(RZ2[apex]) + 95)),
+         Vector((RP[apex, 0] - cx, RP[apex, 1] - cy, float(RZ2[apex]))), 24)
 pilot("piloto_reta", si(S0 + int(0.55 * (S1_ - S0))))
 mid = RP[si((S0 + S1_) // 2)]
 aerial("aerea", (mid[0] - 600, mid[1] - 1500), 620, (mid[0] + 400, mid[1] + 250), lens=24)
