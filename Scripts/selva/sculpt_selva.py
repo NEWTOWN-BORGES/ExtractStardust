@@ -468,7 +468,44 @@ def recipe_s9():
 
 
 RECIPES["S9"] = recipe_s9
-WET_TREES = {"S6"}                       # mangroves stand in the water
+
+
+def recipe_s10():
+    """S10 Delta do Okavango: clear water 1.6 m under the road, falling gently with it to B; sand islands with palms
+    and trees, open grass floodplain, the Okavango's channel and a labyrinth of smaller ones; the lake F18 crosses on a
+    causeway. In RIVER_ROADS the road comes down into the channels (RIVER_DROP)."""
+    rng = np.random.default_rng(1011)
+    d, fi, _sd = line_field(RP)
+    WL = at(RZ, fi) - 1.6
+    base = WL + 0.5 + 1.0 * (fbm(XX, YY, 320.0, 1013, 4) - 0.5) + 0.3 * (fbm(XX, YY, 60.0, 1017, 3) - 0.5)
+    for rv in rivers:
+        dr, fr, _s = line_field(rv["P"], reach=3)
+        wr = 0.5 * rv["w"] * (1 + 0.2 * np.sin(fr / 160.0))
+        base = np.where(dr < wr + 30.0, np.minimum(base, WL - 3.0 + 3.5 * smoothstep(0.7 * wr, wr + 30.0, dr)), base)
+    creeks = []
+    for j in jumps:
+        if j["what"].startswith(("canal", "último canal")):
+            i = int(j["at_m"]) - rlo
+            t = RP[min(i + 5, len(RP) - 1)] - RP[max(i - 5, 0)]
+            hd = math.atan2(t[1], t[0]) + math.pi / 2
+            creeks.append(np.vstack([creek(rng, RP[i], hd + math.pi, 900, 0.3)[::-1], creek(rng, RP[i], hd, 900, 0.3)[1:]]))
+    for k in range(14):
+        creeks.append(creek(rng, (rng.uniform(X0, X1), rng.uniform(Y0, Y1)), rng.uniform(0, 2 * np.pi), rng.uniform(800, 1800), 0.4))
+    for C in creeks:
+        dc, fc, _s = line_field(C, reach=2)
+        wc = 11.0 + 5.0 * np.sin(fc / 90.0)
+        base = np.where(dc < wc * 1.7, np.minimum(base, WL - 2.0 + 3.0 * smoothstep(0.6 * wc, 1.7 * wc, dc)), base)
+    for fd in FD:                        # the lake F18 crosses on its causeway
+        if "Lago" in fd["f"]["name"]:
+            dl, _f, _s = line_field(fd["P"], reach=3)
+            base = np.where(dl < 320.0, np.minimum(base, WL - 2.5 + 2.0 * smoothstep(240.0, 320.0, dl)), base)
+    return WL, base, np.zeros_like(base), dict(savanna=smoothstep(0.45, 0.6, fbm(XX, YY, 380.0, 1019, 3)))
+
+
+RECIPES["S10"] = recipe_s10
+RIVER_ROADS["S10"] = [(62700, 64500), (71900, 73500)]
+RIVER_DROP = {"S10": 1.72}               # down into the channels: the road 12 cm under the delta's water there
+WET_TREES = {"S6", "S10"}                       # mangroves stand in the water
 NO_KAPOK = {"S6"}
 CAVE_SPAN = None
 if SECTOR == "S5":                       # from the mouth to the way out (the jumps 'boca' and 'saída' of the plan)
@@ -499,6 +536,14 @@ HILLS = {"S1": 0.3, "S2": 1.0, "S3": 1.0, "S4": 1.0}
 MIXES["S4"] = MIXES["S2"]
 MIXES["S5"] = MIXES["S1"]
 HILLS["S5"] = 1.0
+PAL["S10"] = dict(road=(0.66, 0.60, 0.48), wet=(0.40, 0.36, 0.28), bank=(0.50, 0.46, 0.34))
+HILLS["S10"] = 0.3
+MIXES["S10"] = dict(interior=(("canopy_b", .25), ("buriti", .25), ("canopy_a", .15), ("shrub_b", .15), ("acacia", .10), ("mangrove", .10)),
+                    edge=(("buriti", .30), ("shrub_b", .30), ("canopy_b", .20), ("mangrove", .20)),
+                    band=(("shrub_b", .40), ("buriti", .30), ("mangrove", .30)),
+                    wet=(("mangrove", .40), ("buriti", .30), ("shrub_b", .30)),
+                    savanna=(("acacia", .30), ("shrub_b", .40), ("termite", .15), ("buriti", .15)))
+WATER_COL = {"S10": (0.16, 0.21, 0.18)}      # the Okavango's water is clear
 PAL["S9"] = dict(road=(0.38, 0.34, 0.30), wet=(0.22, 0.20, 0.18), bank=(0.30, 0.27, 0.22), rock=(0.17, 0.16, 0.16))
 HILLS["S9"] = 1.0
 MIXES["S9"] = dict(interior=(("canopy_b", .30), ("acacia", .20), ("canopy_a", .15), ("shrub_a", .25), ("baobab", .05), ("canopy_c", .05)),
@@ -521,7 +566,7 @@ MIXES["S6"] = dict(interior=(("mangrove", .75), ("canopy_b", .08), ("acai", .07)
                    edge=(("mangrove", .62), ("shrub_b", .20), ("acai", .09), ("cecropia", .09)),
                    band=(("mangrove", .58), ("shrub_b", .30), ("acai", .12)),
                    wet=(("mangrove", .86), ("acai", .05), ("buriti", .03), ("shrub_b", .06)))
-CANOPY_H = {"S6": 12.0, "S8": 0.5}       # savanna: grass beyond the box, not canopy                  # the canopy's height beyond the box (mangroves are low)
+CANOPY_H = {"S6": 12.0, "S8": 0.5, "S10": 0.5}       # savanna: grass beyond the box, not canopy                  # the canopy's height beyond the box (mangroves are low)
 PAL["S5"] = dict(road=(0.46, 0.36, 0.26), wet=(0.27, 0.21, 0.15), bank=(0.30, 0.30, 0.17), rock=(0.30, 0.25, 0.21))
 MIXES["S3"] = dict(interior=(("canopy_a", .30), ("canopy_b", .25), ("canopy_c", .15), ("acai", .12), ("shrub_a", .10), ("buriti", .08)),
                    edge=(("shrub_a", .30), ("cecropia", .20), ("acai", .20), ("canopy_b", .20), ("shrub_b", .10)),
@@ -686,6 +731,7 @@ for a_, b_ in RIVER_ROADS.get(SECTOR, []):
     RIVER_ALONG[max(0, a_ - rlo):max(0, b_ - rlo)] = 1.0
 if RIVER_ALONG.any():
     RW = RW + 10.0 * ndimage.uniform_filter1d(RIVER_ALONG, 60)
+    RZ2 = RZ2 - RIVER_DROP.get(SECTOR, 0.0) * ndimage.uniform_filter1d(RIVER_ALONG, 150)
     RZ2 = RZ2 - 0.0 * RIVER_ALONG
     _dr, _fr, _s = line_field(RP[RIVER_ALONG > 0.5], reach=3)
     _zr = at(RZ2[RIVER_ALONG > 0.5], _fr) + 0.12
@@ -1185,7 +1231,7 @@ def water_material():
     for nd in list(nt.nodes):
         nt.nodes.remove(nd)
     bs = nt.nodes.new("ShaderNodeBsdfPrincipled")
-    bs.inputs["Base Color"].default_value = (*srgb((0.36, 0.28, 0.17)), 1)       # várzea 'white water': café com leite
+    bs.inputs["Base Color"].default_value = (*srgb(WATER_COL.get(SECTOR, (0.36, 0.28, 0.17))), 1)   # várzea: café com leite
     bs.inputs["Roughness"].default_value = 0.05
     bs.inputs["IOR"].default_value = 1.33
     tc = nt.nodes.new("ShaderNodeTexCoord")
