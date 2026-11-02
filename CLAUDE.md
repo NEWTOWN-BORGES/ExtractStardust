@@ -8,7 +8,7 @@ espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde)
 
 O jogador fala português (PT). Responder em português.
 
-## MAPA 02 — SELVA ESMERALDA (jogador, 2026-11-02): a fazer em Blender setor a setor (S1 e S2 feitos)
+## MAPA 02 — SELVA ESMERALDA (jogador, 2026-11-02): os 10 setores feitos em Blender; falta o importador do Unreal
 
 "Um mapa novo de 12 a 13 minutos, de sobrevivência, em florestas, rios, África e Amazónia; muitas bifurcações (para
 cima, para baixo, esquerda, direita), muitas curvas, muitos saltos."
@@ -21,7 +21,8 @@ cima, para baixo, esquerda, direita), muitas curvas, muitos saltos."
   qualidade, para poupar tokens):
   - `Scripts/selva/sculpt_selva.py <saída> S<n>` faz o terreno, a água, a estrada e a vegetação (kit nosso,
     `jungle_kit.py`), e mostra uma folha de 6 fotos (`Docs/SELVA/S<n>_*.jpg`);
-  - S1 a S9 estão feitos; a seguir vem o S10 (secção 6 do documento). No S9 há uma bifurcação tripla no Zambeze. O jogador gostou muito do rio do S6: há troços em
+  - S1 a S10 estão feitos (fotos em `Docs/SELVA/`). Em casa: `Scripts\selva\gerar_selva.ps1` gera os 10 setores para o
+    Unreal; falta escrever o importador do Unreal (secção 6 do documento). No S9 há uma bifurcação tripla no Zambeze. O jogador gostou muito do rio do S6: há troços em
     que a estrada é o próprio rio (`RIVER_ROADS`, no S7 e a pôr no S8, S9 e S10). Em todos os setores há destroços baixos na
     estrada (pedras, galhos, fetos; as naves passam por cima, a pedido do jogador). No S4 as estradas são ovais (paredes lisas dos
     dois lados, de 14 a 4 m, para ultrapassar por elas: pedido do jogador). A estrada tem relevo natural (ondulações de lama

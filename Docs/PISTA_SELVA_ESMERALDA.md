@@ -372,9 +372,30 @@ naves andam aí no rio mesmo".
   da estrada. Um pilar fica dentro do F17b, de propósito (jogador: "dá realismo e perigo").
 - **Traçado:** passa a ter 21 bifurcações (4 por cima, 8 por baixo, 9 para os lados).
 
-### Depois
+### S10 Delta do Okavango (feito, por aprovar)
 
-1. **S10 Delta do Okavango**, com as fotos.
+![S10](SELVA/S10_delta_okavango.jpg)
+
+- **Delta:** água clara 1,6 m abaixo da estrada, que desce com ela até B.
+  - ilhas de areia com palmeiras de leque e árvores;
+  - planície aberta de erva com acácias e termiteiras;
+  - o canal do Okavango e um labirinto de canais mais pequenos.
+- **Dentro dos canais:** em dois troços (~1,8 km e ~1,6 km) a estrada desce aos canais e anda rente à água, entre
+  palmeiras e árvores de raízes.
+- **Saltos:** dois canais do delta e o último canal antes de B (rampa e água), mais uma lomba na ilha.
+- **F18 Calçada do Lago:** uma calçada a direito por cima de um lago.
+
+### Gerar o mapa inteiro em casa
+
+```
+powershell -ExecutionPolicy Bypass -File Scripts\selva\gerar_selva.ps1 [-Saida C:\rdd\selva] [-Res 3] [-Fotos]
+```
+
+- **Instalação:** instala o `scipy` no Python do Blender, uma vez.
+- **Saída:** gera os 10 setores, cada um com o relevo `.r16` + `.json` (caixa, alturas, perfil da estrada e saltos),
+  as plantas `_props.json` e a cena `.blend`.
+- **Falta:** o importador do Unreal para a Selva, que junta os relevos dos setores, as plantas, o teto da gruta, as
+  cascatas e as pontes, como o `EXDesertBuilder` faz no Red Dust Divide.
 2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);
