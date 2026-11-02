@@ -282,6 +282,12 @@ def lay_road(H, P, z, hw, color_kind):
     return H2, d, hwv, t
 
 
+for fd in FD:                        # the flooded forest (igapó) round F1 is ground, before any road is laid on it
+    if "Igapó" in fd["f"]["name"]:
+        dI, _fi, _s = line_field(fd["P"])
+        flood = 1 - smoothstep(60.0, 190.0, dI)
+        H = H * (1 - flood) + np.minimum(H, W - 0.5 - 0.6 * fbm(XX, YY, 40.0, 5, 3)) * flood
+        F["igapo"] = flood
 roadjumps = []
 for j in jumps:
     roadjumps.append(dict(j, i=int(j["at_m"]) - rlo))
@@ -298,10 +304,6 @@ for fd in FD:
         n = len(zf)
         mid = smoothstep(0, 220, np.arange(n)) * smoothstep(0, 220, n - 1 - np.arange(n))
         zf = zf * (1 - mid) + (W - 0.12) * mid
-        dI, _fi, _s = line_field(fd["P"])
-        flood = 1 - smoothstep(60.0, 190.0, dI)
-        H = H * (1 - flood) + np.minimum(H, W - 0.5 - 0.6 * fbm(XX, YY, 40.0, 5, 3)) * flood
-        F["igapo"] = flood
     Hn, dF, _hw, tF = lay_road(H, fd["P"], zf, fd["hw"], "fork")
     H = Hn
     D_FORK = np.minimum(D_FORK, dF - fd["hw"])
@@ -611,12 +613,13 @@ mod.node_group = ng
 
 
 def log_object(at_m):
-    """The giant fallen trunk across the road (a dead sumaúma, mossy), its top flush with the sand ramp's crest."""
+    """The giant fallen trunk across the road (a dead sumaúma, mossy), longer than the road is wide (the root plate in the
+    forest), its top a little above the sand ramp's crest."""
     i = int(at_m) - rlo
     t = RP[i + 5] - RP[i - 5]
     hd = math.atan2(t[1], t[0])
     mb = jk.MB()
-    L, R0 = 48.0, 1.9
+    L, R0 = 84.0, 2.4
     P = np.stack([np.linspace(-L / 2, L / 2, 9), np.zeros(9), np.zeros(9)], 1)
     mb.tube(P, np.linspace(R0, R0 * 0.72, 9), "bark", seg=14)
     lr = np.random.default_rng(5)
@@ -625,7 +628,7 @@ def log_object(at_m):
         e = np.array([-L / 2 - 0.5, math.cos(a) * lr.uniform(4.5, 7.0), math.sin(a) * lr.uniform(4.5, 7.0)])
         mb.tube([np.array([-L / 2, 0, 0]), e], [0.9, 0.25], "bark", seg=6)
     o = mb.build("TroncoCaido", {"bark": bpy.data.materials["M_Bark"]})
-    o.location = (RP[i, 0] - cx, RP[i, 1] - cy, RZ2[i] - R0 + 0.15)
+    o.location = (RP[i, 0] - cx, RP[i, 1] - cy, RZ2[i] - R0 + 1.0)      # 1 m proud of the crest: under a hovering ship
     o.rotation_euler = (0, 0, hd + math.radians(68))
     scene.collection.objects.link(o)
 
@@ -722,12 +725,31 @@ def pilot(name, i, up=4.0, ahead=200, lens=22, P=RP, Z=None):
     shot(name, eye, tgt, lens)
 
 
+def side_view(name, i, off=20.0, back=75.0, up=15.0, lens=26):
+    """A jump seen from the side of the road, a little before it: the kicker, the gap or the trunk, the landing."""
+    i = int(np.clip(i, 10, len(RP) - 11))
+    t = RP[i + 10] - RP[i - 10]
+    t = t / max(np.linalg.norm(t), 1e-9)
+    nrm = np.array([-t[1], t[0]])
+    e = RP[i] - t * back + nrm * off
+    if ship is not None:
+        k = i - 30
+        tt = RP[k + 1] - RP[k - 1]
+        ship.location = (RP[k, 0] - cx, RP[k, 1] - cy, float(RZ2[k]) + 1.6)
+        ship.rotation_euler = Euler((0, 0, math.atan2(tt[1], tt[0]) - math.pi / 2))
+        ship.hide_render = False
+    base = float(RZ2[i - 60])
+    eye = Vector((e[0] - cx, e[1] - cy, base + up))
+    tgt = Vector((RP[i, 0] + t[0] * 12 - cx, RP[i, 1] + t[1] * 12 - cy, base))
+    shot(name, eye, tgt, lens)
+
+
 def aerial(name, eye_xy, up, tgt_xy, lens=26):
     if ship is not None:
         ship.hide_render = True
     eye = Vector((eye_xy[0] - cx, eye_xy[1] - cy, float(bilinear(H, *eye_xy)) + up))
     tgt = Vector((tgt_xy[0] - cx, tgt_xy[1] - cy, float(bilinear(H, *tgt_xy))))
-    shot(name, eye, tgt, lens, haze=dict(start=600.0, dist=9000.0, amount=0.7))
+    shot(name, eye, tgt, lens, haze=dict(start=900.0, dist=14000.0, amount=0.6))
 
 
 # the photos: the start at A, along the floodplain, the jumps, the forks, and the whole sector from the air
@@ -735,13 +757,14 @@ si = lambda m: int(m) - rlo
 pilot("piloto_partida", si(S0 + 25))
 for j in JREC:
     tag = "piloto_" + j["what"].replace(" ", "_").replace("í", "i").replace("é", "e")
-    pilot(tag, si(j["at_m"]) - 170, ahead=230)
+    pilot(tag, si(j["at_m"]) - 115, ahead=170)
+    side_view(tag.replace("piloto_", "salto_"), si(j["at_m"]))
 for fd in FD:
     nm = fd["f"]["name"].split()[0]
     zf = bilinear(H, fd["P"][:, 0], fd["P"][:, 1])
     pilot("piloto_" + nm, int(0.35 * len(fd["P"])), P=fd["P"], Z=zf)
 pilot("piloto_reta", si(S0 + int(0.55 * (S1_ - S0))))
 mid = RP[si((S0 + S1_) // 2)]
-aerial("aerea", (mid[0] - 900, mid[1] - 2200), 900, (mid[0] + 300, mid[1] + 200), lens=24)
+aerial("aerea", (mid[0] - 600, mid[1] - 1500), 620, (mid[0] + 400, mid[1] + 250), lens=24)
 aerial("aerea_partida", (RP[si(S0)][0] - 700, RP[si(S0)][1] - 900), 380, (RP[si(S0 + 900)][0], RP[si(S0 + 900)][1]), lens=28)
 log("DONE")
