@@ -462,6 +462,10 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> UtilityGlow;
 	/** /Game/Ships/<SHIP>/SM_<SHIP>_<piece>, loaded once (a missing piece is remembered as null). */
 	UPROPERTY(Transient) TMap<FString, TObjectPtr<UStaticMesh>> PieceCache;
+	/** EXPERF: frames, seconds and the worst frame since the last log line. */
+	int32 PerfFrames = 0;
+	float PerfSeconds = 0.0f;
+	float PerfWorstMs = 0.0f;
 	UPROPERTY(Transient) TObjectPtr<UEXHangarModel> HangarModel;
 	float LastGroundZCm = 0.0f;
 	/** Wall closeness on each side (0 far, 1 touching), from the camera's wall probes; the sound uses them. */

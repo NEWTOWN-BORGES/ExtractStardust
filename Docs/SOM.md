@@ -40,3 +40,54 @@ g++ -O2 -std=c++17 -I Source/ExtractingStardust/Private/Flight Scripts/audio/ren
 - `FillAudioOthers` (`EXHoverCraft.cpp`): distância, Doppler e quantos rivais se ouvem.
 
 Para ouvir uma afinação, mudar o código, correr o `render_sound` e escutar os WAVs. Só depois compilar o jogo.
+
+## Motor v2 (2026-11-02, aprovado e ligado no jogo)
+
+Pedido do jogador: "sons de motores viciantes, com adrenalina". É o `FEngineV2` do `EXSoundSynth.h`, que o `FMixer` usa
+para o motor do jogador e para os rivais. O `FEngine` antigo ficou no ficheiro só para o antes/depois.
+
+Para ouvir:
+- `Docs/SOM/motor_corrida_v2.mp3`: uma corrida com a STRIX;
+- `Docs/SOM/motores_naves_v2.mp3`: as 5 naves;
+- `Docs/SOM/antes_depois_v2.mp3`: o mesmo arranque, primeiro com o motor antigo e depois com o novo.
+
+O que tem:
+- **Mudanças de potência:** cada nave tem 4 a 6 estágios, e os primeiros são curtos. Dentro de cada um o tom sobe. Na
+  mudança há um corte de ignição, o tom cai e vem um "soco".
+- **Estalos (afterfire):** ao largar o acelerador e em cada mudança. Nas reduções há também um toque de acelerador.
+- **Limitador na grelha:** com o acelerador a fundo antes da partida, o motor bate no corte ("brap-brap").
+- **Nitro:** o motor "respira" (−7 dB), vem uma pancada grave a descer e depois o rugido, com o apito a subir.
+- **Realismo:**
+  - ressonâncias fixas do bocal e do casco;
+  - cada explosão diferente da anterior, na força e no tempo;
+  - rugido de jato turbulento em estéreo;
+  - a turbina vai atrasada em relação às rotações;
+  - saturação com o acelerador, e compressor.
+- **Mais grave** (jogador, 2026-11-02): o tom ficou cerca de 6 meios-tons abaixo e as ressonâncias 20 % abaixo. Há mais
+  sub, saturado para se ouvir também em colunas pequenas, e o rugido, os estalos e a ignição do nitro estão mais fundos.
+  Na corrida de teste, a energia abaixo de 150 Hz passou de 13 % para 36 %.
+- **Cada nave:**
+  - STRIX: dois núcleos, equilibrada, 5 estágios;
+  - WRAITH: turbina suave, estágios quase sem corte, 6;
+  - NOMAD: áspera, com estoiros, 4;
+  - BASTION: grave, com pancadas fundas, 4;
+  - VORTEX: aguda, a gritar, 6.
+
+Pré-visualização só do motor:
+```
+g++ -O2 -std=c++17 -I Source/ExtractingStardust/Private/Flight Scripts/audio/render_engine_preview.cpp -o render_engine
+./render_engine <pasta>
+```
+Com `EX_ENGINE_LOG=1` escreve o estágio e as rotações a cada 0,5 s.
+
+**No jogo:**
+- O motor do jogador é estéreo e recebe o `Grounded`.
+- Os rivais usam a versão leve e soam a metade (`kOtherEngineGain`), para ficarem ao nível dos antigos.
+- O `BoostKick` ficou só com o sopro de ar, porque a pancada do nitro é agora a ignição do próprio motor.
+- Os filtros recalculam-se a cada 32 amostras. Com o jogador e 8 rivais, o som gasta o mesmo processador que o antigo
+  (cerca de 8 % de um núcleo na nuvem).
+- A mistura do jogo com o motor novo ouve-se em `Docs/SOM/jogo_corrida_v2.mp3` e `jogo_passagens_v2.mp3` (rivais a
+  passar). Faz-se com o `render_sound_preview.cpp`.
+
+**Sem gravações:** a rede da nuvem bloqueia o freesound e a Wikimedia. Para juntar camadas gravadas (CC0), o jogador tem
+de autorizar esses domínios no ambiente.

@@ -79,15 +79,36 @@ A consola do jogo abre com a tecla à esquerda do 1. O log fica em `Saved\Logs\E
      - portões: o próximo é ciano, o de extração em B é dourado e os pilares ficam na borda da estrada;
      - setas de nitro antes dos saltos, placas de chevrons nas curvas e balizas âmbar na areia;
      - HUD novo com o porquinho HD animado, consumíveis nas teclas 1-4 e o ecrã de resultados no fim.
-4. **Inspetor da pista:** `... Scripts\jogar.ps1 -Modo Inspecao`. A nave corre a pista sozinha e escreve o relatório
+4. **Som (motor novo):** na mesma corrida, acelera a fundo na grelha antes das luzes; o motor bate no limitador
+   ("brap-brap"). Depois ouve:
+   - as mudanças de potência na partida;
+   - os estalos ao largar o acelerador e nas reduções;
+   - o nitro: o motor puxa o ar, vem uma pancada e depois o rugido;
+   - os rivais a passar.
+   Referência: `Docs\SOM\jogo_corrida_v2.mp3`.
+5. **Inspetor da pista:** `... Scripts\jogar.ps1 -Modo Inspecao`. A nave corre a pista sozinha e escreve o relatório
    em `Saved\Inspect\relatorio.txt`, com fotos. Manda-me o relatório.
+
+## 2b. Desempenho (o jogo prendia no hangar e no meio das naves; correções de 2026-11-02)
+
+- **Comando PlayStation:** sem comando ligado, o jogo procurava-o a cada 2 s e bloqueava durante a procura. Agora
+  procura-o em segundo plano.
+- **Fotos, peças e explosões:** as fotos das cartas, as peças das naves e a arte das explosões carregam em fundo ao
+  arrancar e ficam na memória. No log aparece `EXPERF a carregar em fundo N recursos`. Antes carregavam do disco na
+  primeira vez que apareciam e voltavam a sair da memória um minuto depois.
+- **Hangar:** só se refazem as peças que mudam.
+- **Naves longe da câmara:** as chamas das naves a mais de 250 m atualizam-se 4 vezes menos (não se nota).
+- **Para medir:** o log escreve a cada 10 s `EXPERF NN fps em media, pior imagem NN ms` e escreve `EXPERF hitch NN ms`
+  sempre que uma imagem demora mais de 60 ms. Se ainda prender, manda-me essas linhas.
+- **No editor (`jogar.ps1`) o jogo prende mais:** na primeira vez que aparece cada efeito, o editor compila-o. O jogo
+  empacotado (`Builds\Jogo`, secção 5) não faz isso. Para julgar a fluidez, usa o jogo empacotado.
 
 ## 3. O que me mandar
 
 - Os erros de compilação ou dos passos (ver secção 1).
 - O `relatorio.txt` do inspetor.
 - As fotos dos ecrãs que não batem certo com as maquetas.
-- O que achaste da física e da explosão.
+- O que achaste da física, da explosão e do som dos motores.
 
 Depois de eu corrigir: `git pull` e `casa_tudo.ps1 -SemPista` (ou `-Desde <passo>`).
 

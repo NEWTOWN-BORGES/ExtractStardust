@@ -238,7 +238,16 @@ void UEXCraftFx::UpdateFx(float Dt, const FEXCraftFxInput& Input)
 	{
 		return;
 	}
-	UpdateFlames(Dt, Input);
+	// A bot more than 250 m from the camera is a few pixels: its flames update at a quarter of the frame rate, with the
+	// time they missed, which nobody can see (EXPERF, 2026-11-02). The ship on screen always updates every frame.
+	const bool bFar = !Input.bViewer && FVector::DistSquared(Input.GroundPoint, Input.CameraLocation) > FMath::Square(25000.0f);
+	FlameDtAcc += Dt;
+	if (!bFar || ++FarFrame >= 4)
+	{
+		FarFrame = 0;
+		UpdateFlames(FlameDtAcc, Input);
+		FlameDtAcc = 0.0f;
+	}
 	UpdateDust(Dt, Input);
 	UpdateStreaks(Dt, Input);
 	UpdateSparks(Dt);

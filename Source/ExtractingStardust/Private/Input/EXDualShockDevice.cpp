@@ -4,6 +4,7 @@
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Async/Async.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/WindowsHWrapper.h"
@@ -45,6 +46,99 @@ namespace
 	}
 }
 
+#if PLATFORM_WINDOWS
+namespace
+{
+	/** What the HID search found: an open overlapped handle to a Sony pad, or nothing. */
+	struct FPadFound
+	{
+		HANDLE Handle = INVALID_HANDLE_VALUE;
+		uint16 ProductId = 0;
+		uint16 ReportBytes = 0;
+		bool bDualSense = false;
+	};
+
+	/** Opens every HID device on the system to find a DualShock 4 or a DualSense: tens of milliseconds, more with
+	 *  Bluetooth devices. It runs on a worker thread (TryConnect) so the game never waits for it; it used to run on the
+	 *  game thread every 2 s while no pad was connected, a hitch everywhere (player, 2026-11-02: "o jogo trava muito"). */
+	FPadFound FindSonyPad()
+	{
+		FPadFound Found;
+		GUID HidGuid;
+		HidD_GetHidGuid(&HidGuid);
+		HDEVINFO DeviceInfo = SetupDiGetClassDevsW(&HidGuid, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+		if (DeviceInfo == INVALID_HANDLE_VALUE)
+		{
+			return Found;
+		}
+		SP_DEVICE_INTERFACE_DATA InterfaceData;
+		InterfaceData.cbSize = sizeof(InterfaceData);
+		for (DWORD Index = 0; SetupDiEnumDeviceInterfaces(DeviceInfo, nullptr, &HidGuid, Index, &InterfaceData); ++Index)
+		{
+			DWORD RequiredSize = 0;
+			SetupDiGetDeviceInterfaceDetailW(DeviceInfo, &InterfaceData, nullptr, 0, &RequiredSize, nullptr);
+			if (RequiredSize == 0)
+			{
+				continue;
+			}
+			TArray<uint8> DetailStorage;
+			DetailStorage.SetNumZeroed(RequiredSize);
+			SP_DEVICE_INTERFACE_DETAIL_DATA_W* Detail = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA_W*>(DetailStorage.GetData());
+			Detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
+			if (!SetupDiGetDeviceInterfaceDetailW(DeviceInfo, &InterfaceData, Detail, RequiredSize, nullptr, nullptr))
+			{
+				continue;
+			}
+
+			// Identify the device without read access first: only Sony pads exposing the gamepad collection qualify.
+			HANDLE Probe = CreateFileW(Detail->DevicePath, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+			if (Probe == INVALID_HANDLE_VALUE)
+			{
+				continue;
+			}
+			HIDD_ATTRIBUTES Attributes = {};
+			Attributes.Size = sizeof(Attributes);
+			HIDP_CAPS Caps = {};
+			const bool bSony = HidD_GetAttributes(Probe, &Attributes) != 0 && Attributes.VendorID == SonyVendorId;
+			PHIDP_PREPARSED_DATA Preparsed = nullptr;
+			if (bSony && HidD_GetPreparsedData(Probe, &Preparsed) != 0)
+			{
+				HidP_GetCaps(Preparsed, &Caps);
+				HidD_FreePreparsedData(Preparsed);
+			}
+			CloseHandle(Probe);
+
+			const uint16 ProductId = Attributes.ProductID;
+			const bool bDualShock4 = ProductId == 0x05C4 || ProductId == 0x09CC || ProductId == 0x0BA0;
+			const bool bDualSense = ProductId == 0x0CE6 || ProductId == 0x0DF2;
+			if (!bSony || !(bDualShock4 || bDualSense) || Caps.UsagePage != 0x01 || Caps.Usage != 0x05 || Caps.InputReportByteLength == 0)
+			{
+				continue;
+			}
+
+			HANDLE Handle = CreateFileW(Detail->DevicePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
+			if (Handle == INVALID_HANDLE_VALUE)
+			{
+				Handle = CreateFileW(Detail->DevicePath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
+			}
+			if (Handle == INVALID_HANDLE_VALUE)
+			{
+				continue;
+			}
+			// A short queue keeps the newest report close at hand.
+			HidD_SetNumInputBuffers(Handle, 4);
+			Found.Handle = Handle;
+			Found.ProductId = ProductId;
+			Found.ReportBytes = static_cast<uint16>(Caps.InputReportByteLength);
+			Found.bDualSense = bDualSense;
+			break;
+		}
+		SetupDiDestroyDeviceInfoList(DeviceInfo);
+		return Found;
+	}
+}
+#endif
+
 struct FEXDualShockDevice::FHidConnection
 {
 #if PLATFORM_WINDOWS
@@ -54,6 +148,9 @@ struct FEXDualShockDevice::FHidConnection
 	bool bReadPending = false;
 	bool bDualSense = false;
 	bool bBluetooth = false;
+	/** The HID search on a worker thread (TryConnect). */
+	TFuture<FPadFound> Search;
+	bool bSearching = false;
 #endif
 };
 
@@ -67,6 +164,18 @@ FEXDualShockDevice::FEXDualShockDevice(const TSharedRef<FGenericApplicationMessa
 
 FEXDualShockDevice::~FEXDualShockDevice()
 {
+#if PLATFORM_WINDOWS
+	if (Connection->bSearching)
+	{
+		// The search is short: wait for it so its handle is never leaked.
+		const FPadFound Found = Connection->Search.Get();
+		if (Found.Handle != INVALID_HANDLE_VALUE)
+		{
+			CloseHandle(Found.Handle);
+		}
+		Connection->bSearching = false;
+	}
+#endif
 	Disconnect();
 }
 
@@ -87,82 +196,12 @@ bool FEXDualShockDevice::IsGamepadAttached() const
 void FEXDualShockDevice::TryConnect()
 {
 #if PLATFORM_WINDOWS
-	GUID HidGuid;
-	HidD_GetHidGuid(&HidGuid);
-	HDEVINFO DeviceInfo = SetupDiGetClassDevsW(&HidGuid, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
-	if (DeviceInfo == INVALID_HANDLE_VALUE)
+	// The search runs on a worker thread; Tick adopts the pad it finds.
+	if (!Connection->bSearching)
 	{
-		return;
+		Connection->bSearching = true;
+		Connection->Search = Async(EAsyncExecution::ThreadPool, [] { return FindSonyPad(); });
 	}
-	SP_DEVICE_INTERFACE_DATA InterfaceData;
-	InterfaceData.cbSize = sizeof(InterfaceData);
-	for (DWORD Index = 0; SetupDiEnumDeviceInterfaces(DeviceInfo, nullptr, &HidGuid, Index, &InterfaceData); ++Index)
-	{
-		DWORD RequiredSize = 0;
-		SetupDiGetDeviceInterfaceDetailW(DeviceInfo, &InterfaceData, nullptr, 0, &RequiredSize, nullptr);
-		if (RequiredSize == 0)
-		{
-			continue;
-		}
-		TArray<uint8> DetailStorage;
-		DetailStorage.SetNumZeroed(RequiredSize);
-		SP_DEVICE_INTERFACE_DETAIL_DATA_W* Detail = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA_W*>(DetailStorage.GetData());
-		Detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
-		if (!SetupDiGetDeviceInterfaceDetailW(DeviceInfo, &InterfaceData, Detail, RequiredSize, nullptr, nullptr))
-		{
-			continue;
-		}
-
-		// Identify the device without read access first: only Sony pads exposing the gamepad collection qualify.
-		HANDLE Probe = CreateFileW(Detail->DevicePath, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
-		if (Probe == INVALID_HANDLE_VALUE)
-		{
-			continue;
-		}
-		HIDD_ATTRIBUTES Attributes = {};
-		Attributes.Size = sizeof(Attributes);
-		HIDP_CAPS Caps = {};
-		const bool bSony = HidD_GetAttributes(Probe, &Attributes) != 0 && Attributes.VendorID == SonyVendorId;
-		PHIDP_PREPARSED_DATA Preparsed = nullptr;
-		if (bSony && HidD_GetPreparsedData(Probe, &Preparsed) != 0)
-		{
-			HidP_GetCaps(Preparsed, &Caps);
-			HidD_FreePreparsedData(Preparsed);
-		}
-		CloseHandle(Probe);
-
-		const uint16 ProductId = Attributes.ProductID;
-		const bool bDualShock4 = ProductId == 0x05C4 || ProductId == 0x09CC || ProductId == 0x0BA0;
-		const bool bDualSense = ProductId == 0x0CE6 || ProductId == 0x0DF2;
-		if (!bSony || !(bDualShock4 || bDualSense) || Caps.UsagePage != 0x01 || Caps.Usage != 0x05 || Caps.InputReportByteLength == 0)
-		{
-			continue;
-		}
-
-		HANDLE Handle = CreateFileW(Detail->DevicePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
-		if (Handle == INVALID_HANDLE_VALUE)
-		{
-			Handle = CreateFileW(Detail->DevicePath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
-		}
-		if (Handle == INVALID_HANDLE_VALUE)
-		{
-			continue;
-		}
-		// A short queue keeps the newest report close at hand.
-		HidD_SetNumInputBuffers(Handle, 4);
-		Connection->Handle = Handle;
-		Connection->Overlapped = {};
-		Connection->Overlapped.hEvent = CreateEventW(nullptr, 1, 0, nullptr);
-		Connection->Buffer.SetNumZeroed(Caps.InputReportByteLength);
-		Connection->bReadPending = false;
-		Connection->bDualSense = bDualSense;
-		Connection->bBluetooth = Caps.InputReportByteLength != 64;
-		UE_LOG(LogTemp, Display, TEXT("EXPAD connected: Sony %s (PID 0x%04X) over %s, report %d bytes."),
-			bDualSense ? TEXT("DualSense") : TEXT("DualShock 4"), ProductId, Connection->bBluetooth ? TEXT("Bluetooth") : TEXT("USB"),
-			static_cast<int32>(Caps.InputReportByteLength));
-		break;
-	}
-	SetupDiDestroyDeviceInfoList(DeviceInfo);
 #endif
 }
 
@@ -196,13 +235,34 @@ void FEXDualShockDevice::Tick(float DeltaTime)
 #if PLATFORM_WINDOWS
 	if (Connection->Handle == INVALID_HANDLE_VALUE)
 	{
-		ReconnectTimer -= DeltaTime;
-		if (ReconnectTimer <= 0.0f)
+		if (Connection->bSearching && Connection->Search.IsReady())
 		{
-			ReconnectTimer = 2.0f;
-			TryConnect();
+			Connection->bSearching = false;
+			const FPadFound Found = Connection->Search.Get();
+			if (Found.Handle != INVALID_HANDLE_VALUE)
+			{
+				Connection->Handle = Found.Handle;
+				Connection->Overlapped = {};
+				Connection->Overlapped.hEvent = CreateEventW(nullptr, 1, 0, nullptr);
+				Connection->Buffer.SetNumZeroed(Found.ReportBytes);
+				Connection->bReadPending = false;
+				Connection->bDualSense = Found.bDualSense;
+				Connection->bBluetooth = Found.ReportBytes != 64;
+				UE_LOG(LogTemp, Display, TEXT("EXPAD connected: Sony %s (PID 0x%04X) over %s, report %d bytes."),
+					Found.bDualSense ? TEXT("DualSense") : TEXT("DualShock 4"), Found.ProductId, Connection->bBluetooth ? TEXT("Bluetooth") : TEXT("USB"),
+					static_cast<int32>(Found.ReportBytes));
+			}
 		}
-		return;
+		if (Connection->Handle == INVALID_HANDLE_VALUE)
+		{
+			ReconnectTimer -= DeltaTime;
+			if (ReconnectTimer <= 0.0f)
+			{
+				ReconnectTimer = 2.0f;
+				TryConnect();
+			}
+			return;
+		}
 	}
 	// Drain every report that arrived since the last frame so the input never lags behind the pad.
 	for (int32 Guard = 0; Guard < 64; ++Guard)

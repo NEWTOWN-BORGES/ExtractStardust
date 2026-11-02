@@ -50,6 +50,15 @@ e empacotar. O `casa_tudo.ps1` recomeça num passo com `-Desde <passo>`; o `joga
   `Docs/UI_MAQUETAS/README.md`.
 - **Logótipo:** fica laranja até o jogador escolher (ciano e branco já lhe foram mostrados).
 
+## DESEMPENHO (jogador, 2026-11-02: "o jogo trava muito no hangar e no meio das outras naves")
+
+- O comando PlayStation é procurado num fio de fundo (`EXDualShockDevice`); antes, sem comando ligado, o jogo prendia a
+  cada 2 s.
+- `UEXAssetWarmer` (subsistema) carrega em fundo `/Game/UI`, `/Game/Ships` e `/Game/FX` e mantém-nos na memória.
+- No hangar só se refazem as peças que mudam (`RefreshModuleVisuals`). As chamas das naves a mais de 250 m da câmara
+  atualizam-se a 1/4 (`UEXCraftFx::UpdateFx`).
+- O log escreve `EXPERF` (fps a cada 10 s e cada imagem acima de 60 ms). Ver `Docs/CASA_PASSO_A_PASSO.md`, secção 2b.
+
 ## PEDIDOS DE 2026-11-01 (nuvem, por compilar e testar em casa)
 
 - **Física nova** (`Docs/FISICA.md`; o jogador pediu e autorizou mexer na física e na câmara).
@@ -253,6 +262,9 @@ documento.
 O som é sintetizado ao vivo (`EXSoundSynth.h`, em C++ puro): motor por nave, vento, paredes, eventos e rivais com
 Doppler. Antes de compilar ouve-se com `Scripts/audio/render_sound_preview.cpp`, que escreve WAVs. **Os binários Win64
 pré-compilados que estão no repositório ficam desatualizados**: compilar com `Scripts\casa_tudo.ps1 -SemPista`.
+- **Motor v2 (2026-11-02, aprovado e ligado no jogo):** motores "viciantes, com adrenalina" e mais graves (pedido do jogador).
+  É o `FEngineV2` do `EXSoundSynth.h`, para o jogador e para os rivais: mudanças de potência, estalos, limitador na grelha
+  e ignição do nitro. Ouvir `Docs/SOM/*_v2.mp3`; ver `Docs/SOM.md`, secção Motor v2. Falta compilar em casa e ouvir no jogo.
 
 ## PARA FAZER EM CASA / NO PC COM O UNREAL (lista da sessão da nuvem, 2026-10-21)
 
