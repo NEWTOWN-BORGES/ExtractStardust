@@ -6,6 +6,7 @@
 #   UnrealEditor-Cmd.exe <project> -run=pythonscript -script=<project>/Scripts/selva/import_selva.py -unattended
 import glob
 import os
+import re
 
 import unreal
 
@@ -53,49 +54,92 @@ for path in files:
     nanite.enabled = True
     mesh.set_editor_property("nanite_settings", nanite)
     eal.save_asset(asset)
-# The kit's materials, made here (the FBX brought them without their textures, the trees came out white): the leaves
-# and fronds from their painted textures (kit/tex), cut out by the alpha and lit on both sides; bark, stone and the far
-# canopies in their colours.
+# The kit's materials, made here as our own assets in /Game/Selva/Mat and put on every mesh slot by its name. Unreal
+# 5.8 imports the FBX materials as material instances without their textures (the trees came out white, 2026-11-02),
+# so the imported ones are left aside: the leaves and fronds from their painted textures (kit/tex), cut out by the
+# alpha and lit on both sides; bark, stone and the far canopies in their colours.
 LEAVES = {"M_Leaf_Broad": "T_Leaf_Broad", "M_Leaf_Small": "T_Leaf_Small", "M_Frond": "T_Frond", "M_Fan": "T_Fan", "M_Cecropia": "T_Cecropia"}
 COLOURS = {"M_Bark": (0.16, 0.11, 0.07), "M_Bark_Kapok": (0.34, 0.32, 0.28), "M_Bark_Palm": (0.22, 0.17, 0.12),
            "M_Bark_Cecropia": (0.55, 0.55, 0.5), "M_Stone": (0.28, 0.27, 0.25), "M_Termite": (0.36, 0.19, 0.1),
            "M_FarCanopy": (0.05, 0.16, 0.04), "M_FarKapok": (0.07, 0.19, 0.05)}
-for asset in eal.list_assets("/Game/Selva/Kit", recursive=True, include_folder=False):
-    name = asset.split(".")[0].rsplit("/", 1)[1]
-    obj = eal.load_asset(asset.split(".")[0])
-    if not isinstance(obj, unreal.Material) or (name not in LEAVES and name not in COLOURS):
-        continue
-    mel.delete_all_material_expressions(obj)
+
+
+def selva_material(name):
+    path = "/Game/Selva/Mat/" + name
+    if eal.does_asset_exist(path):
+        mat = eal.load_asset(path)
+        mel.delete_all_material_expressions(mat)
+    else:
+        mat = tools.create_asset(name, "/Game/Selva/Mat", unreal.Material, unreal.MaterialFactoryNew())
     if name in LEAVES:
         tex_file = ROOT + "/kit/tex/" + LEAVES[name] + ".png"
         task = unreal.AssetImportTask()
         task.filename = tex_file
-        task.destination_path = "/Game/Selva/Kit"
+        task.destination_path = "/Game/Selva/Mat"
         task.destination_name = LEAVES[name]
         task.automated = True
         task.save = True
         task.replace_existing = True
         tools.import_asset_tasks([task])
-        tex = eal.load_asset("/Game/Selva/Kit/" + LEAVES[name])
+        tex = eal.load_asset("/Game/Selva/Mat/" + LEAVES[name])
         if not tex:
             failures.append("missing " + tex_file)
-            continue
-        node = mel.create_material_expression(obj, unreal.MaterialExpressionTextureSample, -400, 0)
+            return None
+        node = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -400, 0)
         node.set_editor_property("texture", tex)
         mel.connect_material_property(node, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
         mel.connect_material_property(node, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
-        obj.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
-        obj.set_editor_property("two_sided", True)
+        mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+        mat.set_editor_property("two_sided", True)
     else:
-        c = mel.create_material_expression(obj, unreal.MaterialExpressionConstant3Vector, -400, 0)
+        c = mel.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -400, 0)
         r_, g_, b_ = COLOURS[name]
         c.set_editor_property("constant", unreal.LinearColor(r_, g_, b_, 1.0))
         mel.connect_material_property(c, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    rough = mel.create_material_expression(obj, unreal.MaterialExpressionConstant, -400, 250)
+    rough = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -400, 250)
     rough.set_editor_property("r", 0.8)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
-    mel.recompile_material(obj)
-    eal.save_asset(asset.split(".")[0])
+    mel.recompile_material(mat)
+    eal.save_asset(path)
+    return mat
+
+
+MATS = {}
+for mat_name in list(LEAVES) + list(COLOURS):
+    made = selva_material(mat_name)
+    if made:
+        MATS[mat_name] = made
+
+
+def kit_key(text):
+    """M_Leaf_Broad, MI_M_Leaf_Broad, M_Leaf_Broad.001 or Leaf_Broad -> M_Leaf_Broad."""
+    text = str(text).split(".")[0]
+    while text.startswith("MI_"):
+        text = text[3:]
+    text = re.sub(r"_\d+$", "", text)
+    return text if text.startswith("M_") else "M_" + text
+
+
+for path in files:
+    asset = "/Game/Selva/Kit/" + os.path.splitext(os.path.basename(path))[0]
+    mesh = eal.load_asset(asset)
+    if not mesh:
+        continue
+    slots = mesh.get_editor_property("static_materials")
+    fitted = 0
+    for index, slot in enumerate(slots):
+        current = slot.get_editor_property("material_interface")
+        keys = [kit_key(slot.get_editor_property("material_slot_name"))] + ([kit_key(current.get_name())] if current else [])
+        for key in keys:
+            if key in MATS:
+                mesh.set_material(index, MATS[key])
+                fitted += 1
+                break
+    if fitted:
+        eal.save_asset(asset)
+    unreal.log("SELVAIMPORT %s: %d of %d slots with our materials" % (asset.rsplit("/", 1)[1], fitted, len(slots)))
+    if fitted < len(slots):
+        failures.append("%s: %d of %d slots" % (asset.rsplit("/", 1)[1], fitted, len(slots)))
 
 # ---- 2. the data maps (linear, clamped, full size, as the desert's)
 for source, name in (("world_surface.png", "T_SelvaSurface"), ("world_track.png", "T_SelvaTrack")):

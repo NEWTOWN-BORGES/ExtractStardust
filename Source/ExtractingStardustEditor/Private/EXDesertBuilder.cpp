@@ -1094,7 +1094,9 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 	}
 	UE_LOG(LogTemp, Display, TEXT("EXWORLD props placed %d in %d meshes"), Placed, ByMesh.Num());
 
-	// Water (the Selva's rivers and lakes): a flat plane per sector at its water level, solid, so the craft ride on it.
+	// Water (the Selva's rivers and lakes): flat tiles at their water level (export_selva_unreal.py), without collision:
+	// the craft ride on the riverbed under a film of water, as in Blender (solid, a tile over a descending road was a wall
+	// that destroyed the craft, 2026-11-02).
 	const TArray<TSharedPtr<FJsonValue>>* WaterPlanes = nullptr;
 	FString WaterMaterialPath;
 	if (Meta->TryGetArrayField(TEXT("water_planes"), WaterPlanes) && Meta->TryGetStringField(TEXT("water_material"), WaterMaterialPath))
@@ -1115,7 +1117,8 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 			Mesh->SetStaticMesh(Plane);
 			Mesh->SetWorldScale3D(FVector(W->GetNumberField(TEXT("sx")), W->GetNumberField(TEXT("sy")), 1.0));   // the plane is 1 m
 			Mesh->SetMaterial(0, WaterMaterial);
-			Mesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+			Mesh->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+			Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			Mesh->SetCastShadow(false);
 			Water->SetActorLabel(FString::Printf(TEXT("Water_%s"), *W->GetStringField(TEXT("sector"))));
 			++Planes;

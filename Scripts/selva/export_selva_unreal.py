@@ -57,6 +57,12 @@ def blur(a, r):
 acc = np.zeros((NY, NX), np.float64)
 wsum = np.zeros((NY, NX), np.float64)
 metas, props, water = [], [], []
+# Every road point of the ten sectors (x, y, z): the water must never sit over a road (the water tiles below).
+ROAD_XYZ = []
+for n_ in range(1, 11):
+    m_ = json.load(open(os.path.join(ROOT, "S%d" % n_, "selva_S%d.json" % n_), encoding="utf-8"))
+    ROAD_XYZ += [(p_[0], p_[1], z_) for p_, z_ in zip(m_["road"]["points"], m_["road"]["z"])]
+ROAD_XYZ = np.array(ROAD_XYZ, float)
 for n in range(1, 11):
     s = "S%d" % n
     folder = os.path.join(ROOT, s)
@@ -80,8 +86,24 @@ for n in range(1, 11):
     acc[ra:rb, ca:cb] += hs * ws
     wsum[ra:rb, ca:cb] += ws
     if meta["water_m"] > meta["z_min"] + 0.5:
-        water.append({"x": round((x0 + x1) * 0.5 - SX / 2.0, 1), "y": round((y0 + y1) * 0.5 - SY / 2.0, 1), "z": round(meta["water_m"], 2),
-                      "sx": round(x1 - x0, 1), "sy": round(y1 - y0, 1), "sector": s})
+        # Water in tiles of 400 m (2026-11-02). One flat, solid sheet per sector sat up to 10 m over the road where a
+        # river descends (S1 at 2.07 km, S3/S4 at 21-22 km, S6, most of S10) and the craft hit it from below: the race
+        # test was destroyed at 35 s. A tile that a road of any sector crosses below the sector's level now sits 12 cm
+        # over that road (fords and the river roads keep their film of water); a tile with no ground under the water is
+        # left out. The water has no collision (EXDesertBuilder): the craft ride on the riverbed, as in Blender.
+        wl, T = meta["water_m"], 400.0
+        for ty in np.arange(y0, y1, T):
+            for tx in np.arange(x0, x1, T):
+                bx, by = min(tx + T, x1), min(ty + T, y1)
+                on = ((ROAD_XYZ[:, 0] >= tx) & (ROAD_XYZ[:, 0] < bx) & (ROAD_XYZ[:, 1] >= ty) & (ROAD_XYZ[:, 1] < by)
+                      & (ROAD_XYZ[:, 2] < wl - 0.12))
+                z = float(ROAD_XYZ[on, 2].min()) + 0.12 if on.any() else wl
+                rs, cs = int((ty - y0) / meta["res_m"]), int((tx - x0) / meta["res_m"])
+                re_, ce = int(np.ceil((by - y0) / meta["res_m"])), int(np.ceil((bx - x0) / meta["res_m"]))
+                if not (h[rs:re_, cs:ce] < z).any():
+                    continue
+                water.append({"x": round((tx + bx) * 0.5 - SX / 2.0, 1), "y": round((ty + by) * 0.5 - SY / 2.0, 1), "z": round(z, 2),
+                              "sx": round(bx - tx, 1), "sy": round(by - ty, 1), "sector": s})
     for kind, x, y, z, yaw, scl in json.load(open(os.path.join(folder, "selva_%s_props.json" % s))):
         props.append({"mesh": "SM_Selva_" + kind, "x": round(x - SX / 2.0, 2), "y": round(y - SY / 2.0, 2), "z": z, "yaw": yaw, "scale": scl})
     print("SELVA %s box %s, %d x %d, water %.1f m" % (s, meta["box"], nx, ny, meta["water_m"]))
