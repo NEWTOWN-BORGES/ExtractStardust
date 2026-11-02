@@ -332,7 +332,7 @@ def bends(P, rmax=260.0, rfull=140.0):
 WALL_MASK = None
 
 
-def lay_road(H, P, z, hw, color_kind, walls=None):
+def lay_road(H, P, z, hw, color_kind, walls=None, steep=False):
     """Carve or build the road: flat across at its height, sand shoulders, banks blending into the ground; with
     walls=(height, width), a semi-oval wall rises on the outside of each hairpin (like a velodrome)."""
     global WALL_MASK
@@ -340,7 +340,7 @@ def lay_road(H, P, z, hw, color_kind, walls=None):
     zr = at(z, fi)
     hwv = at(hw, fi) if np.ndim(hw) else np.full_like(d, hw)
     diff = np.abs(zr - H)
-    bankw = 10.0 + 2.2 * np.clip(diff, 0, 8)
+    bankw = 4.0 + 0.9 * np.clip(diff, 0, 30) if steep else 10.0 + 2.2 * np.clip(diff, 0, 8)   # a ravine's walls are steep
     t = smoothstep(hwv + 1.5, hwv + 1.5 + bankw, d)
     H2 = zr * (1 - t) + H * t
     if walls:
@@ -390,9 +390,12 @@ for fd in FD:
         elif fj["what"] == "tronco":              # a giant trunk across: the deck humps over it
             zf = zf + 2.2 * smoothstep(-45, -2, s_) * (s_ <= 2) + 2.2 * (1 - smoothstep(2, 24, s_)) * (s_ > 2)
             fd.setdefault("logs", []).append(i)
+        elif fj["what"].startswith("raiz") or fj["what"].startswith("raíz"):   # a giant root across: a crest
+            zf = zf + 3.0 * smoothstep(-70, -3, s_) * (s_ <= 3) + 3.0 * (1 - smoothstep(3, 40, s_)) * (s_ > 3)
+            fd.setdefault("roots", []).append(i)
     for a, b in runs(~high):
         if b - a > 5:
-            H, dF, _hw, tF = lay_road(H, fd["P"][a:b], zf[a:b], fd["hw"], "fork")
+            H, dF, _hw, tF = lay_road(H, fd["P"][a:b], zf[a:b], fd["hw"], "fork", steep=fd["f"]["type"] == "BAIXO")
             D_FORK = np.minimum(D_FORK, dF - fd["hw"])
             T_FORK = np.minimum(T_FORK, tF)
     for a, b in runs(high):
@@ -539,6 +542,16 @@ for fd in FD:
                 if grid_at(D_ROAD - HW_ROAD, q[0], q[1]) < 8.0 or (WALL_MASK is not None and grid_at(WALL_MASK, q[0], q[1])):
                     continue                      # never on the road (where the bridge crosses over it) or a wall
                 tw.append((q[0], q[1], g, float(np.clip((Z_[i] - g + 5.0) / (0.74 * 51.0), 0.9, 1.45))))
+for fd in FD:
+    if "Sapopemas" in fd["f"]["name"]:
+        P_ = fd["P"]
+        T_ = np.gradient(P_, axis=0)
+        T_ = T_ / np.maximum(np.linalg.norm(T_, axis=1, keepdims=True), 1e-9)
+        for k, i in enumerate(range(700, len(P_) - 700, 42)):
+            side = 1 if k % 2 else -1
+            q = P_[i] + np.array([-T_[i, 1], T_[i, 0]]) * side * (fd["hw"] + rng.uniform(5.0, 8.0))
+            if grid_at(D_ROAD - HW_ROAD, q[0], q[1]) > 10.0:
+                tw.append((q[0], q[1], float(bilinear(H, q[0], q[1])), float(rng.uniform(0.85, 1.1))))
 if tw:
     tw = np.array(tw)
     px, py, pz = np.r_[px, tw[:, 0]], np.r_[py, tw[:, 1]], np.r_[pz, tw[:, 2]]
@@ -830,6 +843,18 @@ for fd in FD:
     for k, (a, b, gaps) in enumerate(fd.get("decks", [])):
         deck_object("Ponte_%s_%d" % (fd["f"]["name"].split()[0], k), fd["P"][a:b], fd["zs"][a:b], fd["hw"],
                     [(g0 - a, g1 - a) for g0, g1 in gaps])
+    for i in fd.get("roots", []):       # a buttress root arching across the trail at the crest
+        t = fd["P"][i + 5] - fd["P"][i - 5]
+        t = t / np.linalg.norm(t)
+        nv = np.array([-t[1], t[0]])
+        L = fd["hw"] + 14.0
+        u = np.linspace(-1, 1, 9)
+        pts = [np.array([*(fd["P"][i] + nv * L * a_ - cx_c), fd["zs"][i] - 0.4 + 1.2 * (1 - a_ * a_) - 2.5 * a_ * a_])
+               for a_, cx_c in zip(u, [np.array([cx, cy])] * 9)]
+        mb = jk.MB()
+        mb.tube(pts, np.linspace(1.1, 0.8, 9), "bark", seg=10)
+        o = mb.build("Raiz_%d" % i, {"bark": bpy.data.materials["M_Bark_Kapok"]})
+        scene.collection.objects.link(o)
     for i in fd.get("logs", []):        # a trunk lying across the fork, under the hump
         t = fd["P"][i + 5] - fd["P"][i - 5]
         mb = jk.MB()
@@ -966,6 +991,12 @@ for fd in FD:
     nm = fd["f"]["name"].split()[0]
     zf = fd.get("zs", bilinear(H, fd["P"][:, 0], fd["P"][:, 1]))
     at_f = int(0.35 * len(fd["P"]))
+    if "Sapopemas" in fd["f"]["name"]:     # in the ravine, coming up to where the bridge crosses over it
+        dk = [g for g in FD if g.get("decks")]
+        if dk:
+            Q = np.vstack([g["P"][a:b] for g in dk for a, b, _x in g["decks"]])[::4]
+            dd = np.min(np.hypot(fd["P"][::4, None, 0] - Q[None, :, 0], fd["P"][::4, None, 1] - Q[None, :, 1]), axis=1)
+            at_f = max(0, 4 * int(np.argmin(dd)) - 130)
     if fd.get("decks"):                   # on the bridge, a little before its middle
         a, b, _g = max(fd["decks"], key=lambda r: r[1] - r[0])
         at_f = a + int(0.3 * (b - a))

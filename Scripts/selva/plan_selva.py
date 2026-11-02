@@ -253,6 +253,11 @@ FORKS = [
      [("@", 4700, 1450), (5300, 2150, 2), (6100, 2150, 2), ("@", 6800, 1350)]),
     ("F3 Pontes da Copa", "CIMA", "SKILL", "pontes suspensas e troncos gigantes a 35 m do chão, sobe a serra a direito", 8.0, 120.0,
      [("@", 8700, 1880), (9550, 2350, 30), (9650, 2900, 35), ("@", 8800, 3360)]),
+    # (jogador, 2026-11-02: "um na ponte e outro por baixo") the third way up the ridge: the floor of a ravine under
+    # the canopy bridges, between the kapoks' buttress roots, round the outside of the hairpins (it never crosses the road)
+    ("F3b Ravina das Sapopemas", "BAIXO", "SAFE", "o fundo de uma ravina por baixo das Pontes da Copa, entre as raízes das sumaúmas",
+     9.0, 140.0, [("@", 8300, 1780), (9260, 1715, -4), (9620, 1990, -8), (9660, 2500, -10), (9640, 3100, -10), (9500, 3600, -8),
+                 ("@", 8450, 3440)]),
     ("F4 Salto da Cascata", "BAIXO", "RACING", "pela beira do salto e lá para baixo: queda de 190 m para o lago do salto", 16.0, 140.0,
      [("@", 9900, 4480), (10400, 4280, "z", 259), (10500, 3950, "z", 70), (10700, 3600, "z", 64), (11400, 3350, "z", 64),
       ("@", 12250, 3200)]),
@@ -294,7 +299,7 @@ TARGET_GAIN = {"SKILL": 5.0, "RACING": 2.5, "SAFE": -4.0}
 SPECIAL_GAIN = {"F4 Salto da Cascata": 10.0, "F12 Topo do Tepui": 8.0}
 # Forks whose shape is the point (across the tepui's top): drawn as they are; only their speed limit is tuned (the
 # model does not count the 440 m climb, so the tepui's top aims at +8 s rather than a SKILL fork's +5).
-FIXED_SHAPE = {"F12 Topo do Tepui"}
+FIXED_SHAPE = {"F12 Topo do Tepui", "F3b Ravina das Sapopemas"}
 # Narrow, built or underground ways are slower whatever their bends (km/h).
 FORK_CAPS = {"F3 Pontes da Copa": 330, "F8 Raízes Gigantes": 480, "F9 Rio Subterrâneo": 480, "F10 Canal Estreito": 400,
              "F11 Palafitas": 380, "F13 Fenda do Tepui": 440, "F15 Floresta de Galeria": 430, "F17 Fundo da Garganta": 420,
@@ -499,7 +504,7 @@ JUMPS = [
     (9, 0.25, "canal do delta"), (9, 0.50, "canal do delta"), (9, 0.72, "ilha"), (9, 0.92, "último canal"),
 ]
 FORK_JUMPS = [
-    ("F1 Igapó", 0.5, "raízes"), ("F3 Pontes da Copa", 0.35, "ponte partida"), ("F3 Pontes da Copa", 0.7, "tronco"),
+    ("F1 Igapó", 0.5, "raízes"), ("F3 Pontes da Copa", 0.35, "ponte partida"), ("F3 Pontes da Copa", 0.7, "tronco"), ("F3b Ravina das Sapopemas", 0.55, "raiz"),
     ("F4 Salto da Cascata", 0.45, "SALTO DE 190 m"), ("F6 Ilhas das Corredeiras", 0.3, "ilha"),
     ("F6 Ilhas das Corredeiras", 0.5, "ilha"), ("F6 Ilhas das Corredeiras", 0.7, "ilha"), ("F8 Raízes Gigantes", 0.4, "raiz"),
     ("F8 Raízes Gigantes", 0.75, "descida"), ("F11 Palafitas", 0.5, "cais"), ("F12 Topo do Tepui", 0.45, "fenda"),

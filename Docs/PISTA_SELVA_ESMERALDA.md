@@ -15,7 +15,7 @@ muitas curvas, muitos saltos, bifurcações para cima, para baixo, para a esquer
 |---|---|
 | A → B | **74,9 km** |
 | Linha ideal | **12:19** (média de 365 km/h; 550 no máximo, 160-250 nas curvas mais apertadas) |
-| Bifurcações | **18**: 4 por cima, 5 por baixo, 3 à esquerda, 6 à direita |
+| Bifurcações | **19**: 4 por cima, 6 por baixo, 3 à esquerda, 6 à direita |
 | Saltos | **43**: 27 na estrada e 16 nas bifurcações; o maior é a queda de 190 m da cascata |
 | Mundo | 20 × 16 km, de A (delta a sudoeste) a B (delta a nordeste) |
 
@@ -44,7 +44,7 @@ Script: `python3 Scripts/selva/plan_selva.py` (planta, perfil e `Scripts/selva/s
 | **S9 Garganta Vitória** | Zâmbia / Zimbabué | 8,5 | 8:49-10:16 | 168 → 38 m | O desfiladeiro em zigue-zague abaixo das Cataratas Vitória |
 | **S10 Delta do Okavango** | Botsuana | 12,5 | 10:16-12:19 | 37 → 10 m | Canais e ilhas do delta até à extração em B |
 
-## 3. As 18 bifurcações
+## 3. As 19 bifurcações
 
 **Entradas e saídas em Y** (jogador, 2026-11-02: "estavam muito brutas; têm de abrir e fechar em Y, que se possa entrar
 sem querer a alta velocidade"):
@@ -72,6 +72,7 @@ até valer o que o seu estilo pede:
 | **F1 Igapó** | direita | RACING | pelo igapó: entre árvores dentro de água, rente à água | 3.5 (3.7) | +1.5 s |
 | **F2 Banco de Areia** | esquerda | SAFE | banco de areia largo e rápido | 2.3 (2.2) | -3.6 s |
 | **F3 Pontes da Copa** | **CIMA** | SKILL | pontes suspensas e troncos gigantes a 35 m do chão, sobe a serra a direito | 3.8 (5.6) | +4.4 s |
+| **F3b Ravina das Sapopemas** | **BAIXO** | SAFE | o fundo de uma ravina por baixo das Pontes da Copa, entre as raízes das sumaúmas | 5.1 (6.2) | -3.2 s |
 | **F4 Salto da Cascata** | **BAIXO** | RACING | pela beira do salto e lá para baixo: queda de 190 m para o lago do salto | 4.4 (5.1) | +8.5 s |
 | **F5 Trilho da Névoa** | direita | SKILL | patamar estreito na névoa da cascata, corta por dentro da descida | 3.1 (3.5) | +4.6 s |
 | **F6 Ilhas das Corredeiras** | direita | SKILL | saltos de ilha em ilha no meio das corredeiras | 4.5 (4.4) | +4.4 s |
@@ -96,7 +97,8 @@ Todas as bifurcações ficam a menos de 1,5 s do que o seu estilo pede.
 
 **Três níveis ao mesmo tempo:**
 - **Na gruta:** as raízes por cima (F8), a estrada no meio e o rio subterrâneo por baixo (F9).
-- **Na serra:** as Pontes da Copa (F3) passam por cima de um gancho da estrada.
+- **Na serra:** as Pontes da Copa (F3) por cima, a estrada em zigue-zague no meio e a Ravina das Sapopemas (F3b)
+  por baixo da ponte. A ponte passa por cima de um gancho da estrada e da ravina.
 - **Na cascata:** há três escolhas: saltar (F4), a névoa (F5) ou descer pela estrada.
 
 ## 4. Os saltos (43)
@@ -198,6 +200,12 @@ blender -b -P Scripts/selva/sculpt_selva.py -- C:/rdd/selva S1 [res=3] [samples=
   estrada.
   - **Ponte partida:** um impulso e 26 m sem tábuas.
   - **Tronco:** a ponte faz uma lomba por cima de um tronco atravessado.
+- **F3b Ravina das Sapopemas** (jogador: "um na ponte e outro por baixo"): o terceiro caminho serra acima.
+  - **Onde:** o fundo de uma ravina de paredes íngremes por baixo das pontes, entre sumaúmas plantadas nas bordas,
+    com as sapopemas a descer até ao trilho.
+  - **Salto:** uma raiz gigante atravessada no trilho.
+  - **Traçado:** dá a volta por fora dos ganchos e nunca cruza a estrada.
+  - **Estilo:** a via segura (SAFE, cerca de −3 s), ao lado da ponte arriscada e da estrada.
 - **Salto da crista da serra:** uma lomba de 4 m no topo.
 - **Números:** cerca de 154 mil plantas. A floresta é a do Congo, sem as palmeiras da Amazónia, com embaúbas
   (o *Musanga* africano é parecido).
