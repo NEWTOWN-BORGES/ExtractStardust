@@ -373,7 +373,65 @@ def recipe_s6():
     return W, base, np.zeros_like(base), dict()
 
 
-RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4, "S5": recipe_s5, "S6": recipe_s6}
+TEPUI = dict(c=(10150.0, 8250.0), a=1300.0, b=750.0, ang=math.radians(20.0), top=520.0)
+# Rivers the road runs in (jogador, 2026-11-02, S6: "gostei muito do rio; ver mais disso no mapa: o rio a encontrar com
+# a terra, árvores, raízes, as naves andam aí no rio mesmo"): per sector, (from, to) in metres along the route; the
+# road is the river's bed, 12 cm under the water, 10 m wider than the road; trees with stilt roots stand at its edges.
+RIVER_ROADS = {"S7": [(38440, 40700)]}
+FALLS = []                               # (lip xy, direction xy, top z, bottom z, width): waterfalls to build
+
+
+def recipe_s7():
+    """S7 Tepui (Roraima): a table mountain 520 m high, its rim wandering, 80-degree cliffs of dark sandstone down to a
+    scree apron, blocks and fissures on its top. A tall thin waterfall leaves its south face; from its pool a creek
+    runs down to the river the road follows upstream at the start of the sector (RIVER_ROADS)."""
+    G = membrane()
+    d, _fi, _sd = line_field(RP)
+    G = G + smoothstep(60.0, 450.0, d) * (26.0 * (fbm(XX, YY, 600.0, 711, 4) - 0.4))
+    (tx, ty), a, b, ang, top = TEPUI["c"], TEPUI["a"], TEPUI["b"], TEPUI["ang"], TEPUI["top"]
+    u = (XX - tx) * math.cos(ang) + (YY - ty) * math.sin(ang)
+    v = -(XX - tx) * math.sin(ang) + (YY - ty) * math.cos(ang)
+    rr = (np.sqrt((u / a) ** 2 + (v / b) ** 2) + 0.24 * (fbm(XX, YY, 520.0, 713, 3) - 0.5)
+          + 0.08 * (fbm(XX, YY, 140.0, 714, 2) - 0.5))                       # bays and promontories round the rim
+    inside = rr < 1.0
+    dout = ndimage.distance_transform_edt(~inside) * RES
+    blocks = 14.0 * np.floor(fbm(XX, YY, 160.0, 717, 2) * 4.0) / 4.0 + 5.0 * (fbm(XX, YY, 40.0, 719, 2) - 0.5)
+    ledge = 18.0 + 14.0 * fbm(XX, YY, 260.0, 721, 2)                            # a ledge half way down, 18-32 m wide
+    cliff = top - 5.5 * np.minimum(dout, 25.0) - 5.5 * np.maximum(0.0, dout - 25.0 - ledge)
+    tep = np.where(inside, top - 10.0 + blocks, np.maximum(cliff, G + np.maximum(0.0, 110.0 - dout) * 0.7))
+    G = np.maximum(G, tep)
+    # F12's ramp: a natural spur of rock up to the top and down again (Roraima's "La Rampa"), not a bridge
+    f12 = [fd for fd in FD if "Topo do Tepui" in fd["f"]["name"]]
+    if f12:
+        d12, f12i, _s = line_field(f12[0]["P"], reach=3)
+        G = np.maximum(G, at(f12[0]["z"], f12i) - 1.5 - 1.0 * np.maximum(d12 - 18.0, 0.0))
+    WL = np.full_like(G, -1000.0)
+    # the waterfall: on the south rim, nearest the river's upstream end
+    end = RP[RIVER_ROADS["S7"][0][1] - rlo]
+    rim = np.argwhere(inside & (dout == 0) & ~ndimage.binary_erosion(inside))
+    if len(rim):
+        rx, ry = X0 + rim[:, 1] * RES, Y0 + rim[:, 0] * RES
+        k = int(np.argmin(np.hypot(rx - end[0], ry - end[1])))
+        lip = np.array([rx[k], ry[k]])
+        dirv = (end - lip) / np.linalg.norm(end - lip)
+        pool = lip + dirv * 75.0
+        zp = float(bilinear(G, pool[0], pool[1])) - 4.0
+        dpo = np.hypot(XX - pool[0], YY - pool[1])
+        G = np.where(dpo < 70.0, np.minimum(G, zp - 3.0 + np.maximum(0.0, dpo - 45.0) * 0.4), G)
+        WL = np.where(dpo < 60.0, zp, WL)
+        # the creek from the pool to the river (its water falling evenly to the river's level)
+        C = np.stack([np.linspace(pool[0], end[0], 400), np.linspace(pool[1], end[1], 400)], 1)
+        C = C + np.stack([-dirv[1], dirv[0]])[None] * (35.0 * np.sin(np.linspace(0, 3 * np.pi, 400)))[:, None]
+        dc, fc, _s = line_field(C, reach=3)
+        zr_end = float(RZ[RIVER_ROADS["S7"][0][1] - rlo])
+        lvl = zp + (zr_end + 0.12 - zp) * np.clip(fc / 399.0, 0, 1)
+        G = np.where(dc < 22.0, np.minimum(G, lvl - 1.6 + 1.8 * smoothstep(9.0, 22.0, dc)), G)
+        WL = np.where(dc < 18.0, lvl, WL)
+        FALLS.append((lip, dirv, top - 12.0, zp, 26.0))
+    return WL, G, np.zeros_like(G), dict()
+
+
+RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4, "S5": recipe_s5, "S6": recipe_s6, "S7": recipe_s7}
 WET_TREES = {"S6"}                       # mangroves stand in the water
 NO_KAPOK = {"S6"}
 CAVE_SPAN = None
@@ -405,6 +463,11 @@ HILLS = {"S1": 0.3, "S2": 1.0, "S3": 1.0, "S4": 1.0}
 MIXES["S4"] = MIXES["S2"]
 MIXES["S5"] = MIXES["S1"]
 HILLS["S5"] = 1.0
+PAL["S7"] = dict(road=(0.40, 0.33, 0.27), wet=(0.23, 0.19, 0.16), bank=(0.30, 0.27, 0.21), rock=(0.30, 0.23, 0.21))
+HILLS["S7"] = 1.0
+MIXES["S7"] = dict(interior=(("canopy_a", .32), ("canopy_c", .28), ("canopy_b", .20), ("acai", .10), ("shrub_a", .10)),
+                   edge=(("mangrove", .30), ("shrub_a", .25), ("cecropia", .15), ("acai", .15), ("canopy_b", .15)),
+                   band=(("shrub_a", .30), ("mangrove", .25), ("shrub_b", .20), ("acai", .15), ("canopy_b", .10)))
 PAL["S6"] = dict(road=(0.40, 0.35, 0.28), wet=(0.24, 0.21, 0.17), bank=(0.31, 0.28, 0.22))
 HILLS["S6"] = 0.3
 MIXES["S6"] = dict(interior=(("mangrove", .75), ("canopy_b", .08), ("acai", .07), ("shrub_b", .05), ("buriti", .05)),
@@ -566,6 +629,16 @@ roadjumps = []
 for j in jumps:
     roadjumps.append(dict(j, i=int(j["at_m"]) - rlo))
 RZ2, JREC = road_profile(RP, RZ, H, roadjumps)
+RIVER_ALONG = np.zeros(len(RP))
+for a_, b_ in RIVER_ROADS.get(SECTOR, []):
+    RIVER_ALONG[max(0, a_ - rlo):max(0, b_ - rlo)] = 1.0
+if RIVER_ALONG.any():
+    RW = RW + 10.0 * ndimage.uniform_filter1d(RIVER_ALONG, 60)
+    RZ2 = RZ2 - 0.0 * RIVER_ALONG
+    _dr, _fr, _s = line_field(RP[RIVER_ALONG > 0.5], reach=3)
+    _zr = at(RZ2[RIVER_ALONG > 0.5], _fr) + 0.12
+    WLG = np.where(_dr < at(RW[RIVER_ALONG > 0.5], _fr) + 40.0, np.maximum(WLG, _zr), WLG)
+    W = WLG
 H_nat = H.copy()
 H, D_ROAD, HW_ROAD, T_ROAD = lay_road(H, RP, RZ2, RW, "road", WALLS.get(SECTOR),
                                        oval=(*OVAL[SECTOR], S0 - rlo, (CAVE_SPAN[0] - 70 if CAVE_SPAN else S1_) - rlo)
@@ -600,7 +673,10 @@ for fd in FD:
         elif fj["what"] == "tronco":              # a giant trunk across: the deck humps over it
             zf = zf + 2.2 * smoothstep(-45, -2, s_) * (s_ <= 2) + 2.2 * (1 - smoothstep(2, 24, s_)) * (s_ > 2)
             fd.setdefault("logs", []).append(i)
-        elif fj["what"] == "descida":          # off the hill: up to a lip, 6 m down
+        elif fj["what"] == "fenda":            # a crevasse across the tepui's top: a kick and 30 m of void
+            zf = zf + 2.0 * smoothstep(-55, -16, s_) * (s_ < -15)
+            zf = np.where(np.abs(s_) <= 15, zf - 55.0, zf)
+        elif fj["what"] in ("descida", "mergulho"):   # off the hill / the tepui: up to a lip, 6 m down
             zf = zf + 6.0 * smoothstep(-160, -10, s_) * (s_ < 0)
         elif fj["what"] == "ilha":             # from one island to the next: a kick and 36 m of rapids
             zf = zf + 2.4 * smoothstep(-60, -20, s_) * (s_ < -18)
@@ -811,6 +887,12 @@ EDGE_BAND = np.concatenate([EDGE_BAND, np.zeros(len(kx), bool)])[keep]
 px, py, pz, kind, far = px[keep], py[keep], pz[keep], kind[keep], far[keep]
 for a, b in swap.items():
     kind = np.where(far & (kind == a), b, kind)
+if SECTOR == "S7":                       # the tepui's top is bare rock with low shrubs
+    ontop = pz > TEPUI["top"] - 45.0
+    kind = np.where(ontop, np.where(rng.random(len(px)) < 0.5, K["shrub_a"], K["shrub_b"]), kind)
+    thin = ~ontop | (rng.random(len(px)) < 0.35)
+    px, py, pz, kind = px[thin], py[thin], pz[thin], kind[thin]
+    EDGE_BAND = EDGE_BAND[thin[:len(EDGE_BAND)]] if len(EDGE_BAND) == len(thin) else EDGE_BAND
 yaw = rng.uniform(0, 360, len(px))
 # the canopy bridges hang between pairs of kapoks every 70 m: their crowns spread just above the deck
 tw = []
@@ -838,10 +920,20 @@ for fd in FD:
             q = P_[i] + np.array([-T_[i, 1], T_[i, 0]]) * side * (fd["hw"] + rng.uniform(5.0, 8.0))
             if grid_at(np.minimum(D_ROAD - HW_ROAD, D_GFORK), q[0], q[1]) > 3.0:
                 tw.append((q[0], q[1], float(bilinear(GROUND, q[0], q[1])), float(rng.uniform(0.85, 1.1))))
+if RIVER_ALONG.any():                    # the river meets the land: stilt-rooted trees at its edges
+    Pr = RP[RIVER_ALONG > 0.5]
+    Tr = np.gradient(Pr, axis=0)
+    Tr = Tr / np.maximum(np.linalg.norm(Tr, axis=1, keepdims=True), 1e-9)
+    hwr = RW[RIVER_ALONG > 0.5]
+    for k, i in enumerate(range(10, len(Pr) - 10, 9)):
+        side = 1 if k % 2 else -1
+        q = Pr[i] + np.array([-Tr[i, 1], Tr[i, 0]]) * side * (hwr[i] + rng.uniform(1.0, 6.0))
+        tw.append((q[0], q[1], float(bilinear(GROUND, q[0], q[1])), float(rng.uniform(0.8, 1.25)), "mangrove"))
 if tw:
-    tw = np.array(tw)
+    tw_k = np.array([K[t_[4]] if len(t_) > 4 else K["kapok"] for t_ in tw])
+    tw = np.array([t_[:4] for t_ in tw])
     px, py, pz = np.r_[px, tw[:, 0]], np.r_[py, tw[:, 1]], np.r_[pz, tw[:, 2]]
-    kind = np.r_[kind, np.full(len(tw), K["kapok"])]
+    kind = np.r_[kind, tw_k]
     yaw = np.r_[yaw, rng.uniform(0, 360, len(tw))]
 scl = np.where(np.isin(kind, [K["kapok"], K["far_kapok"]]), rng.uniform(0.9, 1.12, len(px)), rng.uniform(0.75, 1.25, len(px)))
 if len(tw):
@@ -1268,12 +1360,15 @@ def deck_object(name, P, Z, hw, gaps, style="copa"):
     return o
 
 
-def falls_objects():
+def falls_objects(lip=None, d=None, ztop=None, zbot=None, width=100.0):
     """The water leaving the lip and falling into the pool: a curtain bowed out by its own speed, streaked white;
-    the spray: a cloud over the pool."""
-    d = np.array([0.08, -1.0]) / np.hypot(0.08, 1.0)
+    the spray: a cloud over the pool. Defaults: S3's Kaieteur."""
+    lip = LIP_S3 if lip is None else np.asarray(lip, float)
+    d = np.array([0.08, -1.0]) / np.hypot(0.08, 1.0) if d is None else np.asarray(d, float)
+    ztop = W_TOP if ztop is None else ztop
+    zbot = W_LOW if zbot is None else zbot
     acr = np.array([-d[1], d[0]])
-    Hf = W_TOP - W_LOW
+    Hf = ztop - zbot
     nu, nv = 26, 44
     verts, faces = [], []
     for j in range(nv + 1):
@@ -1281,8 +1376,8 @@ def falls_objects():
         out = 4.5 * math.sqrt(2 * Hf * v / 9.8)
         for i in range(nu + 1):
             u = i / nu - 0.5
-            q = LIP_S3 + acr * u * 100.0 * (1 + 0.2 * v) + d * (out + 2.0)
-            verts.append((q[0] - cx, q[1] - cy, W_TOP + 0.3 - Hf * v))
+            q = lip + acr * u * width * (1 + 0.2 * v) + d * (out + 2.0)
+            verts.append((q[0] - cx, q[1] - cy, ztop + 0.3 - Hf * v))
     for j in range(nv):
         for i in range(nu):
             a = j * (nu + 1) + i
@@ -1318,10 +1413,11 @@ def falls_objects():
     o = bpy.data.objects.new("Falls", me_)
     scene.collection.objects.link(o)
     bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=12, radius=1.0,
-                                         location=(LIP_S3[0] + 15 - cx, LIP_S3[1] - 140 - cy, W_LOW + 45))
+                                         location=(*(lip + d * 140.0 * width / 100.0 - (cx, cy)), zbot + 45.0 * max(width / 100.0, 0.5)))
     mist = bpy.context.active_object
     mist.name = "Spray"
-    mist.scale = (210.0, 190.0, 95.0)
+    k_ = max(width / 100.0, 0.45)
+    mist.scale = (210.0 * k_, 190.0 * k_, 95.0 * k_)
     mm = bpy.data.materials.new("M_Spray")
     mm.use_nodes = True
     nt = mm.node_tree
@@ -1480,6 +1576,8 @@ if CAVE_SPAN:
     cave_objects()
 if SECTOR == "S3":
     falls_objects()
+for lip_, d_, zt_, zb_, w_ in FALLS:
+    falls_objects(lip_, d_, zt_, zb_, w_)
     for fd in FD:
         if "Névoa" in fd["f"]["name"]:
             n_ = len(fd["P"])
@@ -1569,7 +1667,7 @@ def zroad(i):
     return float(RZ2[int(np.clip(i, 0, len(RZ2) - 1))])
 
 
-EXPO = {"piloto_gruta": 1.4, "piloto_F9": 1.4}
+EXPO = {"piloto_gruta": 1.4, "piloto_F9": 1.4, "piloto_F13": 1.3}
 
 
 def shot(name, eye, tgt, lens, haze=None):
@@ -1676,6 +1774,8 @@ if SECTOR in WALLS:                      # into a hairpin, its wall on the outsi
     shot("gancho_ar", Vector((e_[0] - cx, e_[1] - cy, float(RZ2[apex]) + 95)),
          Vector((RP[apex, 0] - cx, RP[apex, 1] - cy, float(RZ2[apex]))), 24)
 pilot("piloto_reta", si(S0 + int(0.55 * (S1_ - S0))))
+for a_, b_ in RIVER_ROADS.get(SECTOR, []):   # in the river, upstream
+    pilot("piloto_rio", si((a_ + b_) // 2), ahead=180)
 if CAVE_SPAN:                            # in the cave, coming up to a skylight
     pilot("piloto_gruta", si(CAVE_SPAN[0]) + 330, ahead=170)
 if SECTOR in OVAL:                       # the oval valley, from just above it, near the start (tallest walls)
@@ -1689,6 +1789,13 @@ if SECTOR in OVAL:                       # the oval valley, from just above it, 
     e_ = RP[i_] - t_ * 60
     shot("oval_ar", Vector((e_[0] - cx, e_[1] - cy, float(RZ2[i_]) + 30)),
          Vector((RP[i_ + 160, 0] - cx, RP[i_ + 160, 1] - cy, float(RZ2[i_ + 160]))), 24)
+if SECTOR == "S7" and FALLS:             # the tepui and its waterfall, from over the river
+    lip_, d_, zt_, zb_, w_ = FALLS[0]
+    if ship is not None:
+        ship.hide_render = True
+    e_ = lip_ + d_ * 1500.0 + np.array([-d_[1], d_[0]]) * 500.0
+    shot("aerea_tepui", Vector((e_[0] - cx, e_[1] - cy, zb_ + 160.0)), Vector((lip_[0] - cx, lip_[1] - cy, zb_ + 170.0)), 24,
+         haze=dict(start=900.0, dist=14000.0, amount=0.6))
 if SECTOR == "S3":                       # the falls, from down the gorge
     if ship is not None:
         ship.hide_render = True
