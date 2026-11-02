@@ -1,11 +1,14 @@
 #include "Flight/EXExplosion.h"
 
+#include "Camera/PlayerCameraManager.h"
 #include "Components/MaterialBillboardComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
+#include "Flight/EXFxSprite.h"
+#include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -74,10 +77,16 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 
 	const bool bFlipbooks = LoadFlipbooks();
 	Life = bFlipbooks ? 7.0f : 4.5f;
+	// Far from the camera (a bot blowing up 250 m away) it is a smaller show: fewer sprites, sparks and debris (fps).
+	bool bFar = false;
+	if (const APlayerCameraManager* Cam = UGameplayStatics::GetPlayerCameraManager(this, 0))
+	{
+		bFar = FVector::Dist(Cam->GetCameraLocation(), Origin) > 25000.0;
+	}
 	if (bFlipbooks)
 	{
 		// Several rolling fireballs round the heart of it, a few hundredths of a second apart, then cooling to smoke.
-		for (int32 Index = 0; Index < 5; ++Index)
+		for (int32 Index = 0; Index < (bFar ? 3 : 5); ++Index)
 		{
 			const FVector Off = Index == 0 ? FVector::ZeroVector : (Random.VRand() * FVector(1.0, 1.0, 0.5)) * Random.FRandRange(150.0f, 320.0f) * Scale;
 			AddSprite(FireballTexture, 8.0f, Origin + Off + FVector(0.0, 0.0, 120.0), Drift * 0.4 + Off * 1.5, Index * 0.04f,
@@ -86,14 +95,14 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 		}
 		// The second burst a moment later, beside the first (with its own flash in Tick).
 		SecondaryAt = 0.32f;
-		for (int32 Index = 0; Index < 2; ++Index)
+		for (int32 Index = 0; Index < (bFar ? 0 : 2); ++Index)
 		{
 			const FVector Side = FVector(Random.FRandRange(-1.0f, 1.0f), Random.FRandRange(-1.0f, 1.0f), 0.2f).GetSafeNormal() * 420.0f * Scale;
 			AddSprite(FireballTexture, 8.0f, Origin + Side + FVector(0.0, 0.0, 150.0), Drift * 0.3 + Side, SecondaryAt + Index * 0.05f, 1.6f,
 				200.0f * Scale, 850.0f * Scale, 7.0f, false, FLinearColor::White, true);
 		}
 		// The smoke: dark, billowing up out of the fire and staying a while.
-		for (int32 Index = 0; Index < 8; ++Index)
+		for (int32 Index = 0; Index < (bFar ? 4 : 8); ++Index)
 		{
 			const FVector Off = Random.VRand() * FVector(1.0, 1.0, 0.3) * Random.FRandRange(100.0f, 450.0f) * Scale;
 			AddSprite(SmokeTexture, 8.0f, Origin + Off + FVector(0.0, 0.0, 250.0), Drift * 0.25 + Off * 0.5 + FVector(0.0, 0.0, Random.FRandRange(250.0f, 420.0f)),
@@ -101,9 +110,10 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 				Random.FRandRange(0.65f, 0.85f), true, FLinearColor(0.22f, 0.2f, 0.19f));   // fuel smoke: near black
 		}
 		// A ring of dust thrown out along the ground behind the shock ring (it gives the blast its body).
-		for (int32 Index = 0; Index < 10; ++Index)
+		const int32 DustCount = bFar ? 5 : 10;
+		for (int32 Index = 0; Index < DustCount; ++Index)
 		{
-			const float A = 2.0f * PI * Index / 10.0f + Random.FRandRange(-0.2f, 0.2f);
+			const float A = 2.0f * PI * Index / DustCount + Random.FRandRange(-0.2f, 0.2f);
 			const FVector Out(FMath::Cos(A), FMath::Sin(A), 0.0f);
 			AddSprite(SmokeTexture, 8.0f, Origin + Out * 200.0f - FVector(0.0, 0.0, 60.0), Drift * 0.2 + Out * Random.FRandRange(1800.0f, 2600.0f) * Scale,
 				0.05f, Random.FRandRange(1.6f, 2.2f), 350.0f * Scale, 1000.0f * Scale, 0.55f, true, FLinearColor(1.4f, 1.0f, 0.68f));
@@ -151,7 +161,7 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 		Ring.Add(Bit);
 	}
 	// Burning debris: hull plates thrown out and up, tumbling, cooling from orange to dark.
-	for (int32 Index = 0; Index < 18; ++Index)
+	for (int32 Index = 0; Index < (bFar ? 8 : 18); ++Index)
 	{
 		FBit Bit;
 		Bit.Mesh = MakeMesh(CubeMesh, GlowMaterial, Bit.Material);
@@ -171,7 +181,7 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 		Debris.Add(Bit);
 	}
 	// Sparks: small and fast, streaking along their flight.
-	AddSparks(bFlipbooks ? 60 : 34, Origin, 1.0f, 1.0f);
+	AddSparks(bFar ? 20 : (bFlipbooks ? 60 : 34), Origin, 1.0f, 1.0f);
 	// Smoke (the fallback): dark, rising and spreading, lit a little by the fire at first.
 	for (int32 Index = 0; Index < (bFlipbooks ? 0 : 14); ++Index)
 	{
@@ -280,7 +290,7 @@ void AEXExplosion::IgniteImpact(const FVector& VelocityCmps, float Strength, boo
 				FLinearColor::White, true);
 		}
 	}
-	AddSparks(FMath::RoundToInt(10 + 14 * Scale), Origin, 0.45f, 0.8f);
+	AddSparks(FMath::RoundToInt(6 + 8 * Scale), Origin, 0.45f, 0.8f);
 	bLit = true;
 	Tick(0.0f);
 }
@@ -319,6 +329,14 @@ void AEXExplosion::Tick(float DeltaSeconds)
 		{
 			continue;
 		}
+		if (Local >= S.Life)
+		{
+			if (S.Sprite->IsVisible())
+			{
+				S.Sprite->SetVisibility(false);   // done: no more work for it
+			}
+			continue;
+		}
 		const float T = FMath::Clamp(Local / S.Life, 0.0f, 1.0f);
 		S.Velocity *= FMath::Exp(-(S.bSmoke ? 1.1f : 2.2f) * DeltaSeconds);
 		if (S.bRises && Local > 0.4f)
@@ -328,13 +346,7 @@ void AEXExplosion::Tick(float DeltaSeconds)
 		S.Pos += S.Velocity * DeltaSeconds;
 		S.Sprite->SetWorldLocation(S.Pos);
 		const float Grow = S.bSmoke ? FMath::Sqrt(T) : 1.0f - FMath::Exp(-Local * 5.0f);
-		const float Size = FMath::Lerp(S.Size, S.EndSize, Grow);
-		if (S.Sprite->Elements.Num() > 0)
-		{
-			S.Sprite->Elements[0].BaseSizeX = Size;
-			S.Sprite->Elements[0].BaseSizeY = Size;
-			S.Sprite->MarkRenderStateDirty();
-		}
+		EXFx::SetSpriteSize(S.Sprite, S.Material, S.Quad, FMath::Lerp(S.Size, S.EndSize, Grow));
 		S.Material->SetScalarParameterValue(FrameParam, FMath::Min(T * S.Frames, S.Frames - 1.0f));
 		if (S.bSmoke)
 		{
@@ -352,6 +364,14 @@ void AEXExplosion::Tick(float DeltaSeconds)
 	for (FBit& Bit : Fireball)
 	{
 		const float T = FMath::Clamp(Age / Bit.Life, 0.0f, 1.0f);
+		if (Age >= Bit.Life)
+		{
+			if (Bit.Mesh->IsVisible())
+			{
+				Bit.Mesh->SetVisibility(false);   // done: no more work for it
+			}
+			continue;
+		}
 		const float Size = FMath::Lerp(Bit.Size, Bit.EndSize, 1.0f - FMath::Exp(-Age * 7.0f));
 		Bit.Mesh->SetWorldLocation(Bit.Mesh->GetComponentLocation() + Shift);
 		Bit.Mesh->SetWorldScale3D(FVector(Size));   // the engine sphere is 1 m across: the scale is the size in metres
@@ -364,6 +384,14 @@ void AEXExplosion::Tick(float DeltaSeconds)
 	for (FBit& Bit : Ring)
 	{
 		const float T = FMath::Clamp(Age / Bit.Life, 0.0f, 1.0f);
+		if (Age >= Bit.Life)
+		{
+			if (Bit.Mesh->IsVisible())
+			{
+				Bit.Mesh->SetVisibility(false);   // done: no more work for it
+			}
+			continue;
+		}
 		const float Size = FMath::Lerp(Bit.Size, Bit.EndSize, FMath::Sqrt(T));
 		Bit.Mesh->SetWorldLocation(Bit.Mesh->GetComponentLocation() + Shift);
 		Bit.Mesh->SetWorldScale3D(FVector(Size, Size, 0.03f));
@@ -376,6 +404,14 @@ void AEXExplosion::Tick(float DeltaSeconds)
 	for (FBit& Bit : Debris)
 	{
 		const float T = FMath::Clamp(Age / Bit.Life, 0.0f, 1.0f);
+		if (Age >= Bit.Life)
+		{
+			if (Bit.Mesh->IsVisible())
+			{
+				Bit.Mesh->SetVisibility(false);   // done: no more work for it
+			}
+			continue;
+		}
 		Bit.Velocity.Z -= GravityCmps2 * DeltaSeconds;
 		Bit.Velocity *= FMath::Exp(-0.6f * DeltaSeconds);
 		Bit.Mesh->SetWorldLocationAndRotation(Bit.Mesh->GetComponentLocation() + Bit.Velocity * DeltaSeconds,
@@ -390,6 +426,14 @@ void AEXExplosion::Tick(float DeltaSeconds)
 	for (FBit& Bit : Sparks)
 	{
 		const float T = FMath::Clamp(Age / Bit.Life, 0.0f, 1.0f);
+		if (Age >= Bit.Life)
+		{
+			if (Bit.Mesh->IsVisible())
+			{
+				Bit.Mesh->SetVisibility(false);   // done: no more work for it
+			}
+			continue;
+		}
 		Bit.Velocity.Z -= GravityCmps2 * DeltaSeconds;
 		Bit.Velocity *= FMath::Exp(-1.5f * DeltaSeconds);
 		Bit.Mesh->SetWorldLocation(Bit.Mesh->GetComponentLocation() + Bit.Velocity * DeltaSeconds);
@@ -404,6 +448,14 @@ void AEXExplosion::Tick(float DeltaSeconds)
 	for (FBit& Bit : Smoke)
 	{
 		const float T = FMath::Clamp(Age / Bit.Life, 0.0f, 1.0f);
+		if (Age >= Bit.Life)
+		{
+			if (Bit.Mesh->IsVisible())
+			{
+				Bit.Mesh->SetVisibility(false);   // done: no more work for it
+			}
+			continue;
+		}
 		Bit.Velocity *= FMath::Exp(-0.9f * DeltaSeconds);
 		Bit.Mesh->SetWorldLocation(Bit.Mesh->GetComponentLocation() + Bit.Velocity * DeltaSeconds);
 		const float Size = FMath::Lerp(Bit.Size, Bit.EndSize, 1.0f - FMath::Square(1.0f - T));

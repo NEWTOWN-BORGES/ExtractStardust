@@ -61,6 +61,7 @@ private:
 		float EndSize = 100.0f;
 		float Intensity = 1.0f;
 		float Frames = 64.0f;
+		float Quad = 0.0f;                       // its square's size now (EXFx::SetSpriteSize)
 		bool bSmoke = false;
 		bool bRises = false;
 	};

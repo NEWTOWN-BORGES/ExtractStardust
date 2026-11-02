@@ -5,7 +5,8 @@
 #   /Game/FX/M_FX_Flipbook  sprite material: unlit, premultiplied alpha (AlphaComposite: thin fire still glows, smoke
 #                           darkens what is behind it), two frames blended, soft where it meets the ground.
 #                           Parameters (AEXExplosion, AEXWreck): Tex, Cols, Rows, Frame, Color, Intensity, Opacity,
-#                           Rotation (radians, clockwise on screen: the flames on a flying piece stream back), FlipV.
+#                           Rotation (radians, clockwise on screen: the flames on a flying piece stream back), Zoom
+#                           (the picture inside its square, which only grows in steps: EXFx::SetSpriteSize, fps), FlipV.
 #   /Game/FX/M_FX_Char      overlay for the burnt hull and modules: soot darkens the paint (its own light and shape
 #                           stay, at a fifth), cracks glowing like embers while "Heat" (1 -> 0) lasts.
 import os
@@ -127,6 +128,8 @@ float f0 = floor(f);
 float f1 = min(f0 + 1.0, n - 1.0);
 float k = f - f0;
 float2 uv = float2(UV.x, lerp(UV.y, 1.0 - UV.y, saturate(FlipV)));
+// smaller than its square by Zoom: the square grows in steps and the picture grows inside it (EXFx::SetSpriteSize, fps)
+uv = (uv - 0.5) / max(Zoom, 0.05) + 0.5;
 // turned clockwise on screen by Rotation round the middle (V runs down); faded out towards the picture's edges, so a
 // turned picture never shows its square
 float2 d = float2(uv.x - 0.5, 0.5 - uv.y);
@@ -147,7 +150,7 @@ return s.rgb * Color.rgb * Intensity * o;   // premultiplied: AlphaComposite add
 """
 node = g.custom(FLIP_CODE, [("Tex", tex), ("UV", uv), ("Frame", g.scalar("Frame", 0.0)), ("Cols", g.scalar("Cols", 8.0)),
                             ("Rows", g.scalar("Rows", 8.0)), ("Color", colour), ("Intensity", g.scalar("Intensity", 1.0)),
-                            ("Opacity", g.scalar("Opacity", 1.0)), ("Rotation", g.scalar("Rotation", 0.0)), ("FlipV", g.scalar("FlipV", 0.0)),
+                            ("Opacity", g.scalar("Opacity", 1.0)), ("Rotation", g.scalar("Rotation", 0.0)), ("Zoom", g.scalar("Zoom", 1.0)), ("FlipV", g.scalar("FlipV", 0.0)),
                             ("Fade", fade)],
                 [("OutOpacity", F1)])
 g.out(node, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)

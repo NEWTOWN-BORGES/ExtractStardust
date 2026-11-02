@@ -30,6 +30,8 @@ class EXTRACTINGSTARDUST_API AEXWreck : public AActor
 
 public:
 	AEXWreck();
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
 
 	/** A piece: its mesh and materials at a world transform; its box (half extents, cm) round the mesh's bounds, its
@@ -65,6 +67,7 @@ private:
 		float TrailGap = 0.0f;
 		float TrailWait = 0.0f;
 		float PuffTimer = 0.0f;
+		float FlameQuad = 0.0f;                  // its flame sprite's square now (EXFx::SetSpriteSize)
 	};
 	/** A tongue of flame left behind a burning piece (the flames flipbook, streaming back the way the piece flew): they
 	 *  overlap into one trail of fire, and the smoke puffs carry it on. */
@@ -81,6 +84,7 @@ private:
 		float Size1 = 130.0f;
 		float Glow = 7.0f;
 		float FrameShift = 0.0f;                 // where in the flames' loop it starts
+		float Quad = 0.0f;
 	};
 	/** A puff of smoke from a burning piece (the smoke flipbook, dark grey): rising, growing, thinning. */
 	struct FPuff
@@ -92,6 +96,7 @@ private:
 		float Life = 0.0f;
 		float Size0 = 220.0f;                    // cm
 		float Size1 = 950.0f;
+		float Quad = 0.0f;
 	};
 
 	void StepPiece(FPiece& Piece, float Dt);
@@ -113,4 +118,6 @@ private:
 	TArray<FTrail> Trails;
 	float Age = 0.0f;
 	float StrikeCooldown = 0.0f;
+	/** How far the camera is (m): far wrecks burn with fewer trails and no bursts (fps). */
+	float CamDistM = 0.0f;
 };

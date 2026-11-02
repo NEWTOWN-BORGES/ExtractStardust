@@ -8,6 +8,7 @@
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "Flight/EXExplosion.h"
+#include "Flight/EXFxSprite.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Kismet/GameplayStatics.h"
@@ -31,8 +32,14 @@ namespace
 	constexpr float BurnSeconds = 11.0f;
 	// Every piece a ball of fire (player, 2026-11-01: "peças em bolas de fogo"); the same numbers as
 	// Scripts/physics_sandbox/wreck_video.py, which renders them.
-	constexpr int32 MaxTrails = 140;          // tongues of flame alive per wreck (the oldest is reused)
-	constexpr int32 MaxSmoke = 120;           // puffs of smoke alive per wreck
+	constexpr int32 MaxTrails = 100;          // tongues of flame alive per wreck (the oldest is reused)
+	constexpr int32 MaxSmoke = 80;            // puffs of smoke alive per wreck
+	// Keeping the frame rate (player, 2026-11-02: "cuidado com as quedas de fps"): the wreck the camera is on burns in
+	// full; from 120 m it leaves half the trail and smoke and no bursts where it strikes, from 300 m only its own flames;
+	// and with several wrecks burning at once each one leaves less (the rates shared out).
+	constexpr float NearM = 120.0f;
+	constexpr float FarM = 300.0f;
+	int32 LiveWrecks = 0;
 	constexpr float TrailLife = 0.45f;        // s, a tongue of flame (x 0.8-1.2, shorter as the piece cools)
 	constexpr float HullTrailRate = 60.0f;    // tongues a second at most, the hull and the modules
 	constexpr float ModuleTrailRate = 40.0f;
@@ -68,6 +75,18 @@ AEXWreck::AEXWreck()
 	FireLight->SetIntensity(0.0f);
 	FireLight->SetAttenuationRadius(2500.0f);
 	FireLight->SetLightColor(FLinearColor(1.0f, 0.5f, 0.18f));
+}
+
+void AEXWreck::BeginPlay()
+{
+	Super::BeginPlay();
+	++LiveWrecks;
+}
+
+void AEXWreck::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	LiveWrecks = FMath::Max(0, LiveWrecks - 1);
+	Super::EndPlay(EndPlayReason);
 }
 
 void AEXWreck::AddPiece(UStaticMesh* Mesh, const TArray<UMaterialInterface*>& Materials, const FTransform& World, float MassKg,
@@ -281,9 +300,9 @@ void AEXWreck::Strike(const FVector& PointM, float Speed, bool bHull)
 	{
 		return;
 	}
-	if (!bHull && Speed < 9.0f)
+	if ((!bHull && Speed < 9.0f) || CamDistM > NearM)
 	{
-		return;   // a wing landing flat: no burst for that
+		return;   // a wing landing flat, or a wreck far from the camera: no burst for that (fps)
 	}
 	StrikeCooldown = 0.1f;   // at most ten bursts a second per wreck (each is a few sprites and sparks)
 	FActorSpawnParameters Params;
@@ -386,7 +405,11 @@ void AEXWreck::Tick(float DeltaSeconds)
 		const FQuat CamQ = Cam->GetCameraRotation().Quaternion();
 		CamRight = CamQ.GetRightVector();
 		CamUp = CamQ.GetUpVector();
+		CamDistM = static_cast<float>(FVector::Dist(Cam->GetCameraLocation(), Pieces[0].Pos * 100.0)) / 100.0f;
 	}
+	// how much of the trail and smoke to leave: all near the camera, half from NearM, none from FarM, shared out when
+	// several wrecks burn at once
+	const float Share = (CamDistM < NearM ? 1.0f : (CamDistM < FarM ? 0.5f : 0.0f)) / FMath::Max(1.0f, LiveWrecks * 0.5f);
 	for (int32 Index = 0; Index < Pieces.Num(); ++Index)
 	{
 		FPiece& Piece = Pieces[Index];
@@ -406,12 +429,7 @@ void AEXWreck::Tick(float DeltaSeconds)
 				static_cast<float>(FVector::DotProduct(Stream, CamUp)));
 			Piece.FlameMat->SetScalarParameterValue(RotationParam, Angle);
 			Piece.Flame->SetWorldLocation(Piece.Pos * 100.0 + Stream * (0.33f * FlameSize));
-			if (Piece.Flame->Elements.Num() > 0)
-			{
-				Piece.Flame->Elements[0].BaseSizeX = FlameSize;
-				Piece.Flame->Elements[0].BaseSizeY = FlameSize;
-				Piece.Flame->MarkRenderStateDirty();
-			}
+			EXFx::SetSpriteSize(Piece.Flame, Piece.FlameMat, Piece.FlameQuad, FlameSize);
 			Piece.FlameMat->SetScalarParameterValue(FrameParam, FMath::Fmod(Age * 16.0f + Piece.FlamePhase, 16.0f));
 			Piece.FlameMat->SetScalarParameterValue(IntensityParam, 5.0f * Piece.Heat);
 			Piece.FlameMat->SetScalarParameterValue(OpacityParam, FMath::Clamp(Piece.Heat * 1.6f, 0.0f, 1.0f));
@@ -422,17 +440,18 @@ void AEXWreck::Tick(float DeltaSeconds)
 		const float Speed = static_cast<float>(Piece.Vel.Size());
 		Piece.TrailGap += Speed * DeltaSeconds;
 		Piece.TrailWait -= DeltaSeconds;
-		if (Piece.Heat > 0.12f && Speed > 4.0f && Piece.TrailGap >= FMath::Max(0.45f, 0.2f * Piece.Size) && Piece.TrailWait <= 0.0f)
+		if (Share > 0.0f && Piece.Heat > 0.12f && Speed > 4.0f && Piece.TrailGap >= FMath::Max(0.45f, 0.2f * Piece.Size) / FMath::Sqrt(Share)
+			&& Piece.TrailWait <= 0.0f)
 		{
 			Trail(Piece, Stream);
 			Piece.TrailGap = 0.0f;
-			Piece.TrailWait = 1.0f / (bHull ? HullTrailRate : ModuleTrailRate);
+			Piece.TrailWait = 1.0f / ((bHull ? HullTrailRate : ModuleTrailRate) * Share);
 		}
 		// Smoke from every piece that burns (more as it burns harder); flying, it strings out into a smoke trail.
 		Piece.PuffTimer -= DeltaSeconds;
-		if (Piece.Heat > 0.05f && Piece.PuffTimer <= 0.0f)
+		if (Share > 0.0f && Piece.Heat > 0.05f && Piece.PuffTimer <= 0.0f)
 		{
-			Piece.PuffTimer = bHull ? FMath::Lerp(0.16f, 0.06f, Piece.Heat) : FMath::Lerp(0.2f, 0.08f, Piece.Heat);
+			Piece.PuffTimer = (bHull ? FMath::Lerp(0.16f, 0.06f, Piece.Heat) : FMath::Lerp(0.2f, 0.08f, Piece.Heat)) / Share;
 			Puff(Piece, bHull);
 		}
 	}
@@ -519,12 +538,7 @@ void AEXWreck::UpdateTrails(float Dt, const FVector& CamRight, const FVector& Ca
 		const float Size = FMath::Lerp(Each.Size0, Each.Size1, T);
 		// standing on its base, its flames along the stream, turned so on screen
 		Each.Sprite->SetWorldLocation(Each.Pos + Each.Stream * (0.33f * Size));
-		if (Each.Sprite->Elements.Num() > 0)
-		{
-			Each.Sprite->Elements[0].BaseSizeX = Size;
-			Each.Sprite->Elements[0].BaseSizeY = Size;
-			Each.Sprite->MarkRenderStateDirty();
-		}
+		EXFx::SetSpriteSize(Each.Sprite, Each.Material, Each.Quad, Size);
 		const float Angle = FMath::Atan2(static_cast<float>(FVector::DotProduct(Each.Stream, CamRight)),
 			static_cast<float>(FVector::DotProduct(Each.Stream, CamUp)));
 		Each.Material->SetScalarParameterValue(RotationParam, Angle);
@@ -546,13 +560,7 @@ void AEXWreck::UpdatePuffs(float Dt)
 		const float T = FMath::Clamp(P.Age / P.Life, 0.0f, 1.0f);
 		P.Pos += FVector(0.0, 0.0, 160.0f * Dt);
 		P.Sprite->SetWorldLocation(P.Pos);
-		const float Size = FMath::Lerp(P.Size0, P.Size1, FMath::Sqrt(T));
-		if (P.Sprite->Elements.Num() > 0)
-		{
-			P.Sprite->Elements[0].BaseSizeX = Size;
-			P.Sprite->Elements[0].BaseSizeY = Size;
-			P.Sprite->MarkRenderStateDirty();
-		}
+		EXFx::SetSpriteSize(P.Sprite, P.Material, P.Quad, FMath::Lerp(P.Size0, P.Size1, FMath::Sqrt(T)));
 		P.Material->SetScalarParameterValue(FrameParam, T * 63.0f);
 		P.Material->SetScalarParameterValue(IntensityParam, 1.0f);
 		P.Material->SetScalarParameterValue(OpacityParam, 0.7f * FMath::Clamp(P.Age / 0.2f, 0.0f, 1.0f) * FMath::Square(1.0f - T));

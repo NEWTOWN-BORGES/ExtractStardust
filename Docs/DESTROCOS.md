@@ -105,12 +105,12 @@ Feita a partir de explosões reais e da prática de efeitos de jogos (fontes no 
   calor).
   - Rodadas no ecrã para irem na direção do vento do voo, mais 4 m/s de calor a subir: para trás a alta velocidade, para
     cima quando a peça abranda.
-- **Rasto:** uma bola a cada 1/5 do tamanho da peça, no máximo 60 por segundo no casco e 30 nos módulos (até 220 por
-  destroço).
-  - Cada bola é a `T_FX_Fireball` corrida de chamas a fumo em 1,2 s. Fica metade da vida em chamas e cresce até 2× a
-    peça (2,5-9 m).
-  - Nunca é mais pequena do que o espaço desde a anterior, por isso juntam-se numa língua de fogo. Cada uma vai um pouco
-    rodada, para não serem iguais.
+- **Rasto de fogo:** uma língua de fogo (`T_FX_Fire` em forma de lágrima, virada para trás) a cada 1/5 do tamanho da
+  peça.
+  - No máximo 60 por segundo no casco e 40 nos módulos, até 100 por destroço. Vive 0,45 s.
+  - Nunca é mais pequena do que o espaço desde a anterior, por isso juntam-se num rasto contínuo.
+- **Fumo de cada peça:** cinzento escuro, `T_FX_Smoke` do tamanho da peça, até 80 por destroço. A voar, faz um rasto de
+  fumo atrás do fogo.
 - O **casco** tem ainda uma luz laranja de 60 cd a 2,5 m, que treme e dá um tom laranja à areia à volta (o sol tem
   10 lux; antes eram 1500 cd, que queimavam o casco de luz), e uma coluna de fumo cinzento (`T_FX_Smoke`, até 45
   nuvens).
@@ -184,13 +184,33 @@ Fotos em `Docs/DESTROCOS_<causa>.jpg`. Em cada uma:
    - a bola de fogo a arrefecer em fumo;
    - o anel de poeira;
    - cada peça a voar como uma bola de fogo, com as chamas para trás e o rasto a virar fumo (comparar com os vídeos).
-   - Se houver quebras com muitos destroços ao mesmo tempo, baixar `MaxTrails` (220) ou as taxas do rasto no topo de
-     `EXWreck.cpp`.
+   - Ver os fps com `stat fps` durante uma explosão perto e com vários bots a explodir (secção 8).
 4. **Afinar:**
    - a física, em `EXWreck.cpp` (constantes no topo, iguais às do `wreck.py`);
    - o arranque por causa, em `AEXHoverCraft::Eliminate`;
    - a câmara, em `UpdateCrashCam` (0,3×, 1,6 s, 15 m);
    - a explosão, em `AEXExplosion::Ignite`.
+
+## 8. Fps (jogador, 2026-11-02: "cuidado com as quedas de fps")
+
+- **Sem reconstruir o render a cada fotograma:** antes, mudar o tamanho de um sprite (`UMaterialBillboardComponent`)
+  reconstruía o seu estado de render em todos os fotogramas, e com centenas de sprites vivos era o que pesava.
+  - Agora o quadrado cresce aos degraus de 25 % e a imagem cresce dentro dele com o parâmetro `Zoom` do `M_FX_Flipbook`
+    (`Flight/EXFxSprite.h`).
+  - Fica uma reconstrução a cada poucas décimas de segundo, em vez de uma por fotograma.
+- **Peças acabadas não gastam:** sprites e peças da explosão que já acabaram deixam de ser atualizados.
+- **Pela distância à câmara:**
+  - até 120 m: tudo;
+  - de 120 a 300 m: metade do rasto e do fumo, sem estoiros nas pancadas;
+  - acima de 300 m: só as chamas em cima das peças.
+  - Uma explosão a mais de 250 m é mais pequena: 3 bolas de fogo, sem segunda explosão, metade do fumo e da poeira, 8
+    destroços e 20 faíscas.
+- **Muitos destroços ao mesmo tempo:** o rasto e o fumo repartem-se. Com 4 destroços cada um deixa metade, com 6 um
+  terço.
+- **Tetos por destroço:** 100 línguas de fogo e 80 nuvens de fumo, reutilizando as mais velhas. Cada pancada dá 6-14
+  faíscas (eram 10-24).
+- **Se ainda houver quebras em casa:** baixar `MaxTrails`, `MaxSmoke`, `HullTrailRate` e `ModuleTrailRate` (topo de
+  `EXWreck.cpp`), ou `NearM`/`FarM`.
 
 ## Fontes (exemplos vistos)
 
