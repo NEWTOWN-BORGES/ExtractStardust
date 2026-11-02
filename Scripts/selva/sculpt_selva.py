@@ -503,7 +503,7 @@ MIXES["S6"] = dict(interior=(("mangrove", .75), ("canopy_b", .08), ("acai", .07)
                    edge=(("mangrove", .62), ("shrub_b", .20), ("acai", .09), ("cecropia", .09)),
                    band=(("mangrove", .58), ("shrub_b", .30), ("acai", .12)),
                    wet=(("mangrove", .86), ("acai", .05), ("buriti", .03), ("shrub_b", .06)))
-CANOPY_H = {"S6": 12.0}                  # the canopy's height beyond the box (mangroves are low)
+CANOPY_H = {"S6": 12.0, "S8": 0.5}       # savanna: grass beyond the box, not canopy                  # the canopy's height beyond the box (mangroves are low)
 PAL["S5"] = dict(road=(0.46, 0.36, 0.26), wet=(0.27, 0.21, 0.15), bank=(0.30, 0.30, 0.17), rock=(0.30, 0.25, 0.21))
 MIXES["S3"] = dict(interior=(("canopy_a", .30), ("canopy_b", .25), ("canopy_c", .15), ("acai", .12), ("shrub_a", .10), ("buriti", .08)),
                    edge=(("shrub_a", .30), ("cecropia", .20), ("acai", .20), ("canopy_b", .20), ("shrub_b", .10)),
@@ -1212,7 +1212,10 @@ wme.materials.append(water_material())
 water = bpy.data.objects.new("Water", wme)
 scene.collection.objects.link(water)
 
-cme.materials.append(carpet_material())
+cme.materials.append(carpet_material() if "savanna" not in F else terrain_material())
+if "savanna" in F:                       # golden grass beyond the box
+    gca = cme.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+    gca.data.foreach_set("color", np.tile(np.r_[srgb((0.55, 0.46, 0.25)), 1.0].astype(np.float32), len(cme.vertices)))
 beyond = bpy.data.objects.new("CanopyBeyond", cme)
 scene.collection.objects.link(beyond)
 # the plant kit and the scatter (geometry nodes: one point per plant, instance picked by 'kind')

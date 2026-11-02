@@ -335,9 +335,26 @@ naves andam aí no rio mesmo".
 - **F13 Fenda do Tepui:** um desfiladeiro estreito na base do tepui.
 - **Saltos:** o talude (um degrau de 6 m) e a rampa de basalto (uma lomba de 4 m).
 
+### S8 Galeria da Savana (feito, por aprovar)
+
+![S8](SELVA/S8_galeria_savana.jpg)
+
+- **Savana:** um planalto aberto (~160 m) de erva dourada, rápido e largo, com estrada vermelha.
+- **Kit novo:** acácias de copa plana, embondeiros (tronco em garrafa) e termiteiras de barro. Há cerca de uma árvore
+  por cada 25 que haveria na floresta.
+- **Floresta de galeria:** uma faixa densa ao longo do rio.
+- **F15 Floresta de Galeria:** vai dentro do próprio rio, rente à água, com árvores de raízes-escora nas margens (como o
+  jogador pediu depois do S6).
+- **F14 Savana Aberta:** pela savana, larga e rápida.
+- **Saltos:**
+  - duas termiteiras (lombas de 4 m);
+  - o rio de areia: uma rampa de 2,6 m sobre 32 m de leito seco;
+  - uma lomba.
+- **Ao longe:** erva dourada à altura do chão, sem copa contínua.
+
 ### Depois
 
-1. **S8 Galeria da Savana** e os setores seguintes, um a um, com as fotos.
+1. **S9 Garganta Vitória** e o S10, um a um, com as fotos.
 2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);
