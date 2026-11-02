@@ -31,7 +31,11 @@ namespace
 	constexpr float BotsAfterPlayerS = 15.0f;  // Bots mode: the race ends this long after the player is done (Enter ends it at once)
 	constexpr float FinishRadiusM = 45.0f;      // reaching the last point of the line also counts as the finish
 	constexpr float TestTimeLimitS = 1500.0f;
-	constexpr int32 MenuItems = 4;          // 0 solo, 1 bots, 2 hangar, 3 quit
+	constexpr int32 MenuItems = 5;          // 0 solo, 1 bots, 2 map, 3 hangar, 4 quit
+	/** The maps the menu races on (player, 2026-11-02): the desert and the Selva Esmeralda. */
+	const TCHAR* const MapPaths[] = { TEXT("/Game/Maps/Expedition"), TEXT("/Game/Maps/Selva") };
+	const TCHAR* const MapTitles[] = { TEXT("RED DUST DIVIDE"), TEXT("SELVA ESMERALDA") };
+	constexpr int32 MapCount = 2;
 	/** Bot pace against the ideal line, by bot (the tuning knob for how good the bots are). */
 	// Player, 2026-10-30 ("os bots têm de ser mais difíceis"): 100 % down to 90 % of the ideal pace (was 95 to 82).
 	constexpr float BotSkills[] = { 1.0f, 0.99f, 0.98f, 0.97f, 0.96f, 0.96f, 0.95f, 0.94f, 0.94f, 0.93f, 0.92f, 0.92f, 0.91f, 0.90f, 0.90f };
@@ -301,7 +305,17 @@ void AEXRaceDirector::MenuInput(int32 Step)
 		MenuChoice = (MenuChoice + Step + MenuItems) % MenuItems;
 		return;
 	}
-	if (MenuChoice == 3)
+	if (MenuChoice == 2)
+	{
+		// The map line: Enter changes the map the expedition races on (the level opens when the race starts).
+		MapChoice = (MapChoice + 1) % MapCount;
+		return;
+	}
+	if ((MenuChoice == 0 || MenuChoice == 1) && TravelToChosenMap(MenuChoice == 0 ? EEXRaceMode::Solo : EEXRaceMode::Bots))
+	{
+		return;
+	}
+	if (MenuChoice == 4)
 	{
 		if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 		{
@@ -311,7 +325,7 @@ void AEXRaceDirector::MenuInput(int32 Step)
 	}
 	bMenu = false;
 	AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0));
-	if (MenuChoice == 2)
+	if (MenuChoice == 3)
 	{
 		Mode = EEXRaceMode::Hangar;
 		if (Player)
@@ -334,6 +348,10 @@ void AEXRaceDirector::MenuInput(int32 Step)
 
 void AEXRaceDirector::LaunchExpedition()
 {
+	if (TravelToChosenMap(LastRaceMode == EEXRaceMode::Solo ? EEXRaceMode::Solo : EEXRaceMode::Bots))
+	{
+		return;
+	}
 	if (AEXHoverCraft* Player = Cast<AEXHoverCraft>(UGameplayStatics::GetPlayerPawn(this, 0)))
 	{
 		Player->ExitShowroom();
@@ -344,6 +362,36 @@ void AEXRaceDirector::LaunchExpedition()
 	{
 		BotCount = 15;
 	}
+}
+
+void AEXRaceDirector::OpenMenu()
+{
+	bMenu = true;
+	// The map line starts on the map that is loaded.
+	MapChoice = UGameplayStatics::GetCurrentLevelName(this, true).Equals(TEXT("Selva"), ESearchCase::IgnoreCase) ? 1 : 0;
+}
+
+FString AEXRaceDirector::GetMapTitle() const
+{
+	return MapTitles[FMath::Clamp(MapChoice, 0, MapCount - 1)];
+}
+
+bool AEXRaceDirector::IsChosenMapLoaded() const
+{
+	return UGameplayStatics::GetCurrentLevelName(this, true).Equals(FPaths::GetBaseFilename(MapPaths[FMath::Clamp(MapChoice, 0, MapCount - 1)]),
+		ESearchCase::IgnoreCase);
+}
+
+bool AEXRaceDirector::TravelToChosenMap(EEXRaceMode RaceMode)
+{
+	if (IsChosenMapLoaded())
+	{
+		return false;
+	}
+	// ?Mode=Solo / ?Mode=Bots on the URL: the other map starts straight on the race (EXGameMode).
+	UGameplayStatics::OpenLevel(this, FName(MapPaths[FMath::Clamp(MapChoice, 0, MapCount - 1)]), true,
+		RaceMode == EEXRaceMode::Solo ? TEXT("Mode=Solo") : TEXT("Mode=Bots"));
+	return true;
 }
 
 void AEXRaceDirector::ReturnToMenu()

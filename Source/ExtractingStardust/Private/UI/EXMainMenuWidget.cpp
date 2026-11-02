@@ -21,7 +21,7 @@
 
 namespace
 {
-	constexpr int32 MenuLineCount = 4;            // 0 solo, 1 bots, 2 hangar, 3 quit (AEXRaceDirector::MenuInput)
+	constexpr int32 MenuLineCount = 5;            // 0 solo, 1 bots, 2 map, 3 hangar, 4 quit (AEXRaceDirector::MenuInput)
 	constexpr float MenuColumnWidth = 624.0f;
 	constexpr float BriefCardWidth = 564.0f;
 	constexpr float BriefAverageKmh = 340.0f;     // the duration shown: the race line at this average speed
@@ -91,10 +91,12 @@ void UEXMainMenuWidget::BuildTree()
 		EXUi::AddV(Left, Logo, FMargin(0.0f, -4.0f, 0.0f, 0.0f));
 		EXUi::AddV(Left, EXUi::TitleText(Tree, TEXT("RACE  \u00B7  SURVIVE  \u00B7  EXTRACT"), 13, EXUi::Accent(), 420), FMargin(0.0f, 6.0f, 0.0f, 46.0f));
 	}
-	const TCHAR* const Titles[MenuLineCount] = { TEXT("EXPEDI\u00C7\u00C3O SOLO"), TEXT("PELOT\u00C3O 15"), TEXT("HANGAR"), TEXT("SAIR") };
+	const TCHAR* const Titles[MenuLineCount] = { TEXT("EXPEDI\u00C7\u00C3O SOLO"), TEXT("PELOT\u00C3O 15"), TEXT("MAPA"), TEXT("HANGAR"),
+		TEXT("SAIR") };
 	const TCHAR* const Descriptions[MenuLineCount] = {
-		TEXT("Tu contra o deserto. Chega vivo a B."),
+		TEXT("Tu contra a pista. Chega vivo a B."),
 		TEXT("Quinze rivais na grelha. S\u00F3 quem chega vivo a B extrai."),
+		TEXT("Enter troca o mapa: Red Dust Divide (deserto) ou Selva Esmeralda (Amaz\u00F3nia e \u00C1frica)."),
 		TEXT("M\u00F3dulos, consum\u00EDveis, loja e cofre. As luzes acendem-se."),
 		TEXT("Fechar o jogo. O perfil fica guardado."),
 	};
@@ -249,8 +251,26 @@ void UEXMainMenuWidget::Refresh()
 			ItemDescriptions[Index]->SetVisibility(bOn ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 		}
 	}
-	EXUi::SetText(BriefSubText, FString::Printf(TEXT("Canyonlands  \u00B7  de A (The Basin) a B (Mesa Arch)  \u00B7  %s"),
-		Choice == 0 ? TEXT("s\u00F3 tu") : TEXT("16 naves")));
+	// The map line shows the chosen map; the briefing describes it.
+	const bool bSelvaChosen = RaceDirector && RaceDirector->GetMapChoice() == 1;
+	const bool bChosenHere = !RaceDirector || RaceDirector->IsChosenMapLoaded();
+	if (ItemTitles.IsValidIndex(2) && RaceDirector)
+	{
+		EXUi::SetText(ItemTitles[2], TEXT("MAPA  \u00B7  ") + RaceDirector->GetMapTitle());
+	}
+	EXUi::SetText(BriefSubText, FString::Printf(TEXT("%s  \u00B7  %s"), bSelvaChosen
+		? TEXT("Amaz\u00F3nia e \u00C1frica  \u00B7  de A (V\u00E1rzea Alagada) a B (Delta do Okavango)")
+		: TEXT("Canyonlands  \u00B7  de A (The Basin) a B (Mesa Arch)"), Choice == 0 ? TEXT("s\u00F3 tu") : TEXT("16 naves")));
+	if (RouteMap)
+	{
+		RouteMap->SetVisibility(bChosenHere ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+	}
+	if (!bChosenHere)
+	{
+		// The other map is not loaded: the numbers of its plan (Docs/PISTA_SELVA_ESMERALDA.md, Docs/PISTA_AB_RED_DUST_DIVIDE.md).
+		EXUi::SetText(DistanceText, bSelvaChosen ? TEXT("74,9 km") : TEXT("59,0 km"));
+		EXUi::SetText(DurationText, bSelvaChosen ? TEXT("~12:19") : TEXT("~9:46"));
+	}
 
 	const AEXHoverCraft* Craft = GetPlayerCraft();
 	if (!Craft)
@@ -258,7 +278,7 @@ void UEXMainMenuWidget::Refresh()
 		return;
 	}
 	const TArray<FVector2D>& Route = Craft->GetMapRoute();
-	if (Route.Num() > 1)
+	if (Route.Num() > 1 && bChosenHere)
 	{
 		if (RouteMap && !RouteMap->HasRoute())
 		{

@@ -104,8 +104,13 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	void Configure(EEXRaceMode InMode, int32 InBots) { Mode = InMode; BotCount = InBots; }
-	/** Start on the menu (the game opened without a mode): SOLO / PELOTÃO 15 / HANGAR / SAIR. */
-	void OpenMenu() { bMenu = true; }
+	/** Start on the menu (the game opened without a mode): SOLO / PELOTÃO 15 / MAPA / HANGAR / SAIR. */
+	void OpenMenu();
+	/** The map the menu races on (player, 2026-11-02): 0 Red Dust Divide, 1 Selva Esmeralda; the MAPA line changes it. */
+	int32 GetMapChoice() const { return MapChoice; }
+	FString GetMapTitle() const;
+	/** True when the chosen map is the one loaded (the briefing's route is then that map's). */
+	bool IsChosenMapLoaded() const;
 	void StartMenuChoice(int32 Choice);
 	/** The mouse over a menu line highlights it. */
 	void HoverMenuChoice(int32 Choice);
@@ -201,6 +206,9 @@ private:
 	int32 CrashTestDone = 0;
 	float NextCrashTestTime = 6.0f;
 	int32 MenuChoice = 1;
+	int32 MapChoice = 0;
+	/** Opens the chosen map in the race mode when it is not the loaded one (true: the level is changing). */
+	bool TravelToChosenMap(EEXRaceMode RaceMode);
 	int32 Pool = 0;
 	/** Serials for the bots' pieces (far from the player's). */
 	int32 BotSerial = 1000000;
