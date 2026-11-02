@@ -307,9 +307,37 @@ passam por cima".
 - **Ao longe:** a copa contínua fica à altura do mangue (12 m).
 - **Bifurcações:** passam a contar no setor onde fica o seu meio. O F12, o topo do tepui, é do S7.
 
+### Rios onde as naves andam (jogador, depois do S6)
+
+O jogador escreveu: "gostei muito do rio; ver mais disso no mapa: o rio a encontrar com a terra, árvores, raízes, as
+naves andam aí no rio mesmo".
+- **Como funciona** (`RIVER_ROADS`): em troços escolhidos a estrada é o leito do rio. Fica 12 cm debaixo de água,
+  com o rio 10 m mais largo do que a estrada, e nas duas margens há árvores com raízes-escora dentro de água.
+- **Feito:** no S7, os primeiros ~2,3 km.
+- **A seguir:** o F15 Floresta de Galeria (S8), o fundo da garganta F17 (S9) e os canais do delta (S10).
+
+### S7 Tepui (feito, por aprovar)
+
+![S7](SELVA/S7_tepui.jpg)
+
+- **Tepui:**
+  - uma mesa de 520 m com a borda recortada (baías e promontórios);
+  - falésias de 80° de arenito escuro em camadas, com uma saliência de 18-32 m a meio, e uma rampa de pedras na base;
+  - o topo é rocha em blocos com arbustos baixos, sem floresta.
+- **Cascata e rio:**
+  - uma cascata alta e fina (26 m) cai da face sul para um lago;
+  - um ribeiro desce do lago até ao rio da estrada;
+  - a estrada sobe esse rio rente à água nos primeiros ~2,3 km, com árvores de raízes-escora nas margens.
+- **F12 Topo do Tepui:**
+  - à saída do rio é uma ponte; depois é uma crista natural de rocha colada à falésia (como "La Rampa" do Roraima)
+    até ao topo;
+  - lá em cima tem duas fendas para saltar (30 m de vazio) e um mergulho de volta, com um degrau de 6 m.
+- **F13 Fenda do Tepui:** um desfiladeiro estreito na base do tepui.
+- **Saltos:** o talude (um degrau de 6 m) e a rampa de basalto (uma lomba de 4 m).
+
 ### Depois
 
-1. **S7 Tepui** e os setores seguintes, um a um, com as fotos.
+1. **S8 Galeria da Savana** e os setores seguintes, um a um, com as fotos.
 2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);

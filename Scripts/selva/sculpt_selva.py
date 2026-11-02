@@ -663,6 +663,7 @@ for fd in FD:
         zf = zf * (1 - mid) + (wl_at(fd["P"]) - 0.12) * mid
     high = np.zeros(len(zf), bool)
     if fd["f"]["type"] == "CIMA" or "Palafitas" in name:   # a bridge where it runs more than 6 m above the ground
+                                         # (the tepui's ramp is a spur of rock, recipe_s7: a bridge only off the river)
         high = ndimage.binary_closing((zf - bilinear(H, fd["P"][:, 0], fd["P"][:, 1])) > 6.0, iterations=40)
     gaps = []
     for fj in [j for j in fork_jumps if j["fork"] == name]:
@@ -1755,7 +1756,9 @@ for fd in FD:
         shot("piloto_" + nm, Vector((P_[i1, 0] - cx, P_[i1, 1] - cy, float(zf[lip]) + 4.0)),
              Vector((P_[land, 0] - cx, P_[land, 1] - cy, float(zf[land]))), 20)
         continue
-    if fd.get("decks"):                   # on the bridge, a little before its middle
+    if "Tepui" in fd["f"]["name"]:         # on the ramp, the cliff beside it
+        at_f = int(0.22 * len(fd["P"]))
+    elif fd.get("decks"):                 # on the bridge, a little before its middle
         a, b, _g = max(fd["decks"], key=lambda r: r[1] - r[0])
         at_f = a + int(0.3 * (b - a))
     pilot("piloto_" + nm, at_f, P=fd["P"], Z=zf)
