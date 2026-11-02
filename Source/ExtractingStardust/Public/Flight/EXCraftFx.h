@@ -137,6 +137,9 @@ private:
 	float FlamePower = 0.0f;
 	float FlickerTime = 0.0f;
 	float SpawnAccumulator = 0.0f;
+	/** Far from the camera the flames update every 4th frame (UpdateFx) with the time gathered here. */
+	float FlameDtAcc = 0.0f;
+	int32 FarFrame = 0;
 	bool bInitialized = false;
 	FRandomStream Random = FRandomStream(1977);
 };

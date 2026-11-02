@@ -50,6 +50,15 @@ e empacotar. O `casa_tudo.ps1` recomeça num passo com `-Desde <passo>`; o `joga
   `Docs/UI_MAQUETAS/README.md`.
 - **Logótipo:** fica laranja até o jogador escolher (ciano e branco já lhe foram mostrados).
 
+## DESEMPENHO (jogador, 2026-11-02: "o jogo trava muito no hangar e no meio das outras naves")
+
+- O comando PlayStation é procurado num fio de fundo (`EXDualShockDevice`); antes, sem comando ligado, o jogo prendia a
+  cada 2 s.
+- `UEXAssetWarmer` (subsistema) carrega em fundo `/Game/UI`, `/Game/Ships` e `/Game/FX` e mantém-nos na memória.
+- No hangar só se refazem as peças que mudam (`RefreshModuleVisuals`). As chamas das naves a mais de 250 m da câmara
+  atualizam-se a 1/4 (`UEXCraftFx::UpdateFx`).
+- O log escreve `EXPERF` (fps a cada 10 s e cada imagem acima de 60 ms). Ver `Docs/CASA_PASSO_A_PASSO.md`, secção 2b.
+
 ## PEDIDOS DE 2026-11-01 (nuvem, por compilar e testar em casa)
 
 - **Física nova** (`Docs/FISICA.md`; o jogador pediu e autorizou mexer na física e na câmara).

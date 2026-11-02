@@ -10,7 +10,7 @@ public class ExtractingStardust : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "InputDevice", "Slate", "SlateCore" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "InputDevice", "Slate", "SlateCore", "AssetRegistry" });
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{

@@ -89,6 +89,20 @@ A consola do jogo abre com a tecla à esquerda do 1. O log fica em `Saved\Logs\E
 5. **Inspetor da pista:** `... Scripts\jogar.ps1 -Modo Inspecao`. A nave corre a pista sozinha e escreve o relatório
    em `Saved\Inspect\relatorio.txt`, com fotos. Manda-me o relatório.
 
+## 2b. Desempenho (o jogo prendia no hangar e no meio das naves; correções de 2026-11-02)
+
+- **Comando PlayStation:** sem comando ligado, o jogo procurava-o a cada 2 s e bloqueava durante a procura. Agora
+  procura-o em segundo plano.
+- **Fotos, peças e explosões:** as fotos das cartas, as peças das naves e a arte das explosões carregam em fundo ao
+  arrancar e ficam na memória. No log aparece `EXPERF a carregar em fundo N recursos`. Antes carregavam do disco na
+  primeira vez que apareciam e voltavam a sair da memória um minuto depois.
+- **Hangar:** só se refazem as peças que mudam.
+- **Naves longe da câmara:** as chamas das naves a mais de 250 m atualizam-se 4 vezes menos (não se nota).
+- **Para medir:** o log escreve a cada 10 s `EXPERF NN fps em media, pior imagem NN ms` e escreve `EXPERF hitch NN ms`
+  sempre que uma imagem demora mais de 60 ms. Se ainda prender, manda-me essas linhas.
+- **No editor (`jogar.ps1`) o jogo prende mais:** na primeira vez que aparece cada efeito, o editor compila-o. O jogo
+  empacotado (`Builds\Jogo`, secção 5) não faz isso. Para julgar a fluidez, usa o jogo empacotado.
+
 ## 3. O que me mandar
 
 - Os erros de compilação ou dos passos (ver secção 1).

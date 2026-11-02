@@ -1,5 +1,6 @@
 #include "Flight/EXHoverCraft.h"
 
+#include "Misc/App.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/InputComponent.h"
@@ -298,6 +299,26 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 void AEXHoverCraft::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (IsPlayerControlled())
+	{
+		// EXPERF (2026-11-02): the frame rate every 10 s and each hitch over 60 ms go to the log, to see what still stutters.
+		const float RealDt = static_cast<float>(FApp::GetDeltaTime());
+		++PerfFrames;
+		PerfSeconds += RealDt;
+		PerfWorstMs = FMath::Max(PerfWorstMs, RealDt * 1000.0f);
+		if (RealDt > 0.06f)
+		{
+			UE_LOG(LogTemp, Display, TEXT("EXPERF hitch %.0f ms (%s)"), RealDt * 1000.0f, bInShowroom ? TEXT("hangar") : TEXT("corrida"));
+		}
+		if (PerfSeconds >= 10.0f)
+		{
+			UE_LOG(LogTemp, Display, TEXT("EXPERF %.0f fps em media, pior imagem %.0f ms (%s)"), PerfFrames / PerfSeconds, PerfWorstMs,
+				bInShowroom ? TEXT("hangar") : TEXT("corrida"));
+			PerfFrames = 0;
+			PerfSeconds = 0.0f;
+			PerfWorstMs = 0.0f;
+		}
+	}
 	if (bEliminated)
 	{
 		if (bCrashCam && IsPlayerControlled())
@@ -2519,8 +2540,12 @@ void AEXHoverCraft::RefreshModuleVisuals()
 				Mesh = LoadPiece(Ship, TEXT("wing_stock"));
 			}
 		}
-		ModuleMeshes[K]->SetStaticMesh(Mesh);
-		ModuleMeshes[K]->EmptyOverrideMaterials();
+		// Only a piece that changed loses its overrides: clearing and setting them again on every call rebuilt the render
+		// state of every module at each step in the hangar (EXPERF, 2026-11-02).
+		if (ModuleMeshes[K]->SetStaticMesh(Mesh))
+		{
+			ModuleMeshes[K]->EmptyOverrideMaterials();
+		}
 		// The utility module sits inside the nose and an epic/legendary engine's insides inside the engine
 		// (Scripts/ship_modules.py): only the x-ray view shows them.
 		const bool bInside = CraftExterior[K] == EEXFamily::Utility || CraftExterior[K] == EEXFamily::Engine;
@@ -2536,15 +2561,17 @@ void AEXHoverCraft::RefreshModuleVisuals()
 			const TArray<FStaticMaterial>& Slots = Mesh->GetStaticMaterials();
 			for (int32 Slot = 0; Slot < Slots.Num(); ++Slot)
 			{
-				if (Slots[Slot].MaterialSlotName.ToString().Contains(TEXT("Utility_Glow")))
+				if (Slots[Slot].MaterialSlotName.ToString().Contains(TEXT("Utility_Glow")) && ModuleMeshes[K]->GetMaterial(Slot) != UtilityGlow)
 				{
 					ModuleMeshes[K]->SetMaterial(Slot, UtilityGlow);
 				}
 			}
 		}
 	}
-	SkeletonMesh->SetStaticMesh(Skeleton);
-	SkeletonMesh->EmptyOverrideMaterials();   // the glow slots differ from ship to ship
+	if (SkeletonMesh->SetStaticMesh(Skeleton))
+	{
+		SkeletonMesh->EmptyOverrideMaterials();   // the glow slots differ from ship to ship
+	}
 	SkeletonMesh->SetVisibility(bShowSkeleton);
 	if (Skeleton && GlowMaterial)
 	{
@@ -2558,7 +2585,7 @@ void AEXHoverCraft::RefreshModuleVisuals()
 		const TArray<FStaticMaterial>& Slots = Skeleton->GetStaticMaterials();
 		for (int32 Slot = 0; Slot < Slots.Num(); ++Slot)
 		{
-			if (Slots[Slot].MaterialSlotName.ToString().Contains(TEXT("Reactor_Glow")))
+			if (Slots[Slot].MaterialSlotName.ToString().Contains(TEXT("Reactor_Glow")) && SkeletonMesh->GetMaterial(Slot) != ReactorGlow)
 			{
 				SkeletonMesh->SetMaterial(Slot, ReactorGlow);
 			}
