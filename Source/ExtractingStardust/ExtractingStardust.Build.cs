@@ -7,6 +7,9 @@ public class ExtractingStardust : ModuleRules
 	public ExtractingStardust(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		// Many files keep their own constants in anonymous namespaces (CmPerM, ColorParam...): compiled one by one, never
+		// merged into unity blobs where the names collide (2026-11-02, after the cloud work came in).
+		bUseUnity = false;
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG" });
 
