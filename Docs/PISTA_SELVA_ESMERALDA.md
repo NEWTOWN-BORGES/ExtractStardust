@@ -43,7 +43,16 @@ Script: `python3 Scripts/selva/plan_selva.py` (planta, perfil e `Scripts/selva/s
 
 ## 3. As 18 bifurcações
 
-Todas saem e voltam à estrada em Y, como no Red Dust Divide.
+**Entradas e saídas em Y** (jogador, 2026-11-02: "estavam muito brutas; têm de abrir e fechar em Y, que se possa entrar
+sem querer a alta velocidade"):
+- **Abertura:** cada bifurcação nasce encostada à estrada, como a saída de uma autoestrada. Afasta-se aos poucos durante
+  ~4 s de corrida (250-650 m), sem ângulo nenhum no início.
+- **Separador:** começa como uma linha pintada, por isso ninguém bate no nariz da divisão.
+- **Curvas:** entre os dois Y a bifurcação é "conduzida" e nunca curva mais apertado do que a velocidade a que se
+  entra. Perto do Y o raio é de pelo menos v²/aderência (a 450 km/h, ~600 m).
+- **Fecho:** fecha em Y da mesma maneira.
+- **Velocidade:** quase todas se fazem a fundo, perdendo no máximo ~20 % à entrada. As Pontes da Copa e a Floresta de
+  Galeria ainda têm uma curva apertada logo a seguir ao Y, a afinar com o terreno.
 
 **Ganho:** é o tempo que cada uma ganha (+) ou perde (−) contra a estrada. Cada bifurcação foi esticada ou encurtada
 até valer o que o seu estilo pede:
@@ -54,30 +63,28 @@ até valer o que o seu estilo pede:
 
 | | Tipo | Estilo | O que é | km (estrada) | Ganho |
 |---|---|---|---|---|---|
-| **F1 Igapó** | direita | RACING | entre árvores dentro de água, rente à água | 2,4 (2,4) | +2,8 s |
-| **F2 Banco de Areia** | esquerda | SAFE | banco de areia largo e rápido | 2,2 (2,1) | −3,8 s |
-| **F3 Pontes da Copa** | **CIMA** | SKILL | pontes suspensas e troncos gigantes a 35 m do chão, sobe a serra e passa **por cima** de um gancho da estrada | 3,9 (5,5) | +5,1 s |
-| **F4 Salto da Cascata** | **BAIXO** | RACING | pela beira do salto e **lá para baixo**: queda de 190 m para o lago | 2,7 (3,3) | +8,4 s |
-| **F5 Trilho da Névoa** | direita | SKILL | patamar estreito na névoa da cascata, por dentro da descida | 2,4 (2,9) | +5,8 s |
-| **F6 Ilhas das Corredeiras** | direita | SKILL | saltos de ilha em ilha no meio dos rápidos | 2,6 (2,6) | +4,2 s |
-| **F7 Leito Seco** | **BAIXO** | RACING | leito seco do rio, 18 m abaixo da margem | 1,9 (2,1) | +1,3 s |
-| **F8 Raízes Gigantes** | **CIMA** | SKILL | por cima do monte da gruta, pelas raízes | 2,3 (2,4) | +1,5 s |
-| **F9 Rio Subterrâneo** | **BAIXO** | RACING | o andar de baixo da gruta, junto ao rio subterrâneo | 1,7 (1,8) | −0,6 s |
-| **F10 Canal Estreito** | esquerda | SKILL | canais apertados entre o mangue | 2,7 (2,8) | +3,7 s |
-| **F11 Palafitas** | direita | SAFE | passadiço sobre uma aldeia de palafitas, 12 m acima da água | 3,4 (3,0) | −4,5 s |
-| **F12 Topo do Tepui** | **CIMA** | SKILL | rampa até ao topo (520 m), saltos entre blocos de rocha e mergulho de volta | 4,6 (5,2) | +12,8 s* |
-| **F13 Fenda do Tepui** | **BAIXO** | RACING | uma fenda dentro da base do tepui, 30 m abaixo | 2,6 (2,7) | +1,2 s |
-| **F14 Savana Aberta** | esquerda | RACING | savana aberta a mais de 500 km/h, termiteiras para saltar | 3,0 (3,0) | +2,9 s |
-| **F15 Floresta de Galeria** | direita | SKILL | dentro da floresta de galeria, junto ao rio | 3,0 (3,5) | +4,7 s |
-| **F16 Ponte do Comboio** | **CIMA** | RACING | a velha ponte do comboio por cima da garganta, 60-70 m acima, corta os zigue-zagues | 5,4 (5,4) | +1,4 s |
-| **F17 Fundo da Garganta** | **BAIXO** | SKILL | o fundo da garganta, ao lado dos rápidos do Zambeze | 2,7 (3,4) | +4,1 s |
-| **F18 Calçada do Lago** | direita | RACING | calçada a direito por cima do lago | 4,5 (3,8) | +3,4 s |
+| **F1 Igapó** | direita | RACING | pelo igapó: entre árvores dentro de água, rente à água | 2.4 (2.4) | -0.9 s |
+| **F2 Banco de Areia** | esquerda | SAFE | banco de areia largo e rápido | 2.2 (2.1) | -2.9 s |
+| **F3 Pontes da Copa** | **CIMA** | SKILL | pontes suspensas e troncos gigantes a 35 m do chão, sobe a serra a direito | 4.5 (5.5) | -4.4 s |
+| **F4 Salto da Cascata** | **BAIXO** | RACING | pela beira do salto e lá para baixo: queda de 190 m para o lago do salto | 2.9 (3.3) | +1.9 s |
+| **F5 Trilho da Névoa** | direita | SKILL | patamar estreito na névoa da cascata, corta por dentro da descida | 2.7 (2.9) | +1.7 s |
+| **F6 Ilhas das Corredeiras** | direita | SKILL | saltos de ilha em ilha no meio das corredeiras | 2.6 (2.6) | +4.1 s |
+| **F7 Leito Seco** | **BAIXO** | RACING | leito seco do rio, 18 m abaixo da margem | 2.0 (2.1) | +4.6 s |
+| **F8 Raízes Gigantes** | **CIMA** | SKILL | por cima do monte da gruta, pelas raízes das sumaúmas | 2.3 (2.4) | +3.0 s |
+| **F9 Rio Subterrâneo** | **BAIXO** | RACING | o andar de baixo da gruta, ao lado do rio subterrâneo | 1.8 (1.8) | +3.0 s |
+| **F10 Canal Estreito** | esquerda | SKILL | canais apertados entre o mangue | 2.7 (2.8) | +3.1 s |
+| **F11 Palafitas** | direita | SAFE | passadiço por cima da aldeia de palafitas, 12 m acima da água | 3.5 (3.0) | -2.9 s |
+| **F12 Topo do Tepui** | **CIMA** | SKILL | rampa até ao topo (520 m), saltos entre blocos de rocha e mergulho de volta | 5.8 (6.7) | +22.5 s |
+| **F13 Fenda do Tepui** | **BAIXO** | RACING | uma fenda dentro da base do tepui, 30 m abaixo | 2.7 (2.7) | -0.3 s |
+| **F14 Savana Aberta** | esquerda | RACING | savana aberta, a mais de 500 km/h, termiteiras para saltar | 3.2 (3.0) | +2.9 s |
+| **F15 Floresta de Galeria** | direita | SKILL | dentro da floresta de galeria, junto ao rio | 3.3 (3.5) | -2.5 s |
+| **F16 Ponte do Comboio** | **CIMA** | RACING | a velha ponte do comboio por cima da garganta, 60-70 m acima: corta os zigue-zagues | 5.8 (5.4) | +2.7 s |
+| **F17 Fundo da Garganta** | **BAIXO** | SKILL | o fundo da garganta, ao lado dos rápidos do Zambeze | 3.1 (3.4) | +2.8 s |
+| **F18 Calçada do Lago** | direita | RACING | calçada a direito por cima do lago | 4.6 (3.8) | +3.1 s |
 
-\* **F12:** o modelo de tempo ainda não conta a subida de 440 m nem os saltos lá em cima. Afinar quando houver
-terreno.
+\* **F12:** o modelo de tempo ainda não conta a subida de 440 m até ao topo nem os saltos lá em cima; afinar com o terreno.
 
-**Ainda por afinar:** F8 e F9 (a gruta em três níveis) ficaram abaixo do ganho do seu estilo. A estrada na gruta é lenta
-e quase direita, e por isso um atalho mal ganha tempo. Afina-se com o terreno.
+**Ainda por afinar** (o ganho fica a mais de 2 s do seu estilo): F1 Igapó, F3 Pontes da Copa, F5 Trilho da Névoa, F7 Leito Seco, F13 Fenda do Tepui, F15 Floresta de Galeria, F17 Fundo da Garganta. Afina-se quando houver terreno.
 
 **Três níveis ao mesmo tempo:**
 - **Na gruta:** as raízes por cima (F8), a estrada no meio e o rio subterrâneo por baixo (F9).

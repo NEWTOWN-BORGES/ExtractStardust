@@ -210,20 +210,26 @@ def at_main(x, y):
     return int(np.argmin(np.hypot(main[:, 0] - x, main[:, 1] - y)))
 
 
-def fork_guides(i, toward, sign_dir, spread=0.34):
-    """Leaves (+1) or rejoins (-1) the road like a fork in a road: along it first, the gap opening (as Red Dust Divide).
-    A fork that goes above or below the road needs little room to the side (spread)."""
+def side_of(i, toward):
+    """+1 if a point is to the left of the road at i (counter-clockwise), -1 to the right."""
     t = main[min(i + 8, N - 1)] - main[max(i - 8, 0)]
-    t = t / max(np.linalg.norm(t), 1e-6) * sign_dir
-    nrm_ = np.array([-t[1], t[0]])
     rel = np.asarray(toward, float) - main[i]
-    side = 1.0 if float(np.dot(rel, nrm_)) >= 0 else -1.0
-    ahead = float(np.dot(rel, t))
-    lead = float(np.clip(ahead * 0.6, 90.0, 240.0))
+    return 1.0 if t[0] * rel[1] - t[1] * rel[0] >= 0 else -1.0
+
+
+def fork_lane(i, side, sign_dir, length, sep):
+    """The Y where a fork leaves (+1) or rejoins (-1) the road, like a motorway exit (player, 2026-11-02: "as entradas e
+    saídas estão muito brutas: têm de abrir e fechar em Y; que se possa entrar sem querer a alta velocidade"). The fork is
+    born against the road, running with it, and drifts away smoothly over `length` m (about 4 s of the race): no angle
+    where it starts, and only a slight one (a few degrees) where it is fully apart, so it can be taken flat out. The divider
+    starts as a painted line between the two lanes, so nobody hits its nose."""
     out = []
-    for f, o in ((0.25, 0.0), (0.5, 0.05), (0.75, 0.16), (1.0, 0.34)):
-        j = int(np.clip(i + sign_dir * lead * f, 0, N - 1))
-        out.append(main[j] + nrm_ * side * lead * o * spread / 0.34)
+    for k in range(0, int(length) + 1, 4):
+        j = int(np.clip(i + sign_dir * k, 0, N - 1))
+        t = main[min(j + 6, N - 1)] - main[max(j - 6, 0)]
+        t = t / max(np.linalg.norm(t), 1e-6)
+        u = k / length
+        out.append(main[j] + np.array([-t[1], t[0]]) * side * sep * u * u)   # opens like a parabola: tangent at the start
     return out if sign_dir > 0 else out[::-1]
 
 
@@ -255,7 +261,7 @@ FORKS = [
     ("F11 Palafitas", "DIREITA", "SAFE", "passadiço por cima da aldeia de palafitas, 12 m acima da água", 12.0, 160.0,
      [("@", 16300, 6950), (15500, 7700, 12), (14300, 7700, 12), ("@", 13600, 7100)]),
     ("F12 Topo do Tepui", "CIMA", "SKILL", "rampa até ao topo (520 m), saltos entre blocos de rocha e mergulho de volta", 12.0, 150.0,
-     [("@", 11500, 7050), (11050, 7650, "z", 380), (10500, 8250, "z", 520), (9600, 8750, "z", 520), (8700, 9100, "z", 300),
+     [("@", 12900, 7250), (11700, 7950, "z", 380), (10600, 8350, "z", 520), (9600, 8750, "z", 520), (8700, 9100, "z", 300),
       ("@", 7800, 8950)]),
     ("F13 Fenda do Tepui", "BAIXO", "RACING", "uma fenda dentro da base do tepui, 30 m abaixo", 10.0, 120.0,
      [("@", 10100, 6800), (9600, 7450, -30), (8800, 7650, -30), ("@", 7950, 7950)]),
@@ -284,7 +290,7 @@ FORK_CAPS = {"F3 Pontes da Copa": 330, "F8 Raízes Gigantes": 480, "F9 Rio Subte
              "F16 Ponte do Comboio": 450}
 
 
-def build_fork(name, wps, bw, brmin, scale, spread=0.34):
+def build_fork(name, wps, bw, brmin, scale):
     i0, i1 = at_main(*wps[0][1:3]), at_main(*wps[-1][1:3])
     a, b = main[i0], main[i1]
     mids = []
@@ -294,18 +300,68 @@ def build_fork(name, wps, bw, brmin, scale, spread=0.34):
         t_ = float(np.clip(np.dot(q - a, ab) / max(np.dot(ab, ab), 1e-6), 0.0, 1.0))
         foot = a + ab * t_
         mids.append(foot + (q - foot) * scale)
-    pts = [main[i0]] + fork_guides(i0, mids[0], 1, spread) + mids + fork_guides(i1, mids[-1], -1, spread) + [main[i1]]
-    p, _k = catmull(pts)
-    p = resample(p)
-    fx = np.zeros(len(p), bool)
-    keep = min(60, len(p) // 6)
-    fx[:keep] = fx[-keep:] = True
-    p, _s = relax(p, brmin, fixed=fx, iters=300)
+    wp_of = {id(m_): w_ for m_, w_ in zip(mids, wps[1:-1])}
+    # the two Ys: about 4 s of the race each (250-650 m), shorter only if the fork is short
+    v_in, v_out = float(vel[i0]), float(vel[i1])
+    L0, L1 = float(np.clip(v_in * 4.0, 250.0, 650.0)), float(np.clip(v_out * 4.0, 250.0, 650.0))
+    room = 0.7 * (i1 - i0)
+    if L0 + L1 > room:
+        L0, L1 = L0 * room / (L0 + L1), L1 * room / (L0 + L1)
+    sep = float(half_w[i0]) + bw + 4.0
+    side0, side1 = side_of(i0, mids[0]), side_of(i1, mids[-1])
+    # the Ys do the first and last part of the way apart: waypoints inside them go (the path would double back to them);
+    # a short fork keeps its middle waypoint and shortens its Ys to fit
+    along = [at_main(*m_) for m_ in mids]
+    keep = [m_ for m_, j_ in zip(mids, along) if i0 + 1.15 * L0 < j_ < i1 - 1.15 * L1]
+    if not keep:
+        mid = mids[len(mids) // 2]
+        j_ = at_main(*mid)
+        L0 = float(min(L0, max(150.0, 0.6 * (j_ - i0))))
+        L1 = float(min(L1, max(150.0, 0.6 * (i1 - j_))))
+        keep = [mid]
+    mids = keep
+    lane0 = fork_lane(i0, side0, 1, L0, sep)
+    lane1 = fork_lane(i1, side1, -1, L1, float(half_w[i1]) + bw + 4.0)
+    # and only waypoints well ahead of where the first Y ends and well before the second begins, seen along the Ys
+    # themselves (a waypoint off to the side of a bend can be "ahead" on the road yet beside or behind the Y's end)
+    e0, d0 = np.array(lane0[-1]), np.array(lane0[-1]) - np.array(lane0[-2])
+    e1, d1 = np.array(lane1[0]), np.array(lane1[1]) - np.array(lane1[0])
+    d0, d1 = d0 / max(np.linalg.norm(d0), 1e-6), d1 / max(np.linalg.norm(d1), 1e-6)
+    mids = [m_ for m_ in mids if np.dot(m_ - e0, d0) > 0.5 * L0 and np.dot(e1 - m_, d1) > 0.5 * L1]
+    # Between the Ys the fork is driven, not drawn: from the end of the first Y it steers towards each waypoint, then
+    # lines up behind the second Y, never turning tighter than the speed allows (the road's speed near the Ys, the fork's
+    # own radius further in): every bend is one that can be taken.
+    r_in, r_out = max(brmin, 0.92 * v_in ** 2 / ALAT), max(brmin, 0.92 * v_out ** 2 / ALAT)
+    pos, hd, path, s_, ti = e0.copy(), d0.copy(), [], 0.0, 0
+    limit = 3.0 * float(np.linalg.norm(e1 - e0)) + 2000.0
+    while ti < len(mids) and s_ < limit:
+        to = mids[ti] - pos
+        dist = float(np.linalg.norm(to))
+        rr = max(r_in * max(0.0, 1.0 - s_ / 500.0), brmin)
+        ang = math.atan2(hd[0] * to[1] - hd[1] * to[0], float(np.dot(hd, to)))
+        if dist < 30.0 or (dist < 2.0 * rr and abs(ang) > 1.0):   # reached, or inside the turning circle: next one
+            ti += 1
+            continue
+        turn = float(np.clip(ang, -1.0 / rr, 1.0 / rr))
+        c_, sn = math.cos(turn), math.sin(turn)
+        hd = np.array([hd[0] * c_ - hd[1] * sn, hd[0] * sn + hd[1] * c_])
+        pos = pos + hd
+        path.append(pos.copy())
+        s_ += 1.0
+    # and into the second Y along a smooth curve that arrives in its direction (a cubic: it cannot loop)
+    D = float(np.linalg.norm(e1 - pos))
+    for k in range(1, max(2, int(D))):
+        t = k / max(2, int(D))
+        path.append((2 * t ** 3 - 3 * t ** 2 + 1) * pos + (t ** 3 - 2 * t ** 2 + t) * hd * D * 0.9
+                    + (-2 * t ** 3 + 3 * t ** 2) * e1 + (t ** 3 - t ** 2) * d1 * D * 0.9)
+    p = resample(np.vstack([np.array(lane0), np.array(path), np.array(lane1)]))
+    s_b = arclen(p)
     # heights: the road's at both ends, the waypoints' in between (relative to a straight line between the ends, or
     # absolute), smoothed so a ramp is a ramp and a drop stays a drop
     s_b = arclen(p)
     marks_s, marks_z = [0.0], [float(zmain[i0])]
-    for w_, mq in zip(wps[1:-1], mids):
+    for mq in mids:
+        w_ = wp_of[id(mq)]
         j = int(np.argmin(np.hypot(p[:, 0] - mq[0], p[:, 1] - mq[1])))
         zb = float(np.interp(s_b[j], [0, s_b[-1]], [zmain[i0], zmain[i1]]))
         marks_s.append(float(s_b[j]))
@@ -318,7 +374,13 @@ def build_fork(name, wps, bw, brmin, scale, spread=0.34):
     capb = FORK_CAPS.get(name, 550) / 3.6
     vel_b, _rb = speed_profile(p, cap=capb, v0=min(float(vel[i0]), capb))   # entered at the road's speed there
     gain = float(t_cum[i1] - t_cum[i0]) - float(np.sum(1.0 / np.maximum(vel_b, 5.0)))
-    return dict(p=p, z=z_b, leave=i0, rejoin=i1, km=s_b[-1] / 1000, gain=gain)
+    # the Ys: the speed through the first and last stretch, against what the road itself allows there
+    n0 = min(len(p) - 1, int(L0 + 300))
+    road_in = float(vel[i0:min(N, i0 + n0)].min())
+    loss_in = max(0.0, 1.0 - float(vel_b[:n0].min()) / max(min(road_in, capb), 1.0))
+    radius_in = float((1.0 / np.maximum(np.abs(curvature(p)), 1e-6))[:n0].min())
+    return dict(p=p, z=z_b, leave=i0, rejoin=i1, km=s_b[-1] / 1000, gain=gain, lane_in=L0, lane_out=L1,
+                loss_in=loss_in, radius_in=radius_in, v_in=v_in * 3.6)
 
 
 forks = []
@@ -328,7 +390,7 @@ for name, ftype, style, what, bw, brmin, wps in FORKS:
     best = None
     for _it in range(14):
         scale = math.sqrt(lo * hi)
-        f = build_fork(name, wps, bw, brmin, scale, 0.12 if name in ("F8 Raízes Gigantes", "F9 Rio Subterrâneo") else 0.34)
+        f = build_fork(name, wps, bw, brmin, scale)
         if best is None or abs(f["gain"] - want) < abs(best["gain"] - want):
             best, best_scale = f, scale
         if abs(f["gain"] - want) < 1.5:
@@ -343,8 +405,9 @@ for name, ftype, style, what, bw, brmin, wps in FORKS:
     side = "ESQUERDA" if tdir[0] * rel[1] - tdir[1] * rel[0] > 0 else "DIREITA"
     f.update(name=name, type=ftype, side=side, style=style, what=what, w=bw)
     forks.append(f)
-    print("FORK %-24s %-8s (%s side) %-6s %4.1f km  vs road %4.1f km  %+5.1f s  (stretch %.2f)" % (
-        name, ftype, side, style, f["km"], (f["rejoin"] - f["leave"]) / 1000, f["gain"], best_scale))
+    print("FORK %-24s %-8s %-6s %4.1f km (road %4.1f)  %+5.1f s  Y %3.0f/%3.0f m  in at %3.0f km/h, bend >= %4.0f m, loses %2.0f %%" % (
+        name, ftype, style, f["km"], (f["rejoin"] - f["leave"]) / 1000, f["gain"], f["lane_in"], f["lane_out"], f["v_in"],
+        f["radius_in"], 100 * f["loss_in"]))
 
 # ---------------------------------------------------------------------------------------------------- 4. the jumps
 # On the road: (sector, fraction of the sector, what); on the forks: (fork name, fraction, what).
