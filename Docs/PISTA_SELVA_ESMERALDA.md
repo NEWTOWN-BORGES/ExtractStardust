@@ -241,9 +241,30 @@ blender -b -P Scripts/selva/sculpt_selva.py -- C:/rdd/selva S1 [res=3] [samples=
 - **F5 Trilho da Névoa:** um desfiladeiro estreito de arenito com névoa, que corta por dentro da descida.
 - **Números:** cerca de 117 mil plantas: floresta da Guiana, com açaí e buriti.
 
+### S4 Corredeiras do Congo (feito, por aprovar)
+
+![S4](SELVA/S4_corredeiras_congo.jpg)
+
+- **Estradas ovais** (jogador: "acabou com as estradas artificiais; quero ovais que permitem ultrapassar pelas paredes
+  a alta velocidade; as paredes ficam pequenas à medida que se avança, vales pequenos"):
+  - **Paredes:** há uma parede em quarto de oval dos dois lados. Nasce rente ao chão e vai ficando mais inclinada
+    até ao topo, com 1,3 m de largura por cada metro de altura, e tem um rebordo de 6 m. É lisa, sem árvores, para
+    se andar por ela a ultrapassar.
+  - **Altura:** 14 m no início do S4, a descer até 4 m no fim.
+  - **Encosta:** por trás das paredes nunca sobe mais depressa do que a margem oval do Red Dust (25° a 70°). Por
+    isso, mesmo com paredes pequenas, a estrada corre num vale oval.
+- **Vale do Congo:** o rio desce da garganta (61,5 m) até ~36 m, entre colinas com floresta, a algumas centenas de
+  metros da estrada.
+- **Saltos:** dois afluentes e dois ribeiros de rápidos atravessam a estrada. Cada um tem uma rampa de 2,6 m e
+  24-32 m de água.
+- **F6 Ilhas das Corredeiras:** vai por um braço do rio, de ilha em ilha, com três saltos sobre 36 m de rápidos.
+- **F7 Leito Seco:** um leito antigo em U, também com paredes ovais (8 m).
+- **Números:** cerca de 190 mil plantas, floresta do Congo.
+
 ### Depois
 
-1. **S4 Corredeiras do Congo** e os setores seguintes, um a um, com as fotos.
+1. **S5 Gruta das Raízes** e os setores seguintes, um a um, com as fotos. Perguntar ao jogador se as estradas ovais
+   continuam nos setores seguintes.
 2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);

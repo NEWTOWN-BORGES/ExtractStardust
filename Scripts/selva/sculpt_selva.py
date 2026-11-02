@@ -291,13 +291,60 @@ def recipe_s3():
     return WLs, G, np.zeros_like(G), dict(laje_half=half)
 
 
-RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3}
+def recipe_s4():
+    """S4 Corredeiras do Congo: the Congo's valley below the falls, forested hills either side. The river falls from the
+    gorge (61.5 m) to ~36 m along the sector; the road runs a few hundred metres from it, over tributaries and rapid
+    streams (its jumps); F6 runs down a side arm of the river from island to island; F7 down a dry old bed."""
+    G = membrane()
+    d, _fi, _sd = line_field(RP)
+    G = G + smoothstep(60.0, 450.0, d) * (30.0 * (fbm(XX, YY, 600.0, 411, 4) - 0.35) + 8.0 * (fbm(XX, YY, 120.0, 413, 3) - 0.5))
+    lev = lambda x: np.clip(61.5 - (x - 11400.0) * (61.5 - 36.0) / (18800.0 - 11400.0), 34.0, 61.5)
+    rv = [r for r in rivers if r["name"] == "Congo"][0]["P"]
+    dr, fr, _s = line_field(rv, reach=3)
+    lv = lev(XX)
+    wr = 85.0 * (1 + 0.15 * np.sin(fr / 190.0))
+    near = dr < wr + 260.0
+    G = np.where(near & (dr > wr), np.maximum(G, lv + 1.5 + 2.0 * fbm(XX, YY, 90.0, 415, 3) * smoothstep(wr, wr + 80.0, dr)), G)
+    G = np.where(dr < wr + 40.0, np.minimum(G, lv - 6.0 + 7.5 * smoothstep(0.85 * wr, wr + 40.0, dr)), G)
+    WL = np.where(near, lv, -1000.0)
+    # F6: a side arm of the river round its islands (the islands are the fork itself, laid later)
+    for fd in FD:
+        if "Ilhas" in fd["f"]["name"]:
+            df_, fi_, _s = line_field(fd["P"], reach=3)
+            zarm = at(fd["z"], fi_) - 3.0
+            arm = df_ < 75.0
+            G = np.where(arm, np.minimum(G, zarm - 2.5 + 4.0 * smoothstep(55.0, 75.0, df_)), G)
+            WL = np.where(df_ < 80.0, zarm, WL)
+    # the streams the road leaps (tributaries and rapids), each across the road at its jump
+    rng = np.random.default_rng(417)
+    for j in jumps:
+        if j["what"].startswith(("afluente", "rápido")):
+            i = int(j["at_m"]) - rlo
+            t = RP[min(i + 5, len(RP) - 1)] - RP[max(i - 5, 0)]
+            hd = math.atan2(t[1], t[0]) + math.pi / 2
+            C = np.vstack([creek(rng, RP[i], hd + math.pi, 700, 0.3)[::-1], creek(rng, RP[i], hd, 700, 0.3)[1:]])
+            dc, _f, _s = line_field(C, reach=3)
+            wl_c = float(RZ[i]) - 3.0
+            wc = 14.0 if j["what"].startswith("afluente") else 10.0
+            G = np.where(dc < wc * 1.8, np.minimum(G, wl_c - 1.8 + 3.0 * smoothstep(wc * 0.6, wc * 1.8, dc)), G)
+            WL = np.where(dc < wc * 2.0, wl_c, WL)
+    return WL, G, np.zeros_like(G), dict()
+
+
+RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4}
+# Oval roads (jogador, 2026-11-02, S4: "acabou com as estradas artificiais; quero ovais que permitem ultrapassar pelas
+# paredes a alta velocidade; as paredes ficam pequenas à medida que se avança, vales pequenos"): a quarter-oval wall on
+# both sides, tangent to the floor and steepening towards the top (Red Dust Divide's curve walls), its height falling
+# along the sector; beyond it the hillside never rises faster than Red Dust's oval bank (25 -> 70 degrees), so even
+# where the walls are small the road runs in an oval valley. Per sector: (wall height at its start, at its end).
+OVAL = {"S4": (14.0, 4.0)}
 # per sector: semi-oval walls on the outside of the hairpins (jogador, 2026-11-02: "retas, com algumas partes
 # semi-ovais"), the road and bank colours (sRGB), the jungle's mix, and how far hills roll beyond the box
 WALLS = {"S2": (12.0, 16.0)}
 STEEP_FORKS = ("Névoa",)                 # ledges: steep banks like the ravines (BAIXO)
 PAL = {"S1": dict(road=(0.60, 0.50, 0.37), wet=(0.36, 0.29, 0.21), bank=None),
        "S2": dict(road=(0.64, 0.31, 0.16), wet=(0.42, 0.20, 0.10), bank=(0.56, 0.25, 0.12)),
+       "S4": dict(road=(0.50, 0.30, 0.18), wet=(0.30, 0.18, 0.11), bank=(0.34, 0.33, 0.19)),
        "S3": dict(road=(0.52, 0.43, 0.34), wet=(0.30, 0.25, 0.20), bank=(0.46, 0.38, 0.31), rock=(0.33, 0.27, 0.26))}
 MIXES = {"S1": dict(interior=(("canopy_a", .36), ("canopy_c", .32), ("canopy_b", .20), ("acai", .07), ("shrub_a", .05)),
                     edge=(("shrub_a", .30), ("cecropia", .20), ("acai", .15), ("canopy_b", .20), ("shrub_b", .08), ("canopy_a", .07)),
@@ -305,7 +352,8 @@ MIXES = {"S1": dict(interior=(("canopy_a", .36), ("canopy_c", .32), ("canopy_b",
          "S2": dict(interior=(("canopy_a", .38), ("canopy_c", .36), ("canopy_b", .20), ("shrub_a", .06)),
                     edge=(("shrub_a", .30), ("cecropia", .25), ("canopy_b", .25), ("shrub_b", .12), ("canopy_a", .08)),
                     band=(("shrub_a", .40), ("shrub_b", .25), ("canopy_b", .20), ("cecropia", .15)))}
-HILLS = {"S1": 0.3, "S2": 1.0, "S3": 1.0}
+HILLS = {"S1": 0.3, "S2": 1.0, "S3": 1.0, "S4": 1.0}
+MIXES["S4"] = MIXES["S2"]
 MIXES["S3"] = dict(interior=(("canopy_a", .30), ("canopy_b", .25), ("canopy_c", .15), ("acai", .12), ("shrub_a", .10), ("buriti", .08)),
                    edge=(("shrub_a", .30), ("cecropia", .20), ("acai", .20), ("canopy_b", .20), ("shrub_b", .10)),
                    band=(("shrub_a", .35), ("shrub_b", .25), ("acai", .20), ("canopy_b", .20)))
@@ -354,11 +402,12 @@ def road_profile(P, z, natural, jumps_here):
     recs = []
     for j in jumps_here:
         i = int(j["i"])
-        if j["what"] == "igarapé":           # a kicker to the creek's lip, the creek (32 m of water), the far bank
+        if j["what"] == "igarapé" or j["what"].startswith(("afluente", "rápido")):   # kicker, water, far bank
             s = np.arange(len(z)) - i
-            kick = 2.6 * smoothstep(-70, -18, s) * (s < -16)
+            g2 = 16 if j["what"] != "rápido" else 12
+            kick = 2.6 * smoothstep(-70, -g2 - 2, s) * (s < -g2)
             z = z + kick
-            gap = np.abs(s) <= 16
+            gap = np.abs(s) <= g2
             z = np.where(gap, wl_at(P) - 1.6, z)
             recs.append(dict(what=j["what"], at_m=int(j["at_m"]), lip=float(z[i - 17]), gap_m=32, kicker_m=2.6))
         elif j["what"] == "tronco caído":    # a sand ramp up to a giant fallen trunk, then the drop off its far side
@@ -399,9 +448,17 @@ def bends(P, rmax=260.0, rfull=140.0):
 
 
 WALL_MASK = None
+BANK_E, BANK_A, BANK_B = 24.0, math.radians(25.0), math.radians(45.0) / 24.0
 
 
-def lay_road(H, P, z, hw, color_kind, walls=None, steep=False):
+def bank_rise(e):
+    """Red Dust Divide's oval bank: 25 degrees at the road edge, steepening evenly to 70 at 24 m, then 70."""
+    e1 = np.clip(e, 0.0, BANK_E)
+    return ((math.log(math.cos(BANK_A)) - np.log(np.cos(BANK_A + BANK_B * e1))) / BANK_B
+            + np.maximum(e - BANK_E, 0.0) * math.tan(math.radians(70.0)))
+
+
+def lay_road(H, P, z, hw, color_kind, walls=None, steep=False, oval=None):
     """Carve or build the road: flat across at its height, sand shoulders, banks blending into the ground; with
     walls=(height, width), a semi-oval wall rises on the outside of each hairpin (like a velodrome)."""
     global WALL_MASK
@@ -414,6 +471,19 @@ def lay_road(H, P, z, hw, color_kind, walls=None, steep=False):
     t = smoothstep(hwe + 1.5, hwe + 1.5 + bankw, d)
     surf = zr + RELIEF * smoothstep(0.3, 1.0, zr - WLG)             # no relief where it runs through water (fords)
     H2 = surf * (1 - t) + H * t
+    if oval is not None:                  # (h at i_a, h at i_b, i_a, i_b): the oval valley over that stretch
+        h0, h1, i_a, i_b = oval
+        hh = (h0 + (h1 - h0) * np.clip((fi - i_a) / max(i_b - i_a, 1), 0, 1)) * smoothstep(i_a - 150, i_a, fi) * smoothstep(i_b + 150, i_b, fi)
+        e = d - hwe
+        run = 1.3 * hh
+        tq = np.clip(e / np.maximum(run, 1e-3), 0, 1)
+        wall = zr + np.where(e <= run, hh * (1 - np.sqrt(1 - tq * tq)),
+                             np.maximum(hh - np.maximum(e - run - 6.0, 0.0) * math.tan(math.radians(40.0)), 0.0))
+        zone = (e > 0) & (hh > 0.5) & (e < run + 6.0 + hh / math.tan(math.radians(40.0)))
+        side = (e > 0) & (smoothstep(i_a - 150, i_a, fi) * smoothstep(i_b + 150, i_b, fi) > 0.01)
+        H2 = np.where(side, np.minimum(H2, zr + bank_rise(np.maximum(e, 0.0))), H2)   # the hillside: an oval bank
+        H2 = np.where(zone & (e <= run + 6.0), wall, np.where(zone, np.maximum(H2, wall), H2))
+        WALL_MASK = zone if WALL_MASK is None else (WALL_MASK | zone)
     if walls:
         wh, ww = walls
         b, sg = bends(P)
@@ -438,7 +508,8 @@ for j in jumps:
     roadjumps.append(dict(j, i=int(j["at_m"]) - rlo))
 RZ2, JREC = road_profile(RP, RZ, H, roadjumps)
 H_nat = H.copy()
-H, D_ROAD, HW_ROAD, T_ROAD = lay_road(H, RP, RZ2, RW, "road", WALLS.get(SECTOR))
+H, D_ROAD, HW_ROAD, T_ROAD = lay_road(H, RP, RZ2, RW, "road", WALLS.get(SECTOR),
+                                       oval=(*OVAL[SECTOR], S0 - rlo, S1_ - rlo) if SECTOR in OVAL else None)
 D_FORK = np.full_like(H, 1e9)
 D_GFORK = np.full_like(H, 1e9)          # the forks on the ground only (no bridges): nothing may stand on them
 T_FORK = np.ones_like(H)
@@ -462,6 +533,9 @@ for fd in FD:
         elif fj["what"] == "tronco":              # a giant trunk across: the deck humps over it
             zf = zf + 2.2 * smoothstep(-45, -2, s_) * (s_ <= 2) + 2.2 * (1 - smoothstep(2, 24, s_)) * (s_ > 2)
             fd.setdefault("logs", []).append(i)
+        elif fj["what"] == "ilha":             # from one island to the next: a kick and 36 m of rapids
+            zf = zf + 2.4 * smoothstep(-60, -20, s_) * (s_ < -18)
+            zf = np.where(np.abs(s_) <= 18, wl_at(fd["P"]) - 1.6, zf)
         elif fj["what"].startswith("raiz") or fj["what"].startswith("raíz"):   # a giant root across: a crest
             zf = zf + 3.0 * smoothstep(-70, -3, s_) * (s_ <= 3) + 3.0 * (1 - smoothstep(3, 40, s_)) * (s_ > 3)
             fd.setdefault("roots", []).append(i)
@@ -478,8 +552,9 @@ for fd in FD:
             H = np.minimum(H, wl_at(fd["P"][land:land + 1])[0] - 3.0 + np.maximum(0.0, dA - 110.0) * 3.5)
     for a, b in runs(ground):
         if b - a > 5:
-            H, dF, _hw, tF = lay_road(H, fd["P"][a:b], zf[a:b], fd["hw"], "fork",
-                                      steep=fd["f"]["type"] == "BAIXO" or any(k_ in name for k_ in STEEP_FORKS))
+            ov = (8.0, 8.0, 0, b - a) if (SECTOR in OVAL and "Leito" in name) else None
+            H, dF, _hw, tF = lay_road(H, fd["P"][a:b], zf[a:b], fd["hw"], "fork", oval=ov,
+                                      steep=(fd["f"]["type"] == "BAIXO" or any(k_ in name for k_ in STEEP_FORKS)) and ov is None)
             D_FORK = np.minimum(D_FORK, dF - fd["hw"])
             D_GFORK = np.minimum(D_GFORK, dF - fd["hw"])
             T_FORK = np.minimum(T_FORK, tF)
@@ -1291,6 +1366,17 @@ if SECTOR in WALLS:                      # into a hairpin, its wall on the outsi
     shot("gancho_ar", Vector((e_[0] - cx, e_[1] - cy, float(RZ2[apex]) + 95)),
          Vector((RP[apex, 0] - cx, RP[apex, 1] - cy, float(RZ2[apex]))), 24)
 pilot("piloto_reta", si(S0 + int(0.55 * (S1_ - S0))))
+if SECTOR in OVAL:                       # the oval valley, from just above it, near the start (tallest walls)
+    i_ = si(S0 + 700)
+    t_ = RP[i_ + 10] - RP[i_ - 10]
+    t_ = t_ / np.linalg.norm(t_)
+    if ship is not None:
+        ship.location = (RP[i_ + 60, 0] - cx, RP[i_ + 60, 1] - cy, float(RZ2[i_ + 60]) + 9.0)
+        ship.rotation_euler = Euler((0, math.radians(-35), math.atan2(t_[1], t_[0]) - math.pi / 2))
+        ship.hide_render = False
+    e_ = RP[i_] - t_ * 60
+    shot("oval_ar", Vector((e_[0] - cx, e_[1] - cy, float(RZ2[i_]) + 30)),
+         Vector((RP[i_ + 160, 0] - cx, RP[i_ + 160, 1] - cy, float(RZ2[i_ + 160]))), 24)
 if SECTOR == "S3":                       # the falls, from down the gorge
     if ship is not None:
         ship.hide_render = True

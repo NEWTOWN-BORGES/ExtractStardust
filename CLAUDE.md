@@ -21,7 +21,8 @@ cima, para baixo, esquerda, direita), muitas curvas, muitos saltos."
   qualidade, para poupar tokens):
   - `Scripts/selva/sculpt_selva.py <saída> S<n>` faz o terreno, a água, a estrada e a vegetação (kit nosso,
     `jungle_kit.py`), e mostra uma folha de 6 fotos (`Docs/SELVA/S<n>_*.jpg`);
-  - S1, S2 e S3 estão feitos; a seguir vem o S4 (secção 6 do documento). A estrada tem relevo natural (ondulações de lama
+  - S1 a S4 estão feitos; a seguir vem o S5 (secção 6 do documento). No S4 as estradas são ovais (paredes lisas dos
+    dois lados, de 14 a 4 m, para ultrapassar por elas: pedido do jogador). A estrada tem relevo natural (ondulações de lama
     em manchas, charcos nas covas), a pedido do jogador;
   - no S2 os ganchos são semi-ovais com parede. O jogador pediu, além das Pontes da Copa, um caminho por baixo: é o F3b.
 - **Por decidir com o jogador:** os perigos da selva (secção 5).
