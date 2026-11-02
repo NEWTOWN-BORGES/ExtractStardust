@@ -29,6 +29,10 @@ cima, para baixo, esquerda, direita), muitas curvas, muitos saltos."
     em manchas, charcos nas covas), a pedido do jogador;
   - no S2 os ganchos são semi-ovais com parede. O jogador pediu, além das Pontes da Copa, um caminho por baixo: é o F3b.
 - **Por decidir com o jogador:** os perigos da selva (secção 5).
+- **Fotos HD** (`Docs/SELVA/HD`, com o nome do setor e de cada vista): S1 a S6 feitas. Ficaram em pausa (jogador, 2026-11-02,
+  para compilar em casa) o S7 a S10 e a foto 3D do mapa inteiro: `python3 Scripts/selva/fotos_hd.py <pasta> 7 8 9 10`, depois
+  `python3 Scripts/selva/render_selva_3d.py <pasta> Docs/SELVA/MAPA_SELVA_3D.jpg size=2400x1350 samples=32` (com os 10
+  setores gerados em `<pasta>/s1` ... `s10`).
 
 ## ⚠ EM CASA: A INTERFACE TEM DE FICAR IGUAL ÀS MAQUETAS (jogador, 2026-11-01)
 
