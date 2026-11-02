@@ -453,7 +453,7 @@ def smooth_line(v, w):
 
 
 RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4, "S5": recipe_s5, "S6": recipe_s6, "S7": recipe_s7,
-           "S8": recipe_s8, "S9": recipe_s9}
+           "S8": recipe_s8}
 RIVER_FORKS = ("Floresta de Galeria", "Fundo da Garganta", "Canal das Ilhas", "Rápidos do Zambeze")   # on the river
 
 
@@ -465,6 +465,9 @@ def recipe_s9():
     d, _fi, _sd = line_field(RP)
     G = G + smoothstep(60.0, 400.0, d) * (40.0 * (fbm(XX, YY, 500.0, 911, 4) - 0.35))
     return -1000.0, G, np.zeros_like(G), dict()
+
+
+RECIPES["S9"] = recipe_s9
 WET_TREES = {"S6"}                       # mangroves stand in the water
 NO_KAPOK = {"S6"}
 CAVE_SPAN = None
