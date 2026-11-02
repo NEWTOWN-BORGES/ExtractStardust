@@ -20,7 +20,7 @@ import bmesh
 import numpy as np
 
 KINDS = ["kapok", "canopy_a", "canopy_b", "canopy_c", "acai", "buriti", "cecropia", "shrub_a", "shrub_b",
-         "far_a", "far_b", "far_c", "far_kapok", "stone_a", "stone_b", "branch", "fern", "mangrove", "far_mangrove"]
+         "far_a", "far_b", "far_c", "far_kapok", "stone_a", "stone_b", "branch", "fern", "mangrove", "far_mangrove", "baobab", "acacia", "termite"]
 # The last four lie on the road (jogador, 2026-11-02: "galhos, arbustos pequenos, pedras no meio da estrada; não podem
 # atrapalhar, as naves passam por cima"): all under 0.6 m, no collision.
 FOG = dict(color=(0.60, 0.69, 0.74), strength=1.0, dist=2600.0, start=90.0, amount=0.88)
@@ -333,6 +333,7 @@ def make_materials(tex):
         bark_cecropia=bark_material("M_Bark_Cecropia", (0.55, 0.55, 0.50), (0.80, 0.79, 0.72), scale=3.0, rings=True),
         bark_palm=bark_material("M_Bark_Palm", (0.20, 0.18, 0.13), (0.38, 0.35, 0.27), scale=4.0, rings=True),
         blob=blob_material("M_FarCanopy", (0.022, 0.060, 0.012), (0.060, 0.125, 0.025)),
+        termite=bark_material("M_Termite", (0.33, 0.16, 0.08), (0.55, 0.30, 0.15), scale=2.0),
         stone=bark_material("M_Stone", (0.13, 0.12, 0.10), (0.36, 0.34, 0.30), scale=1.6, moss=0.6),
         blob_kapok=blob_material("M_FarKapok", (0.030, 0.070, 0.016), (0.070, 0.135, 0.030)),
         ground_green=g,
@@ -696,6 +697,56 @@ def mangrove(rng, mats, far=False):
     return mb.build("far_mangrove" if far else "mangrove", mats)
 
 
+def baobab(rng, mats):
+    """Embondeiro (S8): a fat bottle of a trunk, short thick branches, a thin crown."""
+    mb = MB()
+    h = rng.uniform(14.0, 20.0)
+    z = np.linspace(-0.5, h * 0.75, 8)
+    t = (z + 0.5) / (h * 0.75 + 0.5)
+    mb.tube(np.stack([np.zeros(8), np.zeros(8), z], 1), 2.4 + 1.4 * np.sin(np.pi * np.clip(t * 0.9, 0, 1)) - 1.7 * t ** 2,
+            "bark_kapok", seg=14)
+    n = int(rng.integers(6, 10))
+    for b in range(n):
+        az = 2 * math.pi * b / n + rng.normal(0, 0.2)
+        L = rng.uniform(3.0, 6.0)
+        p0 = np.array([0.0, 0.0, h * 0.72])
+        p1 = p0 + np.array([math.cos(az) * L, math.sin(az) * L, rng.uniform(1.5, 3.5)])
+        mb.tube(_bent(p0, p1, 1.0, 4), np.linspace(0.55, 0.12, 4), "bark_kapok", seg=6)
+        _crown_cards(mb, rng, p1 + (0, 0, 0.6), (1.7, 1.7, 1.0), 14, 1.7, "leaf_small")
+    return mb.build("baobab", mats)
+
+
+def acacia(rng, mats):
+    """Acácia (S8): a lean trunk forking into a flat umbrella crown."""
+    mb = MB()
+    h = rng.uniform(7.0, 11.0)
+    lean = rng.normal(0, 0.6, 2)
+    p0, pf = np.array([0.0, 0.0, -0.3]), np.array([lean[0], lean[1], h * 0.45])
+    mb.tube([p0, pf], [0.32, 0.22], "bark", seg=7)
+    for b in range(int(rng.integers(3, 5))):
+        az = rng.uniform(0, 2 * math.pi)
+        r = rng.uniform(2.0, 4.0)
+        p1 = np.array([lean[0] + math.cos(az) * r, lean[1] + math.sin(az) * r, h * 0.86])
+        mb.tube(_bent(pf, p1, 0.6, 4), np.linspace(0.18, 0.07, 4), "bark", seg=5)
+    _crown_cards(mb, rng, (lean[0], lean[1], h * 0.9), (rng.uniform(4.5, 6.5), rng.uniform(4.5, 6.5), 0.9), 75, 2.4,
+                 "leaf_small", flat=True)
+    return mb.build("acacia", mats)
+
+
+def termite(rng, mats):
+    """Termiteira (S8): a lumpy clay cone 3-5 m high with a spire or two."""
+    mb = MB()
+    h = rng.uniform(3.0, 5.5)
+    z = np.linspace(-0.3, h, 7)
+    mb.tube(np.stack([rng.normal(0, 0.1, 7), rng.normal(0, 0.1, 7), z], 1),
+            np.linspace(1.7, 0.18, 7) * (1 + 0.12 * np.sin(np.arange(7) * 2.1)), "termite", seg=9)
+    for k in range(int(rng.integers(1, 3))):
+        a = rng.uniform(0, 2 * math.pi)
+        b = np.array([math.cos(a) * 0.9, math.sin(a) * 0.9, 0.0])
+        mb.tube([b, b + (0, 0, h * rng.uniform(0.5, 0.8))], [0.7, 0.12], "termite", seg=7)
+    return mb.build("termite", mats)
+
+
 def build_kit(tex_dir, seed=11):
     """All the kinds, in a collection 'JungleKit' (excluded from the view: the scatter instances it). Returns
     (collection, materials). Objects are named '<NN>_<kind>' so the scatter's index matches KINDS."""
@@ -716,6 +767,8 @@ def build_kit(tex_dir, seed=11):
     rng3 = np.random.default_rng(seed + 5)
     objs += [stone(rng3, mats, "stone_a", 0.55), stone(rng3, mats, "stone_b", 0.9), branch(rng3, mats), fern(rng3, mats)]
     objs += [mangrove(np.random.default_rng(seed + 9), mats), mangrove(np.random.default_rng(seed + 9), mats, far=True)]
+    rng5 = np.random.default_rng(seed + 13)
+    objs += [baobab(rng5, mats), acacia(rng5, mats), termite(rng5, mats)]
     coll = bpy.data.collections.get("JungleKit") or bpy.data.collections.new("JungleKit")
     for i, (o, kind) in enumerate(zip(objs, KINDS)):
         o.name = "%02d_%s" % (i, kind)

@@ -431,7 +431,30 @@ def recipe_s7():
     return WL, G, np.zeros_like(G), dict()
 
 
-RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4, "S5": recipe_s5, "S6": recipe_s6, "S7": recipe_s7}
+def recipe_s8():
+    """S8 Galeria da Savana: an open savanna plateau (~160 m), wide and fast, baobabs, acacias and termite mounds; along
+    the river a band of gallery forest, dense, which F15 runs in on the water itself."""
+    G = membrane()
+    d, _fi, _sd = line_field(RP)
+    G = G + smoothstep(80.0, 600.0, d) * (14.0 * (fbm(XX, YY, 900.0, 811, 3) - 0.4))
+    rv = [r for r in rivers if r["name"] == "Rio da galeria"][0]["P"]
+    dr, fr, _s = line_field(rv, reach=3)
+    lv = np.minimum.accumulate(smooth_line(bilinear(G, rv[:, 0], rv[:, 1]) - 7.0, 301))
+    lvl = at(lv, fr)
+    wr = 55.0 * (1 + 0.2 * np.sin(fr / 140.0))
+    G = np.where(dr < wr + 30.0, np.minimum(G, lvl - 2.5 + 3.0 * smoothstep(0.7 * wr, wr + 30.0, dr)), G)
+    WL = np.where(dr < wr + 60.0, lvl, -1000.0)
+    return WL, G, np.zeros_like(G), dict(savanna=smoothstep(150.0, 330.0, dr))
+
+
+def smooth_line(v, w):
+    k = np.ones(w) / w
+    return np.convolve(np.pad(v, w // 2, mode="edge"), k, mode="valid")[:len(v)]
+
+
+RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4, "S5": recipe_s5, "S6": recipe_s6, "S7": recipe_s7,
+           "S8": recipe_s8}
+RIVER_FORKS = ("Floresta de Galeria", "Fundo da Garganta")   # forks that run on the river itself
 WET_TREES = {"S6"}                       # mangroves stand in the water
 NO_KAPOK = {"S6"}
 CAVE_SPAN = None
@@ -463,6 +486,12 @@ HILLS = {"S1": 0.3, "S2": 1.0, "S3": 1.0, "S4": 1.0}
 MIXES["S4"] = MIXES["S2"]
 MIXES["S5"] = MIXES["S1"]
 HILLS["S5"] = 1.0
+PAL["S8"] = dict(road=(0.62, 0.40, 0.24), wet=(0.40, 0.25, 0.15), bank=(0.55, 0.42, 0.26))
+HILLS["S8"] = 0.6
+MIXES["S8"] = dict(interior=(("canopy_a", .30), ("canopy_c", .25), ("canopy_b", .20), ("acai", .10), ("shrub_a", .15)),
+                   edge=(("shrub_a", .30), ("mangrove", .25), ("canopy_b", .25), ("cecropia", .20)),
+                   band=(("shrub_a", .35), ("shrub_b", .30), ("canopy_b", .20), ("mangrove", .15)),
+                   savanna=(("acacia", .50), ("baobab", .12), ("shrub_b", .26), ("termite", .12)))
 PAL["S7"] = dict(road=(0.40, 0.33, 0.27), wet=(0.23, 0.19, 0.16), bank=(0.30, 0.27, 0.21), rock=(0.30, 0.23, 0.21))
 HILLS["S7"] = 1.0
 MIXES["S7"] = dict(interior=(("canopy_a", .32), ("canopy_c", .28), ("canopy_b", .20), ("acai", .10), ("shrub_a", .10)),
@@ -547,7 +576,12 @@ def road_profile(P, z, natural, jumps_here):
             s = np.arange(len(z)) - i
             z = z + 6.0 * smoothstep(-160, -10, s) * (s < 0)
             recs.append(dict(what=j["what"], at_m=int(j["at_m"]), lip=float(z[i - 1]), drop_m=6.0))
-        elif j["what"].startswith(("crista", "lomba", "rampa", "ilha", "raiz", "rochedo", "boca", "saída")):   # a crest
+        elif j["what"].startswith("rio de areia"):   # a kicker over a dry sand river (a gap 2.5 m deep)
+            s = np.arange(len(z)) - i
+            z = z + 2.6 * smoothstep(-70, -18, s) * (s < -16)
+            z = np.where(np.abs(s) <= 16, z - 2.5, z)
+            recs.append(dict(what=j["what"], at_m=int(j["at_m"]), gap_m=32, kicker_m=2.6))
+        elif j["what"].startswith(("crista", "lomba", "rampa", "ilha", "raiz", "rochedo", "boca", "saída", "termiteira")):   # a crest
             s = np.arange(len(z)) - i
             z = z + 4.0 * smoothstep(-90, -4, s) * (s <= 4) + 4.0 * (1 - smoothstep(4, 50, s)) * (s > 4)
             recs.append(dict(what=j["what"], at_m=int(j["at_m"]), crest=float(z[i]), ramp_m=4.0))
@@ -696,10 +730,15 @@ for fd in FD:
             ground[lip:land] = False
             dA, _fa, _sa = line_field(fd["P"][lip:land])
             H = np.minimum(H, wl_at(fd["P"][land:land + 1])[0] - 3.0 + np.maximum(0.0, dA - 110.0) * 3.5)
+    if any(k_ in name for k_ in RIVER_FORKS):   # the fork is the river's bed: water 12 cm over it
+        dRf, fRf, _sR = line_field(fd["P"], reach=3)
+        WLG = np.where(dRf < fd["hw"] + 22.0, np.maximum(WLG, at(zf, fRf) + 0.12), WLG)
+        W = WLG
+        fd["river"] = True
     for a, b in runs(ground):
         if b - a > 5:
             ov = (8.0, 8.0, 0, b - a) if (SECTOR in OVAL and "Leito" in name) else None
-            H, dF, _hw, tF = lay_road(H, fd["P"][a:b], zf[a:b], fd["hw"], "fork", oval=ov,
+            H, dF, _hw, tF = lay_road(H, fd["P"][a:b], zf[a:b], fd["hw"] + (10.0 if fd.get("river") else 0.0), "fork", oval=ov,
                                       steep=(fd["f"]["type"] == "BAIXO" or any(k_ in name for k_ in STEEP_FORKS)) and ov is None)
             D_FORK = np.minimum(D_FORK, dF - fd["hw"])
             D_GFORK = np.minimum(D_GFORK, dF - fd["hw"])
@@ -789,6 +828,9 @@ if PALS.get("rock"):
     rk = smoothstep(0.75, 1.3, SLOPE) * (1 - sand)
     rc = srgb(PALS["rock"]) * ((0.55 + 0.6 * fbm(XX, YY * 0.25, 8.0, 141, 3)) * (0.8 + 0.2 * np.sin(H / 5.5)))[..., None]
     col = col * (1 - rk[..., None]) + rc * rk[..., None]
+if "savanna" in F:                       # golden grass between the trees
+    sv = (F["savanna"] * (1 - sand) * (1 - edge))[..., None]
+    col = col * (1 - sv) + srgb((0.60, 0.50, 0.27)) * (0.8 + 0.4 * nc[..., None]) * sv
 if PALS["bank"]:
     bare = np.clip(np.abs(H - H_nat) - 0.8, 0, 1) * (1 - sand)
     col = col * (1 - bare[..., None]) + (srgb(PALS["bank"]) * (0.85 + 0.3 * nc[..., None])) * bare[..., None]
@@ -824,6 +866,8 @@ keep = (pedge > 9.0) & ((pdepth < -0.05) | ((pig > 0.3) & (pdepth < 1.6)) | ((SE
     & (grid_at(SLOPE, px, py) < 0.85)
 if WALL_MASK is not None:
     keep &= ~grid_at(WALL_MASK, px, py)
+if "savanna" in F:                       # the savanna is open: one tree in ~25
+    keep &= rng.random(len(px)) < 1.0 - 0.96 * grid_at(F["savanna"], px, py)
 if CAVE is not None:                     # over the cave: the hill's forest, away from F8 and the skylights
     inc = grid_at(CAVE, px, py)
     keep = np.where(inc, (grid_at(D_FORK, px, py) > 9.0) & ~grid_at(SKY, px, py) & (grid_at(H_TOP - H, px, py) > 12.0), keep)
@@ -848,6 +892,8 @@ kind = np.where(pedge < 32.0, edgek, kind)
 kind = np.where(pig > 0.3, igk, kind)
 bandk = pick(u, MIX["band"])
 kind = np.where(EDGE_BAND, bandk, kind)
+if "savanna" in MIX and "savanna" in F:   # in the savanna: acacias, baobabs, shrubs and termite mounds
+    kind = np.where(grid_at(F["savanna"], px, py) > 0.5, pick(u, MIX["savanna"]), kind)
 # emergent kapoks: sparse everywhere, and some heroes standing right by the road
 kx = rng.uniform(X0, X1, int((X1 - X0) * (Y1 - Y0) / 150.0 ** 2))
 ky = rng.uniform(Y0, Y1, len(kx))
@@ -921,11 +967,13 @@ for fd in FD:
             q = P_[i] + np.array([-T_[i, 1], T_[i, 0]]) * side * (fd["hw"] + rng.uniform(5.0, 8.0))
             if grid_at(np.minimum(D_ROAD - HW_ROAD, D_GFORK), q[0], q[1]) > 3.0:
                 tw.append((q[0], q[1], float(bilinear(GROUND, q[0], q[1])), float(rng.uniform(0.85, 1.1))))
-if RIVER_ALONG.any():                    # the river meets the land: stilt-rooted trees at its edges
-    Pr = RP[RIVER_ALONG > 0.5]
+RIVERS_DRIVEN = ([(RP[RIVER_ALONG > 0.5], RW[RIVER_ALONG > 0.5])] if RIVER_ALONG.any() else []) + \
+    [(fd["P"][300:-300], np.full(max(len(fd["P"]) - 600, 0), fd["hw"] + 10.0)) for fd in FD if fd.get("river")]
+for Pr, hwr in RIVERS_DRIVEN:            # the river meets the land: stilt-rooted trees at its edges
+    if len(Pr) < 40:
+        continue
     Tr = np.gradient(Pr, axis=0)
     Tr = Tr / np.maximum(np.linalg.norm(Tr, axis=1, keepdims=True), 1e-9)
-    hwr = RW[RIVER_ALONG > 0.5]
     for k, i in enumerate(range(10, len(Pr) - 10, 9)):
         side = 1 if k % 2 else -1
         q = Pr[i] + np.array([-Tr[i, 1], Tr[i, 0]]) * side * (hwr[i] + rng.uniform(1.0, 6.0))
