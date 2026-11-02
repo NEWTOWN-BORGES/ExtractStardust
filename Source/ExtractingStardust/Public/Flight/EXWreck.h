@@ -18,8 +18,10 @@ class UTexture2D;
  * de como a nave é destruída"). The hull and each module are separate charred pieces, each a solid box that flies,
  * spins and strikes the ground (and walls) at its corners: an impulse with a little bounce and friction at every corner
  * that touches, so it tumbles end over end, cartwheels, bounces and comes to rest. The same steps as
- * Scripts/physics_sandbox/wreck.py (renders: wreck_sims.py, Docs/DESTROCOS.md). The hull burns and trails smoke; every
- * hard strike throws sparks and dust. Gone after 15 s.
+ * Scripts/physics_sandbox/wreck.py (renders: wreck_sims.py, Docs/DESTROCOS.md). Every piece flies as a ball of fire
+ * (player, 2026-11-01: "peças em bolas de fogo"): flames on it streaming back, a trail of tongues of flame behind it
+ * and smoke rising from it, until it burns out (the hull after 11 s, the modules after 4.5-7 s). Every hard
+ * strike throws sparks and dust. Gone after 15 s. The video Docs/DESTROCOS_<cause>.mp4 (wreck_video.py) shows it.
  */
 UCLASS()
 class EXTRACTINGSTARDUST_API AEXWreck : public AActor
@@ -52,32 +54,63 @@ private:
 		float Mass = 100.0f;
 		float Asleep = 0.0f;
 		float HitCooldown = 0.0f;
+		// burning: the flames on it, how long it burns, its heat (1 -> 0), its size (m) and the trail it leaves
+		UMaterialBillboardComponent* Flame = nullptr;
+		UMaterialInstanceDynamic* FlameMat = nullptr;
+		UMaterialInstanceDynamic* CharMat = nullptr;
+		float Burn = 11.0f;
+		float Heat = 1.0f;
+		float Size = 1.0f;
+		float FlamePhase = 0.0f;
+		float TrailGap = 0.0f;
+		float TrailWait = 0.0f;
+		float PuffTimer = 0.0f;
 	};
+	/** A tongue of flame left behind a burning piece (the flames flipbook, streaming back the way the piece flew): they
+	 *  overlap into one trail of fire, and the smoke puffs carry it on. */
+	struct FTrail
+	{
+		UMaterialBillboardComponent* Sprite = nullptr;
+		UMaterialInstanceDynamic* Material = nullptr;
+		FVector Pos = FVector::ZeroVector;       // cm, its base
+		FVector Vel = FVector::ZeroVector;       // cm/s
+		FVector Stream = FVector::UpVector;      // the way its flames point (world)
+		float Age = 0.0f;
+		float Life = 0.0f;                       // 0: free
+		float Size0 = 100.0f;                    // cm
+		float Size1 = 130.0f;
+		float Glow = 7.0f;
+		float FrameShift = 0.0f;                 // where in the flames' loop it starts
+	};
+	/** A puff of smoke from a burning piece (the smoke flipbook, dark grey): rising, growing, thinning. */
 	struct FPuff
 	{
 		UMaterialBillboardComponent* Sprite = nullptr;
 		UMaterialInstanceDynamic* Material = nullptr;
 		FVector Pos = FVector::ZeroVector;       // cm
 		float Age = 0.0f;
-		float Life = 2.5f;
+		float Life = 0.0f;
+		float Size0 = 220.0f;                    // cm
+		float Size1 = 950.0f;
 	};
 
 	void StepPiece(FPiece& Piece, float Dt);
 	void ApplyPose(const FPiece& Piece) const;
 	void Strike(const FVector& PointM, float Speed, bool bHull);
-	void Puff(const FVector& PosCm);
+	void Puff(const FPiece& Piece, bool bHull);
+	void Trail(const FPiece& Piece, const FVector& Stream);
+	void UpdateTrails(float Dt, const FVector& CamRight, const FVector& CamUp);
+	void UpdatePuffs(float Dt);
 
 	UPROPERTY() TObjectPtr<UMaterialInterface> CharMaterial;
 	UPROPERTY() TObjectPtr<UMaterialInterface> FlipbookMaterial;
 	UPROPERTY() TObjectPtr<UTexture2D> FireTexture;
 	UPROPERTY() TObjectPtr<UTexture2D> SmokeTexture;
-	UPROPERTY() TObjectPtr<UMaterialBillboardComponent> Fire;
 	UPROPERTY() TObjectPtr<UPointLightComponent> FireLight;
-	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> FireMaterial;
 	UPROPERTY(Transient) TArray<TObjectPtr<UMaterialInstanceDynamic>> CharMaterials;
 	TArray<FPiece> Pieces;
 	TArray<FPuff> Puffs;
+	TArray<FTrail> Trails;
 	float Age = 0.0f;
-	float PuffTimer = 0.0f;
 	float StrikeCooldown = 0.0f;
 };

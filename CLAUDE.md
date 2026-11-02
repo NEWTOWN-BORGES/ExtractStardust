@@ -40,6 +40,9 @@ O jogador fala português (PT). Responder em português.
   - **A causa decide as voltas:** de frente, cambalhota para trás; de lado, barrel roll; de nariz, cambalhota para a
     frente; por trás ou por desgaste, cambalhotas com torção. Simulado em `Scripts/physics_sandbox/wreck.py` (números)
     e `wreck_sims.py` (fotos em Blender).
+  - **Peças em bolas de fogo** (escolha do jogador): cada peça voa a arder, com as chamas para trás e um rasto de chamas
+    que vira fumo. Vídeos com a câmara e as texturas do jogo: `Docs/DESTROCOS_<causa>.mp4`, feitos com
+    `Scripts/physics_sandbox/wreck_video.py`.
   - **Câmara:** câmara lenta 0,3× à volta do casco (tipo Burnout). Num takedown há uma câmara lenta curta.
   - **Explosão:** texturas animadas feitas em Blender (`make_fx_flipbooks.py`, `SourceArt/FX`): clarão, 5 bolas de fogo
     que arrefecem em fumo, segunda explosão, anel de choque e de poeira, fumo negro. O casco arde e deita fumo, com

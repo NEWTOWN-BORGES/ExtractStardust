@@ -4,7 +4,8 @@
 #   /Game/FX/T_FX_Fireball, T_FX_Smoke, T_FX_Fire  the flipbooks (RGB = colour premultiplied by opacity, A = opacity)
 #   /Game/FX/M_FX_Flipbook  sprite material: unlit, premultiplied alpha (AlphaComposite: thin fire still glows, smoke
 #                           darkens what is behind it), two frames blended, soft where it meets the ground.
-#                           Parameters (AEXExplosion, AEXWreck): Tex, Cols, Rows, Frame, Color, Intensity, Opacity, FlipV.
+#                           Parameters (AEXExplosion, AEXWreck): Tex, Cols, Rows, Frame, Color, Intensity, Opacity,
+#                           Rotation (radians, clockwise on screen: the flames on a flying piece stream back), FlipV.
 #   /Game/FX/M_FX_Char      overlay for the burnt hull and modules: soot darkens the paint (its own light and shape
 #                           stay, at a fifth), cracks glowing like embers while "Heat" (1 -> 0) lasts.
 import os
@@ -126,18 +127,28 @@ float f0 = floor(f);
 float f1 = min(f0 + 1.0, n - 1.0);
 float k = f - f0;
 float2 uv = float2(UV.x, lerp(UV.y, 1.0 - UV.y, saturate(FlipV)));
+// turned clockwise on screen by Rotation round the middle (V runs down); faded out towards the picture's edges, so a
+// turned picture never shows its square
+float2 d = float2(uv.x - 0.5, 0.5 - uv.y);
+float c = cos(Rotation);
+float sn = sin(Rotation);
+float2 r = float2(d.x * c - d.y * sn, d.x * sn + d.y * c);
+uv = float2(0.5 + r.x, 0.5 - r.y);
+float inside = smoothstep(0.0, 0.06, min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y)));
+uv = saturate(uv);
 float2 cell = float2(1.0 / Cols, 1.0 / Rows);
 // frame 0 is the top-left cell, row by row (Scripts/make_fx_flipbooks.py)
 float2 uv0 = (uv + float2(fmod(f0, Cols), floor(f0 / Cols))) * cell;
 float2 uv1 = (uv + float2(fmod(f1, Cols), floor(f1 / Cols))) * cell;
-float4 s = lerp(Texture2DSample(Tex, TexSampler, uv0), Texture2DSample(Tex, TexSampler, uv1), k);
+float4 s = lerp(Texture2DSample(Tex, TexSampler, uv0), Texture2DSample(Tex, TexSampler, uv1), k) * inside;
 float o = saturate(Opacity) * saturate(Fade);
 OutOpacity = saturate(s.a * o);
 return s.rgb * Color.rgb * Intensity * o;   // premultiplied: AlphaComposite adds it and darkens behind by OutOpacity
 """
 node = g.custom(FLIP_CODE, [("Tex", tex), ("UV", uv), ("Frame", g.scalar("Frame", 0.0)), ("Cols", g.scalar("Cols", 8.0)),
                             ("Rows", g.scalar("Rows", 8.0)), ("Color", colour), ("Intensity", g.scalar("Intensity", 1.0)),
-                            ("Opacity", g.scalar("Opacity", 1.0)), ("FlipV", g.scalar("FlipV", 0.0)), ("Fade", fade)],
+                            ("Opacity", g.scalar("Opacity", 1.0)), ("Rotation", g.scalar("Rotation", 0.0)), ("FlipV", g.scalar("FlipV", 0.0)),
+                            ("Fade", fade)],
                 [("OutOpacity", F1)])
 g.out(node, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
 g.out(node, "OutOpacity", unreal.MaterialProperty.MP_OPACITY)

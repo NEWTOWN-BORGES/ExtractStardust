@@ -18,6 +18,7 @@ namespace
 	const FName ColsParam(TEXT("Cols"));
 	const FName RowsParam(TEXT("Rows"));
 	const FName FrameParam(TEXT("Frame"));
+	const FName RotationParam(TEXT("Rotation"));   // M_FX_Flipbook: turns the picture on screen (radians)
 	constexpr float GravityCmps2 = 1470.0f;   // debris falls a little faster than real: it reads better at race speed
 }
 
@@ -123,9 +124,9 @@ void AEXExplosion::Ignite(const FVector& CraftVelocityCmps, float Strength)
 		if (bFlipbooks)
 		{
 			// With the flipbooks only the white-hot heart is kept: a quick, blinding core under the rolling fire.
-			Bit.EndSize = 7.0f * Scale;
-			Bit.Intensity = 80.0f;
-			Bit.Life = 0.28f;
+			Bit.EndSize = 4.0f * Scale;
+			Bit.Intensity = 30.0f;
+			Bit.Life = 0.2f;
 		}
 		if (Bit.Material)
 		{
@@ -239,6 +240,7 @@ void AEXExplosion::AddSprite(UTexture2D* Texture, float Cols, const FVector& Pos
 	S.Material->SetVectorParameterValue(BlastColorParam, Colour);
 	S.Material->SetScalarParameterValue(BlastIntensityParam, 0.0f);
 	S.Material->SetScalarParameterValue(BlastOpacityParam, 0.0f);
+	S.Material->SetScalarParameterValue(RotationParam, FMath::FRandRange(-0.4f, 0.4f));   // no two alike (the light stays from above)
 	S.Sprite->AddElement(S.Material, nullptr, false, Size, Size, nullptr);
 	S.Sprite->SetWorldLocation(Pos);
 	S.Sprite->SetVisibility(false);
@@ -302,10 +304,12 @@ void AEXExplosion::Tick(float DeltaSeconds)
 	SetActorLocation(GetActorLocation() + Shift);
 
 	// The white flash at once; the second burst flashes again.
-	float Light = 90000.0f * Scale * FlashGain * FMath::Exp(-Age * 5.0f);
+	// (6000 cd: 36 times the sun at 5 m, 4 times at 15 m; it was 90000, which whited the screen out for a long moment in
+	// the crash camera's slow motion)
+	float Light = 6000.0f * Scale * FlashGain * FMath::Exp(-Age * 5.0f);
 	if (SecondaryAt > 0.0f && Age >= SecondaryAt)
 	{
-		Light += 50000.0f * Scale * FMath::Exp(-(Age - SecondaryAt) * 6.0f);
+		Light += 3500.0f * Scale * FMath::Exp(-(Age - SecondaryAt) * 6.0f);
 	}
 	Flash->SetIntensity(Light);
 	for (FSprite& S : Sprites)

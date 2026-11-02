@@ -253,7 +253,9 @@ def flames():
     sep = T.node('ShaderNodeSeparateXYZ')
     T.link(tc.outputs['Object'], sep.inputs[0])
     zn = T.remap(sep.outputs['Z'], -0.85, 0.95, 0.0, 1.0, smooth=False)
-    radius = T.math('MULTIPLY', T.math('POWER', T.math('SUBTRACT', 1.0, zn), 0.45), 0.72)
+    # a teardrop: round at the bottom, widest a third of the way up, pointed at the tip (no flat base: tongues of flame
+    # overlapping in a trail would show their straight edges)
+    radius = T.math('MULTIPLY', T.math('POWER', T.math('SINE', T.math('MULTIPLY', T.math('POWER', zn, 0.6), math.pi)), 0.8), 0.62)
     xy = T.node('ShaderNodeCombineXYZ')
     T.link(sep.outputs['X'], xy.inputs['X'])
     T.link(sep.outputs['Y'], xy.inputs['Y'])
@@ -263,9 +265,9 @@ def flames():
     T.link(up, shift.inputs['Z'])
     pos = T.vmath('SUBTRACT', T.vmath('MULTIPLY', tc.outputs['Object'], (1.0, 1.0, 0.62)), shift)
     lick = T.noise(pos, W, 3.0, 6.0, 0.62, 1.2)
-    wob = T.remap(lick, 0.3, 0.7, -0.6, 0.6, smooth=False)
+    wob = T.remap(lick, 0.3, 0.7, -0.75, 0.75, smooth=False)
     shape = T.remap(T.math('ADD', rad, wob), 1.05, 0.45)
-    base = T.remap(zn, 0.0, 0.08)
+    base = T.remap(zn, 0.0, 0.16)
     body = T.math('MULTIPLY', T.math('MULTIPLY', shape, base), T.remap(lick, 0.42, 0.56))
     T.link(T.math('MULTIPLY', body, 0.7), pv, 0, 'Density')
     pv.inputs['Color'].default_value = (0.05, 0.045, 0.04, 1)
@@ -338,7 +340,7 @@ def pack(name, frames, cols, scale, kind=None):
 
 def make(name):
     if name == 'fire':
-        sc = reset(2.0)
+        sc = reset(2.6)                                        # a margin round the flames: turned on screen, no edges show
         T = flames()
         total, step, cols = 32, fire_frame, 4                  # 32 continuous frames, cross-faded into a 16-frame loop
     else:

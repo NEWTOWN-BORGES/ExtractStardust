@@ -1062,7 +1062,7 @@ void AEXHoverCraft::UpdateCrashCam(float Dt)
 	const FVector WreckAt = Wreck->GetMainLocation();   // not "Hull": that is the craft's hull points
 	FVector Flat = Wreck->GetMainVelocity();
 	Flat.Z = 0.0;
-	if (Flat.Size() > 300.0)
+	if (Flat.Size() > 300.0 && FVector::DotProduct(Flat.GetSafeNormal(), CrashCamDir) > -0.2)
 	{
 		CrashCamDir = FMath::VInterpNormalRotationTo(CrashCamDir, Flat.GetSafeNormal(), Real, 90.0f);
 	}
@@ -1559,7 +1559,10 @@ void AEXHoverCraft::Eliminate()
 			CrashWreck = Wreck;
 			bCrashCam = true;
 			CrashCamReal = 0.0f;
-			CrashCamDir = Speed > 2.0f ? FVector(V.X, V.Y, 0.0f).GetSafeNormal() : Fwd;
+			// The way the wreck flies, unless it comes back at the camera (bounced off a wall): then the ship's heading,
+			// so the camera stays on the open side.
+			const FVector FlatV(V.X, V.Y, 0.0f);
+			CrashCamDir = Speed > 2.0f && FVector::DotProduct(FlatV, Fwd) >= 0.0 ? FlatV.GetSafeNormal() : FVector(Fwd.X, Fwd.Y, 0.0f).GetSafeNormal();
 			CrashCamPos = Camera->GetComponentLocation();
 			UGameplayStatics::SetGlobalTimeDilation(this, 0.3f);
 		}

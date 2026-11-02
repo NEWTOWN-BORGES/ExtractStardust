@@ -5,10 +5,14 @@ Pedido do jogador:
   Trabalhe essa vista também e melhore a explosão. Veja exemplos online e mande fotos."
 - "Os módulos podem voar carbonizados, já que são peças separadas. Se possível, faça-o em Blender."
 - "A física dos objetos a voar depende de como a nave é destruída. Faça várias simulações."
+- Depois de ver as fotos, escolheu "peças em bolas de fogo" (o casco e os módulos a voar a arder, com rasto de chamas e
+  fumo, tipo cometa) e "ver a mexer" (vídeo).
 
 Ficou assim:
 - **Simulado aqui:** física das peças em `Scripts/physics_sandbox/wreck.py` e fotos em Blender com `wreck_sims.py`
   (`DESTROCOS_<causa>.jpg`).
+- **Vídeo** (`wreck_video.py`, `DESTROCOS_<causa>.mp4` e `.gif`): o que o jogo vai mostrar, com os mesmos números, as
+  mesmas texturas animadas e a câmara do jogo (secção 6).
 - **No jogo:**
   - `AEXWreck`: o casco e os módulos voam e batem pelos cantos.
   - `AEXHoverCraft::Eliminate`: a causa decide como as peças arrancam.
@@ -25,7 +29,9 @@ Ficou assim:
    - Cada peça sai com a velocidade da nave e roda conforme a causa da morte (secção 2).
    - Voa, dá cambalhotas e bate no chão e nas paredes. Em cada pancada forte levanta poeira e faíscas, e fogo enquanto
      o casco está quente.
-   - O casco arde 11 s (fogo, luz a tremer, rasto de fumo). As brasas nas fendas apagam-se aos poucos.
+   - **Cada peça voa como uma bola de fogo:** chamas em cima dela, viradas para trás pelo vento do voo (para cima quando
+     abranda), e um rasto de chamas atrás que vira fumo. O casco arde 11 s e os módulos 4,5-7 s. O casco também deita
+     uma coluna de fumo. As brasas nas fendas apagam-se aos poucos.
    - Ao fim de 15 s as peças encolhem e desaparecem.
 3. **Câmara do jogador (como no Burnout):**
    - O tempo abranda para **0,3×** durante 1,6 s (tempo real) e volta a 1× em 0,8 s.
@@ -80,7 +86,8 @@ desliza deitado. Foi o que se viu na primeira simulação lateral, que estava ao
 ## 4. A explosão (`AEXExplosion`)
 
 Feita a partir de explosões reais e da prática de efeitos de jogos (fontes no fim):
-1. **Clarão:** luz de 90 000 cd que cai depressa e núcleo branco que dura 0,28 s.
+1. **Clarão:** luz de 6000 cd que cai depressa (36× o sol a 5 m) e núcleo branco de 0,2 s. Eram 90 000 cd, que com a
+   câmara lenta deixavam o ecrã branco muito tempo.
 2. **Bolas de fogo:** 5 sprites `T_FX_Fireball`, com 64 fotogramas cada.
    - Saem a 0,04 s umas das outras e crescem de 3 m para 11-16 m em 1,6-2,2 s.
    - Rolam, sobem, arrefecem do amarelo-branco para o laranja e o vermelho e acabam em fumo escuro.
@@ -93,10 +100,20 @@ Feita a partir de explosões reais e da prática de efeitos de jogos (fontes no 
 7. **Pancadas dos destroços** (`IgniteImpact`): poeira, faíscas e uma língua de fogo nos primeiros 3 s. No máximo 10
    por segundo por destroço.
 
-**Os destroços:**
-- O **casco** arde com `T_FX_Fire` (4 × 4 fotogramas, 16 por segundo, em loop) e uma luz laranja de 1500 cd que treme.
-  O sol do jogo tem 10 lux, por isso isto dá uma poça laranja na areia à volta.
-- Deixa um rasto de fumo cinzento (`T_FX_Smoke`, até 45 nuvens).
+**Os destroços, cada peça uma bola de fogo:**
+- **Chamas** (`T_FX_Fire`, 4 × 4 fotogramas, 16 por segundo, em loop) do tamanho da peça (0,8-1,7×, a encolher com o
+  calor).
+  - Rodadas no ecrã para irem na direção do vento do voo, mais 4 m/s de calor a subir: para trás a alta velocidade, para
+    cima quando a peça abranda.
+- **Rasto:** uma bola a cada 1/5 do tamanho da peça, no máximo 60 por segundo no casco e 30 nos módulos (até 220 por
+  destroço).
+  - Cada bola é a `T_FX_Fireball` corrida de chamas a fumo em 1,2 s. Fica metade da vida em chamas e cresce até 2× a
+    peça (2,5-9 m).
+  - Nunca é mais pequena do que o espaço desde a anterior, por isso juntam-se numa língua de fogo. Cada uma vai um pouco
+    rodada, para não serem iguais.
+- O **casco** tem ainda uma luz laranja de 60 cd a 2,5 m, que treme e dá um tom laranja à areia à volta (o sol tem
+  10 lux; antes eram 1500 cd, que queimavam o casco de luz), e uma coluna de fumo cinzento (`T_FX_Smoke`, até 45
+  nuvens).
 
 **Carbonizado** (`M_FX_Char`, por cima da pintura):
 - A fuligem deixa ver a pintura a 4-26 %, com a luz e a forma da nave.
@@ -114,6 +131,8 @@ Sem os materiais novos (antes do passo 3d), o jogo usa as formas antigas da expl
 - **Formato:** RGB = cor já multiplicada pela opacidade, A = opacidade. O `M_FX_Flipbook` desenha em *AlphaComposite*
   (alfa pré-multiplicado): o fogo fino continua a brilhar e o fumo escurece o que está atrás.
   - O material mistura dois fotogramas e fica suave onde toca no chão (1,5 m).
+  - **Rotation** (radianos) roda a imagem no ecrã, com as bordas esbatidas para não se ver o quadrado. Os sprites da
+    explosão vão rodados ±0,4 e os do rasto ±0,6. As chamas das peças rodam com o voo.
   - Se as chamas aparecerem de cabeça para baixo no jogo, pôr **FlipV = 1** no `M_FX_Flipbook`.
 - **Velocidade:** `volume_biased` (volumes em ray marching). O modo novo do Cycles constrói antes uma árvore de todo o
   ruído, que custa 25 s por fotograma: assim é 10× mais rápido.
@@ -125,12 +144,21 @@ python3 Scripts/make_fx_flipbooks.py                 (ou: blender -b -P Scripts/
 python3 Scripts/make_fx_flipbooks.py -- <pasta> fireball size=128 samples=12 frames=8   (vista rápida)
 ```
 
-## 6. Simulações (para afinar)
+## 6. Simulações e vídeo (para afinar)
 
 ```
 python3 Scripts/physics_sandbox/wreck.py              (números de cada causa)
 python3 Scripts/physics_sandbox/wreck_sims.py -- <pasta> [causas]   (fotos: VORTEX com asas, cauda, kit e refrigeração)
+python3 Scripts/physics_sandbox/wreck_video.py -- <pasta> [causas] [size=960x540] [samples=20]   (vídeo; test=1: 8 fotos)
 ```
+
+**O vídeo** reproduz o jogo:
+- a câmara de crash (0,3× durante 1,6 s, a rodar à volta do casco);
+- a explosão do `AEXExplosion::Ignite`;
+- os destroços do `AEXWreck`: chamas, rastos, fumo, e poeira, faíscas e fogo nas pancadas.
+
+Usa as mesmas texturas animadas, em sprites virados para a câmara como no jogo. As cores vão em ACES, perto do
+tonemapper do Unreal. Os vídeos estão em `Docs/DESTROCOS_<causa>.mp4` (e `.gif`, mais pequeno).
 
 Fotos em `Docs/DESTROCOS_<causa>.jpg`. Em cada uma:
 - a câmara segue o casco;
@@ -155,7 +183,9 @@ Fotos em `Docs/DESTROCOS_<causa>.jpg`. Em cada uma:
    - os módulos carbonizados;
    - a bola de fogo a arrefecer em fumo;
    - o anel de poeira;
-   - o fogo no casco.
+   - cada peça a voar como uma bola de fogo, com as chamas para trás e o rasto a virar fumo (comparar com os vídeos).
+   - Se houver quebras com muitos destroços ao mesmo tempo, baixar `MaxTrails` (220) ou as taxas do rasto no topo de
+     `EXWreck.cpp`.
 4. **Afinar:**
    - a física, em `EXWreck.cpp` (constantes no topo, iguais às do `wreck.py`);
    - o arranque por causa, em `AEXHoverCraft::Eliminate`;

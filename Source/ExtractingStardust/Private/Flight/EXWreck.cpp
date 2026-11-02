@@ -2,6 +2,7 @@
 
 #include "Components/MaterialBillboardComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -9,6 +10,7 @@
 #include "Flight/EXExplosion.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Kismet/GameplayStatics.h"
 
 namespace
 {
@@ -27,7 +29,14 @@ namespace
 	constexpr double MaxTipSpeed = 45.0;      // m/s: the far corner never whirls faster round the centre
 	constexpr float WreckLife = 15.0f;
 	constexpr float BurnSeconds = 11.0f;
-	constexpr int32 MaxPuffs = 45;
+	// Every piece a ball of fire (player, 2026-11-01: "peças em bolas de fogo"); the same numbers as
+	// Scripts/physics_sandbox/wreck_video.py, which renders them.
+	constexpr int32 MaxTrails = 140;          // tongues of flame alive per wreck (the oldest is reused)
+	constexpr int32 MaxSmoke = 120;           // puffs of smoke alive per wreck
+	constexpr float TrailLife = 0.45f;        // s, a tongue of flame (x 0.8-1.2, shorter as the piece cools)
+	constexpr float HullTrailRate = 60.0f;    // tongues a second at most, the hull and the modules
+	constexpr float ModuleTrailRate = 40.0f;
+	constexpr float FireLightCd = 60.0f;      // the burning hull's light: an orange tint on the sand round it (the sun is 10 lux)
 	const FName TexParam(TEXT("Tex"));
 	const FName ColsParam(TEXT("Cols"));
 	const FName RowsParam(TEXT("Rows"));
@@ -36,6 +45,7 @@ namespace
 	const FName IntensityParam(TEXT("Intensity"));
 	const FName OpacityParam(TEXT("Opacity"));
 	const FName HeatParam(TEXT("Heat"));
+	const FName RotationParam(TEXT("Rotation"));   // M_FX_Flipbook: turns the picture clockwise on screen (radians)
 
 	template <typename T>
 	T* LoadFx(const TCHAR* Path)
@@ -49,9 +59,6 @@ AEXWreck::AEXWreck()
 	PrimaryActorTick.bCanEverTick = true;
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("Root")));
 	GetRootComponent()->SetMobility(EComponentMobility::Movable);
-	Fire = CreateDefaultSubobject<UMaterialBillboardComponent>(TEXT("Fire"));
-	Fire->SetupAttachment(GetRootComponent());
-	Fire->SetUsingAbsoluteLocation(true);
 	FireLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("FireLight"));
 	FireLight->SetupAttachment(GetRootComponent());
 	FireLight->SetUsingAbsoluteLocation(true);
@@ -59,7 +66,7 @@ AEXWreck::AEXWreck()
 	FireLight->SetCastShadows(false);
 	FireLight->SetIntensityUnits(ELightUnits::Candelas);
 	FireLight->SetIntensity(0.0f);
-	FireLight->SetAttenuationRadius(2500.0f);   // ~1500 cd: an orange pool on the sand round the wreck (the sun is 10 lux)
+	FireLight->SetAttenuationRadius(2500.0f);
 	FireLight->SetLightColor(FLinearColor(1.0f, 0.5f, 0.18f));
 }
 
@@ -72,20 +79,12 @@ void AEXWreck::AddPiece(UStaticMesh* Mesh, const TArray<UMaterialInterface*>& Ma
 	}
 	if (Pieces.Num() == 0)
 	{
-		// The charred overlay, and the flipbooks of the fire on the hull and its smoke (Scripts/make_fx_assets.py); without
-		// them the pieces fly in their own colours and only the light burns.
+		// The charred overlay, and the flipbooks of the flames on the pieces, their trails and the smoke
+		// (Scripts/make_fx_assets.py); without them the pieces fly in their own colours and only the light burns.
 		CharMaterial = LoadFx<UMaterialInterface>(TEXT("/Game/FX/M_FX_Char.M_FX_Char"));
 		FlipbookMaterial = LoadFx<UMaterialInterface>(TEXT("/Game/FX/M_FX_Flipbook.M_FX_Flipbook"));
 		FireTexture = LoadFx<UTexture2D>(TEXT("/Game/FX/T_FX_Fire.T_FX_Fire"));
 		SmokeTexture = LoadFx<UTexture2D>(TEXT("/Game/FX/T_FX_Smoke.T_FX_Smoke"));
-		if (FlipbookMaterial && FireTexture)
-		{
-			FireMaterial = UMaterialInstanceDynamic::Create(FlipbookMaterial, this);
-			FireMaterial->SetTextureParameterValue(TexParam, FireTexture);
-			FireMaterial->SetScalarParameterValue(ColsParam, 4.0f);
-			FireMaterial->SetScalarParameterValue(RowsParam, 4.0f);
-			Fire->AddElement(FireMaterial, nullptr, false, 450.0f, 450.0f, nullptr);
-		}
 	}
 	UStaticMeshComponent* Component = NewObject<UStaticMeshComponent>(this);
 	Component->SetMobility(EComponentMobility::Movable);
@@ -98,9 +97,10 @@ void AEXWreck::AddPiece(UStaticMesh* Mesh, const TArray<UMaterialInterface*>& Ma
 	{
 		Component->SetMaterial(Index, Materials[Index]);
 	}
+	UMaterialInstanceDynamic* Char = nullptr;
 	if (CharMaterial)
 	{
-		UMaterialInstanceDynamic* Char = UMaterialInstanceDynamic::Create(CharMaterial, this);
+		Char = UMaterialInstanceDynamic::Create(CharMaterial, this);
 		Component->SetOverlayMaterial(Char);
 		CharMaterials.Add(Char);
 	}
@@ -122,6 +122,23 @@ void AEXWreck::AddPiece(UStaticMesh* Mesh, const TArray<UMaterialInterface*>& Ma
 		12.0 / (Piece.Mass * (L.X * L.X + L.Y * L.Y)));
 	Piece.Vel = VelocityCmps / 100.0;
 	Piece.Spin = SpinRad;
+	// It burns like a ball of fire while it flies: the hull for 11 s, a module for 4.5-7 s (thinner, it burns out sooner).
+	Piece.CharMat = Char;
+	Piece.Burn = Pieces.Num() == 0 ? BurnSeconds : FMath::FRandRange(4.5f, 7.0f);
+	Piece.Size = static_cast<float>(Piece.Half.GetMax()) * 2.0f;
+	Piece.FlamePhase = FMath::FRandRange(0.0f, 16.0f);
+	if (FlipbookMaterial && FireTexture)
+	{
+		Piece.Flame = NewObject<UMaterialBillboardComponent>(this);
+		Piece.Flame->SetUsingAbsoluteLocation(true);
+		Piece.Flame->SetupAttachment(GetRootComponent());
+		Piece.Flame->RegisterComponent();
+		Piece.FlameMat = UMaterialInstanceDynamic::Create(FlipbookMaterial, this);
+		Piece.FlameMat->SetTextureParameterValue(TexParam, FireTexture);
+		Piece.FlameMat->SetScalarParameterValue(ColsParam, 4.0f);
+		Piece.FlameMat->SetScalarParameterValue(RowsParam, 4.0f);
+		Piece.Flame->AddElement(Piece.FlameMat, nullptr, false, 100.0f, 100.0f, nullptr);
+	}
 	Pieces.Add(Piece);
 	ApplyPose(Pieces.Last());
 }
@@ -278,14 +295,22 @@ void AEXWreck::Strike(const FVector& PointM, float Speed, bool bHull)
 	}
 }
 
-void AEXWreck::Puff(const FVector& PosCm)
+void AEXWreck::Puff(const FPiece& Piece, bool bHull)
 {
 	if (!FlipbookMaterial || !SmokeTexture)
 	{
 		return;
 	}
 	FPuff* Slot = nullptr;
-	if (Puffs.Num() >= MaxPuffs)
+	for (FPuff& P : Puffs)
+	{
+		if (P.Age >= P.Life)
+		{
+			Slot = &P;
+			break;
+		}
+	}
+	if (!Slot && Puffs.Num() >= MaxSmoke)
 	{
 		Slot = &Puffs[0];
 		for (FPuff& P : Puffs)
@@ -293,7 +318,7 @@ void AEXWreck::Puff(const FVector& PosCm)
 			Slot = P.Age / P.Life > Slot->Age / Slot->Life ? &P : Slot;
 		}
 	}
-	else
+	if (!Slot)
 	{
 		FPuff& New = Puffs.AddDefaulted_GetRef();
 		New.Sprite = NewObject<UMaterialBillboardComponent>(this);
@@ -308,10 +333,15 @@ void AEXWreck::Puff(const FVector& PosCm)
 		New.Sprite->AddElement(New.Material, nullptr, false, 200.0f, 200.0f, nullptr);
 		Slot = &New;
 	}
-	Slot->Pos = PosCm;
+	// The hull's thick smoke column; a module's puffs as big as the module.
+	const float SizeCm = Piece.Size * 100.0f;
+	Slot->Pos = Piece.Pos * 100.0 + FVector(FMath::FRandRange(-0.1f, 0.1f) * SizeCm, FMath::FRandRange(-0.1f, 0.1f) * SizeCm, 0.2f * SizeCm);
 	Slot->Age = 0.0f;
-	Slot->Life = FMath::FRandRange(2.2f, 3.0f);
-	Slot->Sprite->SetWorldLocation(PosCm);
+	Slot->Life = bHull ? FMath::FRandRange(2.2f, 3.0f) : FMath::FRandRange(1.6f, 2.4f);
+	Slot->Size0 = bHull ? 220.0f : FMath::Max(100.0f, 0.8f * SizeCm);
+	Slot->Size1 = bHull ? 950.0f : FMath::Clamp(2.5f * SizeCm, 300.0f, 700.0f);
+	Slot->Material->SetScalarParameterValue(RotationParam, FMath::FRandRange(-0.6f, 0.6f));
+	Slot->Sprite->SetWorldLocation(Slot->Pos);
 	Slot->Sprite->SetVisibility(true);
 }
 
@@ -346,40 +376,177 @@ void AEXWreck::Tick(float DeltaSeconds)
 			Piece.Mesh->SetWorldScale3D(Piece.Mesh->GetComponentScale() * FMath::Max(0.05f, 1.0f - (1.0f - Fade) * DeltaSeconds * 4.0f));
 		}
 	}
-	// The hull burns and trails smoke while it is hot; the charred skin cools from glowing embers to soot.
-	const float Heat = FMath::Clamp(1.0f - Age / BurnSeconds, 0.0f, 1.0f);
-	for (UMaterialInstanceDynamic* Char : CharMaterials)
+	// Every piece burns like a ball of fire while it flies: flames on it streaming back from the way it flies (up when
+	// it slows down), a trail of tongues of flame behind it and smoke rising from it; its charred skin cools from glowing
+	// embers to soot as it burns out. The flames are turned on screen, so the camera's axes are needed.
+	FVector CamRight = FVector::RightVector;
+	FVector CamUp = FVector::UpVector;
+	if (const APlayerCameraManager* Cam = UGameplayStatics::GetPlayerCameraManager(this, 0))
 	{
-		Char->SetScalarParameterValue(HeatParam, Heat);
+		const FQuat CamQ = Cam->GetCameraRotation().Quaternion();
+		CamRight = CamQ.GetRightVector();
+		CamUp = CamQ.GetUpVector();
 	}
+	for (int32 Index = 0; Index < Pieces.Num(); ++Index)
+	{
+		FPiece& Piece = Pieces[Index];
+		const bool bHull = Index == 0;
+		Piece.Heat = FMath::Clamp(1.0f - Age / Piece.Burn, 0.0f, 1.0f);
+		if (Piece.CharMat)
+		{
+			Piece.CharMat->SetScalarParameterValue(HeatParam, Piece.Heat);
+		}
+		// the way the flames stream (m/s: the wind of its flight and 4 m/s of rising heat)
+		const FVector Stream = (FVector(0.0, 0.0, 4.0) - Piece.Vel).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+		if (Piece.FlameMat)
+		{
+			// the flipbook's flames stand a third of the picture below its middle: the sprite sits that far along the stream
+			const float FlameSize = Piece.Size * (1.1f + 1.2f * Piece.Heat) * 100.0f;   // the flames fill half the picture
+			const float Angle = FMath::Atan2(static_cast<float>(FVector::DotProduct(Stream, CamRight)),
+				static_cast<float>(FVector::DotProduct(Stream, CamUp)));
+			Piece.FlameMat->SetScalarParameterValue(RotationParam, Angle);
+			Piece.Flame->SetWorldLocation(Piece.Pos * 100.0 + Stream * (0.33f * FlameSize));
+			if (Piece.Flame->Elements.Num() > 0)
+			{
+				Piece.Flame->Elements[0].BaseSizeX = FlameSize;
+				Piece.Flame->Elements[0].BaseSizeY = FlameSize;
+				Piece.Flame->MarkRenderStateDirty();
+			}
+			Piece.FlameMat->SetScalarParameterValue(FrameParam, FMath::Fmod(Age * 16.0f + Piece.FlamePhase, 16.0f));
+			Piece.FlameMat->SetScalarParameterValue(IntensityParam, 5.0f * Piece.Heat);
+			Piece.FlameMat->SetScalarParameterValue(OpacityParam, FMath::Clamp(Piece.Heat * 1.6f, 0.0f, 1.0f));
+			Piece.Flame->SetVisibility(Piece.Heat > 0.02f);
+		}
+		// The trail: a tongue of flame every fifth of its size along the way while it is hot and moving (so many a second
+		// at most), close enough to run together into one trail of fire.
+		const float Speed = static_cast<float>(Piece.Vel.Size());
+		Piece.TrailGap += Speed * DeltaSeconds;
+		Piece.TrailWait -= DeltaSeconds;
+		if (Piece.Heat > 0.12f && Speed > 4.0f && Piece.TrailGap >= FMath::Max(0.45f, 0.2f * Piece.Size) && Piece.TrailWait <= 0.0f)
+		{
+			Trail(Piece, Stream);
+			Piece.TrailGap = 0.0f;
+			Piece.TrailWait = 1.0f / (bHull ? HullTrailRate : ModuleTrailRate);
+		}
+		// Smoke from every piece that burns (more as it burns harder); flying, it strings out into a smoke trail.
+		Piece.PuffTimer -= DeltaSeconds;
+		if (Piece.Heat > 0.05f && Piece.PuffTimer <= 0.0f)
+		{
+			Piece.PuffTimer = bHull ? FMath::Lerp(0.16f, 0.06f, Piece.Heat) : FMath::Lerp(0.2f, 0.08f, Piece.Heat);
+			Puff(Piece, bHull);
+		}
+	}
+	UpdateTrails(DeltaSeconds, CamRight, CamUp);
+	UpdatePuffs(DeltaSeconds);
+	// The hull lights the sand round it while it burns.
 	const FVector Hull = Pieces[0].Pos * 100.0;
-	FireLight->SetWorldLocation(Hull + FVector(0.0, 0.0, 120.0));
-	FireLight->SetIntensity(1500.0f * Heat * (0.8f + 0.2f * FMath::Sin(Age * 23.0f) * FMath::Sin(Age * 7.3f)));
-	if (FireMaterial)
+	FireLight->SetWorldLocation(Hull + FVector(0.0, 0.0, 250.0));
+	FireLight->SetIntensity(FireLightCd * Pieces[0].Heat * (0.8f + 0.2f * FMath::Sin(Age * 23.0f) * FMath::Sin(Age * 7.3f)));
+}
+
+void AEXWreck::Trail(const FPiece& Piece, const FVector& Stream)
+{
+	if (!FlipbookMaterial || !FireTexture)
 	{
-		Fire->SetWorldLocation(Hull + FVector(0.0, 0.0, 160.0));
-		FireMaterial->SetScalarParameterValue(FrameParam, FMath::Fmod(Age * 16.0f, 16.0f));
-		FireMaterial->SetScalarParameterValue(IntensityParam, 7.0f * Heat);
-		FireMaterial->SetScalarParameterValue(OpacityParam, FMath::Clamp(Heat * 1.5f, 0.0f, 1.0f));
-		Fire->SetVisibility(Heat > 0.02f);
+		return;
 	}
-	PuffTimer -= DeltaSeconds;
-	if (Heat > 0.05f && PuffTimer <= 0.0f)
+	FTrail* Slot = nullptr;
+	for (FTrail& Each : Trails)
 	{
-		PuffTimer = FMath::Lerp(0.16f, 0.06f, Heat);
-		Puff(Hull + FVector(FMath::FRandRange(-60.0f, 60.0f), FMath::FRandRange(-60.0f, 60.0f), 120.0f));
+		if (Each.Life <= 0.0f)
+		{
+			Slot = &Each;
+			break;
+		}
 	}
+	if (!Slot && Trails.Num() >= MaxTrails)
+	{
+		// all of them burning: the oldest goes
+		Slot = &Trails[0];
+		for (FTrail& Each : Trails)
+		{
+			Slot = Each.Age / Each.Life > Slot->Age / Slot->Life ? &Each : Slot;
+		}
+	}
+	if (!Slot)
+	{
+		FTrail& New = Trails.AddDefaulted_GetRef();
+		New.Sprite = NewObject<UMaterialBillboardComponent>(this);
+		New.Sprite->SetUsingAbsoluteLocation(true);
+		New.Sprite->SetupAttachment(GetRootComponent());
+		New.Sprite->RegisterComponent();
+		New.Material = UMaterialInstanceDynamic::Create(FlipbookMaterial, this);
+		New.Material->SetTextureParameterValue(TexParam, FireTexture);
+		New.Material->SetScalarParameterValue(ColsParam, 4.0f);
+		New.Material->SetScalarParameterValue(RowsParam, 4.0f);
+		New.Sprite->AddElement(New.Material, nullptr, false, 100.0f, 100.0f, nullptr);
+		Slot = &New;
+	}
+	// Left where the piece is (it flies on, so the tongues string out behind it), drifting a little; at least as big as
+	// the gap since the last one, so they run together.
+	const float SizeCm = Piece.Size * 100.0f;
+	Slot->Pos = Piece.Pos * 100.0 + FMath::VRand() * (0.12f * SizeCm);
+	Slot->Vel = Piece.Vel * 100.0 * 0.12 + FMath::VRand() * 60.0f;
+	Slot->Stream = Stream;
+	Slot->Age = 0.0f;
+	Slot->Life = TrailLife * FMath::FRandRange(0.8f, 1.2f) * (0.7f + 0.3f * Piece.Heat);
+	Slot->Size0 = FMath::Min(800.0f, FMath::Max(1.1f * SizeCm, 250.0f * Piece.TrailGap)) * FMath::FRandRange(0.85f, 1.15f);
+	Slot->Size1 = Slot->Size0 * 1.3f;
+	Slot->Glow = 3.5f * Piece.Heat;   // several overlap: their light adds up
+	Slot->FrameShift = FMath::FRandRange(0.0f, 16.0f);
+	Slot->Sprite->SetVisibility(true);
+}
+
+void AEXWreck::UpdateTrails(float Dt, const FVector& CamRight, const FVector& CamUp)
+{
+	for (FTrail& Each : Trails)
+	{
+		if (Each.Life <= 0.0f)
+		{
+			continue;
+		}
+		Each.Age += Dt;
+		const float T = Each.Age / Each.Life;
+		if (T >= 1.0f)
+		{
+			Each.Life = 0.0f;
+			Each.Sprite->SetVisibility(false);
+			continue;
+		}
+		Each.Pos += Each.Vel * Dt;
+		Each.Vel *= FMath::Exp(-2.0f * Dt);
+		Each.Vel.Z += 100.0f * Dt;   // the flames rise a little
+		const float Size = FMath::Lerp(Each.Size0, Each.Size1, T);
+		// standing on its base, its flames along the stream, turned so on screen
+		Each.Sprite->SetWorldLocation(Each.Pos + Each.Stream * (0.33f * Size));
+		if (Each.Sprite->Elements.Num() > 0)
+		{
+			Each.Sprite->Elements[0].BaseSizeX = Size;
+			Each.Sprite->Elements[0].BaseSizeY = Size;
+			Each.Sprite->MarkRenderStateDirty();
+		}
+		const float Angle = FMath::Atan2(static_cast<float>(FVector::DotProduct(Each.Stream, CamRight)),
+			static_cast<float>(FVector::DotProduct(Each.Stream, CamUp)));
+		Each.Material->SetScalarParameterValue(RotationParam, Angle);
+		Each.Material->SetScalarParameterValue(FrameParam, FMath::Fmod(Each.FrameShift + Each.Age * 16.0f, 16.0f));
+		Each.Material->SetScalarParameterValue(IntensityParam, Each.Glow * (1.0f - T));
+		Each.Material->SetScalarParameterValue(OpacityParam, FMath::Pow(1.0f - T, 1.5f) * FMath::Clamp(Each.Age / 0.03f, 0.0f, 1.0f));
+	}
+}
+
+void AEXWreck::UpdatePuffs(float Dt)
+{
 	for (FPuff& P : Puffs)
 	{
 		if (P.Age >= P.Life)
 		{
 			continue;
 		}
-		P.Age += DeltaSeconds;
+		P.Age += Dt;
 		const float T = FMath::Clamp(P.Age / P.Life, 0.0f, 1.0f);
-		P.Pos += FVector(0.0, 0.0, 160.0f * DeltaSeconds);
+		P.Pos += FVector(0.0, 0.0, 160.0f * Dt);
 		P.Sprite->SetWorldLocation(P.Pos);
-		const float Size = FMath::Lerp(220.0f, 950.0f, FMath::Sqrt(T));
+		const float Size = FMath::Lerp(P.Size0, P.Size1, FMath::Sqrt(T));
 		if (P.Sprite->Elements.Num() > 0)
 		{
 			P.Sprite->Elements[0].BaseSizeX = Size;
