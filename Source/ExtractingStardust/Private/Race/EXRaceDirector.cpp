@@ -49,7 +49,7 @@ AEXRaceDirector::AEXRaceDirector()
 	bTest = FParse::Param(FCommandLine::Get(), TEXT("EXRaceTest"));
 	bInspect = FParse::Param(FCommandLine::Get(), TEXT("EXInspect"));
 	bTest |= bInspect;   // the inspector is a test run: the player's ship drives itself and the game quits at the end
-	bCrashTest = !bTest && !FParse::Param(FCommandLine::Get(), TEXT("EXNoCrashTest"));
+	bCrashTest = (!bTest || FParse::Param(FCommandLine::Get(), TEXT("EXCrashTest"))) && !FParse::Param(FCommandLine::Get(), TEXT("EXNoCrashTest"));
 	TestLimitS = TestTimeLimitS;
 	FParse::Value(FCommandLine::Get(), TEXT("EXRaceSeconds="), TestLimitS);
 }
@@ -681,7 +681,8 @@ void AEXRaceDirector::CrashTest()
 			continue;
 		}
 		const float Ahead = Craft->GetRaceProgressM() - Me->GetRaceProgressM();
-		if (Ahead > 30.0f && Ahead < 160.0f && Craft->GetSpeedKmh() > 200.0f && Ahead < Nearest)
+		// 20-300 m ahead and over 120 km/h (was 30-160 m and 200 km/h: a player behind or ahead of the pack never saw one)
+		if (Ahead > 20.0f && Ahead < 300.0f && Craft->GetSpeedKmh() > 120.0f && Ahead < Nearest)
 		{
 			Nearest = Ahead;
 			Pick = Craft;
@@ -695,6 +696,10 @@ void AEXRaceDirector::CrashTest()
 	static const int32 Causes[3] = { 4, 2, 3 };
 	UE_LOG(LogTemp, Display, TEXT("EXRACE CRASHTEST %d/3 %s %.0f m ahead"), CrashTestDone + 1, *Pick->GetShipName(), Nearest);
 	Pick->EXBoom(Causes[CrashTestDone]);
+	if (bTest)
+	{
+		NextShotTime = FMath::Min(NextShotTime, RaceTime + 0.7f);   // the automated test photographs each one
+	}
 	++CrashTestDone;
 	NextCrashTestTime = RaceTime + 3.5f;
 }
