@@ -14,7 +14,7 @@ O jogador fala português (PT). Responder em português.
 cima, para baixo, esquerda, direita), muitas curvas, muitos saltos."
 - **Feito:** só o traçado (`Docs/PISTA_SELVA_ESMERALDA.md`, `Docs/SELVA_PLANTA.png`, `Docs/SELVA_PERFIL.png`), por
   `python3 Scripts/selva/plan_selva.py` (dados em `Scripts/selva/selva_plano.json`).
-- **Números:** 72,4 km de A a B, 12:27 na linha ideal, 10 setores Amazónia/África, 18 bifurcações (4 por cima, 5 por
+- **Números:** 74,9 km de A a B, 12:19 na linha ideal, 10 setores Amazónia/África, 18 bifurcações (4 por cima, 5 por
   baixo, 9 para os lados) equilibradas pelo estilo (SKILL +5 s, RACING +2,5 s, SAFE −4 s) e 43 saltos, entre eles a
   queda de 190 m da cascata.
 - **Seguinte, depois de o jogador aprovar:** o terreno em Blender (`sculpt_selva.py`, como o `sculpt_expedition_ab.py`),

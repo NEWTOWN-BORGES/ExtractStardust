@@ -87,7 +87,9 @@ def relax(p, rmin, fixed=None, iters=300, reach=30):
             break
         ii = np.arange(len(p))
         mid = 0.5 * (p[np.clip(ii - reach, 0, len(p) - 1)] + p[np.clip(ii + reach, 0, len(p) - 1)])
-        wgt = (np.clip(np.abs(k_) * rm - 1.0, 0.0, 1.0) * bad)[:, None]
+        # spread over the whole bend (opening only its tightest points leaves kinks either side)
+        wgt = np.clip(smooth1d(np.clip(np.abs(k_) * rm - 1.0, 0.0, 1.0) * bad, 41) * 2.0, 0.0, 1.0)
+        wgt = (wgt * ~fx_)[:, None]
         p = p + 0.4 * wgt * (mid - p)
         sm = np.stack([smooth1d(p[:, 0], 5), smooth1d(p[:, 1], 5)], 1)
         p = np.where(fx_[:, None], p, sm)
@@ -120,7 +122,7 @@ def speed_profile(p, cap=None, v0=0.0):
 # kept, the hairpins), meander (amplitude m, wavelength m), control points (x, y, ground height m). World 20 x 16 km,
 # origin south-west, x east, y north. A in the south-west delta, B in the north-east delta.
 SECTORS = [
-    ("S1 Várzea Alagada", "Amazónia", "varzea", 30.0, 200.0, (140.0, 1000.0),
+    ("S1 Várzea Alagada", "Amazónia", "varzea", 30.0, 170.0, (160.0, 1000.0),
      [(1500, 1200, 22), (2800, 1500, 20), (4200, 1100, 18), (5600, 1600, 20), (6900, 1300, 24)]),
     # Switchbacks up the red laterite ridge: four legs 300 m apart, hairpins of ~150 m.
     ("S2 Serra Vermelha", "Congo", "ridge", 18.0, 1.0, (0.0, 1.0),
@@ -131,15 +133,15 @@ SECTORS = [
     ("S3 Salto Kaieteur", "Guiana", "falls", 22.0, 160.0, (40.0, 900.0),
      [(8700, 4200, 262), (9500, 4450, 262), (10200, 4500, 260), (11000, 4750, 235), (11700, 4400, 180), (11950, 3700, 110),
       (12300, 3150, 66)]),
-    ("S4 Corredeiras do Congo", "Congo", "rapids", 26.0, 150.0, (120.0, 950.0),
+    ("S4 Corredeiras do Congo", "Congo", "rapids", 26.0, 130.0, (140.0, 950.0),
      [(13100, 2700, 58), (14500, 2600, 54), (15800, 2900, 50), (16900, 2350, 46), (17900, 2700, 42), (18800, 3300, 40)]),
     # Under a hill held up by the roots of giant ceibas: a wide cave with skylights.
     ("S5 Gruta das Raízes", "Amazónia", "cave", 24.0, 220.0, (90.0, 650.0),
      [(19000, 4100, 38), (18700, 4900, 30), (18900, 5700, 26), (18600, 6400, 22)]),
-    ("S6 Mangue Labirinto", "Delta do Níger / foz do Amazonas", "mangrove", 16.0, 100.0, (150.0, 520.0),
+    ("S6 Mangue Labirinto", "Delta do Níger / foz do Amazonas", "mangrove", 16.0, 100.0, (150.0, 700.0),
      [(18000, 7000, 14), (16800, 6800, 12), (15600, 7200, 12), (14400, 6800, 12), (13200, 7100, 14)]),
     # Round the base of the tepui (Roraima), climbing to its foot plateau.
-    ("S7 Tepui", "Roraima", "tepui", 22.0, 150.0, (70.0, 800.0),
+    ("S7 Tepui", "Roraima", "tepui", 22.0, 150.0, (110.0, 800.0),
      [(12300, 7400, 40), (11300, 7000, 90), (10000, 6800, 130), (8700, 7100, 150), (7900, 7900, 160), (7800, 8900, 165)]),
     ("S8 Galeria da Savana", "Tanzânia / Zâmbia", "savanna", 34.0, 300.0, (150.0, 1300.0),
      [(7000, 9600, 160), (5500, 9300, 155), (4000, 9800, 160), (2800, 9400, 165), (1700, 10200, 170), (1600, 11300, 172)]),
@@ -148,7 +150,7 @@ SECTORS = [
      [(2200, 12000, 165), (3250, 11650, 152), (3350, 11850, 146), (3650, 12450, 130), (3850, 12500, 126), (4700, 12100, 110),
       (4900, 12150, 106), (5200, 12950, 90), (5400, 12980, 86), (6200, 12600, 70), (6400, 12700, 66), (6800, 13350, 55),
       (7800, 13100, 45)]),
-    ("S10 Delta do Okavango", "Botsuana", "delta", 32.0, 200.0, (160.0, 1100.0),
+    ("S10 Delta do Okavango", "Botsuana", "delta", 32.0, 150.0, (250.0, 1200.0),
      [(8800, 13600, 30), (10500, 13300, 22), (12200, 13900, 18), (14000, 13500, 15), (15800, 14200, 14), (17500, 13800, 12),
       (18800, 14500, 10)]),
 ]
@@ -173,11 +175,19 @@ for k, (_n, _w, _k, _hw, _r, (amp, wave), _p) in enumerate(SECTORS):
     if amp <= 0 or len(ii) < 10:
         continue
     sl = np.arange(len(ii), dtype=float)
-    env = np.clip(sl / 300.0, 0, 1) * np.clip((sl[-1] - sl) / 300.0, 0, 1)
+    ramp = max(300.0, 0.6 * wave)
+    env = np.clip(sl / ramp, 0, 1) * np.clip((sl[-1] - sl) / ramp, 0, 1)
     mr = np.random.default_rng(200 + k)
-    wig = sum(a_ * np.sin(2 * np.pi * sl * f / wave + mr.uniform(0, 2 * np.pi)) for f, a_ in ((1.0, 1.0), (1.63, 0.5), (2.71, 0.25)))
+    # never tighter than the sector allows (85 % of its bend budget; relax then only opens the control points' corners):
+    # the shorter harmonics, which bend hardest, give way first, then the amplitude
+    kb = (2 * np.pi / wave) ** 2 * 1.1 / 1.4
+    budget = 0.85 / _r
+    h = float(np.clip((budget / (amp * kb) - 1.0) / (0.5 * 1.63 ** 2 + 0.25 * 2.71 ** 2), 0.0, 1.0))
+    amp_k = min(amp, budget / kb)
+    wig = sum(a_ * np.sin(2 * np.pi * sl * f / wave + mr.uniform(0, 2 * np.pi)) for f, a_ in ((1.0, 1.0), (1.63, 0.5 * h), (2.71, 0.25 * h)))
     wig *= 0.75 + 0.35 * np.sin(2 * np.pi * sl / (wave * 3.7) + mr.uniform(0, 6.3))
-    off[ii] = amp * wig / 1.4 * env * env * (3 - 2 * env)
+    off[ii] = amp_k * wig / 1.4 * env * env * (3 - 2 * env)
+    print("  meander %-24s amplitude %3.0f of %3.0f m, harmonics %3.0f %%" % (_n, amp_k, amp, 100 * h))
 main = main + nrm * off[:, None]
 rmin = np.array([SECTORS[s_][4] for s_ in sec], float)
 main, src = relax(main, rmin, fixed=rmin <= 1.0, iters=500)
@@ -262,7 +272,7 @@ FORKS = [
      [("@", 16300, 6950), (15500, 7700, 12), (14300, 7700, 12), ("@", 13600, 7100)]),
     ("F12 Topo do Tepui", "CIMA", "SKILL", "rampa até ao topo (520 m), saltos entre blocos de rocha e mergulho de volta", 12.0, 150.0,
      [("@", 12900, 7250), (11700, 7950, "z", 380), (10600, 8350, "z", 520), (9600, 8750, "z", 520), (8700, 9100, "z", 300),
-      ("@", 7800, 8950)]),
+      ("@", 7200, 9500)]),
     ("F13 Fenda do Tepui", "BAIXO", "RACING", "uma fenda dentro da base do tepui, 30 m abaixo", 10.0, 120.0,
      [("@", 10100, 6800), (9600, 7450, -30), (8800, 7650, -30), ("@", 7950, 7950)]),
     ("F14 Savana Aberta", "ESQUERDA", "RACING", "savana aberta, a mais de 500 km/h, termiteiras para saltar", 30.0, 500.0,
@@ -281,8 +291,9 @@ FORKS = [
 # safe way costs a little (SAFE); off the waterfall pays most. Each fork is stretched or pulled in (its middle waypoints
 # moved away from or towards the straight line between its ends) until it is worth that (+-1.5 s).
 TARGET_GAIN = {"SKILL": 5.0, "RACING": 2.5, "SAFE": -4.0}
-SPECIAL_GAIN = {"F4 Salto da Cascata": 10.0}
-# Forks whose shape is the point (across the tepui's top): drawn as they are, whatever they are worth.
+SPECIAL_GAIN = {"F4 Salto da Cascata": 10.0, "F12 Topo do Tepui": 8.0}
+# Forks whose shape is the point (across the tepui's top): drawn as they are; only their speed limit is tuned (the
+# model does not count the 440 m climb, so the tepui's top aims at +8 s rather than a SKILL fork's +5).
 FIXED_SHAPE = {"F12 Topo do Tepui"}
 # Narrow, built or underground ways are slower whatever their bends (km/h).
 FORK_CAPS = {"F3 Pontes da Copa": 330, "F8 Raízes Gigantes": 480, "F9 Rio Subterrâneo": 480, "F10 Canal Estreito": 400,
@@ -290,8 +301,43 @@ FORK_CAPS = {"F3 Pontes da Copa": 330, "F8 Raízes Gigantes": 480, "F9 Rio Subte
              "F16 Ponte do Comboio": 450}
 
 
-def build_fork(name, wps, bw, brmin, scale):
-    i0, i1 = at_main(*wps[0][1:3]), at_main(*wps[-1][1:3])
+KMAIN = curvature(main)
+
+
+def hermite_rmin(p0, h0, p1, h1):
+    """Tightest radius of the cubic from p0 (heading h0) to p1 (heading h1) that joins a fork into its exit Y."""
+    D = float(np.linalg.norm(p1 - p0))
+    m0, m1 = h0 * D * 0.9, h1 * D * 0.9
+    t = np.linspace(0.0, 1.0, 64)[:, None]
+    d1_ = (6 * t ** 2 - 6 * t) * p0 + (3 * t ** 2 - 4 * t + 1) * m0 + (-6 * t ** 2 + 6 * t) * p1 + (3 * t ** 2 - 2 * t) * m1
+    d2_ = (12 * t - 6) * p0 + (6 * t - 4) * m0 + (-12 * t + 6) * p1 + (6 * t - 2) * m1
+    k = np.abs(d1_[:, 0] * d2_[:, 1] - d1_[:, 1] * d2_[:, 0]) / (np.hypot(d1_[:, 0], d1_[:, 1]) ** 3 + 1e-9)
+    return float(1.0 / max(k.max(), 1e-9))
+
+
+def y_place(i, toward, sign_dir, bw):
+    """Moves a Y back along the road (forward, for the closing one) until its lane can be taken at the road's own speed
+    all along it: on the inside of a road bend the lane is tighter than the road by its offset (a Y inside a hairpin
+    would be a trap for whoever goes in by mistake)."""
+    best, best_m = i, -1e9
+    for sh in [0] + [d_ * k_ for k_ in range(25, 1201, 25) for d_ in (1, -1)]:   # nearest first, either way
+        j0 = int(np.clip(i - sign_dir * sh, 0, N - 1))
+        side = side_of(j0, toward)
+        L = float(np.clip(vel[j0] * 4.0, 250.0, 650.0))
+        ks = np.arange(0, int(L) + 1, 4)
+        js = np.clip(j0 + sign_dir * ks, 0, N - 1)
+        off = (float(half_w[j0]) + bw + 4.0) * (ks / L) ** 2 * np.where(KMAIN[js] * side > 0, 1.0, -1.0)
+        r_lane = 1.0 / np.maximum(np.abs(KMAIN[js]), 1e-6) - off
+        m = float(np.min(r_lane / np.maximum(0.92 * vel[js] ** 2 / ALAT, 1.0)))
+        if m >= 0.85:                      # at most ~8 % slower than the road there
+            return j0
+        if m > best_m:
+            best, best_m = j0, m
+    return best
+
+
+def build_fork(name, wps, bw, brmin, scale, ext=0):
+    i0, i1 = max(0, at_main(*wps[0][1:3]) - ext), min(N - 1, at_main(*wps[-1][1:3]) + ext)
     a, b = main[i0], main[i1]
     mids = []
     for w_ in wps[1:-1]:
@@ -301,6 +347,7 @@ def build_fork(name, wps, bw, brmin, scale):
         foot = a + ab * t_
         mids.append(foot + (q - foot) * scale)
     wp_of = {id(m_): w_ for m_, w_ in zip(mids, wps[1:-1])}
+    i0, i1 = y_place(i0, mids[0], 1, bw), y_place(i1, mids[-1], -1, bw)
     # the two Ys: about 4 s of the race each (250-650 m), shorter only if the fork is short
     v_in, v_out = float(vel[i0]), float(vel[i1])
     L0, L1 = float(np.clip(v_in * 4.0, 250.0, 650.0)), float(np.clip(v_out * 4.0, 250.0, 650.0))
@@ -327,15 +374,24 @@ def build_fork(name, wps, bw, brmin, scale):
     e0, d0 = np.array(lane0[-1]), np.array(lane0[-1]) - np.array(lane0[-2])
     e1, d1 = np.array(lane1[0]), np.array(lane1[1]) - np.array(lane1[0])
     d0, d1 = d0 / max(np.linalg.norm(d0), 1e-6), d1 / max(np.linalg.norm(d1), 1e-6)
-    mids = [m_ for m_ in mids if np.dot(m_ - e0, d0) > 0.5 * L0 and np.dot(e1 - m_, d1) > 0.5 * L1]
+    def ahead(q, e, d, L):     # well ahead of a Y's end, or far off to its side (not behind it: no doubling back)
+        v = q - e
+        dist = float(np.linalg.norm(v))
+        return float(np.dot(v, d)) > 0.5 * L or (dist > 2.0 * L + 400.0 and float(np.dot(v, d)) > -0.17 * dist)
+    mids = [m_ for m_ in mids if ahead(m_, e0, d0, L0) and ahead(m_, e1, -d1, L1)]
     # Between the Ys the fork is driven, not drawn: from the end of the first Y it steers towards each waypoint, then
     # lines up behind the second Y, never turning tighter than the speed allows (the road's speed near the Ys, the fork's
     # own radius further in): every bend is one that can be taken.
     r_in, r_out = max(brmin, 0.92 * v_in ** 2 / ALAT), max(brmin, 0.92 * v_out ** 2 / ALAT)
     pos, hd, path, s_, ti = e0.copy(), d0.copy(), [], 0.0, 0
     limit = 3.0 * float(np.linalg.norm(e1 - e0)) + 2000.0
-    while ti < len(mids) and s_ < limit:
-        to = mids[ti] - pos
+    goals = mids + [e1 - d1 * max(250.0, 0.7 * r_out)]          # last, a point lined up behind the exit Y
+    r_join = max(brmin, 0.5 * r_out)
+    while ti < len(goals) and s_ < limit:
+        # once past every waypoint, into the exit Y as soon as the curve there is wide enough
+        if ti >= len(mids) and int(s_) % 5 == 0 and hermite_rmin(pos, hd, e1, d1) >= r_join:
+            break
+        to = goals[ti] - pos
         dist = float(np.linalg.norm(to))
         rr = max(r_in * max(0.0, 1.0 - s_ / 500.0), brmin)
         ang = math.atan2(hd[0] * to[1] - hd[1] * to[0], float(np.dot(hd, to)))
@@ -378,36 +434,59 @@ def build_fork(name, wps, bw, brmin, scale):
     n0 = min(len(p) - 1, int(L0 + 300))
     road_in = float(vel[i0:min(N, i0 + n0)].min())
     loss_in = max(0.0, 1.0 - float(vel_b[:n0].min()) / max(min(road_in, capb), 1.0))
-    radius_in = float((1.0 / np.maximum(np.abs(curvature(p)), 1e-6))[:n0].min())
+    rad_ = 1.0 / np.maximum(np.abs(curvature(p)), 1e-6)
+    radius_in, radius_at = float(rad_[:n0].min()), int(np.argmin(rad_[:n0]))
+    radius_out = float(rad_[-min(len(p) - 1, int(L1 + 300)):].min())
     return dict(p=p, z=z_b, leave=i0, rejoin=i1, km=s_b[-1] / 1000, gain=gain, lane_in=L0, lane_out=L1,
-                loss_in=loss_in, radius_in=radius_in, v_in=v_in * 3.6)
+                loss_in=loss_in, radius_in=radius_in, radius_at=radius_at, radius_out=radius_out, v_in=v_in * 3.6)
 
 
 forks = []
+ONLY = os.environ.get("FORKS_ONLY", "")          # to tune a few forks quickly: FORKS_ONLY=F3,F15 (prints them and stops)
 for name, ftype, style, what, bw, brmin, wps in FORKS:
+    if ONLY and name.split()[0] not in ONLY.split(","):
+        continue
     want = SPECIAL_GAIN.get(name, TARGET_GAIN[style])
-    lo, hi = (1.0, 1.0) if name in FIXED_SHAPE else (0.25, 3.5)
-    best = None
-    for _it in range(14):
-        scale = math.sqrt(lo * hi)
-        f = build_fork(name, wps, bw, brmin, scale)
-        if best is None or abs(f["gain"] - want) < abs(best["gain"] - want):
-            best, best_scale = f, scale
+    f, best_scale = None, 1.0
+    for ext in ((0,) if name in FIXED_SHAPE else (0, 300, 600, 900)):
+        # 1. stretch or pull in its middle; 2. its speed limit; 3. if still too slow, it replaces a longer stretch of road
+        lo, hi = (1.0, 1.0) if name in FIXED_SHAPE else (0.25, 3.5)
+        for _it in range(12):
+            scale = math.sqrt(lo * hi)
+            g_ = build_fork(name, wps, bw, brmin, scale, ext)
+            if f is None or abs(g_["gain"] - want) < abs(f["gain"] - want):
+                f, best_scale, best_ext = g_, scale, ext
+            if abs(g_["gain"] - want) < 1.5:
+                break
+            if g_["gain"] > want:
+                lo = scale
+            else:
+                hi = scale
+        if abs(f["gain"] - want) >= 1.5 and f["gain"] > want:
+            lo_c, hi_c = 200.0, 550.0
+            for _it in range(10):
+                FORK_CAPS[name] = 0.5 * (lo_c + hi_c)
+                g_ = build_fork(name, wps, bw, brmin, best_scale, best_ext)
+                if abs(g_["gain"] - want) < abs(f["gain"] - want):
+                    f = g_
+                if abs(g_["gain"] - want) < 1.0:
+                    break
+                if g_["gain"] > want:
+                    hi_c = FORK_CAPS[name]
+                else:
+                    lo_c = FORK_CAPS[name]
         if abs(f["gain"] - want) < 1.5:
             break
-        if f["gain"] > want:      # too quick: stretch it
-            lo = scale
-        else:                     # too slow: pull it in
-            hi = scale
-    f = best
     tdir = main[min(f["leave"] + 40, N - 1)] - main[f["leave"]]
     rel = f["p"][len(f["p"]) // 2] - main[(f["leave"] + f["rejoin"]) // 2]
     side = "ESQUERDA" if tdir[0] * rel[1] - tdir[1] * rel[0] > 0 else "DIREITA"
     f.update(name=name, type=ftype, side=side, style=style, what=what, w=bw)
     forks.append(f)
-    print("FORK %-24s %-8s %-6s %4.1f km (road %4.1f)  %+5.1f s  Y %3.0f/%3.0f m  in at %3.0f km/h, bend >= %4.0f m, loses %2.0f %%" % (
+    print("FORK %-24s %-8s %-6s %4.1f km (road %4.1f)  %+5.1f s  Y %3.0f/%3.0f m  in at %3.0f km/h, bends >= %4.0f/%4.0f m, loses %2.0f %%" % (
         name, ftype, style, f["km"], (f["rejoin"] - f["leave"]) / 1000, f["gain"], f["lane_in"], f["lane_out"], f["v_in"],
-        f["radius_in"], 100 * f["loss_in"]))
+        f["radius_in"], f["radius_out"], 100 * f["loss_in"]))
+if ONLY:
+    sys.exit(0)
 
 # ---------------------------------------------------------------------------------------------------- 4. the jumps
 # On the road: (sector, fraction of the sector, what); on the forks: (fork name, fraction, what).
