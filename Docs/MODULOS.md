@@ -216,6 +216,26 @@ O HUD da corrida mostra as duas barras.
   - Quem extrai recupera os que não gastou.
   - Quem é destruído perde a carga.
 
+## 7b. Economia de teste (jogador, 2026-11-02; ligada agora)
+
+"Para testar: caixas mais baratas, 250, 500, 1000; probabilidade de épicos e raros muito maior, quase um ou dois em
+cada caixa; 5000 STARDUST no primeiro lugar." Está em `EXMeta::bTestEconomy = true`. Com `false` volta tudo aos
+valores do jogo.
+
+| | Jogo | Teste |
+|---|---|---|
+| STANDARD CACHE | 2500; 70 % comuns, 27 % incomuns, 3 % raros | **250**; 20 / 30 / 32 % raros / 18 % épicos; 1 raro garantido |
+| ADVANCED CACHE | 6000; 20 / 50 / 27 % raros / 3 % épicos; 1 raro garantido | **500**; 5 / 20 / 45 % raros / 30 % épicos; 1 raro e 1 épico garantidos |
+| ELITE CACHE | 10 000; 0 / 25 / 55 % raros / 20 % épicos; 1 épico, 4 raros ou melhor; 4 % lendário | **1000**; 0 / 5 / 45 % raros / 50 % épicos; 2 épicos, 4 raros ou melhor; 25 % lendário |
+| 1.º lugar | 1120 STARDUST | **5000** (os outros lugares iguais) |
+
+Uma caixa tem 4 a 6 componentes, por isso em média:
+- STANDARD: ~2,5 raros ou épicos;
+- ADVANCED: ~1,5 épicos;
+- ELITE: ~2,5 épicos.
+
+As promessas na loja dizem "TESTE".
+
 ## 8. Loja e caixas (Doc 03, secções 7 e 8)
 
 **Caixas:** 10 itens cada (4 a 6 componentes, o resto consumíveis). Só a ELITE pode trazer uma cópia de nave (secção 8b).
@@ -261,6 +281,54 @@ Como as cópias do Dragon Ball Legends: cada **cópia de uma nave** dá-lhe **1 
 
 **Perfil novo:** 3 000 STARDUST, uma STANDARD CACHE no cofre e os consumíveis do jogo antigo (2 Repair Foam,
 1 Fuel Cell, 1 Coolant Cell).
+
+## 8c. Épicos e lendários com design próprio, um por nave (pedido do jogador, 2026-11-01)
+
+Comuns, incomuns e raros partilham o desenho 3D de cada peça. **Épicos e lendários são peças novas e cada nave tem as
+suas**, feitas a partir da estrutura dela ("cada nave tem de ter o seu próprio módulo épico e lendário conforme a sua
+estrutura, para ser mais exclusivo e adaptado a cada chassi"). Ficam na pintura da própria nave e inspiram-se em
+aerodinâmica real, sem enfeites: a primeira tentativa, peças comuns com dourado e luzes, foi rejeitada como "brega".
+A segunda usava o mesmo desenho em todas as naves e também foi posta de parte: esse primeiro conjunto ficou só para a
+VORTEX, onde foi desenhado ("só pedi que variassem as outras"). Reconhecem-se em pista.
+Cada célula da tabela diz **épico / lendário**.
+
+| Nave (chassi) | Asas | Cauda | Blindagem (kit) | Refrigeração |
+| --- | --- | --- | --- | --- |
+| **VORTEX**: dardo em delta, motor na cauda (fica com o primeiro conjunto, desenhado nela) | asa de dois elementos com fenda e placa na ponta / **asa em caixa** (Prandtl) | cauda em V / cauda em T com bala de titânio | kit aero (canards, lâmina no flanco, splitter) / **streamliner** (longtail de Le Mans) | guelras longas e NACA com contorno em carbono / canal no flanco com aletas e saída perfurada |
+| **BASTION**: cápsula numa asa plana, motor colossal | asa em laje com slat / **asa em caixa** (Prandtl) | duas barbatanas por fora / três barbatanas | escudos laterais / saias de carapaça e aríete | NACA grandes / leque de grelhas curvas |
+| **STRIX**: agulha com delta a descer e dois motores empilhados (refeita a 2026-11-01) | delta dupla com quebra / asa ogival tipo Concorde | estabilizadores horizontais em flecha / estabilizadores em anédrico (F-4) | LERX (lâminas da raiz da asa até ao cockpit) / LERX com manga na agulha e carenagens | painel de grelhas no deck / três NACA |
+| **WRAITH**: forquilha com o cockpit entre as pontas, três motores | asa em cimitarra / asas em tandem | duas barbatanas nos cantos / cauda em H | lâminas nas pontas da forquilha / ponte entre as pontas | guelras por dentro da forquilha / canais ao longo das pontas |
+| **NOMAD**: nave de carga com cápsulas nos braços | asa longa com sharklets / asa em flecha com cápsulas nas pontas | barbatanas nas cápsulas / cauda em Y | cones no nariz das cápsulas / cones e caudas de barco | tomadas nas cápsulas / cápsulas perfuradas |
+
+- **Motor:** por fora muda só a chama. O épico arde mais quente: núcleo mais branco e jato mais longo, com diamantes de
+  choque e faíscas. O lendário deita um plasma próprio na cor da nave: núcleo branco, longo e estreito, com cinco
+  diamantes. As cores são VORTEX carmim, BASTION ouro fundido, STRIX azul elétrico, WRAITH esmeralda e NOMAD violeta
+  (`EXMeta::Flame(Engine, Nave)`).
+- **Interior do motor (só no raio-X):** detalhado e sem extravagâncias (pedido do jogador: "cabos, tubos, regeneração,
+  alguns cabos néon"). Nada sai da carroçaria: cada peça fica presa à distância entre o motor e a carroçaria
+  (`engine_shape`/`spot`), e o `render_modules.py ... enginecheck` confirma-o com a nave fechada.
+  - **Épico:** camisa de **arrefecimento regenerativo** com tubos de cobre ao longo da câmara e do bocal, como nos
+    motores de foguete, entre dois coletores de titânio. Leva também linhas de refrigerante por baixo, dois cabos
+    entrançados com abraçadeiras e dois cabos néon ciano.
+  - **Lendário:** camisa em **três hélices** de cobre, parafusos no coletor do injetor e quatro cabos néon na cor da nave,
+    num quarto de volta.
+  - **Ligações, conforme o chassi:** tubos cruzados entre os dois motores empilhados da STRIX e coletor entre os três da
+    WRAITH. A NOMAD não tem ligações (as cápsulas estão nos braços); a VORTEX e a BASTION têm um motor só.
+- **Ficheiros:** `SourceArt/TestShips/modules/<nave>_<família>_ep.fbx` / `_lg.fbx` (wing, tail, armor, cooling, engine),
+  feitos por `ship_modules.py` (`TIER_DESIGNS`, uma função por desenho: `w_*`, `t_*`, `a_*`, `c_*`; motores em `engine_tier`). As fotos das
+  cartas são `SourceArt/UI/Thumbs/<nave>_<família>_ep/_lg.jpg`, feitas com `render_modules.py ... thumbs`
+  (`THUMB_ONLY=_ep,_lg` faz só estas).
+- **No jogo:** `AEXHoverCraft::RefreshModuleVisuals` monta `<família>_ep/_lg` conforme a raridade do item. Se a variante
+  faltar, monta a peça comum. O interior do motor épico ou lendário aparece só no raio-X (slot `ModuleEngine`). As
+  cartas usam `TierThumb`.
+
+### 8d. Refrigeração dentro da carroçaria (pedido do jogador, 2026-11-01)
+
+Os radiadores quadrados em cima das naves saíram (estragavam as linhas e a aerodinâmica). Todas as peças de refrigeração
+ficam **rentes ao casco**, escuras por dentro, com lábios finos:
+- **Vents** (S): quatro guelras inclinadas em cada flanco;
+- **Radiador** (M): duas entradas **NACA** no deck, atrás do cockpit, com pequenas grelhas de saída;
+- **Grid** (L): uma tomada de ar oval rente em cada flanco e uma grelha de saída no deck de trás.
 
 ## 9. Fim da expedição: perdas e espólio com peças reais
 

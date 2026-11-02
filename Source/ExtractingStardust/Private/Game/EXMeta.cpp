@@ -39,6 +39,12 @@ namespace
 		{ TEXT("ADVANCED CACHE"), 6000, { 0.20f, 0.50f, 0.27f, 0.03f }, TEXT("10 itens \u00B7 m\u00EDnimo 1 raro \u00B7 3% \u00E9picos") },
 		{ TEXT("ELITE CACHE"), 10000, { 0.0f, 0.25f, 0.55f, 0.20f }, TEXT("10 itens \u00B7 1 \u00E9pico garantido \u00B7 4 raros ou melhor \u00B7 4% lend\u00E1rio") },
 	};
+	// The test economy (bTestEconomy): cheap caches with a rare or an epic or two in almost every one.
+	const FCacheDef TestCaches[] = {
+		{ TEXT("STANDARD CACHE"), 250, { 0.20f, 0.30f, 0.32f, 0.18f }, TEXT("10 itens \u00B7 TESTE \u00B7 1 raro garantido \u00B7 18% \u00E9picos") },
+		{ TEXT("ADVANCED CACHE"), 500, { 0.05f, 0.20f, 0.45f, 0.30f }, TEXT("10 itens \u00B7 TESTE \u00B7 1 \u00E9pico garantido \u00B7 30% \u00E9picos") },
+		{ TEXT("ELITE CACHE"), 1000, { 0.0f, 0.05f, 0.45f, 0.50f }, TEXT("10 itens \u00B7 TESTE \u00B7 2 \u00E9picos garantidos \u00B7 25% lend\u00E1rio") },
+	};
 
 	// Flame styles: stock, sprint, endurance, burner, razor, heavy, relic, redline.
 	enum EFlame : int32 { FlameStock, FlameSprint, FlameEndurance, FlameBurner, FlameRazor, FlameHeavy, FlameRelic, FlameRedline };
@@ -375,7 +381,8 @@ namespace
 
 	const FCacheDef& Cache(EEXCache Kind)
 	{
-		return Caches[FMath::Clamp(static_cast<int32>(Kind), 0, CacheCount - 1)];
+		const int32 Index = FMath::Clamp(static_cast<int32>(Kind), 0, CacheCount - 1);
+		return bTestEconomy ? TestCaches[Index] : Caches[Index];
 	}
 
 	FString FamilyName(EEXFamily Family)
@@ -645,19 +652,45 @@ namespace
 		return false;
 	}
 
-	FFlameStyle Flame(const FEXItem* Engine)
+	/** A legendary engine's plasma, each ship its own (Scripts/render_modules.py FLAMES "legendary_<ship>"). */
+	static FLinearColor LegendaryPlasma(const FString& ShipName)
+	{
+		if (ShipName.Equals(TEXT("VORTEX"), ESearchCase::IgnoreCase)) return FLinearColor(1.0f, 0.12f, 0.24f);   // crimson
+		if (ShipName.Equals(TEXT("BASTION"), ESearchCase::IgnoreCase)) return FLinearColor(1.0f, 0.74f, 0.16f);  // molten gold
+		if (ShipName.Equals(TEXT("STRIX"), ESearchCase::IgnoreCase)) return FLinearColor(0.22f, 0.56f, 1.0f);    // electric blue
+		if (ShipName.Equals(TEXT("WRAITH"), ESearchCase::IgnoreCase)) return FLinearColor(0.12f, 1.0f, 0.52f);   // emerald
+		return FLinearColor(0.50f, 0.28f, 1.0f);                                                                 // NOMAD: violet
+	}
+
+	FFlameStyle Flame(const FEXItem* Engine, const FString& ShipName)
 	{
 		FFlameStyle Style = Flames[FlameIndex(Engine)];
 		const EEXRarity Rarity = Engine ? static_cast<EEXRarity>(Engine->Rarity) : EEXRarity::Common;
-		// Rares burn longer and brighter; epics add shock diamonds and sparks; legendaries have their own flame.
-		if (Rarity >= EEXRarity::Rare && Rarity < EEXRarity::Legendary)
+		// Outside, an engine shows its rarity only in what comes out of it (player, 2026-11-01): rares burn a little
+		// longer and brighter; an epic burns hotter (a whiter core, a longer, tighter jet with shock diamonds and
+		// sparks); a legendary throws plasma of its own (a white-hot core in a sheath of the ship's own colour, long
+		// and narrow, a train of diamonds). Inside, the x-ray view shows their own insides, each ship its own
+		// (Scripts/ship_modules.py TIER_DESIGNS).
+		if (Rarity == EEXRarity::Rare)
 		{
 			Style.Length *= 1.15f;
 			Style.Core = Style.Core * 1.15f;
 		}
-		if (Rarity == EEXRarity::Epic)
+		else if (Rarity == EEXRarity::Epic)
 		{
-			Style.Diamonds = FMath::Max(Style.Diamonds, 2);
+			Style.Length *= 1.25f;
+			Style.Radius *= 0.92f;
+			Style.Core = FMath::Lerp(Style.Core, FLinearColor(1.0f, 1.0f, 1.0f), 0.45f) * 1.3f;
+			Style.Diamonds = FMath::Max(Style.Diamonds, 3);
+			Style.bSparks = true;
+		}
+		else if (Rarity == EEXRarity::Legendary)
+		{
+			Style.Outer = LegendaryPlasma(ShipName);
+			Style.Core = FLinearColor(1.0f, 0.97f, 1.0f) * 1.6f;
+			Style.Length *= 1.4f;
+			Style.Radius *= 0.8f;
+			Style.Diamonds = 5;
 			Style.bSparks = true;
 		}
 		return Style;
@@ -705,9 +738,14 @@ namespace
 		{
 			Rarities.Add(static_cast<EEXRarity>(Weighted(Random, Odds)));
 		}
-		if (Kind == EEXCache::Advanced && !Rarities.ContainsByPredicate([](EEXRarity R) { return R >= EEXRarity::Rare; }))
+		if ((Kind == EEXCache::Advanced || (bTestEconomy && Kind == EEXCache::Standard))
+			&& !Rarities.ContainsByPredicate([](EEXRarity R) { return R >= EEXRarity::Rare; }))
 		{
 			Rarities[0] = EEXRarity::Rare;
+		}
+		if (bTestEconomy && Kind == EEXCache::Advanced && !Rarities.Contains(EEXRarity::Epic))
+		{
+			Rarities.Last() = EEXRarity::Epic;   // the test economy: an epic in every ADVANCED
 		}
 		if (Kind == EEXCache::Elite)
 		{
@@ -715,6 +753,10 @@ namespace
 			if (!Rarities.Contains(EEXRarity::Epic))
 			{
 				Rarities.Last() = EEXRarity::Epic;
+			}
+			if (bTestEconomy && Rarities.Num() > 1)
+			{
+				Rarities[Rarities.Num() - 2] = EEXRarity::Epic;   // the test economy: two epics in every ELITE
 			}
 			for (int32 K = 0; K < Rarities.Num(); ++K)
 			{
@@ -742,7 +784,7 @@ namespace
 				OutItems.Add(Roll(*Defs[Random.RandRange(0, Defs.Num() - 1)], Rarities[K], Random, NextSerial++));
 			}
 		}
-		if (Kind == EEXCache::Elite && Random.FRand() < 0.04f && OutItems.Num() > First)
+		if (Kind == EEXCache::Elite && Random.FRand() < (bTestEconomy ? 0.25f : 0.04f) && OutItems.Num() > First)
 		{
 			// One piece goes up to legendary, preferably of a family a legendary has (keeps the variety).
 			TArray<const FModuleDef*> Legends;
@@ -879,6 +921,10 @@ namespace
 
 	int32 PlaceReward(int32 Place)
 	{
+		if (bTestEconomy && Place == 1)
+		{
+			return 5000;   // the test economy: the winner can open a few caches straight away
+		}
 		// Doc 03 sec. 3, times 0.70 for a 10-15 minute expedition.
 		static const int32 Table[] = { 1600, 1300, 1100, 950, 850, 750, 675, 600, 550, 500, 450, 425, 400, 375, 350, 325, 300, 275, 250, 225 };
 		const int32 Index = FMath::Clamp(Place - 1, 0, static_cast<int32>(UE_ARRAY_COUNT(Table)) - 1);

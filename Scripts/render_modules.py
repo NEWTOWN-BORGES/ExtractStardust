@@ -4,6 +4,7 @@
 # Usage: python3 Scripts/render_modules.py <modules_dir> <ship> <out_dir> [shot ...]
 #   shots: stock, wings, armor, cooling, tail, utility, skeleton, flames, build (default: all); and close looks at
 #   the body kits: armorclose (the nose), armorside (from the side), armorrear (the tail, from behind and below);
+#   enginecheck: the epic and legendary engines with the bodywork on (nothing of them may show);
 #   thumbs: the hangar's card photos (Scripts/import_ui_icons.py brings them into Unreal): the ship with each module
 #   fitted, 496 x 316 JPG, named <ship>_<key>.jpg (see THUMBS below)
 import json
@@ -33,6 +34,13 @@ FLAMES = {
     "relic": ((0.35, 0.6, 1.0), (1.0, 1.0, 1.0), 2.2, 0.45, 0),              # Oryx Relic: thin beam
     "razor": ((0.55, 0.25, 1.0), (0.92, 0.85, 1.0), 1.3, 0.6, 0),           # APEX Razor-S: thin violet jet
     "redline": ((1.0, 0.08, 0.06), (1.0, 0.85, 0.8), 1.6, 0.9, 4),           # REDLINE-X (legendary)
+    "epic": ((1.0, 0.55, 0.18), (1.0, 1.0, 0.95), 1.6, 0.9, 3),              # an epic engine: hotter, whiter core
+    "legendary": ((0.5, 0.28, 1.0), (1.0, 0.97, 1.0), 2.0, 0.8, 5),          # a legendary engine: its own plasma,
+    "legendary_vortex": ((1.0, 0.12, 0.24), (1.0, 0.95, 0.96), 2.0, 0.8, 5),  # in each ship's own colour
+    "legendary_bastion": ((1.0, 0.74, 0.16), (1.0, 0.98, 0.9), 2.0, 0.8, 5),  # (EXMeta::LegendaryPlasma)
+    "legendary_strix": ((0.22, 0.56, 1.0), (0.94, 0.97, 1.0), 2.0, 0.8, 5),
+    "legendary_wraith": ((0.12, 1.0, 0.52), (0.92, 1.0, 0.95), 2.0, 0.8, 5),
+    "legendary_nomad": ((0.5, 0.28, 1.0), (1.0, 0.97, 1.0), 2.0, 0.8, 5),
 }
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -143,12 +151,14 @@ def piece(name):
 
 
 def show(names):
+    """Shows just these pieces; True when the last one exists (the piece being photographed)."""
     want = set()
     for n in names:
         want.update(piece(n))
     for objs in LOADED.values():
         for o in objs:
             o.hide_render = o not in want
+    return bool(piece(names[-1])) if names else False
 
 
 FLAME_OBJS = []
@@ -288,6 +298,12 @@ if "armorrear" in SHOTS:                     # close: the skirt's back end and t
         show(["core", "wing_stock", "armor_" + k])
         shot("armorrear_" + k, yaw_deg=25, pitch_deg=4, dist=3.8, target=(0, 0.9, 0.75), ship_yaw=0)
         shot("armorunder_" + k, yaw_deg=60, pitch_deg=-5, dist=4.2, target=(0, 1.8, 0.75), ship_yaw=0)
+if "enginecheck" in SHOTS:                   # the epic / legendary engine dressing with the bodywork on: none of it
+    for t in ("_ep", "_lg"):                 # may show (it lives inside, for the x-ray view)
+        if show(["core", "wing_stock", "engine" + t]):
+            sc.cycles.samples, sc.render.resolution_percentage = 12, 50
+            for i, (yaw, pitch) in enumerate(((90, 12), (135, 25), (45, -6), (180, 8))):
+                shot("enginecheck%s_%d" % (t, i), yaw_deg=yaw, pitch_deg=pitch, dist=5.6, target=(0, 1.4, 0.9), ship_yaw=0)
 if "cooling" in SHOTS:
     for k in ("vents", "radiator", "grid"):
         show(["core", "wing_stock", "cooling_" + k])
@@ -387,12 +403,28 @@ if "thumbs" in SHOTS:
     for k in ("light", "guard", "bulwark", "shell", "aegis"):     # body kits: from the front and low, along the skirt
         show(["core", stock_wing, "armor_" + k])
         tshot("armor_" + k, yaw_deg=-28, pitch_deg=11, dist=6.6, target=(0, 0.0, 0.95))
-    for k in ("vents", "radiator", "grid"):                       # cooling: from above
+    for k in ("vents", "radiator", "grid"):                       # cooling, flush in the bodywork: from above
         show(["core", stock_wing, "cooling_" + k])
         tshot("cooling_" + k, yaw_deg=28, pitch_deg=44, dist=4.8, target=(0, 0.7, 1.0))
     for k in ("compact", "twin", "keel"):                         # tails: from behind
         show(["core", stock_wing, "tail_" + k])
         tshot("tail_" + k, yaw_deg=58, pitch_deg=-3 if MAN.get("tail") == "below" else 14, dist=4.8, target=(0, 1.9, 0.9))
+    # the epic and legendary designs of their own (Scripts/ship_modules.py section 7): <family>_ep / _lg
+    # (THUMB_ONLY=_ep,_lg renders just these)
+    for t in ("_ep", "_lg"):
+        if show(["core", "wing" + t]):
+            tshot("wing" + t, yaw_deg=58, pitch_deg=30, dist=5.6, target=(0.0, 0.9, 0.95))
+        if show(["core", stock_wing, "armor" + t]):
+            tshot("armor" + t, yaw_deg=-34, pitch_deg=12, dist=6.8, target=(0, 0.2, 0.9))
+        if show(["core", stock_wing, "cooling" + t]):
+            tshot("cooling" + t, yaw_deg=28, pitch_deg=44, dist=4.8, target=(0, 0.7, 1.0))
+        if show(["core", stock_wing, "tail" + t]):
+            tshot("tail" + t, yaw_deg=58, pitch_deg=-3 if MAN.get("tail") == "below" else 14, dist=5.0, target=(0, 1.9, 0.95))
+        if show(["skeleton", "engine" + t]):                 # the engine's insides, in the x-ray view, its own flame
+            reactor_glow(REACTOR[0])
+            flames(("legendary_" + SHIP if "legendary_" + SHIP in FLAMES else "legendary") if t == "_lg" else "epic", 0.9)
+            tshot("engine" + t, yaw_deg=62, pitch_deg=18, dist=5.2, target=(0, 1.7, 1.05))
+            flames(None)
     for k in ("mast", "dome", "drone"):                           # utility: inside the nose, in the skeleton, close
         show(["skeleton", "utility_" + k])
         reactor_glow(REACTOR[0])

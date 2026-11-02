@@ -139,6 +139,10 @@ namespace EXMeta
 	constexpr int32 MaxStars = 7;
 	/** Chance that an ELITE CACHE holds one copy of a ship. */
 	constexpr float ShipCopyChance = 0.06f;
+	/** The test economy (player, 2026-11-02: "para testar: caixas mais baratas, 250, 500, 1000; probabilidade de épicos e
+	 *  raros muito maior, quase um ou dois em cada caixa; 5000 STARDUST no primeiro lugar"). false puts back the game's
+	 *  (Docs/MODULOS.md, secção 7b). */
+	constexpr bool bTestEconomy = true;
 	/** STARDUST a copy is worth when its ship already has all seven stars. */
 	constexpr int32 ShipCopyRefund = 8000;
 
@@ -273,7 +277,9 @@ namespace EXMeta
 	/** The ship's lives, plus one per 10 hull above its own (6 at most). */
 	int32 Lives(const FString& ShipName, int32 HullStat);
 	bool HasPerk(const TArray<const FEXItem*>& Modules, const TCHAR* Perk);
-	FFlameStyle Flame(const FEXItem* Engine);
+	/** The flame out of the ship's nozzles: the engine's style, its rarity (a legendary throws plasma in the ship's
+	 *  own colour, ShipName). */
+	FFlameStyle Flame(const FEXItem* Engine, const FString& ShipName = FString());
 	/** The engine's flame style (0 stock, 1 sprint, 2 endurance, 3 burner, 4 razor, 5 heavy, 6 relic, 7 redline): the flame
 	 *  bar of the hangar and the engine photo. */
 	int32 FlameLook(const FEXItem* Engine);

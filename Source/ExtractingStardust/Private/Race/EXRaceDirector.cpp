@@ -3,6 +3,8 @@
 #include "Engine/World.h"
 #include "Flight/EXHoverCraft.h"
 #include "Game/EXProfile.h"
+#include "Race/EXBoostArrows.h"
+#include "Race/EXTrackSigns.h"
 #include "Race/EXCheckpointGate.h"
 #include "UnrealClient.h"
 #include "GameFramework/PlayerController.h"
@@ -10,6 +12,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DateTime.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Misc/Parse.h"
 
 namespace
@@ -43,6 +47,9 @@ AEXRaceDirector::AEXRaceDirector()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	bTest = FParse::Param(FCommandLine::Get(), TEXT("EXRaceTest"));
+	bInspect = FParse::Param(FCommandLine::Get(), TEXT("EXInspect"));
+	bTest |= bInspect;   // the inspector is a test run: the player's ship drives itself and the game quits at the end
+	bCrashTest = !bTest && !FParse::Param(FCommandLine::Get(), TEXT("EXNoCrashTest"));
 	TestLimitS = TestTimeLimitS;
 	FParse::Value(FCommandLine::Get(), TEXT("EXRaceSeconds="), TestLimitS);
 }
@@ -117,6 +124,10 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 	}
 
 	RaceTime += DeltaSeconds;
+	if (bCrashTest && Mode == EEXRaceMode::Bots)
+	{
+		CrashTest();
+	}
 	for (FEXRacer& Racer : Racers)
 	{
 		AEXHoverCraft* Craft = Racer.Craft;
@@ -175,6 +186,11 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 					Gate->SetState(0);
 				}
 			}
+			if (IsValid(FinishGate) && !bFinishGateDone)
+			{
+				FinishGate->SetState(Racer.bFinished ? 2 : 0);   // a green flash on extraction, once
+				bFinishGateDone = true;
+			}
 		}
 	}
 	UpdateStandings();
@@ -204,8 +220,12 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 			UE_LOG(LogTemp, Display, TEXT("EXRACE hitch %.0f ms at %.1f s"), DeltaSeconds * 1000.0f, RaceTime);
 		}
 	}
+	if (bInspect)
+	{
+		Inspect(DeltaSeconds);
+	}
 	// The automated test photographs the race with its HUD every 15 s (Saved/RaceTest).
-	if (bTest && RaceTime >= NextShotTime && !FParse::Param(FCommandLine::Get(), TEXT("EXNoShots")))
+	if (bTest && !bInspect && RaceTime >= NextShotTime && !FParse::Param(FCommandLine::Get(), TEXT("EXNoShots")))
 	{
 		NextShotTime += 15.0f;
 		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RaceTest"), FString::Printf(TEXT("race_%03d.png"),
@@ -521,6 +541,10 @@ int32 AEXRaceDirector::GetCheckpointPrize()
 void AEXRaceDirector::Finish()
 {
 	bOver = true;
+	if (bInspect)
+	{
+		WriteInspectReport();
+	}
 	// The bots still racing get a finishing time from their pace so far (as in the Unity version): a full classification.
 	for (FEXRacer& Racer : Racers)
 	{
@@ -631,6 +655,50 @@ void AEXRaceDirector::DropToPool(FEXRacer& Racer)
 		: FString::Printf(TEXT("%s DESTRU\u00CDDO (km %.1f)"), *Racer.Name, Racer.OutAtM / 1000.0f));
 }
 
+void AEXRaceDirector::CrashTest()
+{
+	// For testing (player, 2026-11-02: "quero que uma, duas, três naves se acidentem na minha frente para ver o efeito da
+	// explosão logo no início da corrida"): three bots just ahead of the player blow up in the first seconds, each a
+	// different way (shoved from behind, hit from the side, nose first; AEXHoverCraft::EXBoom), so the wreck, the fire
+	// and the explosion are seen close up at speed. -EXNoCrashTest switches it off; remove it when the test is done.
+	if (CrashTestDone >= 3 || RaceTime < NextCrashTestTime)
+	{
+		return;
+	}
+	const AEXHoverCraft* Me = PlayerCraft();
+	if (!Me || Me->IsEliminated())
+	{
+		return;
+	}
+	// the nearest bot 30-160 m ahead of the player along the race line, still racing and already fast
+	AEXHoverCraft* Pick = nullptr;
+	float Nearest = TNumericLimits<float>::Max();
+	for (const FEXRacer& Racer : Racers)
+	{
+		AEXHoverCraft* Craft = Racer.Craft;
+		if (Racer.bPlayer || Racer.bOut || Racer.bFinished || !IsValid(Craft) || Craft->IsEliminated())
+		{
+			continue;
+		}
+		const float Ahead = Craft->GetRaceProgressM() - Me->GetRaceProgressM();
+		if (Ahead > 30.0f && Ahead < 160.0f && Craft->GetSpeedKmh() > 200.0f && Ahead < Nearest)
+		{
+			Nearest = Ahead;
+			Pick = Craft;
+		}
+	}
+	if (!Pick)
+	{
+		NextCrashTestTime = RaceTime + 0.5f;   // nobody in reach yet: look again in half a second
+		return;
+	}
+	static const int32 Causes[3] = { 4, 2, 3 };
+	UE_LOG(LogTemp, Display, TEXT("EXRACE CRASHTEST %d/3 %s %.0f m ahead"), CrashTestDone + 1, *Pick->GetShipName(), Nearest);
+	Pick->EXBoom(Causes[CrashTestDone]);
+	++CrashTestDone;
+	NextCrashTestTime = RaceTime + 3.5f;
+}
+
 AEXHoverCraft* AEXRaceDirector::PlayerCraft() const
 {
 	for (const FEXRacer& Racer : Racers)
@@ -653,6 +721,12 @@ void AEXRaceDirector::PlaceGates(const AEXHoverCraft* Player)
 		}
 	}
 	GateActors.Reset();
+	if (IsValid(FinishGate))
+	{
+		FinishGate->Destroy();
+	}
+	FinishGate = nullptr;
+	bFinishGateDone = false;
 	Gates.Reset();
 	MissedGate = 0;
 	LastGateShot = -1;
@@ -680,11 +754,23 @@ void AEXRaceDirector::PlaceGates(const AEXHoverCraft* Player)
 		FHitResult Hit;
 		return World->LineTraceSingleByChannel(Hit, Line(I) + FVector(0.0f, 0.0f, 300.0f), Line(I) + FVector(0.0f, 0.0f, 8000.0f), ECC_WorldStatic, Query);
 	};
-	auto Ground = [&](const FVector& At)
+	// A pylon's foot: out from the line to the road's edge, stopping short of a wall or a bank, then down to the floor from
+	// just above the line (from 60 m up it found the tops of overhangs and arches: a gate stood up there out of sight,
+	// player 2026-11-01).
+	auto Edge = [&](int32 I, float HalfW, float Sign)
 	{
+		const FVector2D Dir = (Route[FMath::Min(I + 2, N - 1)] - Route[FMath::Max(I - 2, 0)]).GetSafeNormal();
+		const FVector Out(-Dir.Y * Sign, Dir.X * Sign, 0.0f);
+		const FVector From = Line(I) + FVector(0.0f, 0.0f, 300.0f);
+		float Reach = (HalfW + 4.0f) * RaceCmPerM;
 		FHitResult Hit;
-		return World->LineTraceSingleByChannel(Hit, At + FVector(0.0f, 0.0f, 6000.0f), At - FVector(0.0f, 0.0f, 6000.0f), ECC_WorldStatic, Query)
-			? Hit.ImpactPoint : At;
+		if (World->LineTraceSingleByChannel(Hit, From, From + Out * Reach, ECC_WorldStatic, Query))
+		{
+			Reach = FMath::Max(Hit.Distance - 250.0f, 800.0f);
+		}
+		const FVector At = Line(I) + Out * Reach;
+		return World->LineTraceSingleByChannel(Hit, At + FVector(0.0f, 0.0f, 1500.0f), At - FVector(0.0f, 0.0f, 6000.0f), ECC_WorldStatic, Query)
+			? FVector(Hit.ImpactPoint) : At;
 	};
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -711,17 +797,50 @@ void AEXRaceDirector::PlaceGates(const AEXHoverCraft* Player)
 		Gate.AlongM = Best * 5.0f;
 		const float HalfW = HalfWidths.IsValidIndex(Best) ? HalfWidths[Best] : 0.0f;
 		Gate.HalfW = HalfW >= 4.0f ? FMath::Clamp(HalfW, 8.0f, 60.0f) : 30.0f;
-		const FVector2D Dir = (Route[Best + 2] - Route[Best - 2]).GetSafeNormal();
-		const FVector Side(-Dir.Y * (Gate.HalfW + 4.0f) * RaceCmPerM, Dir.X * (Gate.HalfW + 4.0f) * RaceCmPerM, 0.0f);
+		const FVector L = Edge(Best, Gate.HalfW, -1.0f), R = Edge(Best, Gate.HalfW, 1.0f);
 		AEXCheckpointGate* Actor = World->SpawnActor<AEXCheckpointGate>(Line(Best), FRotator::ZeroRotator, Params);
 		if (Actor)
 		{
-			Actor->Setup(Ground(Line(Best) - Side), Ground(Line(Best) + Side));
+			Actor->Setup(L, R);
 		}
 		GateActors.Add(Actor);
+		UE_LOG(LogTemp, Display, TEXT("EXRACE gate %d at %.0f m  line z %.1f  feet z %.1f / %.1f  span %.0f m"), K, Gate.AlongM,
+			Line(Best).Z / RaceCmPerM, L.Z / RaceCmPerM, R.Z / RaceCmPerM, FVector::Dist(L, R) / RaceCmPerM);
+	}
+	// B, the last checkpoint, has its own gate too: the extraction gate on the finish line, gold, shown once every gate
+	// is passed (before, the last checkpoint had no gate and could not be seen).
+	{
+		const int32 Fi = FMath::Clamp(N - 1 - FMath::RoundToInt(FinishMarginM / 5.0f), 3, N - 4);
+		const float HalfW = HalfWidths.IsValidIndex(Fi) && HalfWidths[Fi] >= 4.0f ? FMath::Clamp(HalfWidths[Fi], 8.0f, 60.0f) : 30.0f;
+		FinishGate = World->SpawnActor<AEXCheckpointGate>(Line(Fi), FRotator::ZeroRotator, Params);
+		if (FinishGate)
+		{
+			FinishGate->Setup(Edge(Fi, HalfW, -1.0f), Edge(Fi, HalfW, 1.0f));
+			FinishGate->SetFinish();
+		}
 	}
 	RefreshGates(0, -1);
 	UE_LOG(LogTemp, Display, TEXT("EXRACE gates %d"), Gates.Num());
+	// The jumps get their dash-panel arrows (found from the line's height profile).
+	if (IsValid(BoostArrows))
+	{
+		BoostArrows->Destroy();
+	}
+	BoostArrows = World->SpawnActor<AEXBoostArrows>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
+	if (BoostArrows)
+	{
+		BoostArrows->Build(Route, Heights, HalfWidths);
+	}
+	// Signs, so the way reads in the open sand: chevron boards in the bends, edge poles where no wall shows the road.
+	if (IsValid(TrackSigns))
+	{
+		TrackSigns->Destroy();
+	}
+	TrackSigns = World->SpawnActor<AEXTrackSigns>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
+	if (TrackSigns)
+	{
+		TrackSigns->Build(Route, Heights, HalfWidths);
+	}
 }
 
 void AEXRaceDirector::RefreshGates(int32 Passed, int32 JustPassed)
@@ -745,6 +864,10 @@ void AEXRaceDirector::RefreshGates(int32 Passed, int32 JustPassed)
 		{
 			GateActors[Index]->SetState(0);
 		}
+	}
+	if (IsValid(FinishGate))
+	{
+		FinishGate->SetState(Passed >= GateActors.Num() ? 1 : 0);
 	}
 }
 
@@ -946,4 +1069,145 @@ void AEXRaceDirector::SettleExtraction()
 	EXEconomy::RollShop(Profile);
 	EXEconomy::SanitizeQuick(Profile);
 	EXEconomy::Save(Profile);
+}
+
+void AEXRaceDirector::Inspect(float DeltaSeconds)
+{
+	const FEXRacer* Me = Racers.FindByPredicate([](const FEXRacer& R) { return R.bPlayer; });
+	if (!Me || !IsValid(Me->Craft) || RaceTime < 4.0f || Route.Num() < 2)
+	{
+		return;
+	}
+	AEXHoverCraft* Craft = Me->Craft;
+	const FVector P = Craft->GetActorLocation();
+	const int32 I = FMath::Clamp(Craft->GetRouteIndex(), 0, Route.Num() - 1);
+	const float AlongM = I * 5.0f;
+	if (Me->bFinished || Me->bOut)
+	{
+		if (Me->bOut && !InspCount.Contains(TEXT("DESTRUIDA")))
+		{
+			InspectNote(TEXT("DESTRUIDA"), P, AlongM, TEXT("a nave ficou sem casco"), true);
+		}
+		return;
+	}
+	const float Kmh = Craft->GetSpeedKmh();
+	// Stuck: slow for 4 s. Written down, then put back on the line so the run goes on.
+	InspStuck = Kmh < 40.0f ? InspStuck + DeltaSeconds : 0.0f;
+	if (InspStuck > 4.0f)
+	{
+		InspectNote(TEXT("PRESA"), P, AlongM, FString::Printf(TEXT("%.0f km/h ha 4 s"), Kmh), true);
+		InspStuck = 0.0f;
+		Craft->PutBackOnLine();
+	}
+	// Off the track: further from the line than the road's half width (+12 m) for 2 s.
+	const TArray<float>& HalfWidths = Craft->GetMapRouteHalfWidth();
+	const float HalfW = HalfWidths.IsValidIndex(I) && HalfWidths[I] >= 4.0f ? HalfWidths[I] : 30.0f;
+	const float Lateral = FVector2D::Distance(FVector2D(P.X, P.Y) / RaceCmPerM, Route[I]);
+	InspOff = Lateral > HalfW + 12.0f ? InspOff + DeltaSeconds : FMath::Min(InspOff, 0.0f);
+	if (InspOff > 2.0f)
+	{
+		InspectNote(TEXT("FORA_DA_PISTA"), P, AlongM, FString::Printf(TEXT("%.0f m da linha (meia largura %.0f m)"), Lateral, HalfW), true);
+		InspOff = -6.0f;
+	}
+	// Hits: the hull drops by more than 4 in a frame.
+	const float Hull = Craft->GetHull();
+	if (InspHull >= 0.0f && InspHull - Hull > 4.0f)
+	{
+		InspectNote(TEXT("EMBATE"), P, AlongM, FString::Printf(TEXT("-%.0f de casco a %.0f km/h"), InspHull - Hull, InspKmh), true);
+	}
+	InspHull = Hull;
+	InspKmh = Kmh;
+	// Falls: well below the line's height (a hole, a missing floor, under the map).
+	const TArray<float>& Heights = Craft->GetMapRouteZ();
+	if (Heights.IsValidIndex(I) && P.Z / RaceCmPerM < Heights[I] - 25.0f)
+	{
+		InspectNote(TEXT("QUEDA"), P, AlongM, FString::Printf(TEXT("%.0f m abaixo da linha"), Heights[I] - P.Z / RaceCmPerM), true);
+	}
+	// Long jumps: more than 4 s in the air (a jump that throws the ship off, or an invisible ramp).
+	InspAir = (Heights.IsValidIndex(I) && P.Z / RaceCmPerM > Heights[I] + 6.0f) ? InspAir + DeltaSeconds : 0.0f;
+	if (InspAir > 4.0f)
+	{
+		InspectNote(TEXT("SALTO_LONGO"), P, AlongM, TEXT("mais de 4 s no ar"), true);
+		InspAir = -10.0f;
+	}
+	// Slow frames.
+	if (DeltaSeconds > 0.05f)
+	{
+		InspectNote(TEXT("FPS_BAIXO"), P, AlongM, FString::Printf(TEXT("%.0f fps"), 1.0f / DeltaSeconds), false);
+	}
+	// The next gate: once, 150-450 m before it, it must be in sight from the cockpit (nothing in the way of its bar).
+	const int32 Next = Me->Checkpoint;
+	const AEXCheckpointGate* Gate = GateActors.IsValidIndex(Next) ? GateActors[Next].Get() : (Next == GateActors.Num() ? FinishGate.Get() : nullptr);
+	if (Gate && InspGateChecked < Next)
+	{
+		const FVector Bar = Gate->GetActorLocation() + FVector(0.0f, 0.0f, 1500.0f);
+		const float Dist = FVector::Dist(P, Bar) / RaceCmPerM;
+		if (Dist < 450.0f && Dist > 150.0f)
+		{
+			InspGateChecked = Next;
+			FHitResult Hit;
+			FCollisionQueryParams Query(SCENE_QUERY_STAT(EXInspect), true, Craft);
+			if (GetWorld()->LineTraceSingleByChannel(Hit, P + FVector(0.0f, 0.0f, 300.0f), Bar, ECC_Visibility, Query) && Hit.GetActor() != Gate)
+			{
+				InspectNote(TEXT("PORTAO_TAPADO"), P, AlongM, FString::Printf(TEXT("portao %d escondido a %.0f m (tapado por %s)"), Next + 1, Dist,
+					Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("terreno")), true);
+			}
+			if (Heights.IsValidIndex(I) && FMath::Abs(Gate->GetActorLocation().Z / RaceCmPerM - Heights[I]) > 40.0f)
+			{
+				InspectNote(TEXT("PORTAO_FORA"), P, AlongM, FString::Printf(TEXT("portao %d a %.0f m de altura da linha"), Next + 1,
+					Gate->GetActorLocation().Z / RaceCmPerM - Heights[I]), false);
+			}
+		}
+	}
+	if (MissedGate > 0 && !InspCount.Contains(FString::Printf(TEXT("FALHOU_%d"), MissedGate)))
+	{
+		InspCount.Add(FString::Printf(TEXT("FALHOU_%d"), MissedGate), 1);
+		InspectNote(TEXT("PORTAO_FALHADO"), P, AlongM, FString::Printf(TEXT("o piloto automatico falhou o portao %d"), MissedGate), true);
+	}
+}
+
+void AEXRaceDirector::InspectNote(const TCHAR* Kind, const FVector& Where, float AlongM, const FString& Detail, bool bShot)
+{
+	// One note of a kind per 150 m of track (a long scrape is one problem, not sixty).
+	const FString Key(Kind);
+	if (const float* Last = InspLastAt.Find(Key))
+	{
+		if (FMath::Abs(AlongM - *Last) < 150.0f)
+		{
+			return;
+		}
+	}
+	InspLastAt.Add(Key, AlongM);
+	InspCount.FindOrAdd(Key) += 1;
+	FString Shot;
+	if (bShot && InspShots < 200)
+	{
+		Shot = FString::Printf(TEXT("insp_%03d_%s.png"), ++InspShots, Kind);
+		FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Inspect"), Shot), true, false);
+	}
+	const FString Line = FString::Printf(TEXT("%7.1f s  %7.0f m  %-15s  x=%.0f y=%.0f z=%.0f (m)  %s  %s"), RaceTime, AlongM, Kind,
+		Where.X / RaceCmPerM, Where.Y / RaceCmPerM, Where.Z / RaceCmPerM, *Detail, *Shot);
+	InspLines.Add(Line);
+	UE_LOG(LogTemp, Display, TEXT("EXINSPECT %s"), *Line);
+}
+
+void AEXRaceDirector::WriteInspectReport() const
+{
+	FString Text = FString::Printf(TEXT("INSPECAO DA PISTA  %s  (%.0f m, %d portoes, %.0f s)\n\nRESUMO\n"),
+		*FDateTime::Now().ToString(), RouteLengthM, GateActors.Num() + 1, RaceTime);
+	for (const TPair<FString, int32>& Pair : InspCount)
+	{
+		if (!Pair.Key.StartsWith(TEXT("FALHOU_")))
+		{
+			Text += FString::Printf(TEXT("  %-15s %d\n"), *Pair.Key, Pair.Value);
+		}
+	}
+	Text += TEXT("\nPROBLEMAS (tempo, distancia na pista, tipo, posicao, detalhe, foto)\n");
+	for (const FString& Line : InspLines)
+	{
+		Text += Line + TEXT("\n");
+	}
+	const FString Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Inspect"), TEXT("relatorio.txt"));
+	FFileHelper::SaveStringToFile(Text, *Path, FFileHelper::EEncodingOptions::ForceUTF8);
+	UE_LOG(LogTemp, Display, TEXT("EXINSPECT relatorio em %s (%d problemas)"), *Path, InspLines.Num());
 }

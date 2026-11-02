@@ -9,9 +9,11 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
 #include "Components/Overlay.h"
+#include "Components/ScaleBox.h"
 #include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
+#include "Components/UniformGridPanel.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Components/WrapBox.h"
@@ -29,8 +31,6 @@ namespace
 	constexpr int32 HangarSlotRows = 8;
 	constexpr int32 HangarListRows = 7;
 	constexpr int32 HangarShipRows = 5;
-	constexpr int32 HangarCandidateRows = 5;
-	constexpr int32 HangarStockRows = 6;
 	constexpr int32 HangarInfoRows = 6;
 	constexpr int32 HangarCards = 10;
 	constexpr int32 HangarCallouts = 2;
@@ -46,6 +46,15 @@ namespace
 	constexpr float CardGap = 19.0f;
 	constexpr float CardGlow = 22.0f;
 	constexpr float CardRaise = 10.0f;
+	constexpr int32 VaultCols = 4;              // the vault's grid: 4 cards across, 3 rows in sight
+	constexpr int32 VaultRowsShown = 3;
+	constexpr float VaultCardScale = 0.74f;     // three rows and the filter chips fit above the key bar
+	constexpr int32 CandidateCols = 2;          // EQUIPAR: the pieces for the slot as cards, 2 x 2 in sight
+	constexpr int32 CandidateCardRows = 2;
+	constexpr float CandidateCardScale = 0.80f;
+	constexpr int32 StockCols = 3;              // CONSUMÍVEIS: the consumables as cards, 3 across
+	constexpr float StockCardScale = 0.66f;
+	constexpr int32 VaultChipCount = 8;
 	constexpr float GridW = CardW * 5.0f + CardGap * 4.0f + CardGlow * 2.0f;
 	constexpr float GridH = CardH * 2.0f + CardGap + CardGlow * 2.0f + CardRaise;
 
@@ -55,9 +64,15 @@ namespace
 	/** The quick slots round the d-pad: key 1 up, 2 down, 3 left, 4 right. */
 	const TCHAR* const QuickArrows[EXMeta::QuickSlots] = { TEXT("▲"), TEXT("▼"), TEXT("◀"), TEXT("▶") };
 
-	FLinearColor PlateFill() { return EXUi::Hex(18, 12, 8, 0.72f); }
-	FLinearColor Bad() { return EXUi::Hex(255, 90, 74); }
-	FLinearColor Gold() { return EXUi::Hex(255, 208, 64); }
+	// The race HUD's look (EXUi): the cut corners of the lines and tiles, the panels and the cards (only the bottom right).
+	constexpr float LineCorner = 8.0f;
+	constexpr float PanelCorner = 16.0f;
+	constexpr float CardCorner = 14.0f;
+	constexpr float TabHeight = 38.0f;
+	FLinearColor PlateFill() { return EXUi::Plate(0.82f); }
+	FLinearColor PickFill() { return EXUi::Hex(14, 44, 78, 0.92f); }   // a picked line: a bluer navy
+	FLinearColor Bad() { return EXUi::Hex(255, 96, 80); }
+	FLinearColor Gold() { return EXUi::Gold(); }
 	FLinearColor WithAlpha(const FLinearColor& Colour, float Alpha)
 	{
 		return FLinearColor(Colour.R, Colour.G, Colour.B, Alpha);
@@ -132,10 +147,10 @@ void UEXHangarWidget::BuildTree()
 	{
 		FCalloutView View;
 		UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		View.Bar = EXUi::Box(Tree, EXUi::Rust());
+		View.Bar = EXUi::Box(Tree, EXUi::Accent());
 		EXUi::AddH(Line, EXUi::Sized(Tree, 2.0f, 0.0f, View.Bar), FMargin(0.0f), false, VAlign_Fill);
-		View.Text = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Bone(), 500);
-		EXUi::AddH(Line, EXUi::Box(Tree, EXUi::Hex(10, 7, 5, 0.72f), FMargin(10.0f, 5.0f, 10.0f, 5.0f), View.Text), FMargin(0.0f), false, VAlign_Fill);
+		View.Text = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Fore(), 500);
+		EXUi::AddH(Line, EXUi::Box(Tree, EXUi::Plate(0.8f), FMargin(10.0f, 5.0f, 10.0f, 5.0f), View.Text), FMargin(0.0f), false, VAlign_Fill);
 		View.Root = Line;
 		View.Slot = CalloutLayer->AddChildToCanvas(Line);
 		View.Slot->SetAutoSize(true);
@@ -151,6 +166,8 @@ void UEXHangarWidget::BuildTree()
 	EXUi::AddO(Root, SlotsPanel, HAlign_Left, VAlign_Top, FMargin(PanelLeft, PanelTop, 0.0f, 0.0f));
 	ListPanel = BuildListPanel();
 	EXUi::AddO(Root, ListPanel, HAlign_Left, VAlign_Top, FMargin(PanelLeft, PanelTop, 0.0f, 0.0f));
+	VaultPanel = BuildVaultPanel();
+	EXUi::AddO(Root, VaultPanel, HAlign_Left, VAlign_Top, FMargin(PanelLeft, PanelTop, 0.0f, 0.0f));
 	QuickPanel = BuildQuickPanel();
 	EXUi::AddO(Root, QuickPanel, HAlign_Left, VAlign_Top, FMargin(PanelLeft, PanelTop, 0.0f, 0.0f));
 	CandidatesPanel = BuildCandidatesPanel();
@@ -169,7 +186,7 @@ void UEXHangarWidget::BuildTree()
 	PreviewPanel = BuildPreviewLabel();
 	EXUi::AddO(Root, PreviewPanel, HAlign_Center, VAlign_Bottom, FMargin(0.0f, 0.0f, 0.0f, 326.0f));
 
-	NoticeText = EXUi::OutlinedText(Tree, TEXT(""), 13, EXUi::RustHot(), 60, 1, EXUi::Ink(0.8f));
+	NoticeText = EXUi::OutlinedText(Tree, TEXT(""), 13, EXUi::AccentHot(), 60, 1, EXUi::Ink(0.8f));
 	EXUi::AddO(Root, NoticeText, HAlign_Center, VAlign_Bottom, FMargin(0.0f, 0.0f, 0.0f, 282.0f));
 
 	CacheOverlay = BuildCacheOverlay();
@@ -178,8 +195,8 @@ void UEXHangarWidget::BuildTree()
 	// Bottom: the keys of the tab (rebuilt when they change).
 	KeyBar = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	UVerticalBox* Bottom = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	EXUi::AddV(Bottom, EXUi::Sized(Tree, 0.0f, 1.0f, EXUi::Box(Tree, EXUi::Rust(0.5f))));
-	EXUi::AddV(Bottom, EXUi::Sized(Tree, 0.0f, KeyBarHeight, EXUi::Box(Tree, EXUi::Hex(8, 5, 3, 0.92f), FMargin(58.0f, 0.0f, 58.0f, 0.0f), KeyBar)));
+	EXUi::AddV(Bottom, EXUi::Sized(Tree, 0.0f, 1.0f, EXUi::Box(Tree, EXUi::Accent(0.5f))));
+	EXUi::AddV(Bottom, EXUi::Sized(Tree, 0.0f, KeyBarHeight, EXUi::Box(Tree, EXUi::Ink(0.9f), FMargin(58.0f, 0.0f, 58.0f, 0.0f), KeyBar)));
 	EXUi::AddO(Root, Bottom, HAlign_Fill, VAlign_Bottom);
 }
 
@@ -188,28 +205,24 @@ UEXHangarWidget::FLineFrame UEXHangarWidget::MakeLineFrame(UWidget* Content, flo
 	UWidgetTree* Tree = WidgetTree;
 	FLineFrame Frame;
 	UOverlay* Root = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	// Under the text: the fill, then the selection's wash fading to the right (the mock-ups' gradient).
-	Frame.Fill = EXUi::Box(Tree, EXUi::Bone(0.035f));
+	// Under the text: the navy plate with its cut corners, then the selection's wash fading to the right; the edge on top.
+	Frame.Fill = EXUi::Box(Tree, EXUi::Plate(0.55f));
+	EXUi::SetShapeBrush(Frame.Fill, EXUi::EShape::Plate, LineCorner);
 	EXUi::AddO(Root, Frame.Fill, HAlign_Fill, VAlign_Fill);
 	if (bWash)
 	{
-		Frame.Wash = EXUi::Image(Tree, EXUi::Icon(TEXT("ui_fade_h")), EXUi::Rust(0.22f));
+		Frame.Wash = EXUi::ShapeImage(Tree, EXUi::EShape::Plate, TEXT("_wash"), LineCorner, EXUi::Accent(0.24f));
 		Frame.Wash->SetVisibility(ESlateVisibility::Collapsed);
 		EXUi::AddO(Root, Frame.Wash, HAlign_Fill, VAlign_Fill);
 	}
 	EXUi::AddO(Root, Content, HAlign_Fill, VAlign_Center, LinePadding);
-	for (int32 Side = 0; Side < 4; ++Side)
-	{
-		Frame.Edges[Side] = EXUi::Box(Tree, EXUi::Bone(0.07f));
-		const bool bHorizontal = Side < 2;
-		EXUi::AddO(Root, EXUi::Sized(Tree, bHorizontal ? 0.0f : 1.0f, bHorizontal ? 1.0f : 0.0f, Frame.Edges[Side]),
-			bHorizontal ? HAlign_Fill : (Side == 2 ? HAlign_Left : HAlign_Right), bHorizontal ? (Side == 0 ? VAlign_Top : VAlign_Bottom) : VAlign_Fill);
-	}
+	Frame.Edge = EXUi::ShapeImage(Tree, EXUi::EShape::Plate, TEXT("_edge"), LineCorner, EXUi::AccentHot(0.14f));
+	EXUi::AddO(Root, Frame.Edge, HAlign_Fill, VAlign_Fill);
 	if (BarWidth > 0.0f)
 	{
-		Frame.Bar = EXUi::Box(Tree, EXUi::Rust());
-		EXUi::AddO(Root, EXUi::Sized(Tree, BarWidth, 0.0f, Frame.Bar), HAlign_Left, VAlign_Fill, FMargin(0.0f, BarWidth < 4.0f ? 7.0f : 0.0f, 0.0f,
-			BarWidth < 4.0f ? 7.0f : 0.0f));
+		// Inside the edge, below the cut corner.
+		Frame.Bar = EXUi::Box(Tree, EXUi::Accent());
+		EXUi::AddO(Root, EXUi::Sized(Tree, BarWidth, 0.0f, Frame.Bar), HAlign_Left, VAlign_Fill, FMargin(2.0f, LineCorner + 2.0f, 0.0f, 4.0f));
 	}
 	Frame.Root = Root;
 	return Frame;
@@ -217,15 +230,15 @@ UEXHangarWidget::FLineFrame UEXHangarWidget::MakeLineFrame(UWidget* Content, flo
 
 void UEXHangarWidget::ShowLineFrame(const FLineFrame& Frame, const FLinearColor& Bar, bool bSelected, const FLinearColor& Accent) const
 {
-	Frame.Fill->SetBrushColor(bSelected ? WithAlpha(Accent, 0.14f) : EXUi::Bone(0.035f));
-	for (UBorder* Edge : Frame.Edges)
+	Frame.Fill->SetBrushColor(bSelected ? PickFill() : EXUi::Plate(0.55f));
+	if (Frame.Edge)
 	{
-		Edge->SetBrushColor(bSelected ? WithAlpha(Accent, 0.75f) : EXUi::Bone(0.07f));
+		Frame.Edge->SetColorAndOpacity(bSelected ? WithAlpha(Accent, 0.95f) : EXUi::AccentHot(0.14f));
 	}
 	if (Frame.Wash)
 	{
-		Frame.Wash->SetColorAndOpacity(WithAlpha(Accent, 0.22f));
-		Frame.Wash->SetVisibility(bSelected && EXUi::Icon(TEXT("ui_fade_h")) ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		Frame.Wash->SetColorAndOpacity(WithAlpha(Accent, 0.24f));
+		Frame.Wash->SetVisibility(bSelected && EXUi::Icon(TEXT("ui_plate_wash")) ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	}
 	if (Frame.Bar)
 	{
@@ -235,12 +248,9 @@ void UEXHangarWidget::ShowLineFrame(const FLineFrame& Frame, const FLinearColor&
 
 UWidget* UEXHangarWidget::MakePanel(UWidget* Content, float Width, bool bAccentTop)
 {
-	const EXUi::FFrame Panel = EXUi::Frame(WidgetTree, bAccentTop ? EXUi::Rust(0.35f) : EXUi::Bone(0.09f), PlateFill(), 1.0f,
-		FMargin(17.0f, 17.0f, 17.0f, 12.0f), bAccentTop ? 4.0f : -1.0f);
-	if (bAccentTop)
-	{
-		Panel.Edges[0]->SetBrushColor(EXUi::Rust());
-	}
+	// A navy plate with a cyan edge; the info panel has the bar along its top as well.
+	const EXUi::FFrame Panel = EXUi::Frame(WidgetTree, bAccentTop ? EXUi::Accent(0.9f) : EXUi::Accent(0.5f), PlateFill(), 1.0f,
+		FMargin(17.0f, 17.0f, 17.0f, 12.0f), bAccentTop ? 3.0f : -1.0f, PanelCorner);
 	Panel.Fill->SetContent(Content);
 	return EXUi::Sized(WidgetTree, Width, 0.0f, Panel.Root);
 }
@@ -249,51 +259,59 @@ UWidget* UEXHangarWidget::BuildTopBar()
 {
 	UWidgetTree* Tree = WidgetTree;
 	UOverlay* Bar = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	// A dark band fading down (linear-gradient(180deg, rgba(8,6,5,.82), transparent)).
+	// A navy band fading down.
 	if (UTexture2D* Fade = EXUi::Icon(TEXT("ui_fade_v")))
 	{
-		EXUi::AddO(Bar, EXUi::Image(Tree, Fade, EXUi::Hex(8, 6, 5, 0.82f)), HAlign_Fill, VAlign_Fill);
+		EXUi::AddO(Bar, EXUi::Image(Tree, Fade, EXUi::Ink(0.85f)), HAlign_Fill, VAlign_Fill);
 	}
 	else
 	{
-		EXUi::AddO(Bar, EXUi::Box(Tree, EXUi::Hex(8, 6, 5, 0.55f)), HAlign_Fill, VAlign_Fill);
+		EXUi::AddO(Bar, EXUi::Box(Tree, EXUi::Ink(0.55f)), HAlign_Fill, VAlign_Fill);
 	}
 	UHorizontalBox* Top = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	EXUi::AddH(Top, EXUi::TitleText(Tree, TEXT("HANGAR"), 22, EXUi::Bone(), 160), FMargin(0.0f, 0.0f, 41.0f, 0.0f));
+	EXUi::AddH(Top, EXUi::TitleText(Tree, TEXT("HANGAR"), 24, EXUi::Fore(), 160), FMargin(0.0f, 0.0f, 38.0f, 0.0f));
+	// The tabs lean forward like the figures; the one open is bright cyan with dark letters (the HUD's own row).
 	for (int32 Tab = 0; Tab < HangarTabs; ++Tab)
 	{
-		UTextBlock* Label = EXUi::WeightText(Tree, UEXHangarModel::TabName(static_cast<EEXHangarTab>(Tab)), 11, EXUi::Sand(), 600, 180);
-		const EXUi::FFrame Chip = EXUi::Frame(Tree, EXUi::Bone(0.15f), EXUi::Hex(10, 7, 5, 0.35f), 1.0f, FMargin(19.0f, 10.0f, 19.0f, 10.0f));
+		UTextBlock* Label = EXUi::LabelText(Tree, UEXHangarModel::TabName(static_cast<EEXHangarTab>(Tab)), 11, EXUi::Quiet(), 180);
+		const EXUi::FFrame Chip = EXUi::Frame(Tree, EXUi::AccentHot(0.25f), EXUi::Plate(0.6f), 1.0f, FMargin(26.0f, 0.0f, 26.0f, 0.0f), -1.0f,
+			TabHeight, EXUi::EShape::Tab);
 		Chip.Fill->SetContent(Label);
-		EXUi::AddH(Top, Chip.Root, FMargin(0.0f, 0.0f, 7.0f, 0.0f));
+		Chip.Fill->SetVerticalAlignment(VAlign_Center);
+		EXUi::AddH(Top, EXUi::Sized(Tree, 0.0f, TabHeight, Chip.Root), FMargin(0.0f, 0.0f, 2.0f, 0.0f));
 		TabFills.Add(Chip.Fill);
-		TabEdges.Append(Chip.Edges, 4);
+		TabEdges.Add(Chip.Edge);
 		TabTexts.Add(Label);
 	}
 	EXUi::AddH(Top, EXUi::Sized(Tree, 1.0f, 1.0f), FMargin(0.0f), true);
-	EXUi::AddH(Top, EXUi::GemImage(Tree, 16.0f), FMargin(0.0f, 0.0f, 12.0f, 0.0f));
-	WalletText = EXUi::WeightText(Tree, TEXT("0"), 16, EXUi::Bone(), 800);
-	EXUi::AddH(Top, WalletText, FMargin(0.0f, 0.0f, 10.0f, 0.0f));
-	EXUi::AddH(Top, EXUi::WeightText(Tree, TEXT("STARDUST"), 11, EXUi::Sand(), 600, 200));
+	// The wallet: the coin and the STARDUST in gold on a plate with a gold edge (the HUD's spoils).
+	UHorizontalBox* Wallet = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	EXUi::AddH(Wallet, EXUi::GemImage(Tree, 18.0f), FMargin(0.0f, 0.0f, 10.0f, 0.0f));
+	WalletText = EXUi::TitleText(Tree, TEXT("0"), 20, EXUi::Gold(), 40);
+	EXUi::AddH(Wallet, WalletText, FMargin(0.0f, 0.0f, 12.0f, 0.0f));
+	EXUi::AddH(Wallet, EXUi::LabelText(Tree, TEXT("STARDUST"), 10, EXUi::Quiet(), 200));
+	const EXUi::FFrame Purse = EXUi::Frame(Tree, EXUi::Gold(0.85f), EXUi::Plate(0.8f), 1.0f, FMargin(18.0f, 6.0f, 22.0f, 6.0f), -1.0f, 10.0f);
+	Purse.Fill->SetContent(Wallet);
+	EXUi::AddH(Top, Purse.Root);
 	EXUi::AddO(Bar, Top, HAlign_Fill, VAlign_Center, FMargin(48.0f, 0.0f, 48.0f, 0.0f));
 	return EXUi::Sized(Tree, 0.0f, 77.0f, Bar);
 }
 
 UWidget* UEXHangarWidget::BuildShipTitle()
 {
-	// The ship's name over the turntable, dark on the lit workshop (mock-up hangar2), its line and its stars.
+	// The ship's name over the turntable, white with a dark outline and leaning like the HUD's figures, its line and stars.
 	UWidgetTree* Tree = WidgetTree;
 	UVerticalBox* Title = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	ShipTitle = EXUi::TitleText(Tree, TEXT("-"), 49, EXUi::Hex(29, 20, 14, 0.9f), 100);
-	ShipTitle->SetShadowOffset(FVector2D(0.0f, 1.0f));
-	ShipTitle->SetShadowColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 0.4f));
+	ShipTitle = EXUi::TitleText(Tree, TEXT("-"), 52, EXUi::Fore(), 100);
+	ShipTitle->SetShadowOffset(FVector2D(0.0f, 3.0f));
+	ShipTitle->SetShadowColorAndOpacity(EXUi::Ink(0.45f));
 	EXUi::AddV(Title, ShipTitle, FMargin(0.0f), HAlign_Center);
-	ShipSubtitle = EXUi::WeightText(Tree, TEXT("-"), 12, EXUi::Hex(90, 70, 54), 700, 300);
+	ShipSubtitle = EXUi::LabelText(Tree, TEXT("-"), 12, EXUi::AccentHot(), 300);
 	EXUi::AddV(Title, ShipSubtitle, FMargin(0.0f, 5.0f, 0.0f, 0.0f), HAlign_Center);
 	ShipStars = Diamonds(Tree, EXMeta::MaxStars, 11.0f, 7.0f, ShipStarPips);
 	UHorizontalBox* StarLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	EXUi::AddH(StarLine, ShipStars);
-	ShipStarText = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Hex(150, 104, 20), 800, 160);
+	ShipStarText = EXUi::LabelText(Tree, TEXT(""), 11, EXUi::Gold(), 160);
 	EXUi::AddH(StarLine, ShipStarText, FMargin(12.0f, 0.0f, 0.0f, 0.0f));
 	EXUi::AddV(Title, StarLine, FMargin(0.0f, 9.0f, 0.0f, 0.0f), HAlign_Center);
 	return Title;
@@ -304,21 +322,28 @@ UEXHangarWidget::FSlotView UEXHangarWidget::MakeSlot()
 	UWidgetTree* Tree = WidgetTree;
 	FSlotView View;
 	UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	// The slot's icon in a small dark square.
-	const EXUi::FFrame IconFrame = EXUi::Frame(Tree, EXUi::Bone(0.12f), EXUi::Ink(0.35f), 1.0f, FMargin(9.0f));
-	View.Icon = EXUi::Image(Tree, nullptr, EXUi::RustHot());
+	// The fitted piece's 3D photo in a thin frame (player, 2026-11-01: "tem de mostrar os ícones 3D"); the slot's icon in a
+	// small dark square while the photos are not imported.
+	const EXUi::FFrame IconFrame = EXUi::Frame(Tree, EXUi::AccentHot(0.25f), EXUi::Ink(0.45f), 1.0f, FMargin(9.0f), -1.0f, 6.0f);
+	View.Icon = EXUi::Image(Tree, nullptr, EXUi::AccentHot());
 	IconFrame.Fill->SetContent(View.Icon);
-	EXUi::AddH(Line, EXUi::Sized(Tree, 41.0f, 41.0f, IconFrame.Root), FMargin(0.0f, 0.0f, 12.0f, 0.0f));
+	View.IconBox = EXUi::Sized(Tree, 41.0f, 41.0f, IconFrame.Root);
+	View.Photo = EXUi::Image(Tree, nullptr);
+	View.PhotoBox = EXUi::Sized(Tree, 66.0f, 42.0f, EXUi::Box(Tree, EXUi::AccentHot(0.3f), FMargin(1.0f), View.Photo));
+	UOverlay* Picture = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
+	EXUi::AddO(Picture, View.IconBox, HAlign_Left, VAlign_Center);
+	EXUi::AddO(Picture, View.PhotoBox, HAlign_Left, VAlign_Center);
+	EXUi::AddH(Line, EXUi::Sized(Tree, 66.0f, 42.0f, Picture), FMargin(0.0f, 0.0f, 12.0f, 0.0f));
 	UVerticalBox* Text = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	View.Label = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Sand(), 700, 180);
-	View.Title = EXUi::WeightText(Tree, TEXT(""), 13, EXUi::Bone(), 700);
+	View.Label = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Quiet(), 700, 180);
+	View.Title = EXUi::WeightText(Tree, TEXT(""), 13, EXUi::Fore(), 700);
 	EXUi::AddV(Text, View.Label);
 	EXUi::AddV(Text, View.Title, FMargin(0.0f, 2.0f, 0.0f, 0.0f));
 	EXUi::AddH(Line, Text, FMargin(0.0f), true);
 	View.Shield = EXUi::Image(Tree, EXUi::Icon(TEXT("fam_4")), EXUi::Ok());
 	EXUi::AddH(Line, EXUi::Sized(Tree, 15.0f, 15.0f, View.Shield), FMargin(0.0f, 0.0f, 12.0f, 0.0f));
-	const EXUi::FFrame Badge = EXUi::Frame(Tree, EXUi::Bone(0.25f), EXUi::Ink(0.0f), 1.0f, FMargin(6.0f, 1.0f, 6.0f, 1.0f));
-	View.SizeText = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Sand(), 800);
+	const EXUi::FFrame Badge = EXUi::Frame(Tree, EXUi::AccentHot(0.35f), EXUi::Ink(0.0f), 1.0f, FMargin(6.0f, 1.0f, 6.0f, 1.0f), -1.0f, 4.0f);
+	View.SizeText = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Quiet(), 800);
 	Badge.Fill->SetContent(View.SizeText);
 	View.SizeBox = Badge.Root;
 	EXUi::AddH(Line, Badge.Root);
@@ -332,33 +357,33 @@ UEXHangarWidget::FItemView UEXHangarWidget::MakeItem(float Width)
 	FItemView View;
 	UHorizontalBox* Outer = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	// The icon (caches, and modules in the shop and the vault lists).
-	const EXUi::FFrame IconFrame = EXUi::Frame(Tree, EXUi::Bone(0.15f), EXUi::Ink(0.35f), 1.0f, FMargin(10.0f));
-	View.Icon = EXUi::Image(Tree, nullptr, EXUi::Bone());
+	const EXUi::FFrame IconFrame = EXUi::Frame(Tree, EXUi::AccentHot(0.25f), EXUi::Ink(0.45f), 1.0f, FMargin(10.0f), -1.0f, 6.0f);
+	View.Icon = EXUi::Image(Tree, nullptr, EXUi::Fore());
 	IconFrame.Fill->SetContent(View.Icon);
 	View.IconBox = EXUi::Sized(Tree, 48.0f, 48.0f, IconFrame.Root);
 	EXUi::AddH(Outer, View.IconBox, FMargin(0.0f, 0.0f, 14.0f, 0.0f), false, VAlign_Top);
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	// Name, flame bar, tag ... rarity.
 	UHorizontalBox* Head = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	View.Title = EXUi::WeightText(Tree, TEXT(""), 14, EXUi::Bone(), 800);
+	View.Title = EXUi::WeightText(Tree, TEXT(""), 14, EXUi::Fore(), 800);
 	EXUi::AddH(Head, View.Title);
 	View.Flame = EXUi::Image(Tree, nullptr);
 	View.FlameBox = EXUi::Sized(Tree, 55.0f, 11.0f, View.Flame);
 	EXUi::AddH(Head, View.FlameBox, FMargin(10.0f, 0.0f, 0.0f, 0.0f));
-	const EXUi::FFrame Tag = EXUi::Frame(Tree, EXUi::Sand(), EXUi::Ink(0.0f), 1.0f, FMargin(7.0f, 1.0f, 7.0f, 2.0f));
-	View.Tag = EXUi::WeightText(Tree, TEXT(""), 8, EXUi::Sand(), 800, 160);
+	const EXUi::FFrame Tag = EXUi::Frame(Tree, EXUi::Quiet(), EXUi::Ink(0.0f), 1.0f, FMargin(7.0f, 1.0f, 7.0f, 2.0f), -1.0f, 4.0f);
+	View.Tag = EXUi::WeightText(Tree, TEXT(""), 8, EXUi::Quiet(), 800, 160);
 	Tag.Fill->SetContent(View.Tag);
 	View.TagBox = Tag.Root;
 	EXUi::AddH(Head, Tag.Root, FMargin(8.0f, 0.0f, 0.0f, 0.0f));
 	EXUi::AddH(Head, EXUi::Sized(Tree, 1.0f, 1.0f), FMargin(0.0f), true);
-	View.Rarity = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Bone(), 800, 200);
+	View.Rarity = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Fore(), 800, 200);
 	EXUi::AddH(Head, View.Rarity, FMargin(8.0f, 0.0f, 0.0f, 0.0f));
 	EXUi::AddV(Column, Head);
 	// Maker line ... value.
 	UHorizontalBox* Second = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	View.Maker = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 400);
+	View.Maker = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Quiet(), 400);
 	EXUi::AddH(Second, View.Maker, FMargin(0.0f), true);
-	View.ValueBox = ValueWithGem(Tree, View.Value, 10, EXUi::Sand());
+	View.ValueBox = ValueWithGem(Tree, View.Value, 10, EXUi::Gold(0.9f));
 	EXUi::AddH(Second, View.ValueBox, FMargin(8.0f, 0.0f, 0.0f, 0.0f));
 	EXUi::AddV(Column, Second, FMargin(0.0f, 3.0f, 0.0f, 0.0f));
 	// The chips, wrapping.
@@ -381,8 +406,8 @@ UEXHangarWidget::FShipView UEXHangarWidget::MakeShip()
 	FShipView View;
 	UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	UVerticalBox* Text = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	View.Name = EXUi::TitleText(Tree, TEXT(""), 16, EXUi::Bone(), 80);
-	View.Role = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 600, 100);
+	View.Name = EXUi::TitleText(Tree, TEXT(""), 16, EXUi::Fore(), 80);
+	View.Role = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Quiet(), 600, 100);
 	EXUi::AddV(Text, View.Name);
 	EXUi::AddV(Text, View.Role, FMargin(0.0f, 4.0f, 0.0f, 0.0f));
 	EXUi::AddH(Line, Text, FMargin(0.0f), true);
@@ -400,30 +425,33 @@ UEXHangarWidget::FTileView UEXHangarWidget::MakeTile(int32 QuickIndex)
 	UWidgetTree* Tree = WidgetTree;
 	FTileView View;
 	UOverlay* Root = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	View.Fill = EXUi::Box(Tree, EXUi::Bone(0.035f));
+	View.Fill = EXUi::Box(Tree, EXUi::Plate(0.6f));
+	EXUi::SetShapeBrush(View.Fill, EXUi::EShape::Plate, 12.0f);
 	EXUi::AddO(Root, View.Fill, HAlign_Fill, VAlign_Fill);
+	// The consumable's 3D photo (its icon while the photos are not imported), its name and count.
+	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	View.Icon = EXUi::Image(Tree, nullptr);
+	View.IconBox = EXUi::Sized(Tree, 40.0f, 40.0f, View.Icon);
+	View.Photo = EXUi::Image(Tree, nullptr);
+	View.PhotoBox = EXUi::Sized(Tree, 108.0f, 69.0f, View.Photo);
+	UOverlay* Picture = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
+	EXUi::AddO(Picture, View.IconBox, HAlign_Center, VAlign_Center);
+	EXUi::AddO(Picture, View.PhotoBox, HAlign_Center, VAlign_Center);
+	EXUi::AddV(Column, Picture, FMargin(0.0f), HAlign_Center);
+	View.Name = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Fore(), 700);
+	EXUi::AddV(Column, View.Name, FMargin(0.0f, 6.0f, 0.0f, 0.0f), HAlign_Center);
+	EXUi::AddV(Column, Diamonds(Tree, 2, 9.0f, 7.0f, View.Pips), FMargin(0.0f, 6.0f, 0.0f, 0.0f), HAlign_Center);
+	EXUi::AddO(Root, Column, HAlign_Center, VAlign_Center, FMargin(0.0f, 16.0f, 0.0f, 0.0f));
 	// The key in a small box (top left) and the d-pad arrow (top right).
-	const EXUi::FFrame Key = EXUi::Frame(Tree, EXUi::Bone(0.7f), EXUi::Ink(0.0f), 1.0f, FMargin(0.0f));
-	UTextBlock* KeyText = EXUi::WeightText(Tree, FString::FromInt(QuickIndex + 1), 10, EXUi::Bone(), 800);
+	const EXUi::FFrame Key = EXUi::Frame(Tree, EXUi::AccentHot(0.7f), EXUi::Ink(0.0f), 1.0f, FMargin(0.0f), -1.0f, 4.0f);
+	UTextBlock* KeyText = EXUi::WeightText(Tree, FString::FromInt(QuickIndex + 1), 10, EXUi::Fore(), 800);
 	Key.Fill->SetContent(KeyText);
 	Key.Fill->SetHorizontalAlignment(HAlign_Center);
 	Key.Fill->SetVerticalAlignment(VAlign_Center);
 	EXUi::AddO(Root, EXUi::Sized(Tree, 22.0f, 22.0f, Key.Root), HAlign_Left, VAlign_Top, FMargin(9.0f));
-	EXUi::AddO(Root, EXUi::WeightText(Tree, QuickArrows[QuickIndex], 10, EXUi::Rust(), 700), HAlign_Right, VAlign_Top, FMargin(0.0f, 8.0f, 10.0f, 0.0f));
-	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	View.Icon = EXUi::Image(Tree, nullptr);
-	EXUi::AddV(Column, EXUi::Sized(Tree, 40.0f, 40.0f, View.Icon), FMargin(0.0f), HAlign_Center);
-	View.Name = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Bone(), 700);
-	EXUi::AddV(Column, View.Name, FMargin(0.0f, 9.0f, 0.0f, 0.0f), HAlign_Center);
-	EXUi::AddV(Column, Diamonds(Tree, 2, 9.0f, 7.0f, View.Pips), FMargin(0.0f, 7.0f, 0.0f, 0.0f), HAlign_Center);
-	EXUi::AddO(Root, Column, HAlign_Center, VAlign_Center, FMargin(0.0f, 14.0f, 0.0f, 0.0f));
-	for (int32 Side = 0; Side < 4; ++Side)
-	{
-		View.Edges[Side] = EXUi::Box(Tree, EXUi::Bone(0.1f));
-		const bool bHorizontal = Side < 2;
-		EXUi::AddO(Root, EXUi::Sized(Tree, bHorizontal ? 0.0f : 1.0f, bHorizontal ? 1.0f : 0.0f, View.Edges[Side]),
-			bHorizontal ? HAlign_Fill : (Side == 2 ? HAlign_Left : HAlign_Right), bHorizontal ? (Side == 0 ? VAlign_Top : VAlign_Bottom) : VAlign_Fill);
-	}
+	EXUi::AddO(Root, EXUi::WeightText(Tree, QuickArrows[QuickIndex], 10, EXUi::Accent(), 700), HAlign_Right, VAlign_Top, FMargin(0.0f, 8.0f, 10.0f, 0.0f));
+	View.Edge = EXUi::ShapeImage(Tree, EXUi::EShape::Plate, TEXT("_edge"), 12.0f, EXUi::AccentHot(0.2f));
+	EXUi::AddO(Root, View.Edge, HAlign_Fill, VAlign_Fill);
 	View.Root = EXUi::Sized(Tree, 142.0f, 142.0f, Root);
 	return View;
 }
@@ -433,30 +461,26 @@ UEXHangarWidget::FStockView UEXHangarWidget::MakeStock()
 	UWidgetTree* Tree = WidgetTree;
 	FStockView View;
 	UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	const EXUi::FFrame IconFrame = EXUi::Frame(Tree, EXUi::Bone(0.15f), EXUi::Ink(0.35f), 1.0f, FMargin(12.0f));
+	const EXUi::FFrame IconFrame = EXUi::Frame(Tree, EXUi::AccentHot(0.25f), EXUi::Ink(0.45f), 1.0f, FMargin(12.0f), -1.0f, 6.0f);
 	View.Icon = EXUi::Image(Tree, nullptr);
 	IconFrame.Fill->SetContent(View.Icon);
 	EXUi::AddH(Line, EXUi::Sized(Tree, 53.0f, 53.0f, IconFrame.Root), FMargin(0.0f, 0.0f, 16.0f, 0.0f));
 	UVerticalBox* Text = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	View.Name = EXUi::WeightText(Tree, TEXT(""), 14, EXUi::Bone(), 700);
-	View.Effect = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Sand(), 400);
+	View.Name = EXUi::WeightText(Tree, TEXT(""), 14, EXUi::Fore(), 700);
+	View.Effect = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Quiet(), 400);
 	View.Effect->SetAutoWrapText(true);
 	EXUi::AddV(Text, View.Name);
 	EXUi::AddV(Text, View.Effect, FMargin(0.0f, 3.0f, 0.0f, 0.0f));
 	EXUi::AddH(Line, Text, FMargin(0.0f), true);
 	UVerticalBox* Right = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	EXUi::AddV(Right, EXUi::WeightText(Tree, TEXT("no stock"), 10, EXUi::Sand(), 400), FMargin(0.0f), HAlign_Right);
-	View.Count = EXUi::WeightText(Tree, TEXT(""), 14, EXUi::Bone(), 800);
+	EXUi::AddV(Right, EXUi::WeightText(Tree, TEXT("no stock"), 10, EXUi::Quiet(), 400), FMargin(0.0f), HAlign_Right);
+	View.Count = EXUi::WeightText(Tree, TEXT(""), 14, EXUi::Fore(), 800);
 	EXUi::AddV(Right, View.Count, FMargin(0.0f, 1.0f, 0.0f, 3.0f), HAlign_Right);
-	// The buy button: the orange gradient, dark text, the gem.
+	// The buy button: the primary button's face, dark text, the coin.
 	UOverlay* Button = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	EXUi::AddO(Button, EXUi::Box(Tree, EXUi::Rust()), HAlign_Fill, VAlign_Fill);
-	if (UTexture2D* Gradient = EXUi::Icon(TEXT("ui_button")))
-	{
-		EXUi::AddO(Button, EXUi::Image(Tree, Gradient), HAlign_Fill, VAlign_Fill);
-	}
+	EXUi::AddO(Button, EXUi::ButtonFace(Tree, 22.0f), HAlign_Fill, VAlign_Fill);
 	UHorizontalBox* Label = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	View.Button = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Hex(26, 11, 4), 800, 120);
+	View.Button = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Ink(), 800, 120);
 	EXUi::AddH(Label, View.Button);
 	EXUi::AddH(Label, EXUi::GemImage(Tree, 7.0f), FMargin(4.0f, 0.0f, 0.0f, 0.0f));
 	EXUi::AddO(Button, Label, HAlign_Center, VAlign_Center, FMargin(9.0f, 3.0f, 9.0f, 3.0f));
@@ -471,9 +495,9 @@ UEXHangarWidget::FInfoView UEXHangarWidget::MakeInfo()
 	UWidgetTree* Tree = WidgetTree;
 	FInfoView View;
 	UVerticalBox* Text = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	View.Label = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Rust(), 700, 180);
-	View.Title = EXUi::WeightText(Tree, TEXT(""), 14, EXUi::Bone(), 700);
-	View.Sub = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 400);
+	View.Label = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Accent(), 700, 180);
+	View.Title = EXUi::WeightText(Tree, TEXT(""), 14, EXUi::Fore(), 700);
+	View.Sub = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Quiet(), 400);
 	View.Sub->SetAutoWrapText(true);
 	EXUi::AddV(Text, View.Label);
 	EXUi::AddV(Text, View.Title, FMargin(0.0f, 2.0f, 0.0f, 0.0f));
@@ -488,48 +512,51 @@ UEXHangarWidget::FCardView UEXHangarWidget::MakeCard(float Width, float Height, 
 	FCardView View;
 	UOverlay* Root = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
 
-	// The back: rust stripes over a dark gradient, a glowing diamond with a question mark, "ESPAÇO".
+	// The back: a navy plate glowing cyan inside its edges, a glowing diamond with a question mark, "ESPAÇO".
 	UOverlay* Back = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	EXUi::AddO(Back, EXUi::Box(Tree, EXUi::Hex(28, 16, 10, 0.98f)), HAlign_Fill, VAlign_Fill);
-	EXUi::AddO(Back, EXUi::Tiled(Tree, TEXT("ui_stripes"), EXUi::Rust(0.08f), 24.0f), HAlign_Fill, VAlign_Fill);
-	EXUi::AddO(Back, EXUi::Glow(Tree, EXUi::Rust(0.0f)), HAlign_Fill, VAlign_Fill);
+	UBorder* BackFill = EXUi::Box(Tree, EXUi::Hex(10, 24, 50, 0.98f));
+	EXUi::SetShapeBrush(BackFill, EXUi::EShape::Card, CardCorner);
+	EXUi::AddO(Back, BackFill, HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Back, EXUi::ShapeImage(Tree, EXUi::EShape::Card, TEXT("_inset"), CardCorner, EXUi::Accent(0.22f)), HAlign_Fill, VAlign_Fill);
 	UVerticalBox* BackColumn = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UOverlay* Question = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	EXUi::AddO(Question, EXUi::Sized(Tree, 120.0f, 120.0f, EXUi::Image(Tree, EXUi::Icon(TEXT("ui_radial")), EXUi::Rust(0.45f))), HAlign_Center, VAlign_Center);
-	USizeBox* Diamond = EXUi::Sized(Tree, 84.0f, 84.0f, EXUi::Box(Tree, EXUi::Rust(), FMargin(2.0f), EXUi::Box(Tree, EXUi::Hex(30, 17, 10))));
+	EXUi::AddO(Question, EXUi::Sized(Tree, 120.0f, 120.0f, EXUi::Image(Tree, EXUi::Icon(TEXT("ui_radial")), EXUi::Accent(0.45f))), HAlign_Center, VAlign_Center);
+	USizeBox* Diamond = EXUi::Sized(Tree, 84.0f, 84.0f, EXUi::Box(Tree, EXUi::Accent(), FMargin(2.0f), EXUi::Box(Tree, EXUi::Hex(10, 26, 54))));
 	Diamond->SetRenderTransformAngle(45.0f);
 	EXUi::AddO(Question, Diamond, HAlign_Center, VAlign_Center);
-	EXUi::AddO(Question, EXUi::WeightText(Tree, TEXT("?"), 27, EXUi::RustHot(), 900), HAlign_Center, VAlign_Center);
+	EXUi::AddO(Question, EXUi::WeightText(Tree, TEXT("?"), 27, EXUi::AccentHot(), 900), HAlign_Center, VAlign_Center);
 	EXUi::AddV(BackColumn, EXUi::Sized(Tree, 130.0f, 130.0f, Question), FMargin(0.0f), HAlign_Center);
-	EXUi::AddV(BackColumn, EXUi::WeightText(Tree, TEXT("ESPAÇO"), 10, EXUi::Sand(), 700, 200), FMargin(0.0f, 6.0f, 0.0f, 0.0f), HAlign_Center);
+	EXUi::AddV(BackColumn, EXUi::WeightText(Tree, TEXT("ESPAÇO"), 10, EXUi::Quiet(), 700, 200), FMargin(0.0f, 6.0f, 0.0f, 0.0f), HAlign_Center);
 	EXUi::AddO(Back, BackColumn, HAlign_Center, VAlign_Center);
-	const EXUi::FFrame BackEdges = EXUi::Frame(Tree, EXUi::Rust(0.6f), EXUi::Ink(0.0f), 1.0f, FMargin(0.0f));
+	const EXUi::FFrame BackEdges = EXUi::Frame(Tree, EXUi::Accent(0.7f), EXUi::Ink(0.0f), 1.0f, FMargin(0.0f), -1.0f, CardCorner, EXUi::EShape::Card);
 	EXUi::AddO(Back, BackEdges.Root, HAlign_Fill, VAlign_Fill);
 	EXUi::AddO(Root, Back, HAlign_Fill, VAlign_Fill);
 
 	// The front: the photo (or the icon glowing), the rarity line under it, then what it is.
 	UOverlay* Front = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
 	Front->SetClipping(EWidgetClipping::ClipToBounds);
-	EXUi::AddO(Front, EXUi::Box(Tree, EXUi::Hex(21, 15, 10, 0.97f)), HAlign_Fill, VAlign_Fill);
+	UBorder* FrontFill = EXUi::Box(Tree, EXUi::Hex(8, 18, 38, 0.97f));
+	EXUi::SetShapeBrush(FrontFill, EXUi::EShape::Card, CardCorner);
+	EXUi::AddO(Front, FrontFill, HAlign_Fill, VAlign_Fill);
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UOverlay* Art = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	EXUi::AddO(Art, EXUi::Box(Tree, EXUi::Hex(17, 17, 17)), HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Art, EXUi::Box(Tree, EXUi::Hex(6, 12, 26)), HAlign_Fill, VAlign_Fill);
 	View.Photo = EXUi::Image(Tree, nullptr);
 	EXUi::AddO(Art, View.Photo, HAlign_Fill, VAlign_Fill);
-	View.Halo = EXUi::Image(Tree, EXUi::Icon(TEXT("ui_radial")), EXUi::Bone(0.3f));
+	View.Halo = EXUi::Image(Tree, EXUi::Icon(TEXT("ui_radial")), EXUi::Fore(0.3f));
 	EXUi::AddO(Art, EXUi::Sized(Tree, ArtHeight, ArtHeight, View.Halo), HAlign_Center, VAlign_Center);
 	View.Icon = EXUi::Image(Tree, nullptr);
 	EXUi::AddO(Art, EXUi::Sized(Tree, 77.0f, 77.0f, View.Icon), HAlign_Center, VAlign_Center);
-	View.Tag = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Bone(), 800, 160);
-	EXUi::AddO(Art, EXUi::Box(Tree, EXUi::Hex(10, 7, 5, 0.75f), FMargin(7.0f, 2.0f, 7.0f, 2.0f), View.Tag), HAlign_Left, VAlign_Bottom, FMargin(8.0f));
+	View.Tag = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Fore(), 800, 160);
+	EXUi::AddO(Art, EXUi::Box(Tree, EXUi::Ink(0.78f), FMargin(7.0f, 2.0f, 7.0f, 2.0f), View.Tag), HAlign_Left, VAlign_Bottom, FMargin(8.0f));
 	EXUi::AddV(Column, EXUi::Sized(Tree, 0.0f, ArtHeight, Art));
-	View.ArtLine = EXUi::Box(Tree, EXUi::Rust());
+	View.ArtLine = EXUi::Box(Tree, EXUi::Accent());
 	EXUi::AddV(Column, EXUi::Sized(Tree, 0.0f, 2.0f, View.ArtLine));
 	UVerticalBox* Body = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	View.Rarity = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Bone(), 900, 200);
-	View.Title = EXUi::WeightText(Tree, TEXT(""), 13, EXUi::Bone(), 700);
+	View.Rarity = EXUi::WeightText(Tree, TEXT(""), 9, EXUi::Fore(), 900, 200);
+	View.Title = EXUi::WeightText(Tree, TEXT(""), 13, EXUi::Fore(), 700);
 	View.Title->SetAutoWrapText(true);
-	View.Maker = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 400);
+	View.Maker = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Quiet(), 400);
 	View.Maker->SetAutoWrapText(true);
 	EXUi::AddV(Body, View.Rarity);
 	EXUi::AddV(Body, View.Title, FMargin(0.0f, 3.0f, 0.0f, 0.0f));
@@ -544,17 +571,13 @@ UEXHangarWidget::FCardView UEXHangarWidget::MakeCard(float Width, float Height, 
 	EXUi::AddV(Body, View.ChipBox, FMargin(0.0f, 7.0f, 0.0f, 0.0f));
 	EXUi::AddV(Column, EXUi::Box(Tree, EXUi::Ink(0.0f), FMargin(13.0f, 11.0f, 13.0f, 11.0f), Body));
 	EXUi::AddO(Front, Column, HAlign_Fill, VAlign_Fill);
-	EXUi::AddO(Front, ValueWithGem(Tree, View.Value, 10, EXUi::Sand()), HAlign_Right, VAlign_Bottom, FMargin(0.0f, 0.0f, 12.0f, 11.0f));
+	EXUi::AddO(Front, ValueWithGem(Tree, View.Value, 10, EXUi::Gold(0.9f)), HAlign_Right, VAlign_Bottom, FMargin(0.0f, 0.0f, 16.0f, 11.0f));
 	// The rarity's glow inside the edges, the edges, the NOVO ribbon across the corner.
-	View.GlowInner = EXUi::Sliced(Tree, TEXT("ui_inset"), EXUi::Bone(0.18f), 0.4f);
+	View.GlowInner = EXUi::ShapeImage(Tree, EXUi::EShape::Card, TEXT("_inset"), CardCorner, EXUi::Fore(0.18f));
 	EXUi::AddO(Front, View.GlowInner, HAlign_Fill, VAlign_Fill);
-	const EXUi::FFrame Edges = EXUi::Frame(Tree, EXUi::Rust(), EXUi::Ink(0.0f), 1.0f, FMargin(0.0f));
-	for (int32 Side = 0; Side < 4; ++Side)
-	{
-		View.Edges[Side] = Edges.Edges[Side];
-	}
-	EXUi::AddO(Front, Edges.Root, HAlign_Fill, VAlign_Fill);
-	View.RibbonText = EXUi::WeightText(Tree, TEXT("NOVO"), 9, EXUi::Hex(20, 6, 31), 900, 200);
+	View.Edge = EXUi::ShapeImage(Tree, EXUi::EShape::Card, TEXT("_edge"), CardCorner, EXUi::Accent());
+	EXUi::AddO(Front, View.Edge, HAlign_Fill, VAlign_Fill);
+	View.RibbonText = EXUi::WeightText(Tree, TEXT("NOVO"), 9, EXUi::Ink(), 900, 200);
 	View.RibbonFill = EXUi::Box(Tree, EXUi::Hex(181, 108, 255), FMargin(41.0f, 4.0f, 41.0f, 4.0f), View.RibbonText);
 	View.Ribbon = View.RibbonFill;
 	View.Ribbon->SetRenderTransformAngle(38.0f);
@@ -571,7 +594,7 @@ UWidget* UEXHangarWidget::BuildSlotsPanel()
 {
 	UWidgetTree* Tree = WidgetTree;
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	SlotsTitle = EXUi::WeightText(Tree, TEXT("-"), 11, EXUi::Rust(), 700, 220);
+	SlotsTitle = EXUi::LabelText(Tree, TEXT("-"), 12, EXUi::AccentHot(), 220);
 	EXUi::AddV(Column, SlotsTitle, FMargin(0.0f, 0.0f, 0.0f, 12.0f));
 	for (int32 Index = 0; Index < HangarSlotRows; ++Index)
 	{
@@ -581,7 +604,7 @@ UWidget* UEXHangarWidget::BuildSlotsPanel()
 	}
 	UHorizontalBox* Foot = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	EXUi::AddH(Foot, EXUi::Sized(Tree, 13.0f, 13.0f, EXUi::Image(Tree, EXUi::Icon(TEXT("fam_4")), EXUi::Ok())), FMargin(2.0f, 0.0f, 8.0f, 0.0f));
-	EXUi::AddH(Foot, EXUi::WeightText(Tree, TEXT("Seguro: nunca se perde (1 por expedição)"), 10, EXUi::Sand(), 400));
+	EXUi::AddH(Foot, EXUi::WeightText(Tree, TEXT("Seguro: nunca se perde (1 por expedição)"), 10, EXUi::Quiet(), 400));
 	EXUi::AddV(Column, Foot, FMargin(0.0f, 4.0f, 0.0f, 0.0f));
 	return MakePanel(Column, 420.0f, false);
 }
@@ -590,7 +613,7 @@ UWidget* UEXHangarWidget::BuildListPanel()
 {
 	UWidgetTree* Tree = WidgetTree;
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	ListTitle = EXUi::WeightText(Tree, TEXT("-"), 11, EXUi::Rust(), 700, 220);
+	ListTitle = EXUi::LabelText(Tree, TEXT("-"), 12, EXUi::AccentHot(), 220);
 	EXUi::AddV(Column, ListTitle, FMargin(0.0f, 0.0f, 0.0f, 12.0f));
 	for (int32 Index = 0; Index < HangarShipRows; ++Index)
 	{
@@ -604,9 +627,63 @@ UWidget* UEXHangarWidget::BuildListPanel()
 		EXUi::AddV(Column, View.Frame.Root, FMargin(0.0f, 0.0f, 0.0f, 8.0f));
 		ListViews.Add(View);
 	}
-	ListMore = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 700, 120);
+	ListMore = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Quiet(), 700, 120);
 	EXUi::AddV(Column, ListMore, FMargin(2.0f, 2.0f, 0.0f, 0.0f));
 	return MakePanel(Column, 504.0f, false);
+}
+
+UWidget* UEXHangarWidget::BuildVaultPanel()
+{
+	UWidgetTree* Tree = WidgetTree;
+	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	// The title, and on its right where the pick is ("3 / 23").
+	UHorizontalBox* Head = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	VaultTitle = EXUi::LabelText(Tree, TEXT("COFRE"), 12, EXUi::AccentHot(), 220);
+	EXUi::AddH(Head, VaultTitle, FMargin(0.0f), true);
+	VaultMore = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Quiet(), 700, 120);
+	EXUi::AddH(Head, VaultMore);
+	EXUi::AddV(Column, Head, FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+	// The filter chips (player, 2026-11-01): everything together, fitted or not, caches, consumables, a family, the
+	// order, and selling the loose commons; Space, T and Backspace do the same from the keyboard.
+	UWrapBox* Bar = Tree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
+	Bar->SetInnerSlotPadding(FVector2D(6.0f, 6.0f));
+	static const TCHAR* const ChipNames[VaultChipCount] = { TEXT("TUDO"), TEXT("NÃO MONTADOS"), TEXT("MONTADOS"), TEXT("CAIXAS"),
+		TEXT("CONSUMÍVEIS"), TEXT("FAMÍLIA ▸"), TEXT("ORDEM ▸"), TEXT("VENDER NÃO MONTADOS C/I") };
+	for (const TCHAR* Name : ChipNames)
+	{
+		UTextBlock* Text = EXUi::WeightText(Tree, Name, 10, EXUi::Quiet(), 700, 120);
+		UBorder* Chip = EXUi::Box(Tree, EXUi::Plate(0.6f), FMargin(11.0f, 5.0f), Text);
+		EXUi::SetShapeBrush(Chip, EXUi::EShape::Plate, 6.0f);
+		Bar->AddChildToWrapBox(Chip);
+		VaultChips.Add(Chip);
+		VaultChipTexts.Add(Text);
+	}
+	VaultChipBar = Bar;
+	EXUi::AddV(Column, EXUi::Sized(Tree, VaultCols * (CardW * VaultCardScale + 16.0f), 0.0f, Bar), FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+	UUniformGridPanel* Grid = Tree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+	Grid->SetSlotPadding(FMargin(5.0f));
+	for (int32 Index = 0; Index < VaultCols * VaultRowsShown; ++Index)
+	{
+		FCardView View = MakeCard(CardW * VaultCardScale, CardH * VaultCardScale, CardArt * VaultCardScale);
+		UBorder* Frame = EXUi::Box(Tree, FLinearColor::Transparent, FMargin(3.0f), View.Root);
+		EXUi::SetShapeBrush(Frame, EXUi::EShape::Card, CardCorner, TEXT("_edge"));
+		Grid->AddChildToUniformGrid(Frame, Index / VaultCols, Index % VaultCols);
+		VaultViews.Add(View);
+		VaultFrames.Add(Frame);
+	}
+	EXUi::AddV(Column, Grid);
+	return MakePanel(Column, VaultCols * (CardW * VaultCardScale + 16.0f) + 34.0f, false);
+}
+
+UBorder* UEXHangarWidget::MakeMiniCard(float Scale, FCardView& OutView)
+{
+	OutView = MakeCard(CardW * VaultCardScale, CardH * VaultCardScale, CardArt * VaultCardScale);
+	UScaleBox* Scaler = WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass());
+	Scaler->SetStretch(EStretch::ScaleToFit);
+	Scaler->AddChild(OutView.Root);
+	UBorder* Frame = EXUi::Box(WidgetTree, FLinearColor::Transparent, FMargin(3.0f), EXUi::Sized(WidgetTree, CardW * Scale, CardH * Scale, Scaler));
+	EXUi::SetShapeBrush(Frame, EXUi::EShape::Card, CardCorner, TEXT("_edge"));
+	return Frame;
 }
 
 UWidget* UEXHangarWidget::BuildQuickPanel()
@@ -614,7 +691,7 @@ UWidget* UEXHangarWidget::BuildQuickPanel()
 	// The four quick slots as the d-pad (mock-up consumiveis.png): 1 up, 3 left, 4 right, 2 down, the pad between them.
 	UWidgetTree* Tree = WidgetTree;
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	QuickTitle = EXUi::WeightText(Tree, TEXT("-"), 11, EXUi::Rust(), 700, 220);
+	QuickTitle = EXUi::LabelText(Tree, TEXT("-"), 12, EXUi::AccentHot(), 220);
 	EXUi::AddV(Column, QuickTitle, FMargin(0.0f, 0.0f, 0.0f, 14.0f));
 	UCanvasPanel* Cross = Tree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
 	const FVector2D Cells[EXMeta::QuickSlots] = { FVector2D(152.0f, 0.0f), FVector2D(152.0f, 304.0f), FVector2D(0.0f, 152.0f), FVector2D(304.0f, 152.0f) };
@@ -637,12 +714,12 @@ UWidget* UEXHangarWidget::BuildQuickPanel()
 	EXUi::AddV(Column, EXUi::Sized(Tree, 446.0f, 446.0f, Cross), FMargin(0.0f), HAlign_Center);
 	// Teclado 1 2 3 4  ·  Comando ▲ ▼ ◀ ▶
 	UHorizontalBox* Keys = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	EXUi::AddH(Keys, EXUi::WeightText(Tree, TEXT("Teclado"), 12, EXUi::Sand(), 400), FMargin(0.0f, 0.0f, 8.0f, 0.0f));
+	EXUi::AddH(Keys, EXUi::WeightText(Tree, TEXT("Teclado"), 12, EXUi::Quiet(), 400), FMargin(0.0f, 0.0f, 8.0f, 0.0f));
 	for (int32 QuickIndex = 0; QuickIndex < EXMeta::QuickSlots; ++QuickIndex)
 	{
 		EXUi::AddH(Keys, EXUi::KeyCap(Tree, FString::FromInt(QuickIndex + 1)), FMargin(0.0f, 0.0f, 7.0f, 0.0f));
 	}
-	EXUi::AddH(Keys, EXUi::WeightText(Tree, TEXT("·  Comando"), 12, EXUi::Sand(), 400), FMargin(4.0f, 0.0f, 8.0f, 0.0f));
+	EXUi::AddH(Keys, EXUi::WeightText(Tree, TEXT("·  Comando"), 12, EXUi::Quiet(), 400), FMargin(4.0f, 0.0f, 8.0f, 0.0f));
 	for (int32 QuickIndex = 0; QuickIndex < EXMeta::QuickSlots; ++QuickIndex)
 	{
 		EXUi::AddH(Keys, EXUi::KeyCap(Tree, QuickArrows[QuickIndex]), FMargin(0.0f, 0.0f, 7.0f, 0.0f));
@@ -655,16 +732,20 @@ UWidget* UEXHangarWidget::BuildCandidatesPanel()
 {
 	UWidgetTree* Tree = WidgetTree;
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	CandidatesTitle = EXUi::WeightText(Tree, TEXT("-"), 11, EXUi::Rust(), 700, 220);
+	CandidatesTitle = EXUi::LabelText(Tree, TEXT("-"), 12, EXUi::AccentHot(), 220);
 	EXUi::AddV(Column, CandidatesTitle, FMargin(0.0f, 0.0f, 0.0f, 12.0f));
-	for (int32 Index = 0; Index < HangarCandidateRows; ++Index)
+	UUniformGridPanel* Grid = Tree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+	Grid->SetSlotPadding(FMargin(5.0f));
+	for (int32 Index = 0; Index < CandidateCols * CandidateCardRows; ++Index)
 	{
-		FItemView View = MakeItem(436.0f);
-		View.IconBox->SetVisibility(ESlateVisibility::Collapsed);
-		EXUi::AddV(Column, View.Frame.Root, FMargin(0.0f, 0.0f, 0.0f, 8.0f));
-		CandidateViews.Add(View);
+		FCardView View;
+		UBorder* Frame = MakeMiniCard(CandidateCardScale, View);
+		Grid->AddChildToUniformGrid(Frame, Index / CandidateCols, Index % CandidateCols);
+		CandidateCards.Add(View);
+		CandidateFrames.Add(Frame);
 	}
-	CandidatesMore = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Sand(), 700, 120);
+	EXUi::AddV(Column, Grid);
+	CandidatesMore = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Quiet(), 700, 120);
 	EXUi::AddV(Column, CandidatesMore, FMargin(2.0f, 2.0f, 0.0f, 0.0f));
 	return MakePanel(Column, 470.0f, false);
 }
@@ -673,22 +754,27 @@ UWidget* UEXHangarWidget::BuildStockPanel()
 {
 	UWidgetTree* Tree = WidgetTree;
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	StockTitle = EXUi::WeightText(Tree, TEXT("-"), 11, EXUi::Rust(), 700, 220);
+	StockTitle = EXUi::LabelText(Tree, TEXT("-"), 12, EXUi::AccentHot(), 220);
 	EXUi::AddV(Column, StockTitle, FMargin(0.0f, 0.0f, 0.0f, 12.0f));
-	for (int32 Index = 0; Index < HangarStockRows; ++Index)
+	UUniformGridPanel* Grid = Tree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass());
+	Grid->SetSlotPadding(FMargin(5.0f));
+	for (int32 Index = 0; Index < EXMeta::ConsumableCount - 1; ++Index)
 	{
-		FStockView View = MakeStock();
-		EXUi::AddV(Column, View.Frame.Root, FMargin(0.0f, 0.0f, 0.0f, 7.0f));
-		StockViews.Add(View);
+		FCardView View;
+		UBorder* Frame = MakeMiniCard(StockCardScale, View);
+		Grid->AddChildToUniformGrid(Frame, Index / StockCols, Index % StockCols);
+		StockCards.Add(View);
+		StockFrames.Add(Frame);
 	}
-	return MakePanel(Column, 504.0f, false);
+	EXUi::AddV(Column, Grid);
+	return MakePanel(Column, StockCols * (CardW * StockCardScale + 16.0f) + 34.0f, false);
 }
 
 UWidget* UEXHangarWidget::BuildInfoPanel()
 {
 	UWidgetTree* Tree = WidgetTree;
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	InfoTitle = EXUi::WeightText(Tree, TEXT("-"), 11, EXUi::Rust(), 700, 220);
+	InfoTitle = EXUi::LabelText(Tree, TEXT("-"), 12, EXUi::AccentHot(), 220);
 	EXUi::AddV(Column, InfoTitle, FMargin(0.0f, 0.0f, 0.0f, 12.0f));
 	// The module looked at in the shop or the vault, as a card with the photo of the ship wearing it.
 	LookedCard = MakeCard(CardW * 1.2f, CardH * 1.2f, CardArt * 1.2f);
@@ -700,7 +786,7 @@ UWidget* UEXHangarWidget::BuildInfoPanel()
 		EXUi::AddV(Column, View.Frame.Root, FMargin(0.0f, 0.0f, 0.0f, 6.0f));
 		InfoViews.Add(View);
 	}
-	InfoDetail = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Bone(0.85f), 400);
+	InfoDetail = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Fore(0.85f), 400);
 	InfoDetail->SetAutoWrapText(true);
 	EXUi::AddV(Column, EXUi::Sized(Tree, 436.0f, 0.0f, InfoDetail), FMargin(0.0f, 6.0f, 0.0f, 0.0f));
 	return MakePanel(Column, 470.0f, true);
@@ -709,7 +795,7 @@ UWidget* UEXHangarWidget::BuildInfoPanel()
 UWidget* UEXHangarWidget::BuildStats()
 {
 	UWidgetTree* Tree = WidgetTree;
-	const EXUi::FFrame Panel = EXUi::Frame(Tree, EXUi::Bone(0.09f), PlateFill(), 1.0f, FMargin(17.0f, 14.0f, 17.0f, 12.0f));
+	const EXUi::FFrame Panel = EXUi::Frame(Tree, EXUi::Accent(0.5f), PlateFill(), 1.0f, FMargin(20.0f, 14.0f, 20.0f, 12.0f), -1.0f, PanelCorner);
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	Panel.Fill->SetContent(Column);
 	for (int32 RowIndex = 0; RowIndex < 2; ++RowIndex)
@@ -720,17 +806,17 @@ UWidget* UEXHangarWidget::BuildStats()
 			const int32 Stat = RowIndex * 4 + Cell;
 			FStatView View;
 			UVerticalBox* Box = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-			EXUi::AddV(Box, EXUi::WeightText(Tree, HangarStatNames[Stat], 9, EXUi::Sand(), 700, 160));
+			EXUi::AddV(Box, EXUi::LabelText(Tree, HangarStatNames[Stat], 9, EXUi::Quiet(), 160));
 			UHorizontalBox* Numbers = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-			View.Value = EXUi::WeightText(Tree, TEXT("-"), 14, EXUi::Bone(), 800);
+			View.Value = EXUi::TitleText(Tree, TEXT("-"), 15, EXUi::Fore(), 20);
 			View.Delta = EXUi::WeightText(Tree, TEXT(""), 10, EXUi::Ok(), 800);
 			EXUi::AddH(Numbers, View.Value);
 			EXUi::AddH(Numbers, View.Delta, FMargin(7.0f, 0.0f, 0.0f, 0.0f));
 			EXUi::AddV(Box, Numbers, FMargin(0.0f, 1.0f, 0.0f, 5.0f));
 			UOverlay* Track = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-			EXUi::AddO(Track, EXUi::Sized(Tree, HangarStatBarWidth, 6.0f, EXUi::Box(Tree, EXUi::Bone(0.08f))), HAlign_Left, VAlign_Center);
+			EXUi::AddO(Track, EXUi::Sized(Tree, HangarStatBarWidth, 6.0f, EXUi::Box(Tree, EXUi::Fore(0.08f))), HAlign_Left, VAlign_Center);
 			UHorizontalBox* Bar = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-			View.Fill = EXUi::Sized(Tree, 10.0f, 6.0f, EXUi::Box(Tree, EXUi::Rust()));
+			View.Fill = EXUi::Sized(Tree, 10.0f, 6.0f, EXUi::Box(Tree, EXUi::Accent()));
 			View.ChangeColour = EXUi::Box(Tree, EXUi::Ok());
 			View.Change = EXUi::Sized(Tree, 0.0f, 6.0f, View.ChangeColour);
 			EXUi::AddH(Bar, View.Fill);
@@ -749,29 +835,29 @@ UWidget* UEXHangarWidget::BuildStats()
 
 UWidget* UEXHangarWidget::BuildAction()
 {
-	// LANÇAR EXPEDIÇÃO (NAVE) or MONTAR (EQUIPAR): the orange button with its glow and the ENTER key.
+	// LANÇAR EXPEDIÇÃO (NAVE) or MONTAR (EQUIPAR): the primary button with its glow and the ENTER key.
 	UWidgetTree* Tree = WidgetTree;
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	ModeText = EXUi::OutlinedText(Tree, TEXT(""), 11, EXUi::Bone(), 140, 1, EXUi::Ink(0.6f));
+	ModeText = EXUi::OutlinedText(Tree, TEXT(""), 11, EXUi::Fore(), 140, 1, EXUi::Ink(0.6f));
 	EXUi::AddV(Column, ModeText, FMargin(0.0f, 0.0f, 22.0f, 0.0f), HAlign_Right);
 	UHorizontalBox* Content = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	EXUi::AddH(Content, EXUi::Sized(Tree, 1.0f, 1.0f), FMargin(0.0f), true);
-	ActionText = EXUi::TitleText(Tree, TEXT("MONTAR"), 14, EXUi::Hex(26, 11, 4), 200);
+	ActionText = EXUi::TitleText(Tree, TEXT("MONTAR"), 16, EXUi::Ink(), 200);
 	EXUi::AddH(Content, ActionText);
-	const EXUi::FFrame Key = EXUi::Frame(Tree, EXUi::Hex(26, 11, 4), EXUi::Ink(0.0f), 1.0f, FMargin(7.0f, 2.0f, 7.0f, 2.0f));
-	Key.Fill->SetContent(EXUi::WeightText(Tree, TEXT("ENTER"), 10, EXUi::Hex(26, 11, 4), 800, 100));
+	const EXUi::FFrame Key = EXUi::Frame(Tree, EXUi::Ink(0.8f), EXUi::Ink(0.12f), 1.0f, FMargin(7.0f, 2.0f, 7.0f, 2.0f), -1.0f, 4.0f);
+	Key.Fill->SetContent(EXUi::WeightText(Tree, TEXT("ENTER"), 10, EXUi::Ink(), 800, 100));
 	EXUi::AddH(Content, Key.Root, FMargin(14.0f, 0.0f, 0.0f, 0.0f));
 	EXUi::AddH(Content, EXUi::Sized(Tree, 1.0f, 1.0f), FMargin(0.0f), true);
-	EXUi::AddV(Column, EXUi::OrangeButton(Tree, Content, FMargin(0.0f), 470.0f, 62.0f));
+	EXUi::AddV(Column, EXUi::PrimaryButton(Tree, Content, FMargin(0.0f), 470.0f, 62.0f));
 	return Column;
 }
 
 UWidget* UEXHangarWidget::BuildQuickSummary()
 {
 	UWidgetTree* Tree = WidgetTree;
-	QuickSummaryText = EXUi::WeightText(Tree, TEXT(""), 12, EXUi::Bone(0.9f), 400);
+	QuickSummaryText = EXUi::WeightText(Tree, TEXT(""), 12, EXUi::Fore(0.9f), 400);
 	QuickSummaryText->SetAutoWrapText(true);
-	const EXUi::FFrame Panel = EXUi::Frame(Tree, EXUi::Bone(0.09f), PlateFill(), 1.0f, FMargin(22.0f, 14.0f, 22.0f, 14.0f));
+	const EXUi::FFrame Panel = EXUi::Frame(Tree, EXUi::Accent(0.5f), PlateFill(), 1.0f, FMargin(22.0f, 14.0f, 22.0f, 14.0f), -1.0f, PanelCorner);
 	Panel.Fill->SetContent(QuickSummaryText);
 	return EXUi::Sized(Tree, 756.0f, 0.0f, Panel.Root);
 }
@@ -785,29 +871,26 @@ UWidget* UEXHangarWidget::BuildPreviewLabel()
 	USizeBox* Diamond = EXUi::Sized(Tree, 11.0f, 11.0f, PreviewDiamond);
 	Diamond->SetRenderTransformAngle(45.0f);
 	EXUi::AddH(Line, Diamond, FMargin(0.0f, 0.0f, 11.0f, 0.0f));
-	PreviewText = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Bone(), 800, 140);
+	PreviewText = EXUi::WeightText(Tree, TEXT(""), 11, EXUi::Fore(), 800, 140);
 	EXUi::AddH(Line, PreviewText);
-	const EXUi::FFrame Frame = EXUi::Frame(Tree, EXUi::Hex(181, 108, 255), EXUi::Hex(10, 7, 5, 0.78f), 1.0f, FMargin(14.0f, 8.0f, 16.0f, 8.0f));
+	const EXUi::FFrame Frame = EXUi::Frame(Tree, EXUi::Hex(181, 108, 255), EXUi::Plate(0.82f), 1.0f, FMargin(16.0f, 8.0f, 18.0f, 8.0f), -1.0f, 8.0f);
 	Frame.Fill->SetContent(Line);
-	for (int32 Side = 0; Side < 4; ++Side)
-	{
-		PreviewEdges[Side] = Frame.Edges[Side];
-	}
+	PreviewEdge = Frame.Edge;
 	return Frame.Root;
 }
 
 UWidget* UEXHangarWidget::BuildCacheOverlay()
 {
-	// The opened cache (mock-up cofre.png): the workshop dimmed under a purple-dark vignette, the title, ten cards and the
+	// The opened cache (mock-up cofre.png): the workshop dimmed under a navy vignette, the title, ten cards and the
 	// summary with its two buttons.
 	UWidgetTree* Tree = WidgetTree;
 	UOverlay* Layer = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	EXUi::AddO(Layer, EXUi::Box(Tree, EXUi::Hex(30, 14, 40, 0.55f)), HAlign_Fill, VAlign_Fill);
-	EXUi::AddO(Layer, EXUi::Sliced(Tree, TEXT("ui_vignette"), EXUi::Hex(5, 3, 2, 0.9f), 0.0f), HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Layer, EXUi::Box(Tree, EXUi::Hex(4, 10, 26, 0.62f)), HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Layer, EXUi::Sliced(Tree, TEXT("ui_vignette"), EXUi::Ink(0.9f), 0.0f), HAlign_Fill, VAlign_Fill);
 	UVerticalBox* Header = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	CacheTitle = EXUi::TitleText(Tree, TEXT("-"), 31, EXUi::Bone(), 140);
+	CacheTitle = EXUi::TitleText(Tree, TEXT("-"), 31, EXUi::Fore(), 140);
 	EXUi::AddV(Header, CacheTitle, FMargin(0.0f), HAlign_Center);
-	CacheSummary = EXUi::WeightText(Tree, TEXT(""), 12, EXUi::Sand(), 600, 120);
+	CacheSummary = EXUi::WeightText(Tree, TEXT(""), 12, EXUi::Quiet(), 600, 120);
 	EXUi::AddV(Header, CacheSummary, FMargin(0.0f, 7.0f, 0.0f, 0.0f), HAlign_Center);
 	EXUi::AddO(Layer, Header, HAlign_Center, VAlign_Top, FMargin(0.0f, 101.0f, 0.0f, 0.0f));
 
@@ -816,7 +899,7 @@ UWidget* UEXHangarWidget::BuildCacheOverlay()
 	{
 		FCardView View = MakeCard(CardW, CardH, CardArt);
 		const FVector2D Home(CardGlow + (Index % 5) * (CardW + CardGap), CardGlow + CardRaise + (Index / 5) * (CardH + CardGap));
-		View.GlowOuter = EXUi::Glow(Tree, EXUi::Rust(0.45f));
+		View.GlowOuter = EXUi::Glow(Tree, EXUi::Accent(0.45f));
 		View.GlowSlot = Grid->AddChildToCanvas(View.GlowOuter);
 		View.GlowSlot->SetAutoSize(false);
 		View.GlowSlot->SetZOrder(0);
@@ -831,31 +914,27 @@ UWidget* UEXHangarWidget::BuildCacheOverlay()
 
 	// "Até agora: 14 140 ✦ · custou 6 000 ✦"   [VENDER COMUNS (25%)] [GUARDAR TUDO]
 	UHorizontalBox* Sum = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	EXUi::AddH(Sum, EXUi::WeightText(Tree, TEXT("Até agora: "), 12, EXUi::Sand(), 400));
-	CacheSoFar = EXUi::WeightText(Tree, TEXT("0"), 14, EXUi::Bone(), 800);
+	EXUi::AddH(Sum, EXUi::WeightText(Tree, TEXT("Até agora: "), 12, EXUi::Quiet(), 400));
+	CacheSoFar = EXUi::TitleText(Tree, TEXT("0"), 15, EXUi::Gold(), 20);
 	EXUi::AddH(Sum, CacheSoFar);
 	EXUi::AddH(Sum, EXUi::GemImage(Tree, 10.0f), FMargin(5.0f, 0.0f, 0.0f, 0.0f));
-	EXUi::AddH(Sum, EXUi::WeightText(Tree, TEXT("  ·  custou "), 12, EXUi::Sand(), 400));
-	CacheCost = EXUi::WeightText(Tree, TEXT("0"), 12, EXUi::Sand(), 400);
+	EXUi::AddH(Sum, EXUi::WeightText(Tree, TEXT("  ·  custou "), 12, EXUi::Quiet(), 400));
+	CacheCost = EXUi::WeightText(Tree, TEXT("0"), 12, EXUi::Quiet(), 400);
 	EXUi::AddH(Sum, CacheCost);
 	EXUi::AddH(Sum, EXUi::GemImage(Tree, 9.0f), FMargin(5.0f, 0.0f, 0.0f, 0.0f));
 	EXUi::AddH(Sum, EXUi::Sized(Tree, 1.0f, 1.0f), FMargin(0.0f), true);
 	UHorizontalBox* Buttons = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	const EXUi::FFrame Sell = EXUi::Frame(Tree, EXUi::Rust(), EXUi::Ink(0.0f), 1.0f, FMargin(22.0f, 12.0f, 22.0f, 12.0f));
-	Sell.Fill->SetContent(EXUi::WeightText(Tree, TEXT("VENDER COMUNS (25%)"), 11, EXUi::Bone(), 900, 160));
+	const EXUi::FFrame Sell = EXUi::Frame(Tree, EXUi::Danger(0.9f), EXUi::Hex(80, 20, 12, 0.7f), 1.0f, FMargin(22.0f, 12.0f, 22.0f, 12.0f), -1.0f, 8.0f);
+	Sell.Fill->SetContent(EXUi::WeightText(Tree, TEXT("VENDER COMUNS (25%)"), 11, EXUi::Fore(), 900, 160));
 	EXUi::AddH(Buttons, Sell.Root, FMargin(0.0f, 0.0f, 12.0f, 0.0f));
 	UOverlay* Keep = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	EXUi::AddO(Keep, EXUi::Box(Tree, EXUi::Rust()), HAlign_Fill, VAlign_Fill);
-	if (UTexture2D* Gradient = EXUi::Icon(TEXT("ui_button")))
-	{
-		EXUi::AddO(Keep, EXUi::Image(Tree, Gradient), HAlign_Fill, VAlign_Fill);
-	}
-	EXUi::AddO(Keep, EXUi::WeightText(Tree, TEXT("GUARDAR TUDO"), 11, EXUi::Hex(26, 11, 4), 900, 160), HAlign_Center, VAlign_Center,
+	EXUi::AddO(Keep, EXUi::ButtonFace(Tree, 40.0f), HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Keep, EXUi::WeightText(Tree, TEXT("GUARDAR TUDO"), 11, EXUi::Ink(), 900, 160), HAlign_Center, VAlign_Center,
 		FMargin(22.0f, 12.0f, 22.0f, 12.0f));
 	EXUi::AddH(Buttons, Keep);
 	CacheButtons = Buttons;
 	EXUi::AddH(Sum, Buttons);
-	const EXUi::FFrame SumPanel = EXUi::Frame(Tree, EXUi::Bone(0.09f), PlateFill(), 1.0f, FMargin(22.0f, 14.0f, 22.0f, 14.0f));
+	const EXUi::FFrame SumPanel = EXUi::Frame(Tree, EXUi::Accent(0.5f), PlateFill(), 1.0f, FMargin(22.0f, 14.0f, 22.0f, 14.0f), -1.0f, PanelCorner);
 	SumPanel.Fill->SetContent(Sum);
 	EXUi::AddO(Layer, EXUi::Sized(Tree, GridW - CardGlow * 2.0f, 0.0f, SumPanel.Root), HAlign_Center, VAlign_Top, FMargin(0.0f, 924.0f, 0.0f, 0.0f));
 	Layer->SetVisibility(ESlateVisibility::Collapsed);
@@ -872,11 +951,16 @@ void UEXHangarWidget::ShowSlot(const FSlotView& View, const FEXHangarRow* Row, b
 		return;
 	}
 	View.Frame.Root->SetVisibility(ESlateVisibility::HitTestInvisible);
-	ShowLineFrame(View.Frame, Row->Colour, bSelected, EXUi::Rust());
-	EXUi::SetImage(View.Icon, EXUi::Icon(Row->Icon), bSelected ? EXUi::RustHot() : EXUi::Bone(0.85f));
+	ShowLineFrame(View.Frame, Row->Colour, bSelected, EXUi::Accent());
+	EXUi::SetImage(View.Icon, EXUi::Icon(Row->Icon), bSelected ? EXUi::AccentHot() : EXUi::Fore(0.85f));
+	UTexture2D* Photo = Row->TierThumb.IsEmpty() ? nullptr : EXUi::Thumb(Row->TierThumb);   // an epic/legendary design
+	Photo = Photo ? Photo : EXUi::Thumb(Row->Thumb);
+	EXUi::SetImage(View.Photo, Photo);
+	View.PhotoBox->SetVisibility(Photo ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	View.IconBox->SetVisibility(Photo ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 	EXUi::SetText(View.Label, Row->Label);
 	EXUi::SetText(View.Title, Row->Title);
-	View.Title->SetColorAndOpacity(FSlateColor(Row->bDim ? EXUi::Dim() : (Row->Colour.R + Row->Colour.G + Row->Colour.B < 1.4f ? EXUi::Bone(0.8f) : Row->Colour)));
+	View.Title->SetColorAndOpacity(FSlateColor(Row->bDim ? EXUi::Dim() : (Row->Colour.R + Row->Colour.G + Row->Colour.B < 1.4f ? EXUi::Fore(0.8f) : Row->Colour)));
 	EXUi::SetText(View.SizeText, Row->Size);
 	View.SizeBox->SetVisibility(Row->Size.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 	View.Shield->SetVisibility(Row->bInsured && EXUi::Icon(TEXT("fam_4")) ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
@@ -895,7 +979,7 @@ void UEXHangarWidget::ShowItem(const FItemView& View, const FEXHangarRow* Row, b
 	if (View.IconBox->GetVisibility() != ESlateVisibility::Collapsed || !Row->Icon.IsEmpty())
 	{
 		UTexture2D* IconTexture = EXUi::Icon(Row->Icon);
-		EXUi::SetImage(View.Icon, IconTexture, Row->Value >= 0 && Row->Chips.Num() == 0 ? EXUi::RustHot() : Row->Colour);
+		EXUi::SetImage(View.Icon, IconTexture, Row->Value >= 0 && Row->Chips.Num() == 0 ? EXUi::AccentHot() : Row->Colour);
 	}
 	EXUi::SetText(View.Title, Row->Title);
 	UTexture2D* FlameTexture = Row->Flame >= 0 ? EXUi::Icon(FString::Printf(TEXT("flame_%d"), Row->Flame)) : nullptr;
@@ -926,18 +1010,18 @@ void UEXHangarWidget::ShowShip(const FShipView& View, const FEXHangarRow* Row, b
 		return;
 	}
 	View.Frame.Root->SetVisibility(ESlateVisibility::HitTestInvisible);
-	ShowLineFrame(View.Frame, bSelected ? EXUi::Rust() : EXUi::Rust(0.0f), bSelected, EXUi::Rust());
-	View.Frame.Fill->SetBrushColor(bSelected ? EXUi::Hex(38, 18, 9, 0.9f) : EXUi::Hex(20, 13, 9, 0.62f));
+	ShowLineFrame(View.Frame, bSelected ? EXUi::Accent() : EXUi::Accent(0.0f), bSelected, EXUi::Accent());
+	View.Frame.Fill->SetBrushColor(bSelected ? PickFill() : EXUi::Plate(0.62f));
 	EXUi::SetText(View.Name, Row->Title);
 	EXUi::SetText(View.Role, Row->Label);
 	for (int32 Index = 0; Index < 6; ++Index)
 	{
-		View.Lives[Index]->SetBrushColor(Index < Row->Lives ? EXUi::Ok() : EXUi::Bone(0.12f));
+		View.Lives[Index]->SetBrushColor(Index < Row->Lives ? EXUi::Ok() : EXUi::Fore(0.12f));
 		View.Lives[Index]->GetParent()->SetVisibility(Index < FMath::Max(Row->Lives, 5) ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	}
 	for (int32 Index = 0; Index < EXMeta::MaxStars; ++Index)
 	{
-		View.Stars[Index]->SetBrushColor(Index < Row->Stars ? Gold() : EXUi::Bone(0.1f));
+		View.Stars[Index]->SetBrushColor(Index < Row->Stars ? Gold() : EXUi::Fore(0.1f));
 	}
 }
 
@@ -949,7 +1033,7 @@ void UEXHangarWidget::ShowStock(const FStockView& View, const FEXHangarRow* Row,
 		return;
 	}
 	View.Frame.Root->SetVisibility(ESlateVisibility::HitTestInvisible);
-	ShowLineFrame(View.Frame, Row->Colour, bSelected, EXUi::Rust());
+	ShowLineFrame(View.Frame, Row->Colour, bSelected, EXUi::Accent());
 	EXUi::SetImage(View.Icon, EXUi::Icon(Row->Icon), Row->Colour);
 	EXUi::SetText(View.Name, Row->Title);
 	EXUi::SetText(View.Effect, Row->Maker);
@@ -965,7 +1049,7 @@ void UEXHangarWidget::ShowInfo(const FInfoView& View, const FEXHangarRow* Row) c
 		return;
 	}
 	View.Frame.Root->SetVisibility(ESlateVisibility::HitTestInvisible);
-	ShowLineFrame(View.Frame, Row->Colour, false, EXUi::Rust());
+	ShowLineFrame(View.Frame, Row->Colour, false, EXUi::Accent());
 	EXUi::SetText(View.Label, Row->Label);
 	View.Label->SetColorAndOpacity(FSlateColor(Row->Colour));
 	EXUi::SetText(View.Title, Row->Title);
@@ -997,7 +1081,7 @@ void UEXHangarWidget::ShowCard(const FCardView& View, const FEXHangarRow* Card, 
 		const float Spread = bShine ? CardGlow * 1.6f : CardGlow;
 		View.GlowSlot->SetPosition(At - FVector2D(Spread, Spread));
 		View.GlowSlot->SetSize(FVector2D(CardW + Spread * 2.0f, CardH + Spread * 2.0f));
-		View.GlowOuter->SetColorAndOpacity(bTurned ? WithAlpha(Colour, bShine ? 0.75f : 0.45f) : EXUi::Rust(0.3f));
+		View.GlowOuter->SetColorAndOpacity(bTurned ? WithAlpha(Colour, bShine ? 0.75f : 0.45f) : EXUi::Accent(0.3f));
 		View.GlowOuter->SetVisibility(EXUi::Icon(TEXT("ui_glow")) ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 		View.Root->SetRenderScale(FVector2D(bShine ? 1.04f : 1.0f, bShine ? 1.04f : 1.0f));
 	}
@@ -1005,14 +1089,12 @@ void UEXHangarWidget::ShowCard(const FCardView& View, const FEXHangarRow* Card, 
 	{
 		return;
 	}
-	for (UBorder* Edge : View.Edges)
-	{
-		Edge->SetBrushColor(Colour);
-	}
+	View.Edge->SetColorAndOpacity(Colour);
 	View.ArtLine->SetBrushColor(Colour);
 	View.GlowInner->SetColorAndOpacity(WithAlpha(Colour, bShine ? 0.25f : 0.18f));
 	// The photo of the ship wearing the module; without one, the icon glowing in the art box.
-	UTexture2D* Photo = EXUi::Thumb(Card->Thumb);
+	UTexture2D* Photo = Card->TierThumb.IsEmpty() ? nullptr : EXUi::Thumb(Card->TierThumb);   // an epic/legendary design
+	Photo = Photo ? Photo : EXUi::Thumb(Card->Thumb);
 	EXUi::SetImage(View.Photo, Photo);
 	UTexture2D* IconTexture = Photo ? nullptr : EXUi::Icon(Card->Icon);
 	const FLinearColor IconColour = Card->Maker.Equals(TEXT("Consumível")) ? EXMeta::Consumable(EEXConsumable::None).Colour : Colour;
@@ -1103,6 +1185,33 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 	// change the consumable). On NAVE and EQUIPAR a click only picks (the piece is chosen on the right).
 	TArray<UWidget*> Roots;
 	int32 First = 0;
+	if (Tab == EEXHangarTab::Vault)
+	{
+		for (UBorder* Chip : VaultChips) { Roots.Add(Chip); }
+		const int32 Chip = FirstUnder(Roots, InMouseEvent, &UEXHangarWidget::IsUnder);
+		if (Chip != INDEX_NONE)
+		{
+			const int32 Filter = Model->GetVaultFilter();
+			if (Chip < 5)
+			{
+				Model->SetVaultFilter(Chip);
+			}
+			else if (Chip == 5)
+			{
+				Model->SetVaultFilter(Filter < 5 ? 5 : 5 + (Filter - 5 + 1) % EXMeta::FamilyCount);
+			}
+			else if (Chip == 6)
+			{
+				Model->CycleVaultSort();
+			}
+			else
+			{
+				Model->SellLoose();
+			}
+			return FReply::Handled();
+		}
+		Roots.Reset();
+	}
 	switch (Tab)
 	{
 	case EEXHangarTab::Equip:
@@ -1114,6 +1223,11 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 	case EEXHangarTab::Quick:
 		for (const FTileView& View : TileViews) { Roots.Add(View.Root); }
 		break;
+	case EEXHangarTab::Vault:
+	case EEXHangarTab::Shop:
+		for (UBorder* Frame : VaultFrames) { Roots.Add(Frame); }
+		First = LeftFirst;
+		break;
 	default:
 		for (const FItemView& View : ListViews) { Roots.Add(View.Frame.Root); }
 		First = LeftFirst;
@@ -1123,7 +1237,11 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 	if (Left != INDEX_NONE)
 	{
 		const int32 RowIndex = First + Left;
-		if (RowIndex != LeftSelected)
+		if (RowIndex != LeftSelected && (Tab == EEXHangarTab::Vault || Tab == EEXHangarTab::Shop))
+		{
+			Model->Select(RowIndex);   // the grids move by rows from the keyboard; a click picks the card itself
+		}
+		else if (RowIndex != LeftSelected)
 		{
 			Model->Move(RowIndex - LeftSelected);
 		}
@@ -1137,7 +1255,7 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 	if (Tab == EEXHangarTab::Equip)
 	{
 		Roots.Reset();
-		for (const FItemView& View : CandidateViews) { Roots.Add(View.Frame.Root); }
+		for (UBorder* Frame : CandidateFrames) { Roots.Add(Frame); }
 		const int32 Right = FirstUnder(Roots, InMouseEvent, &UEXHangarWidget::IsUnder);
 		if (Right != INDEX_NONE)
 		{
@@ -1150,6 +1268,18 @@ FReply UEXHangarWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, con
 			{
 				Model->Confirm();
 			}
+			return FReply::Handled();
+		}
+	}
+	// The consumables' cards on the right of CONSUMÍVEIS: a click puts that one in the quick slot looked at.
+	if (Tab == EEXHangarTab::Quick)
+	{
+		Roots.Reset();
+		for (UBorder* Frame : StockFrames) { Roots.Add(Frame); }
+		const int32 Right = FirstUnder(Roots, InMouseEvent, &UEXHangarWidget::IsUnder);
+		if (Right != INDEX_NONE)
+		{
+			Model->PickQuickKind(Right + 1);
 			return FReply::Handled();
 		}
 	}
@@ -1171,11 +1301,11 @@ void UEXHangarWidget::Refresh()
 	for (int32 Index = 0; Index < TabFills.Num(); ++Index)
 	{
 		const bool bOn = Index == static_cast<int32>(Tab);
-		TabFills[Index]->SetBrushColor(bOn ? EXUi::Rust(0.22f) : EXUi::Hex(10, 7, 5, 0.35f));
-		TabTexts[Index]->SetColorAndOpacity(FSlateColor(bOn ? EXUi::Bone() : EXUi::Sand()));
-		for (int32 Side = 0; Side < 4 && TabEdges.IsValidIndex(Index * 4 + Side); ++Side)
+		TabFills[Index]->SetBrushColor(bOn ? EXUi::Accent(0.95f) : EXUi::Plate(0.6f));
+		TabTexts[Index]->SetColorAndOpacity(FSlateColor(bOn ? EXUi::Ink() : EXUi::Quiet()));
+		if (TabEdges.IsValidIndex(Index) && TabEdges[Index])
 		{
-			TabEdges[Index * 4 + Side]->SetBrushColor(bOn ? EXUi::Rust() : EXUi::Bone(0.15f));
+			TabEdges[Index]->SetColorAndOpacity(bOn ? EXUi::Fore(0.9f) : EXUi::AccentHot(0.25f));
 		}
 	}
 
@@ -1184,6 +1314,7 @@ void UEXHangarWidget::Refresh()
 	const bool bEquip = Tab == EEXHangarTab::Equip;
 	const bool bQuick = Tab == EEXHangarTab::Quick;
 	const bool bList = Tab == EEXHangarTab::Shop || Tab == EEXHangarTab::Vault;
+	const bool bVault = Tab == EEXHangarTab::Vault;
 	auto Show = [](UWidget* Widget, bool bOn)
 	{
 		if (Widget)
@@ -1193,7 +1324,9 @@ void UEXHangarWidget::Refresh()
 	};
 	Show(ShipTitleBox, bShip);
 	Show(SlotsPanel, bEquip);
-	Show(ListPanel, bShip || bList);
+	Show(ListPanel, bShip);
+	Show(VaultPanel, bList);
+	Show(VaultChipBar, bVault);
 	Show(QuickPanel, bQuick);
 	Show(CandidatesPanel, bEquip);
 	Show(StockPanel, bQuick);
@@ -1209,7 +1342,7 @@ void UEXHangarWidget::Refresh()
 		const int32 Stars = Profile ? Profile->StarsOf(ShipName) : 0;
 		for (int32 Index = 0; Index < EXMeta::MaxStars; ++Index)
 		{
-			ShipStarPips[Index]->SetBrushColor(Index < Stars ? Gold() : EXUi::Hex(29, 20, 14, 0.18f));
+			ShipStarPips[Index]->SetBrushColor(Index < Stars ? Gold() : EXUi::Fore(0.18f));
 		}
 		EXUi::SetText(ShipStarText, FString::Printf(TEXT("%d/%d ESTRELAS"), Stars, EXMeta::MaxStars));
 	}
@@ -1244,6 +1377,37 @@ void UEXHangarWidget::Refresh()
 			ShowItem(ListViews[Index], bList && Rows.IsValidIndex(RowIndex) ? &Rows[RowIndex] : nullptr, RowIndex == Selected);
 		}
 		EXUi::SetText(ListMore, bList && Rows.Num() > HangarListRows ? FString::Printf(TEXT("%d / %d"), Selected + 1, Rows.Num()) : FString());
+		if (bList)
+		{
+			if (bVault)
+			{
+				const int32 Filter = Model->GetVaultFilter();
+				for (int32 Index = 0; Index < VaultChips.Num(); ++Index)
+				{
+					const bool bOn = Index < 5 ? Filter == Index : (Index == 5 && Filter >= 5);
+					// The one on is bright cyan with dark letters; selling the loose pieces is the red one.
+					VaultChips[Index]->SetBrushColor(bOn ? EXUi::Accent(0.95f) : (Index == 7 ? EXUi::Hex(80, 20, 12, 0.75f) : EXUi::Plate(0.6f)));
+					VaultChipTexts[Index]->SetColorAndOpacity(FSlateColor(bOn ? EXUi::Ink() : (Index == 7 ? EXUi::Hex(255, 150, 120) : EXUi::Quiet())));
+				}
+				EXUi::SetText(VaultChipTexts[5], Filter >= 5 ? FString::Printf(TEXT("%s ▸"), *UEXHangarModel::VaultFilterName(Filter))
+					: FString(TEXT("FAMÍLIA ▸")));
+				EXUi::SetText(VaultChipTexts[6], FString::Printf(TEXT("POR %s ▸"), *UEXHangarModel::VaultSortName(Model->GetVaultSort())));
+			}
+			// The grid scrolls a row at a time so the picked card stays in sight (one row above it when it can).
+			EXUi::SetText(VaultTitle, Title);
+			const int32 AllRows = (Rows.Num() + VaultCols - 1) / VaultCols;
+			const int32 FirstRow = FMath::Clamp(Selected / VaultCols - 1, 0, FMath::Max(0, AllRows - VaultRowsShown));
+			LeftFirst = FirstRow * VaultCols;
+			for (int32 Index = 0; Index < VaultViews.Num(); ++Index)
+			{
+				const int32 RowIndex = LeftFirst + Index;
+				const FEXHangarRow* Row = Rows.IsValidIndex(RowIndex) ? &Rows[RowIndex] : nullptr;
+				ShowCard(VaultViews[Index], Row, true, false);
+				VaultFrames[Index]->SetBrushColor(Row && RowIndex == Selected ? EXUi::Accent() : FLinearColor::Transparent);
+				VaultFrames[Index]->SetVisibility(Row ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+			}
+			EXUi::SetText(VaultMore, Rows.Num() > VaultViews.Num() ? FString::Printf(TEXT("%d / %d"), Selected + 1, Rows.Num()) : FString());
+		}
 	}
 	else if (bQuick)
 	{
@@ -1253,16 +1417,17 @@ void UEXHangarWidget::Refresh()
 			const FTileView& View = TileViews[Index];
 			const FEXHangarRow* Row = Rows.IsValidIndex(Index) ? &Rows[Index] : nullptr;
 			const bool bOn = Index == Selected;
-			View.Fill->SetBrushColor(bOn ? EXUi::Rust(0.14f) : EXUi::Bone(0.035f));
-			for (UBorder* Edge : View.Edges)
-			{
-				Edge->SetBrushColor(bOn ? EXUi::Rust(0.85f) : EXUi::Bone(0.1f));
-			}
-			EXUi::SetImage(View.Icon, Row ? EXUi::Icon(Row->Icon) : nullptr, Row ? Row->Colour : EXUi::Bone());
+			View.Fill->SetBrushColor(bOn ? PickFill() : EXUi::Plate(0.6f));
+			View.Edge->SetColorAndOpacity(bOn ? EXUi::Accent(0.95f) : EXUi::AccentHot(0.2f));
+			EXUi::SetImage(View.Icon, Row ? EXUi::Icon(Row->Icon) : nullptr, Row ? Row->Colour : EXUi::Fore());
+			UTexture2D* Photo = Row && !Row->Thumb.IsEmpty() ? EXUi::Thumb(Row->Thumb) : nullptr;
+			EXUi::SetImage(View.Photo, Photo);
+			View.PhotoBox->SetVisibility(Photo ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+			View.IconBox->SetVisibility(Photo ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 			EXUi::SetText(View.Name, Row ? Row->Title : FString());
 			for (int32 Pip = 0; Pip < 2; ++Pip)
 			{
-				View.Pips[Pip]->SetBrushColor(Row && Pip < Row->Count ? EXUi::Rust() : EXUi::Bone(0.15f));
+				View.Pips[Pip]->SetBrushColor(Row && Pip < Row->Count ? EXUi::Accent() : EXUi::Fore(0.15f));
 			}
 		}
 	}
@@ -1275,21 +1440,30 @@ void UEXHangarWidget::Refresh()
 	if (bEquip)
 	{
 		EXUi::SetText(CandidatesTitle, Title);
-		const int32 First = Selected >= 0 ? FMath::Clamp(Selected - HangarCandidateRows / 2, 0, FMath::Max(0, Rows.Num() - HangarCandidateRows)) : 0;
+		// The pieces as cards, two across, scrolling a row at a time with the one looked at in sight.
+		const int32 AllRows = (Rows.Num() + CandidateCols - 1) / CandidateCols;
+		const int32 FirstRow = Selected >= 0 ? FMath::Clamp(Selected / CandidateCols - 1, 0, FMath::Max(0, AllRows - CandidateCardRows)) : 0;
+		const int32 First = FirstRow * CandidateCols;
 		RightFirst = First;
-		for (int32 Index = 0; Index < CandidateViews.Num(); ++Index)
+		for (int32 Index = 0; Index < CandidateCards.Num(); ++Index)
 		{
 			const int32 RowIndex = First + Index;
-			ShowItem(CandidateViews[Index], Rows.IsValidIndex(RowIndex) ? &Rows[RowIndex] : nullptr, RowIndex == Selected);
+			const FEXHangarRow* Row = Rows.IsValidIndex(RowIndex) ? &Rows[RowIndex] : nullptr;
+			ShowCard(CandidateCards[Index], Row, true, false);
+			CandidateFrames[Index]->SetBrushColor(Row && RowIndex == Selected ? EXUi::Accent() : FLinearColor::Transparent);
+			CandidateFrames[Index]->SetVisibility(Row ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 		}
-		EXUi::SetText(CandidatesMore, Rows.Num() > HangarCandidateRows ? FString::Printf(TEXT("%d / %d"), Selected + 1, Rows.Num()) : FString());
+		EXUi::SetText(CandidatesMore, Rows.Num() > CandidateCards.Num() ? FString::Printf(TEXT("%d / %d"), Selected + 1, Rows.Num()) : FString());
 	}
 	else if (bQuick)
 	{
 		EXUi::SetText(StockTitle, Title);
-		for (int32 Index = 0; Index < StockViews.Num(); ++Index)
+		for (int32 Index = 0; Index < StockCards.Num(); ++Index)
 		{
-			ShowStock(StockViews[Index], Rows.IsValidIndex(Index) ? &Rows[Index] : nullptr, Index == Selected);
+			const FEXHangarRow* Row = Rows.IsValidIndex(Index) ? &Rows[Index] : nullptr;
+			ShowCard(StockCards[Index], Row, true, false);
+			StockFrames[Index]->SetBrushColor(Row && Index == Selected ? EXUi::Accent() : FLinearColor::Transparent);
+			StockFrames[Index]->SetVisibility(Row ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 		}
 		EXUi::SetText(QuickSummaryText, Model->GetQuickSummary());
 	}
@@ -1335,20 +1509,20 @@ void UEXHangarWidget::Refresh()
 			: FString::Printf(TEXT("%d VIDAS → %d VIDAS"), LivesNow, LivesNext));
 	}
 
-	// The orange button: launch from the ship tab, fit in the equip tab.
+	// The primary button: launch from the ship tab, fit in the equip tab.
 	EXUi::SetText(ActionText, bShip ? FString(TEXT("LANÇAR EXPEDIÇÃO")) : FString(TEXT("MONTAR")));
 	const bool bSolo = RaceDirector && RaceDirector->GetLaunchMode() == EEXRaceMode::Solo;
 	EXUi::SetText(ModeText, !bShip ? FString() : (bSolo ? FString(TEXT("EXPEDIÇÃO SOLO  ·  só tu")) : FString(TEXT("PELOTÃO 15  ·  16 naves"))));
 
 	// Under the ship: the label and the notes pinned to the module.
-	FLinearColor PreviewColour = EXUi::Sand();
+	FLinearColor PreviewColour = EXUi::Quiet();
 	const FString Preview = Model->IsOpening() ? FString() : Model->GetPreviewLabel(PreviewColour);
 	Show(PreviewPanel, bEquip && !Preview.IsEmpty());
 	EXUi::SetText(PreviewText, Preview);
 	PreviewDiamond->SetBrushColor(PreviewColour);
-	for (UBorder* Edge : PreviewEdges)
+	if (PreviewEdge)
 	{
-		Edge->SetBrushColor(PreviewColour);
+		PreviewEdge->SetColorAndOpacity(PreviewColour);
 	}
 	RefreshCallouts(Model, Craft);
 

@@ -12,6 +12,7 @@ class UEXCraftAudio;
 struct FEXCraftAudioInput;
 class UEXProfileSave;
 class UEXHangarModel;
+class AEXWreck;
 class AEXHangarStage;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
@@ -29,6 +30,8 @@ UCLASS()
 class EXTRACTINGSTARDUST_API AEXHoverCraft : public APawn
 {
 	GENERATED_BODY()
+	/** The physics sandbox looks after its crafts (respawns, fuel, the readout on screen). */
+	friend class AEXPhysicsSandbox;
 
 public:
 	AEXHoverCraft();
@@ -78,16 +81,54 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftRecoverTime = 0.35f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftBoost = 10.0f;
 
-	/** Soft, long spring (natural frequency ~1 Hz) so landings settle instead of bouncing. */
+	/** The hover (player, 2026-11-01: "mais realista a subir, descer, quedas"; Docs/FISICA.md, studied in
+	 *  Scripts/physics_sandbox/vertical.py). Four pads (nose, tail, both sides) push the craft up to its hover height and
+	 *  never pull it down: over a crest or off a lip it flies by itself when the ground falls away faster than gravity can
+	 *  follow. Gravity is whole at all times (climbs slow the craft, descents speed it up). Pitch and roll have inertia:
+	 *  the pads turn the craft on the ground, and in the air the nose slowly follows the flight path. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverHeightM = 1.5f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverStiffness = 40.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverDamping = 1.25f;
+	/** The pads' spring (1/s^2) and damping ratio; the rebound is damped harder, so a squashed pad does not pop. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float PadStiffness = 45.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float PadDamping = 0.75f;
+	/** The most one pad pushes, in gravities. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float PadMaxG = 4.0f;
+	/** Seconds: the skirt averages short bumps (washboard) instead of being thrown by them. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float PadSmoothing = 0.06f;
+	/** Ground effect at top speed (m/s^2, fading with height): steadier at speed, still light over sharp crests. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float DownforceMps2 = 10.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float GravityMps2 = 22.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float SlopeGravityScale = 0.6f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float SurfaceAlignDegPerSec = 160.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AirLevelDegPerSec = 45.0f;
+	/** The share of the slope's pull along the ground (1 = real). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float SlopeGravityScale = 1.0f;
+	/** Radii of gyration of the hull (m) for pitch and roll, and the damping of both on the ground. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float PitchRadiusM = 1.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float RollRadiusM = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AttitudeDamping = 3.0f;
+	/** In the air: the nose turning to the flight path, its damping, and the roll levelling (the pilot's trim). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AirAlign = 5.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AirAlignDamping = 2.2f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AirRollLevel = 4.0f;
+	/** A hard landing scrubs this share of the speed per m/s of landing speed above 6 m/s (at most 25 %). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float LandingScrub = 0.012f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallBounce = 0.3f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallScrapeLoss = 0.2f;
+
+	/** Crashes between ships (player, 2026-11-01: "como no Burnout: chocam, raspam, empurram, tiram vida e prejudicam a
+	 *  condução"; Docs/FISICA.md, Scripts/physics_sandbox/crash.py): the momentum is shared by the masses (a BASTION
+	 *  shoves a WRAITH), the rub drags the faster ship back and the slower forward, an off-centre knock spins the ship (a
+	 *  hit on the rear quarter turns it round), a big one takes the grip and dulls the steering for a moment. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashRestitution = 0.3f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashFriction = 0.35f;
+	/** The change of speed (m/s) a knock takes before it costs hull, and the hull per m/s above it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashSafeMps = 4.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashDamagePerMps = 1.8f;
+	/** Rubbing side to side: hull per second at 20 m/s of slip between the two. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float ScrapeDamagePerS = 6.0f;
+	/** The spin a knock gives (radius of gyration for yaw, m), its cap (rad/s) and how fast it dies away (1/s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashSpinRadiusM = 1.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashSpinMax = 2.6f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashSpinDecay = 2.0f;
+	/** How long a big knock upsets the handling (grip, steering, a wobble of the nose), in seconds. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashWobbleSeconds = 1.1f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float BankMaxDeg = 22.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float NoseLeadMaxDeg = 5.0f;
@@ -123,6 +164,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamOutboardM = 0.0f;
 	/** Peak camera jolt on a hard landing or wall hit, in degrees. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float LandingShakeDeg = 2.2f;
+	/** Jumps and falls (player, 2026-11-01): the camera follows the craft's height a little late (1/s; no lag on a steady
+	 *  climb, only when the craft's vertical speed changes), so a jump lifts the craft in the frame and a landing sinks the
+	 *  view before it settles; at most this far (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamVerticalLag = 4.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamVerticalLagMaxM = 2.5f;
+	/** A knock between ships shoves the view (s: metres of shove per m/s of the knock, through a quick spring). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamCrashKick = 0.5f;
 	/** How far the right stick orbits the camera around the craft. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float LookYawMaxDeg = 120.0f;
 
@@ -142,6 +190,22 @@ public:
 	/** The floor's half width (m; under 4 when the map has none) and the line's height (m) at each route sample. */
 	const TArray<float>& GetMapRouteHalfWidth() const { return MapRouteHalfW; }
 	const TArray<float>& GetMapRouteZ() const { return MapRouteZ; }
+
+	/** A knock from another ship (MoveWithCollision -> CrashWith): its change of speed (m/s) at a point; RamShare is the
+	 *  share of the damage it takes (less when it rammed with its nose), SlipMps the rub between the two, Dt the step. */
+	void TakeCrash(const FVector& DeltaVMps, const FVector& Point, const AEXHoverCraft* Other, float RamShare, float SlipMps, float Dt);
+	/** The ship's mass with its modules (kg), which shares the momentum in a crash. */
+	float GetCrashMassKg() const;
+	/** The loop the bots drive and the craft follows (the physics sandbox), in centimetres. */
+	void SetRoute(const TArray<FVector>& PointsCm);
+	/** The physics sandbox brings a blown-up ship back on its loop, whole. */
+	void Revive();
+	/** Console, to see each wreck (Docs/DESTROCOS.md): "EXBoom <cause>" blows this ship up as if it died that way:
+	 *  0 worn out by the scrapes (end over end), 1 head on into a rock (backflip), 2 hit from the side (barrel roll),
+	 *  3 nose first after a jump (cartwheel), 4 shoved from behind (end over end, pushed on). Best in the sandbox
+	 *  (Scripts\jogar.ps1 -Modo Sandbox), where the ship comes back 3 s later. */
+	UFUNCTION(Exec) void EXBoom(int32 Cause = 0);
+	bool IsEliminated() const { return bEliminated; }
 
 	// ---- Race rules (Docs/MODOS_DE_JOGO.md), switched on by AEXRaceDirector; off in free flight and the tests.
 	/** Lives by ship (plus the hull of the modules), damage from hard wall hits and hard landings, fuel and heat. */
@@ -208,11 +272,12 @@ public:
 	void PlaceAt(const FVector& Location, float YawDeg);
 	void Eliminate();
 	bool IsBot() const { return bBot; }
-	bool IsEliminated() const { return bEliminated; }
 	int32 GetLives() const { return Lives; }
 	/** The hull (player, 2026-10-26: a health bar as in the Unity version, not lives): 0..1 of the ship's maximum. */
 	float GetHullFrac() const { return HullMax > 0.0f ? FMath::Clamp(Hull / HullMax, 0.0f, 1.0f) : 0.0f; }
 	float GetHull() const { return Hull; }
+	/** Puts the craft back on the race line where it is (the R key; the track inspector uses it when stuck). */
+	void PutBackOnLine() { RespawnOnRoute(); }
 	float GetHullMax() const { return HullMax; }
 	int32 GetMaxLives() const { return MaxLives; }
 	/** World time of the last life lost (the HUD flashes it), -1 if none. */
@@ -309,6 +374,28 @@ private:
 	float HeightM = 0.0f, Nitro = 1.0f, ForwardSpeedMps = 0.0f, LateralSpeedMps = 0.0f, LongAccelMps2 = 0.0f;
 	float YawRate = 0.0f, GripBlend = 1.0f, SlipRad = 0.0f, DriftCharge = 0.0f, MiniTurboFlash = 0.0f;
 	float AirTimeSeconds = 0.0f, ImpactShake = 0.0f, SparkCooldown = 0.0f;
+	/** The hover pads (StepFlight): their smoothed heights (m) last step and now, and the attitude's rates (rad/s): pitch
+	 *  (nose up +) and roll (right side up +). */
+	float PadHeightM[4] = { 1.5f, 1.5f, 1.5f, 1.5f }, PadPrevM[4] = { 1.5f, 1.5f, 1.5f, 1.5f };
+	float PitchRate = 0.0f, RollRate = 0.0f;
+	/** Crashes: the spin a knock left (rad/s), the handling upset (1 just hit, 0 recovered), the scrape's hull waiting to be
+	 *  taken, and a short guard between two big knocks. */
+	float CrashSpin = 0.0f, CrashWobble = 0.0f, ScrapePending = 0.0f, CrashCooldown = 0.0f, CrashSparkCooldown = 0.0f;
+	void CrashWith(AEXHoverCraft& Other, const FHitResult& Hit, float Dt);
+	/** How the ship dies decides how its wreck tumbles (Eliminate): the last knock (its change of speed, m/s, where, when)
+	 *  and the last hard landing. */
+	FVector LastKnockDV = FVector::ZeroVector, LastKnockPoint = FVector::ZeroVector;
+	float LastKnockTime = -100.0f, LastLandingTime = -100.0f, LastLandingSpeed = 0.0f;
+	/** The crash camera (the player blown up): slow motion and a camera round the flying wreck, like Burnout's; and the
+	 *  short slow motion of a takedown. Real seconds, not slowed ones. */
+	TWeakObjectPtr<AEXWreck> CrashWreck;
+	bool bCrashCam = false;
+	float CrashCamReal = 0.0f, TakedownSlowmo = 0.0f;
+	FVector CrashCamPos = FVector::ZeroVector, CrashCamDir = FVector::ForwardVector;
+	void UpdateCrashCam(float Dt);
+	/** The sandbox's numbers (-EXPhysLog or the sandbox): the jump under way. */
+	bool bPhysLog = false;
+	float JumpPeakZCm = 0.0f, JumpTakeoffMps = 0.0f;
 	float VisualRoll = 0.0f, VisualPitch = 0.0f, VisualYaw = 0.0f, HoverBobTime = 0.0f;
 	int32 ShipIndex = 0, CameraMode = 0;
 
@@ -317,6 +404,9 @@ private:
 	FVector CamOffsetCm = FVector::ZeroVector, CamSmoothUp = FVector::UpVector, CamSmoothHeading = FVector::ForwardVector;
 	float CamFovV = 62.0f, CamKick = 0.0f, CamKickVel = 0.0f, CamBoostPunch = 0.0f, CamDriftSwing = 0.0f, CamLastSpeed = 0.0f;
 	float LookYawInput = 0.0f, CamLookYaw = 0.0f, CamJolt = 0.0f, CamJoltTime = 0.0f, CamApexYaw = 0.0f, WallThreat = 0.0f;
+	/** The camera's late follow of the craft's height (m, m/s) and the shove of a knock (m, m/s). */
+	float CamSmoothZ = 0.0f, CamSmoothZVel = 0.0f;
+	FVector CamShove = FVector::ZeroVector, CamShoveVel = FVector::ZeroVector;
 	FVector GroundPointCm = FVector::ZeroVector;
 	bool bLookBack = false;
 

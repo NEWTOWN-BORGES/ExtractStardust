@@ -7,6 +7,8 @@
 
 class AEXHoverCraft;
 class AEXCheckpointGate;
+class AEXBoostArrows;
+class AEXTrackSigns;
 
 /** A checkpoint gate on the race line: its middle (m), the floor's half width there (m) and how far along the line. */
 struct FEXGate
@@ -177,15 +179,27 @@ private:
 	 *  by the player in order (returns how many), and the finish refused while one is missing. */
 	void PlaceGates(const AEXHoverCraft* Player);
 	int32 PlayerGates(AEXHoverCraft* Craft, int32 Passed);
+	/** The track inspector (-EXInspect, jogar.ps1 -Modo Inspecao): the player's ship drives the whole route by itself and
+	 *  every problem is written down with where it happened and a photo (Saved/Inspect): stuck, off the track, hits,
+	 *  falls, long jumps, gates out of sight or out of place, slow frames. */
+	void Inspect(float DeltaSeconds);
+	void InspectNote(const TCHAR* Kind, const FVector& Where, float AlongM, const FString& Detail, bool bShot);
+	void WriteInspectReport() const;
 	bool GatesMissing(const FEXRacer& Racer);
 	void RefreshGates(int32 Passed, int32 JustPassed);
 	/** The player's craft, for the call-out sounds. */
 	AEXHoverCraft* PlayerCraft() const;
+	/** For testing (player, 2026-11-02): bots just ahead of the player blow up in the first seconds of the race. */
+	void CrashTest();
 	void ReturnToMenu();
 
 	EEXRaceMode Mode = EEXRaceMode::Solo;
 	int32 BotCount = 15;
 	bool bReady = false, bStarted = false, bOver = false, bTest = false, bMenu = false;
+	/** The start crashes (CrashTest): on unless -EXNoCrashTest, or in the automated test and the inspector. */
+	bool bCrashTest = true;
+	int32 CrashTestDone = 0;
+	float NextCrashTestTime = 6.0f;
 	int32 MenuChoice = 1;
 	int32 Pool = 0;
 	/** Serials for the bots' pieces (far from the player's). */
@@ -202,8 +216,17 @@ private:
 	int32 PauseChoice = 0;
 	TArray<FEXGate> Gates;
 	UPROPERTY() TArray<TObjectPtr<AEXCheckpointGate>> GateActors;
+	UPROPERTY(Transient) TObjectPtr<AEXCheckpointGate> FinishGate;
+	UPROPERTY(Transient) TObjectPtr<AEXTrackSigns> TrackSigns;     // chevron boards in the bends, edge poles in the sand
+	UPROPERTY(Transient) TObjectPtr<AEXBoostArrows> BoostArrows;   // the dash-panel arrows before the jumps   // B's extraction gate, shown after the last gate
 	int32 MissedGate = 0, LastGateShot = -1;
 	float GateNagTime = -100.0f, NextShotTime = 5.0f;
+	bool bInspect = false, bFinishGateDone = false;
+	float InspStuck = 0.0f, InspOff = 0.0f, InspHull = -1.0f, InspKmh = 0.0f, InspAir = 0.0f;
+	int32 InspShots = 0, InspGateChecked = -1;
+	TMap<FString, float> InspLastAt;
+	TMap<FString, int32> InspCount;
+	TArray<FString> InspLines;
 	/** Frame-time statistics of a test race (-EXRaceTest), and its length (-EXRaceSeconds=). */
 	float FpsTime = 0.0f, WorstDt = 0.0f, TestLimitS = 1500.0f;
 	int32 FpsFrames = 0;

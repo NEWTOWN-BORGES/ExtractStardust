@@ -14,6 +14,7 @@
 #include "Flight/EXCraftAudio.h"
 #include "Flight/EXCraftFx.h"
 #include "Flight/EXExplosion.h"
+#include "Flight/EXWreck.h"
 #include "GameFramework/PlayerStart.h"
 #include "World/EXDesertTerrain.h"
 #include "GameFramework/PlayerController.h"
@@ -106,8 +107,12 @@ namespace
 		{ TEXT("BASTION"), 0.30f, 1, { { 0.0f, 3.33f, 0.66f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } } },
 	};
 	/** The module pieces on the ship mesh (utility inside the nose), in the order of AEXHoverCraft::ModuleMeshes. */
-	const EEXFamily CraftExterior[] = { EEXFamily::Wings, EEXFamily::Tail, EEXFamily::Armor, EEXFamily::Cooling, EEXFamily::Utility };
-	const TCHAR* const CraftExteriorNames[] = { TEXT("ModuleWings"), TEXT("ModuleTail"), TEXT("ModuleArmor"), TEXT("ModuleCooling"), TEXT("ModuleUtility") };
+	// The engine's slot shows only an epic or legendary engine's insides, in the x-ray view (Scripts/ship_modules.py);
+	// outside, an engine changes only its flame or plasma (EXMeta::Flame).
+	const EEXFamily CraftExterior[] = { EEXFamily::Wings, EEXFamily::Tail, EEXFamily::Armor, EEXFamily::Cooling, EEXFamily::Utility,
+		EEXFamily::Engine };
+	const TCHAR* const CraftExteriorNames[] = { TEXT("ModuleWings"), TEXT("ModuleTail"), TEXT("ModuleArmor"), TEXT("ModuleCooling"),
+		TEXT("ModuleUtility"), TEXT("ModuleEngine") };
 
 	/** The previous game used vertical FOV; Unreal cameras take horizontal FOV. */
 	float HorizontalFov(float VerticalDeg)
@@ -200,6 +205,7 @@ void AEXHoverCraft::BeginPlay()
 	Fx->Initialize(VisualPivot);
 	SelectShip(0);
 	bFlightTest = FParse::Param(FCommandLine::Get(), TEXT("EXFlightTest"));
+	bPhysLog = FParse::Param(FCommandLine::Get(), TEXT("EXPhysLog")) || FParse::Param(FCommandLine::Get(), TEXT("EXSandbox"));
 	for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
 	{
 		bDesertTest = bFlightTest && It->ActorHasTag(TEXT("EXWorld"));
@@ -296,6 +302,10 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (bEliminated)
 	{
+		if (bCrashCam && IsPlayerControlled())
+		{
+			UpdateCrashCam(DeltaSeconds);
+		}
 		if (Audio)
 		{
 			// The explosion rings out for the player who blew up, then silence.
@@ -325,6 +335,13 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	}
 	HitCooldown = FMath::Max(0.0f, HitCooldown - DeltaSeconds);
 	AudioHitCooldown = FMath::Max(0.0f, AudioHitCooldown - DeltaSeconds);
+	if (TakedownSlowmo > 0.0f)
+	{
+		// A takedown (the player blew a rival up): a short slow motion, then back to speed.
+		TakedownSlowmo -= DeltaSeconds / FMath::Max(0.05f, UGameplayStatics::GetGlobalTimeDilation(this));
+		UGameplayStatics::SetGlobalTimeDilation(this, TakedownSlowmo <= 0.0f ? 1.0f
+			: (TakedownSlowmo > 0.3f ? 0.4f : FMath::Lerp(1.0f, 0.4f, TakedownSlowmo / 0.3f)));
+	}
 	const bool bViewer = IsPlayerControlled();
 	if (bBot)
 	{
@@ -498,50 +515,59 @@ void AEXHoverCraft::StepFlight(float Dt)
 {
 	const FVector Location = GetActorLocation();
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(EXHoverProbe), false, this);
+	const float ReachM = HoverHeightM * 3.0f;
+	// The sphere under the craft: the ground point and normal for the effects and the landing, and the height when the
+	// pads see nothing.
 	FHitResult GroundHit;
-	const bool bHit = GetWorld()->SweepSingleByChannel(GroundHit, Location, Location - SurfaceUp * (HoverHeightM * CmPerM * 3.0f),
+	const bool bHit = GetWorld()->SweepSingleByChannel(GroundHit, Location, Location - SurfaceUp * (ReachM * CmPerM),
 		FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(ProbeRadiusCm), Params);
 	HeightM = bHit ? (GroundHit.bStartPenetrating ? 0.3f : (GroundHit.Distance + ProbeRadiusCm) / CmPerM) : 99.0f;
 	FVector GroundNormal = bHit ? FVector(GroundHit.ImpactNormal) : FVector::UpVector;
-	// Four line probes under the hull (nose, tail, both sides): the height is their average and the ground is the
-	// plane they span, so single terrain triangles no longer shake the craft. The sphere above stays as the fallback.
+	// The four hover pads (nose, tail, both sides), each a line down the craft's up. Their heights are smoothed a little
+	// (the skirt averages the ground under it: a washboard does not throw the craft), except the first touch.
+	const FVector Fwd = Heading.GetSafeNormal();
+	const FVector Side = FVector::CrossProduct(SurfaceUp, Fwd).GetSafeNormal();
+	const float PadForwardM[4] = { 1.6f, -1.6f, 0.0f, 0.0f };
+	const float PadSideM[4] = { 0.0f, 0.0f, 0.9f, -0.9f };
+	const float Smooth = 1.0f - FMath::Exp(-Dt / FMath::Max(0.01f, PadSmoothing));
+	bool bPadHit[4] = {};
+	FVector PadPoints[4];
+	int32 PadHits = 0;
+	float PadSum = 0.0f;
+	for (int32 Pad = 0; Pad < 4; ++Pad)
 	{
-		const FVector Fwd = Heading.GetSafeNormal();
-		const FVector Side = FVector::CrossProduct(SurfaceUp, Fwd).GetSafeNormal();
-		const FVector Offsets[4] = { Fwd * 160.0f, -Fwd * 160.0f, Side * 90.0f, -Side * 90.0f };
-		FVector Points[4];
-		float HeightSum = 0.0f;
-		int32 Count = 0;
-		for (int32 Probe = 0; Probe < 4; ++Probe)
+		FHitResult PadHit;
+		const FVector Start = Location + (Fwd * PadForwardM[Pad] + Side * PadSideM[Pad]) * CmPerM;
+		bPadHit[Pad] = GetWorld()->LineTraceSingleByChannel(PadHit, Start, Start - SurfaceUp * (ReachM * CmPerM), ECC_Visibility, Params);
+		const float Raw = bPadHit[Pad] ? PadHit.Distance / CmPerM : ReachM;
+		PadPrevM[Pad] = PadHeightM[Pad];
+		PadHeightM[Pad] = !bPadHit[Pad] || PadHeightM[Pad] >= ReachM - 0.01f ? Raw : PadHeightM[Pad] + (Raw - PadHeightM[Pad]) * Smooth;
+		if (bPadHit[Pad])
 		{
-			FHitResult ProbeHit;
-			const FVector Start = Location + Offsets[Probe];
-			if (GetWorld()->LineTraceSingleByChannel(ProbeHit, Start, Start - SurfaceUp * (HoverHeightM * CmPerM * 3.0f), ECC_Visibility, Params))
-			{
-				Points[Count++] = ProbeHit.ImpactPoint;
-				HeightSum += ProbeHit.Distance / CmPerM;
-			}
+			PadPoints[PadHits++] = PadHit.ImpactPoint;
+			PadSum += PadHeightM[Pad];
 		}
-		if (Count == 4 && !GroundHit.bStartPenetrating)
-		{
-			const FVector Plane = FVector::CrossProduct(Points[0] - Points[1], Points[2] - Points[3]).GetSafeNormal();
-			GroundNormal = FVector::DotProduct(Plane, SurfaceUp) < 0.0f ? -Plane : Plane;
-			HeightM = FMath::Min(HeightM, HeightSum / 4.0f + 0.25f);  // never above what the sphere sees (walls, lips)
-		}
+	}
+	if (PadHits == 4 && !GroundHit.bStartPenetrating)
+	{
+		// The ground is the plane the pads span (single terrain triangles do not shake the craft).
+		const FVector Plane = FVector::CrossProduct(PadPoints[0] - PadPoints[1], PadPoints[2] - PadPoints[3]).GetSafeNormal();
+		GroundNormal = FVector::DotProduct(Plane, SurfaceUp) < 0.0f ? -Plane : Plane;
+		HeightM = FMath::Min(HeightM, PadSum / 4.0f + 0.25f);   // never above what the sphere sees (walls, lips)
 	}
 	GroundPointCm = bHit ? FVector(GroundHit.ImpactPoint) : Location - SurfaceUp * (HoverHeightM * CmPerM);
 	const bool bWasGrounded = bGrounded;
 	const float AirTimeBefore = AirTimeSeconds;
-	bGrounded = bHit && FVector::DotProduct(GroundNormal, SurfaceUp) > 0.5f && HeightM < HoverHeightM * 2.5f;
+	// On the ground while the pads carry it (beyond ~2 m they push nothing: the craft is flying).
+	bGrounded = PadHits >= 2 && FVector::DotProduct(GroundNormal, SurfaceUp) > 0.5f && HeightM < HoverHeightM * 1.9f;
 	AirTimeSeconds = bGrounded ? 0.0f : AirTimeSeconds + Dt;
 	if (bGrounded)
 	{
 		LastGroundZCm = GroundPointCm.Z;
 	}
-
-	SurfaceUp = FMath::VInterpNormalRotationTo(SurfaceUp, bGrounded ? GroundNormal : FVector::UpVector, Dt,
-		bGrounded ? SurfaceAlignDegPerSec : AirLevelDegPerSec);
-	Heading = FVector::VectorPlaneProject(Heading, SurfaceUp).GetSafeNormal(UE_SMALL_NUMBER, Heading);
+	CrashWobble = FMath::Max(0.0f, CrashWobble - Dt / FMath::Max(0.1f, CrashWobbleSeconds));
+	CrashCooldown = FMath::Max(0.0f, CrashCooldown - Dt);
+	CrashSparkCooldown = FMath::Max(0.0f, CrashSparkCooldown - Dt);
 
 	FVector V = VelocityCmps / CmPerM;
 	const float Speed = V.Size();
@@ -556,7 +582,8 @@ void AEXHoverCraft::StepFlight(float Dt)
 	Nitro = bBoosting ? FMath::Max(0.0f, Nitro - Dt / NitroSeconds)
 		: FMath::Min(1.0f, Nitro + Dt * (NitroRegen + (bWasDrifting ? NitroDriftRegen : 0.0f) + (bGrounded ? 0.0f : NitroAirRegen)));
 
-	FVector Acceleration = FVector::ZeroVector;
+	// Whole gravity, always: a climb slows the craft, a descent speeds it up, a fall is a fall.
+	FVector Acceleration(0.0f, 0.0f, -GravityMps2);
 	if (bGrounded)
 	{
 		const float TopSpeed = MaxSpeedMps * SpeedCapMul() * (bBoosting ? BoostTopMul : 1.0f);
@@ -587,12 +614,13 @@ void AEXHoverCraft::StepFlight(float Dt)
 		{
 			Acceleration -= V / Speed * DriftDecel;
 		}
-		// Critically damped hover spring along the surface normal. It never pulls down harder than about
-		// gravity, so the craft can fly off crests and ramps instead of being glued to the ground.
-		const float NormalSpeed = FVector::DotProduct(V, SurfaceUp);
-		Acceleration += SurfaceUp * (FMath::Max(HoverStiffness * (HoverHeightM - HeightM), -GravityMps2 * 1.3f)
-			- 2.0f * FMath::Sqrt(HoverStiffness) * HoverDamping * NormalSpeed);
-		Acceleration += FVector::VectorPlaneProject(FVector(0.0f, 0.0f, -GravityMps2), SurfaceUp) * SlopeGravityScale;
+		// Ground effect at speed, fading as the craft lifts (so a sharp crest still makes it light).
+		const float Lift = FMath::Clamp(1.0f - (HeightM - HoverHeightM) / HoverHeightM, 0.0f, 1.0f);
+		Acceleration -= SurfaceUp * (DownforceMps2 * FMath::Square(FMath::Min(Speed / MaxSpeedMps, 1.3f)) * Lift);
+		if (SlopeGravityScale < 1.0f)
+		{
+			Acceleration -= FVector::VectorPlaneProject(FVector(0.0f, 0.0f, -GravityMps2), SurfaceUp) * (1.0f - SlopeGravityScale);
+		}
 	}
 	else
 	{
@@ -600,8 +628,53 @@ void AEXHoverCraft::StepFlight(float Dt)
 		AirForward.Z = FMath::Min(AirForward.Z, 0.2f);
 		const float Ratio = FMath::Clamp(Forward / MaxSpeedMps, 0.0f, 1.0f);
 		Acceleration += AirForward.GetSafeNormal(UE_SMALL_NUMBER, Heading) * (AccelerationMps2 * AirThrust * (1.0f - Ratio * Ratio) * ThrottleInput);
-		Acceleration.Z -= GravityMps2;
 	}
+	// The pads push along the craft's up, never pull: a spring to the hover height that carries the weight, damped (the
+	// rebound harder, so a squashed pad does not pop the craft into the air). Off-centre pushes turn the craft: the
+	// nose rises onto a ramp, dips over a crest, slaps down on a nose-first landing.
+	float PitchAccel = 0.0f;
+	float RollAccel = 0.0f;
+	{
+		const float Preload = GravityMps2 * FMath::Max(0.0f, SurfaceUp.Z);
+		const float PadC = 2.0f * PadDamping * FMath::Sqrt(PadStiffness);
+		for (int32 Pad = 0; Pad < 4; ++Pad)
+		{
+			if (!bPadHit[Pad])
+			{
+				continue;
+			}
+			const float HDot = (PadHeightM[Pad] - PadPrevM[Pad]) / Dt;
+			const float C = HDot > 0.0f ? PadC * 1.6f : PadC;
+			const float Push = 0.25f * FMath::Clamp(PadStiffness * (HoverHeightM - PadHeightM[Pad]) + Preload - C * HDot, 0.0f, PadMaxG * GravityMps2);
+			Acceleration += SurfaceUp * Push;
+			PitchAccel += Push * PadForwardM[Pad] / FMath::Square(PitchRadiusM);
+			RollAccel += Push * PadSideM[Pad] / FMath::Square(RollRadiusM);
+		}
+	}
+	if (bGrounded)
+	{
+		PitchAccel -= AttitudeDamping * PitchRate;
+		RollAccel -= AttitudeDamping * RollRate;
+	}
+	else
+	{
+		// In the air the nose turns slowly to the flight path (no snapping level), and the pilot trims the roll level.
+		const FVector Dir = Speed > 5.0f ? V / Speed : Fwd;
+		const float PathError = FMath::Asin(FMath::Clamp(FVector::DotProduct(Dir, SurfaceUp), -1.0f, 1.0f));
+		PitchAccel += AirAlign * PathError * FMath::Clamp(Speed / MaxSpeedMps, 0.25f, 1.0f) - AirAlignDamping * PitchRate;
+		RollAccel += -AirRollLevel * FMath::Asin(FMath::Clamp(Side.Z, -1.0f, 1.0f)) - AirAlignDamping * RollRate;
+		if (SurfaceUp.Z < 0.3f)
+		{
+			// Upside down or on its side: right it firmly.
+			RollAccel *= 3.0f;
+			PitchAccel += -3.0f * AirAlign * FMath::Asin(FMath::Clamp(Fwd.Z, -1.0f, 1.0f));
+		}
+	}
+	PitchRate += PitchAccel * Dt;
+	RollRate += RollAccel * Dt;
+	// Nose up tilts the up vector back, right side up tilts it to the left.
+	SurfaceUp = (SurfaceUp - Fwd * (PitchRate * Dt) - Side * (RollRate * Dt)).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	Heading = FVector::VectorPlaneProject(Heading, SurfaceUp).GetSafeNormal(UE_SMALL_NUMBER, Heading);
 	Acceleration -= V * (AeroDrag * Speed);
 	V += Acceleration * Dt;
 
@@ -618,7 +691,7 @@ void AEXHoverCraft::StepFlight(float Dt)
 			const float SignedAngle = FMath::Atan2(FVector::DotProduct(SurfaceUp, FVector::CrossProduct(Tangential, Heading)),
 				FVector::DotProduct(Tangential, Heading));
 			SlipRad = SignedAngle;
-			GripBlend = bDrifting ? 0.0f : FMath::Min(1.0f, GripBlend + Dt / FMath::Max(0.05f, DriftRecoverTime));
+			GripBlend = bDrifting ? 0.0f : FMath::Min(1.0f - 0.6f * CrashWobble, GripBlend + Dt / FMath::Max(0.05f, DriftRecoverTime));
 			// The Stabilizer Shot holds the line harder for its 8 seconds.
 			const float StabMul = StabLeft > 0.0f ? 1.35f : 1.0f;
 			float LateralMax = FMath::Lerp(DriftLateralMax, GripLateralMax, GripBlend) * (bBraking ? BrakeGripMul : 1.0f) * StabMul;
@@ -661,7 +734,9 @@ void AEXHoverCraft::StepFlight(float Dt)
 
 	// Steering builds a yaw rate; entering a drift kicks the nose in, and the kick stops at the slip limit.
 	const float TurnMul = bDrifting ? DriftTurnMul : bBraking ? BrakeTurnMul : 1.0f;
-	const float TurnRate = FMath::Lerp(TurnRateLow, TurnRateHigh, FMath::Clamp(Speed / MaxSpeedMps, 0.0f, 1.0f)) * TurnMul * (bGrounded ? 1.0f : AirTurnMul);
+	// A big knock dulls the steering for a moment (CrashWobble).
+	const float TurnRate = FMath::Lerp(TurnRateLow, TurnRateHigh, FMath::Clamp(Speed / MaxSpeedMps, 0.0f, 1.0f)) * TurnMul * (bGrounded ? 1.0f : AirTurnMul)
+		* (1.0f - 0.6f * CrashWobble);
 	YawRate = FMath::Lerp(YawRate, SteerInput * (Forward < -0.5f ? -1.0f : 1.0f) * TurnRate, Damp(SteerResponse, Dt));
 	if (bDrifting && !bWasDrifting)
 	{
@@ -671,13 +746,20 @@ void AEXHoverCraft::StepFlight(float Dt)
 	{
 		YawRate = FMath::Lerp(YawRate, 0.0f, Damp(8.0f, Dt));
 	}
-	Heading = Heading.RotateAngleAxis(FMath::RadiansToDegrees(YawRate * Dt), SurfaceUp);
+	// A knock's spin turns the nose on its own and dies away; a big knock also wobbles it.
+	CrashSpin *= FMath::Exp(-CrashSpinDecay * Dt);
+	const float Wobble = CrashWobble * 0.35f * FMath::Sin(HoverBobTime * 9.0f);
+	Heading = Heading.RotateAngleAxis(FMath::RadiansToDegrees((YawRate + CrashSpin + Wobble) * Dt), SurfaceUp);
 
 	if (bGrounded && !bWasGrounded && AirTimeBefore > 0.08f)
 	{
-		// Touchdown: the camera dips and jolts, and the sand bursts out around the craft.
-		const float LandingSpeed = FMath::Max(0.0f, -FVector::DotProduct(V, SurfaceUp));
-		CamKickVel -= FMath::Min(LandingSpeed * 0.06f, 1.4f);
+		// Touchdown: the pads squash, a hard landing scrubs speed, the camera dips and jolts, the sand bursts out.
+		const float LandingSpeed = FMath::Max(0.0f, -FVector::DotProduct(V, GroundNormal));
+		if (LandingSpeed > 6.0f)
+		{
+			V *= 1.0f - FMath::Min(0.25f, LandingScrub * (LandingSpeed - 6.0f));
+		}
+		CamKickVel -= FMath::Min(LandingSpeed * 0.07f, 1.8f);
 		CamJolt = FMath::Max(CamJolt, FMath::Clamp(LandingSpeed / 14.0f, 0.15f, 1.0f));
 		if (LandingSpeed > 3.0f)
 		{
@@ -687,10 +769,22 @@ void AEXHoverCraft::StepFlight(float Dt)
 				Audio->Landing(FMath::Clamp(LandingSpeed / 20.0f, 0.2f, 1.0f));
 			}
 		}
+		LastLandingTime = GetWorld()->GetTimeSeconds();
+		LastLandingSpeed = LandingSpeed;
 		if (LandingSpeed > 20.0f)
 		{
 			ApplyHullDamage((LandingSpeed - 20.0f) * 1.0f);   // a hard landing (race rules only)
 		}
+		if (bPhysLog && AirTimeBefore > 0.3f)
+		{
+			UE_LOG(LogTemp, Display, TEXT("EXPHYS jump %s air=%.2fs peak=%.1fm takeoff=%.0fkmh land=%.1fm/s pitch=%.0f"), *GetShipName(), AirTimeBefore,
+				(JumpPeakZCm - GroundPointCm.Z) / CmPerM, JumpTakeoffMps * 3.6f, LandingSpeed, FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(Fwd.Z, -1.0f, 1.0f))));
+		}
+	}
+	if (!bGrounded)
+	{
+		JumpPeakZCm = bWasGrounded ? Location.Z : FMath::Max(JumpPeakZCm, Location.Z);
+		JumpTakeoffMps = bWasGrounded ? Speed : JumpTakeoffMps;
 	}
 
 	const float PreviousForward = ForwardSpeedMps;
@@ -721,8 +815,18 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 			continue;
 		}
 		const FVector Normal = Hit.Normal;
-		const AEXHoverCraft* OtherCraft = Cast<AEXHoverCraft>(Hit.GetActor());
-		const FVector OtherVelocity = IsValid(OtherCraft) ? OtherCraft->VelocityCmps : FVector::ZeroVector;
+		AEXHoverCraft* OtherCraft = Cast<AEXHoverCraft>(Hit.GetActor());
+		if (IsValid(OtherCraft))
+		{
+			// Another ship is not a wall (player, 2026-11-01): both take the knock, by their masses (CrashWith).
+			if (!OtherCraft->bEliminated)
+			{
+				CrashWith(*OtherCraft, Hit, Dt);
+			}
+			Delta = FVector::VectorPlaneProject(Delta * (1.0f - Hit.Time), Normal);
+			continue;
+		}
+		const FVector OtherVelocity = FVector::ZeroVector;
 		const float IntoSpeed = FVector::DotProduct(VelocityCmps - OtherVelocity, Normal);
 		if (IntoSpeed < 0.0f)
 		{
@@ -734,19 +838,22 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 				VelocityCmps *= 1.0f - FMath::Clamp(WallScrapeLoss * (-IntoSpeed / CmPerM) / 20.0f, 0.0f, 0.5f);
 			}
 			ImpactShake = FMath::Max(ImpactShake, FMath::Clamp(-IntoSpeed / CmPerM / 25.0f, 0.0f, 1.0f));
-			if ((bWall || IsValid(OtherCraft)) && Audio && AudioHitCooldown <= 0.0f && -IntoSpeed / CmPerM > 8.0f)
+			if (bWall && Audio && AudioHitCooldown <= 0.0f && -IntoSpeed / CmPerM > 8.0f)
 			{
 				AudioHitCooldown = 0.15f;
 				Audio->Bang(FMath::Clamp((-IntoSpeed / CmPerM - 8.0f) / 25.0f, 0.15f, 0.9f));
 			}
-			if (bWall || IsValid(OtherCraft))
+			if (bWall)
 			{
-				// What the impact speed has above 16 m/s (player, 2026-10-26: destroyed too easily), half against a craft;
-				// ApplyHullDamage caps one hit at 40 % of the hull.
+				// What the impact speed has above 16 m/s (player, 2026-10-26: destroyed too easily); ApplyHullDamage caps
+				// one hit at 40 % of the hull. The ships' knocks are CrashWith's.
 				const float ImpactMps = -IntoSpeed / CmPerM;
+				LastKnockDV = Normal * ImpactMps * (1.0f + WallBounce);
+				LastKnockPoint = Hit.ImpactPoint;
+				LastKnockTime = GetWorld()->GetTimeSeconds();
 				if (ImpactMps > 16.0f)
 				{
-					ApplyHullDamage((ImpactMps - 16.0f) * 0.85f * (IsValid(OtherCraft) ? 0.5f : 1.0f));
+					ApplyHullDamage((ImpactMps - 16.0f) * 0.85f);
 				}
 			}
 			if (bWall)
@@ -761,6 +868,220 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 		}
 		Delta = FVector::VectorPlaneProject(Delta * (1.0f - Hit.Time), Normal);
 	}
+}
+
+void AEXHoverCraft::CrashWith(AEXHoverCraft& Other, const FHitResult& Hit, float Dt)
+{
+	// Burnout-style knocks (player, 2026-11-01; Docs/FISICA.md, Scripts/physics_sandbox/crash.py). The normal points from
+	// the other ship to this one. The momentum is shared by the masses with a little bounce; the rub along the contact
+	// drags the faster ship back and the slower one forward (trading paint), within the friction.
+	const FVector N = Hit.Normal;
+	const FVector VA = VelocityCmps / CmPerM;
+	const FVector VB = Other.VelocityCmps / CmPerM;
+	const FVector Rel = VA - VB;
+	const float Closing = FVector::DotProduct(Rel, N);
+	const FVector Tangent = Rel - N * Closing;
+	const float Slip = Tangent.Size();
+	const float MA = GetCrashMassKg();
+	const float MB = Other.GetCrashMassKg();
+	const float InvSum = 1.0f / MA + 1.0f / MB;
+	FVector Impulse = FVector::ZeroVector;   // on this ship (kg m/s); the other takes the opposite
+	if (Closing < 0.0f)
+	{
+		const float J = -(1.0f + CrashRestitution) * Closing / InvSum;
+		Impulse = N * J;
+		if (Slip > 0.5f)
+		{
+			Impulse -= Tangent / Slip * FMath::Min(CrashFriction * J, Slip / InvSum);
+		}
+	}
+	else if (Slip > 3.0f)
+	{
+		// Pressed side by side: the scrape still drags a little each step.
+		Impulse -= Tangent / Slip * FMath::Min(Slip / InvSum, CrashFriction * GravityMps2 * Dt / InvSum);
+	}
+	// Who rammed whom: the ship whose nose went into the other takes less of the damage (as in Burnout).
+	const bool bARams = FVector::DotProduct(Heading, -N) > 0.6f && FVector::DotProduct(VA, -N) > FVector::DotProduct(VB, -N);
+	const bool bBRams = FVector::DotProduct(Other.Heading, N) > 0.6f && FVector::DotProduct(VB, N) > FVector::DotProduct(VA, N);
+	TakeCrash(Impulse / MA, Hit.ImpactPoint, &Other, bARams ? 0.6f : 1.0f, Slip, Dt);
+	Other.TakeCrash(-Impulse / MB, Hit.ImpactPoint, this, bBRams ? 0.6f : 1.0f, Slip, Dt);
+	if (Other.bEliminated && !bEliminated)
+	{
+		UE_LOG(LogTemp, Display, TEXT("EXRACE TAKEDOWN %s%s -> %s"), *GetShipName(), bBot ? TEXT("") : TEXT(" (jogador)"), *Other.GetShipName());
+		if (IsPlayerControlled())
+		{
+			TakedownSlowmo = 0.9f;   // a short slow motion as the rival's wreck goes (Burnout)
+		}
+	}
+	if (bPhysLog || Other.bPhysLog)
+	{
+		UE_LOG(LogTemp, Display, TEXT("EXPHYS crash %s(%.0fkg) x %s(%.0fkg) closing=%.1f slip=%.1f dv=%.1f/%.1f m/s"), *GetShipName(), MA,
+			*Other.GetShipName(), MB, -Closing, Slip, Impulse.Size() / MA, Impulse.Size() / MB);
+	}
+}
+
+void AEXHoverCraft::TakeCrash(const FVector& DeltaVMps, const FVector& Point, const AEXHoverCraft* Other, float RamShare, float SlipMps, float Dt)
+{
+	if (bEliminated)
+	{
+		return;
+	}
+	// BASTION's passive (INERTIAL ANCHOR): knocks move it less.
+	const float Anchor = GetShipName().Equals(TEXT("BASTION"), ESearchCase::IgnoreCase) ? 0.75f : 1.0f;
+	const FVector DV = DeltaVMps * Anchor;
+	const float Kick = DV.Size();
+	VelocityCmps += DV * CmPerM;
+	if (Kick > 3.0f)
+	{
+		LastKnockDV = DV;
+		LastKnockPoint = Point;
+		LastKnockTime = GetWorld()->GetTimeSeconds();
+	}
+	// An off-centre knock spins the ship: on the rear quarter it turns it round, on the nose it pushes it aside.
+	const FVector Lever = (Point - GetActorLocation()) / CmPerM;
+	const float Torque = FVector::DotProduct(FVector::CrossProduct(Lever, DV), SurfaceUp);
+	CrashSpin = FMath::Clamp(CrashSpin + Torque / FMath::Square(FMath::Max(0.5f, CrashSpinRadiusM)), -CrashSpinMax, CrashSpinMax);
+	// A big knock takes the grip and dulls the steering for a moment.
+	if (Kick > 2.5f)
+	{
+		CrashWobble = FMath::Max(CrashWobble, FMath::Clamp(Kick / 18.0f, 0.15f, 1.0f));
+		GripBlend = FMath::Min(GripBlend, 1.0f - 0.7f * CrashWobble);
+	}
+	// Hull: what the knock changed of the speed above CrashSafeMps (the lighter ship changes more), less for the one who
+	// rammed; a rub side to side costs a little at a time.
+	ScrapePending += ScrapeDamagePerS * FMath::Clamp(SlipMps / 20.0f, 0.0f, 2.0f) * Dt;
+	const float Damage = FMath::Max(0.0f, Kick - CrashSafeMps) * CrashDamagePerMps * RamShare;
+	if (Damage > 0.0f && CrashCooldown <= 0.0f)
+	{
+		HitCooldown = 0.0f;
+		ApplyHullDamage(Damage + ScrapePending);
+		ScrapePending = 0.0f;
+		CrashCooldown = 0.2f;
+	}
+	else if (ScrapePending >= 3.0f && HitCooldown <= 0.0f)
+	{
+		ApplyHullDamage(ScrapePending);
+		ScrapePending = 0.0f;
+	}
+	// Sparks where they touch, the bang, the shake and the shove of the view.
+	if (CrashSparkCooldown <= 0.0f && (Kick > 1.5f || SlipMps > 4.0f))
+	{
+		CrashSparkCooldown = 0.05f;
+		const FVector Away = (GetActorLocation() - Point).GetSafeNormal();
+		Fx->ImpactSparks(Point, Away, VelocityCmps, FMath::Clamp(FMath::Max(Kick / 15.0f, SlipMps / 30.0f), 0.2f, 1.0f));
+	}
+	if (Kick > 4.0f && Audio && AudioHitCooldown <= 0.0f)
+	{
+		AudioHitCooldown = 0.15f;
+		Audio->Bang(FMath::Clamp(Kick / 25.0f, 0.2f, 1.0f));
+	}
+	ImpactShake = FMath::Max(ImpactShake, FMath::Clamp(Kick / 20.0f, 0.0f, 1.0f));
+	CamJolt = FMath::Max(CamJolt, FMath::Clamp(Kick / 16.0f, 0.0f, 1.0f));
+	CamShoveVel -= DV * CamCrashKick;
+	(void)Other;
+}
+
+float AEXHoverCraft::GetCrashMassKg() const
+{
+	const EXMeta::FShipDef& Ship = EXMeta::Ship(GetShipName());
+	return FMath::Max(600.0f, static_cast<float>(Ship.MassKg) + static_cast<float>(ResolvedStats[static_cast<int32>(EEXStat::Mass)]));
+}
+
+void AEXHoverCraft::SetRoute(const TArray<FVector>& PointsCm)
+{
+	MapRoute.Reset();
+	MapRouteZ.Reset();
+	MapRouteHalfW.Reset();
+	for (const FVector& Point : PointsCm)
+	{
+		MapRoute.Add(FVector2D(Point.X / CmPerM, Point.Y / CmPerM));
+		MapRouteZ.Add(Point.Z / CmPerM);
+		MapRouteHalfW.Add(20.0f);
+	}
+	RouteIndex = 0;
+}
+
+void AEXHoverCraft::Revive()
+{
+	bEliminated = false;
+	SetActorHiddenInGame(false);
+	SetActorEnableCollision(true);
+	Hull = HullMax;
+	Lives = MaxLives;
+	CrashSpin = CrashWobble = ScrapePending = 0.0f;
+	if (bCrashCam)
+	{
+		bCrashCam = false;
+		UGameplayStatics::SetGlobalTimeDilation(this, 1.0f);
+	}
+	RespawnOnRoute();
+	bGridLock = false;
+}
+
+void AEXHoverCraft::EXBoom(int32 Cause)
+{
+	// The last knock or landing as each way of dying leaves it, then the end of the hull (Eliminate reads them).
+	if (bEliminated || !GetWorld())
+	{
+		return;
+	}
+	const float Now = GetWorld()->GetTimeSeconds();
+	const FVector Fwd = Heading.GetSafeNormal();
+	const FVector Right = FVector::CrossProduct(SurfaceUp, Fwd).GetSafeNormal();
+	const float Mps = FMath::Max(VelocityCmps.Size() / CmPerM, 1.0f);
+	LastKnockTime = LastLandingTime = -100.0f;
+	if (Cause == 1 || Cause == 2 || Cause == 4)
+	{
+		LastKnockDV = Cause == 1 ? -Fwd * FMath::Max(10.0f, 1.3f * Mps) : (Cause == 2 ? Right * 22.0f : Fwd * 12.0f + Right * 4.0f);
+		LastKnockPoint = GetActorLocation() + (Cause == 1 ? Fwd * 250.0f : (Cause == 2 ? -Right * 120.0f : -Fwd * 250.0f - Right * 60.0f));
+		LastKnockTime = Now;
+		VelocityCmps += LastKnockDV * CmPerM;
+	}
+	else if (Cause == 3)
+	{
+		LastLandingTime = Now;
+		LastLandingSpeed = 25.0f;
+	}
+	UE_LOG(LogTemp, Display, TEXT("EXRACE BOOM %s cause %d at %.0f km/h"), *GetShipName(), Cause, Mps * 3.6f);
+	Hull = 0.0f;
+	Lives = 0;
+	Eliminate();
+}
+
+void AEXHoverCraft::UpdateCrashCam(float Dt)
+{
+	// Real time (the world runs slowed): 1.6 s of slow motion, then back to speed over 0.8 s.
+	const float Real = Dt / FMath::Max(0.05f, UGameplayStatics::GetGlobalTimeDilation(this));
+	CrashCamReal += Real;
+	const float Dilation = CrashCamReal < 1.6f ? 0.3f : FMath::Lerp(0.3f, 1.0f, FMath::Clamp((CrashCamReal - 1.6f) / 0.8f, 0.0f, 1.0f));
+	UGameplayStatics::SetGlobalTimeDilation(this, Dilation);
+	const AEXWreck* Wreck = CrashWreck.Get();
+	if (!Wreck)
+	{
+		return;
+	}
+	// The camera goes round the hull, from beside and behind it to beside and ahead, close and a little above.
+	const FVector WreckAt = Wreck->GetMainLocation();   // not "Hull": that is the craft's hull points
+	FVector Flat = Wreck->GetMainVelocity();
+	Flat.Z = 0.0;
+	if (Flat.Size() > 300.0 && FVector::DotProduct(Flat.GetSafeNormal(), CrashCamDir) > -0.2)
+	{
+		CrashCamDir = FMath::VInterpNormalRotationTo(CrashCamDir, Flat.GetSafeNormal(), Real, 90.0f);
+	}
+	const FVector Side = FVector::CrossProduct(FVector::UpVector, CrashCamDir).GetSafeNormal();
+	const float Orbit = FMath::DegreesToRadians(FMath::Min(-115.0f + 45.0f * CrashCamReal, 20.0f));
+	const FVector Desired = WreckAt + (CrashCamDir * FMath::Cos(Orbit) + Side * FMath::Sin(Orbit)) * 1500.0f + FVector(0.0, 0.0, 450.0);
+	CrashCamPos = FMath::VInterpTo(CrashCamPos, Desired, Real, 3.5f);
+	FVector Position = CrashCamPos;
+	FHitResult Block;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(EXCrashCam), false, this);
+	if (GetWorld()->SweepSingleByChannel(Block, WreckAt + FVector(0.0, 0.0, 150.0), CrashCamPos, FQuat::Identity, ECC_Camera,
+		FCollisionShape::MakeSphere(35.0f), Params))
+	{
+		Position = Block.Location;
+	}
+	Camera->SetWorldLocationAndRotation(Position, (WreckAt - Position).Rotation());
+	Camera->SetFieldOfView(HorizontalFov(FMath::Lerp(58.0f, 48.0f, FMath::Clamp(CrashCamReal / 2.0f, 0.0f, 1.0f))));
 }
 
 void AEXHoverCraft::UpdateVisuals(float Dt)
@@ -818,6 +1139,9 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 		CamSmoothHeading = HeadingDir;
 		CamFovV = FovMinV;
 		CamOffsetCm = (-HeadingDir * BaseDistance + UpPosition * BaseHeight) * CmPerM;
+		CamSmoothZ = CraftLocation.Z / CmPerM;
+		CamSmoothZVel = VelocityCmps.Z / CmPerM;
+		CamShove = CamShoveVel = FVector::ZeroVector;
 		bCamInitialized = true;
 	}
 	CamSmoothUp = BlendNormal(CamSmoothUp, UpPosition, Damp(CamUpSmoothing, Dt));
@@ -869,8 +1193,24 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	CamKickVel += (-CamKick * 60.0f - CamKickVel * 12.0f) * Dt;
 	CamKick += CamKickVel * Dt;
 
+	// Jumps and falls (player, 2026-11-01): the camera follows the craft's height a little late. It follows the vertical
+	// speed too, so a steady climb leaves no lag; only a change (the take-off, the fall, the landing) shows: the craft
+	// rises in the frame on a jump and the view sinks a moment on landing.
+	{
+		const float W = FMath::Max(0.5f, CamVerticalLag) * (bGrounded ? 1.6f : 1.0f);
+		const float CraftZ = CraftLocation.Z / CmPerM;
+		const float CraftVz = VelocityCmps.Z / CmPerM;
+		CamSmoothZVel += (W * W * (CraftZ - CamSmoothZ) + 2.0f * W * (CraftVz - CamSmoothZVel)) * Dt;
+		CamSmoothZ += CamSmoothZVel * Dt;
+		CamSmoothZ = FMath::Clamp(CamSmoothZ, CraftZ - CamVerticalLagMaxM, CraftZ + CamVerticalLagMaxM);
+	}
+	// A knock between ships shoves the view and springs back.
+	CamShoveVel += (-CamShove * 81.0f - CamShoveVel * 10.0f) * Dt;
+	CamShove += CamShoveVel * Dt;
+	const FVector Lag = FVector(0.0f, 0.0f, CamSmoothZ * CmPerM - CraftLocation.Z) + CamShove.GetClampedToMaxSize(2.0f) * CmPerM;
+
 	const FVector Pivot = CraftLocation + CraftUp * 120.0f;
-	const FVector Desired = CraftLocation + CamOffsetCm + CamSmoothUp * (CamKick * CmPerM);
+	const FVector Desired = CraftLocation + CamOffsetCm + CamSmoothUp * (CamKick * CmPerM) + Lag;
 	FVector Position = Desired;
 	const FVector ToDesired = Desired - Pivot;
 	const float Length = ToDesired.Size();
@@ -996,6 +1336,11 @@ void AEXHoverCraft::PlaceAt(const FVector& Location, float YawDeg)
 	bGridLock = true;
 	SurfaceUp = FVector::UpVector;
 	YawRate = 0.0f;
+	PitchRate = RollRate = CrashSpin = CrashWobble = 0.0f;
+	for (int32 Pad = 0; Pad < 4; ++Pad)
+	{
+		PadHeightM[Pad] = PadPrevM[Pad] = HoverHeightM;
+	}
 	AirTimeSeconds = 0.0f;
 	bLost = false;
 	bCamInitialized = false;
@@ -1131,9 +1476,98 @@ void AEXHoverCraft::Eliminate()
 	// The hull is gone: the craft blows up (fireball, flash, debris, smoke) where it was, carried on by its speed.
 	FActorSpawnParameters BlastParams;
 	BlastParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	const FVector V = VelocityCmps / CmPerM;
+	const float Speed = V.Size();
 	if (AEXExplosion* Blast = GetWorld()->SpawnActor<AEXExplosion>(GetActorLocation(), FRotator::ZeroRotator, BlastParams))
 	{
-		Blast->Ignite(VelocityCmps, 1.0f);
+		Blast->Ignite(VelocityCmps, FMath::Clamp(0.7f + Speed / 200.0f, 0.7f, 1.3f));
+	}
+	// The wreck (player, 2026-11-01): the charred hull flies on with the speed it had and tumbles, each module a piece
+	// of its own. How it died sets the tumble (Scripts/physics_sandbox/wreck.py, Docs/DESTROCOS.md).
+	if (AEXWreck* Wreck = GetWorld()->SpawnActor<AEXWreck>(GetActorLocation(), FRotator::ZeroRotator, BlastParams))
+	{
+		const FVector Fwd = Heading.GetSafeNormal();
+		const FVector Up = SurfaceUp;
+		const FVector Right = FVector::CrossProduct(Up, Fwd).GetSafeNormal();
+		const float Now = GetWorld()->GetTimeSeconds();
+		const bool bKnock = Now - LastKnockTime < 0.4f && LastKnockDV.Size() > 3.0f;
+		const bool bLanding = Now - LastLandingTime < 0.4f && LastLandingSpeed > 15.0f;
+		const FVector Knock = bKnock ? LastKnockDV : FVector::ZeroVector;
+		const float KnockSize = Knock.Size();
+		const float Tumble = FMath::Clamp(Speed / 12.0f, 3.0f, 11.0f);
+		FRandomStream Random(FMath::Rand());
+		// The blast kicks it up a little.
+		FVector HullVel = V + Up * Random.FRandRange(5.0f, 9.0f) + Right * Random.FRandRange(-1.5f, 1.5f);
+		FVector Spin;
+		if (bKnock && FVector::DotProduct(Knock, Fwd) < -0.5f * KnockSize && KnockSize > 8.0f)
+		{
+			// Head on (a rock, a wall, a ship the other way): the nose stops and the tail goes over it, a backflip.
+			Spin = Right * (-0.9f * Tumble) + Fwd * Random.FRandRange(-2.0f, 2.0f) + Up * Random.FRandRange(-1.0f, 1.0f);
+			HullVel += Up * 3.0f;
+		}
+		else if (bKnock && FMath::Abs(FVector::DotProduct(Knock, Right)) > 0.6f * KnockSize)
+		{
+			// From the side (a T-bone, a shove into the wall): it barrel-rolls away from the hit, the top going the way it is
+			// pushed, so the ground under it keeps the roll going (a roll the other way dies on the first touch).
+			const float Side = FMath::Sign(FVector::DotProduct(Knock, Right));
+			Spin = Fwd * (-Side * 1.35f * Tumble) + Up * Random.FRandRange(-3.0f, 3.0f) + Right * Random.FRandRange(-1.5f, 1.5f);
+			HullVel += Up * 3.0f;
+		}
+		else if (bLanding)
+		{
+			// Nose first into the ground after a jump: it cartwheels on forward.
+			Spin = Right * (0.6f * Tumble) + Fwd * Random.FRandRange(-1.0f, 1.0f);
+			HullVel += Up * 2.0f;
+		}
+		else
+		{
+			// From behind (a PIT) or worn out by the scrapes: end over end, forward, with a twist ("cambalhotas").
+			Spin = Right * Tumble + Fwd * Random.FRandRange(-3.0f, 3.0f) + Up * Random.FRandRange(-2.5f, 2.5f);
+			HullVel += Fwd * (bKnock ? 4.0f : 0.0f);
+		}
+		if (bKnock)
+		{
+			// The knock's own lever adds its spin.
+			Spin += FVector::CrossProduct((LastKnockPoint - GetActorLocation()) / CmPerM, Knock) / 4.0f;
+		}
+		auto MaterialsOf = [](const UStaticMeshComponent* Component)
+		{
+			TArray<UMaterialInterface*> Out;
+			for (int32 Index = 0; Index < Component->GetNumMaterials(); ++Index)
+			{
+				Out.Add(Component->GetMaterial(Index));
+			}
+			return Out;
+		};
+		if (ShipMesh && ShipMesh->GetStaticMesh())
+		{
+			Wreck->AddPiece(ShipMesh->GetStaticMesh(), MaterialsOf(ShipMesh), ShipMesh->GetComponentTransform(), GetCrashMassKg(), HullVel * CmPerM, Spin);
+		}
+		// The modules come off, charred, thrown out from the hull and spinning on their own.
+		for (UStaticMeshComponent* Module : ModuleMeshes)
+		{
+			if (!Module || !Module->GetStaticMesh() || !Module->IsVisible())
+			{
+				continue;
+			}
+			const FVector Out = (Module->Bounds.Origin - GetActorLocation()).GetSafeNormal();
+			const FVector PieceVel = V * 0.95f + Out * Random.FRandRange(7.0f, 14.0f) + Up * Random.FRandRange(3.0f, 8.0f) + Random.VRand() * 1.5f;
+			Wreck->AddPiece(Module->GetStaticMesh(), MaterialsOf(Module), Module->GetComponentTransform(), 110.0f, PieceVel * CmPerM,
+				Random.VRand() * Random.FRandRange(6.0f, 14.0f));
+		}
+		if (IsPlayerControlled())
+		{
+			// Burnout's crash camera: slow motion, the camera round the flying wreck.
+			CrashWreck = Wreck;
+			bCrashCam = true;
+			CrashCamReal = 0.0f;
+			// The way the wreck flies, unless it comes back at the camera (bounced off a wall): then the ship's heading,
+			// so the camera stays on the open side.
+			const FVector FlatV(V.X, V.Y, 0.0f);
+			CrashCamDir = Speed > 2.0f && FVector::DotProduct(FlatV, Fwd) >= 0.0 ? FlatV.GetSafeNormal() : FVector(Fwd.X, Fwd.Y, 0.0f).GetSafeNormal();
+			CrashCamPos = Camera->GetComponentLocation();
+			UGameplayStatics::SetGlobalTimeDilation(this, 0.3f);
+		}
 	}
 	if (Audio)
 	{
@@ -2115,7 +2549,23 @@ void AEXHoverCraft::RefreshModuleVisuals()
 		{
 			const FEXItem* Item = Fitted(CraftExterior[K]);
 			const EXMeta::FModuleDef* Def = Item ? EXMeta::Find(*Item) : nullptr;
-			Mesh = Def && !Def->Piece.IsEmpty() ? LoadPiece(Ship, Def->Piece) : nullptr;
+			// Epics and legendaries have designs of their own (player, 2026-11-01; Scripts/ship_modules.py section 7):
+			// <family>_ep / <family>_lg (a slotted or a box wing, a V or a T tail, an aero kit or a streamliner, gills or
+			// a flank channel, confinement coils or a plasma torus inside the engine); the common piece when the variant
+			// is not imported.
+			const EEXRarity Rarity = Item ? static_cast<EEXRarity>(Item->Rarity) : EEXRarity::Common;
+			const TCHAR* Tier = Rarity == EEXRarity::Legendary ? TEXT("_lg") : (Rarity == EEXRarity::Epic ? TEXT("_ep") : nullptr);
+			const TCHAR* Family = CraftExterior[K] == EEXFamily::Wings ? TEXT("wing") : CraftExterior[K] == EEXFamily::Tail ? TEXT("tail")
+				: CraftExterior[K] == EEXFamily::Armor ? TEXT("armor") : CraftExterior[K] == EEXFamily::Cooling ? TEXT("cooling")
+				: CraftExterior[K] == EEXFamily::Engine ? TEXT("engine") : nullptr;
+			if (Item && Tier && Family)
+			{
+				Mesh = LoadPiece(Ship, FString(Family) + Tier);
+			}
+			if (!Mesh && CraftExterior[K] != EEXFamily::Engine && Def && !Def->Piece.IsEmpty())
+			{
+				Mesh = LoadPiece(Ship, Def->Piece);
+			}
 			if (!Mesh && CraftExterior[K] == EEXFamily::Wings)
 			{
 				Mesh = LoadPiece(Ship, TEXT("wing_stock"));
@@ -2123,8 +2573,9 @@ void AEXHoverCraft::RefreshModuleVisuals()
 		}
 		ModuleMeshes[K]->SetStaticMesh(Mesh);
 		ModuleMeshes[K]->EmptyOverrideMaterials();
-		// The utility module sits inside the nose (Scripts/ship_modules.py): only the x-ray view shows it, glowing.
-		const bool bInside = CraftExterior[K] == EEXFamily::Utility;
+		// The utility module sits inside the nose and an epic/legendary engine's insides inside the engine
+		// (Scripts/ship_modules.py): only the x-ray view shows them.
+		const bool bInside = CraftExterior[K] == EEXFamily::Utility || CraftExterior[K] == EEXFamily::Engine;
 		ModuleMeshes[K]->SetVisibility(Mesh != nullptr && bShowSkeleton == bInside);
 		if (bInside && Mesh && GlowMaterial)
 		{
@@ -2166,7 +2617,7 @@ void AEXHoverCraft::RefreshModuleVisuals()
 		}
 	}
 	// The engine's flame and the nitro's colour, out of the ship's real nozzles.
-	const EXMeta::FFlameStyle Flame = EXMeta::Flame(Fitted(EEXFamily::Engine));
+	const EXMeta::FFlameStyle Flame = EXMeta::Flame(Fitted(EEXFamily::Engine), Ship);
 	Fx->SetFlameStyle(Flame.Outer, Flame.Core, Flame.Length, Flame.Radius, Flame.Diamonds, Flame.bSparks, EXMeta::NitroColour(Fitted(EEXFamily::Propulsion)));
 	TArray<FVector> Anchors;
 	float NozzleRadiusCm = 0.0f;

@@ -166,7 +166,10 @@ void AEXHud::DrawHUD()
 			}
 		}
 	}
-	DrawMinimap(Route, Here, Forward, Index, Others);
+	if (!RaceHudWidget)
+	{
+		DrawMinimap(Route, Here, Forward, Index, Others);   // the race widget has its own radar (right)
+	}
 
 	// Guide arrow: angle from the nose to the race line 150 m ahead (positive: turn right).
 	// A missed checkpoint: the arrow points back to it.
@@ -194,7 +197,7 @@ void AEXHud::DrawHUD()
 	{
 		GuideArrow->Point(Craft->GetActorLocation(), Forward, Target, Colour);
 	}
-	if (bWrongWay)
+	if (bWrongWay && !RaceHudWidget)   // the race widget's danger banner says SENTIDO ERRADO
 	{
 		DrawText(TEXT("SENTIDO ERRADO"), FLinearColor(1.0f, 0.2f, 0.1f), Canvas->ClipX * 0.5f - 80.0f * Scale, 112.0f * Scale, nullptr, 1.6f * Scale);
 	}
@@ -424,7 +427,7 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 			: FLinearColor(0.3f, 1.0f, 0.4f), Mid - 40.0f * Scale, Canvas->ClipY * 0.3f, nullptr, 4.0f * Scale);
 	}
 	// What the craft is doing with its consumables, fuel and heat (under the guide arrow).
-	float ToastY = 150.0f * Scale;
+	float ToastY = RaceHudWidget ? Canvas->ClipY * 0.66f : 150.0f * Scale;   // with the race widget: above the speed
 	const int32 LastSlot = Craft->GetLastQuickSlot();
 	if (LastSlot >= 0 && Now - Craft->GetLastQuickTime() < 2.0f && Craft->GetQuickSlots().IsValidIndex(LastSlot))
 	{
@@ -438,13 +441,17 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 			FLinearColor(0.48f, 0.88f, 0.54f), ToastY, 1.1f * Scale);
 		ToastY += 28.0f * Scale;
 	}
-	if (Craft->IsOverheated())
+	if (Craft->IsOverheated() && !RaceHudWidget)
 	{
 		const float Blink = 0.6f + 0.4f * FMath::Sin(Now * 10.0f);
 		Centred(TEXT("SOBREAQUECIDA  \u00B7  SEM NITRO AT\u00C9 ARREFECER"), FLinearColor(1.0f, 0.25f * Blink, 0.1f), ToastY, 1.2f * Scale);
 		ToastY += 30.0f * Scale;
 	}
-	if (Craft->GetFuel() <= 0.0f)
+	if (RaceHudWidget)
+	{
+		// heat and fuel are on the race widget's danger banner
+	}
+	else if (Craft->GetFuel() <= 0.0f)
 	{
 		Centred(TEXT("SEM COMBUST\u00CDVEL  \u00B7  METADE DA VELOCIDADE"), Red, ToastY, 1.2f * Scale);
 		ToastY += 30.0f * Scale;
@@ -471,7 +478,8 @@ void AEXHud::DrawRace(const AEXRaceDirector* Race, const AEXHoverCraft* Craft)
 		DrawText(TEXT("DESTRU\u00CDDA - AT\u00C9 3 M\u00D3DULOS V\u00C3O PARA QUEM EXTRAIR"), Red, Mid - 330.0f * Scale, Canvas->ClipY * 0.36f, nullptr, 1.8f * Scale);
 	}
 	// Messages of the last 6 s (left, under the panel).
-	float FeedY = (RaceHudWidget ? 252.0f : (bBots ? 130.0f : 106.0f)) * Scale;   // under the piggy bank's panel
+	// With the race widget: on the left, between the standings and the consumables.
+	float FeedY = RaceHudWidget ? Canvas->ClipY * 0.71f : (bBots ? 130.0f : 106.0f) * Scale;
 	for (const TPair<float, FString>& Line : Race->GetFeed())
 	{
 		if (Race->GetRaceTime() - Line.Key < 6.0f || Race->GetCountdown() > 0.0f)

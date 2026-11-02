@@ -26,14 +26,17 @@ namespace EXUi
 		return Colour;
 	}
 
-	FLinearColor Rust(float A) { return Hex(235, 87, 26, A); }
-	FLinearColor RustHot(float A) { return Hex(255, 122, 58, A); }
-	FLinearColor Bone(float A) { return Hex(242, 230, 204, A); }
-	FLinearColor Sand(float A) { return Hex(168, 140, 106, A); }
-	FLinearColor Dim(float A) { return Hex(111, 90, 68, A); }
-	FLinearColor Ok(float A) { return Hex(123, 224, 138, A); }
-	FLinearColor Ink(float A) { return Hex(10, 6, 4, A); }
-	FLinearColor Plate(float A) { return Hex(22, 12, 7, A); }
+	FLinearColor Accent(float A) { return Hex(70, 220, 255, A); }
+	FLinearColor AccentHot(float A) { return Hex(150, 225, 255, A); }
+	FLinearColor Fore(float A) { return Hex(238, 245, 255, A); }
+	FLinearColor Quiet(float A) { return Hex(140, 165, 196, A); }
+	FLinearColor Dim(float A) { return Hex(74, 92, 120, A); }
+	FLinearColor Ok(float A) { return Hex(110, 230, 140, A); }
+	FLinearColor Gold(float A) { return Hex(255, 200, 60, A); }
+	FLinearColor Danger(float A) { return Hex(255, 90, 40, A); }
+	FLinearColor Blue(float A) { return Hex(40, 120, 255, A); }
+	FLinearColor Ink(float A) { return Hex(3, 8, 20, A); }
+	FLinearColor Plate(float A) { return Hex(8, 18, 38, A); }
 
 	namespace
 	{
@@ -79,6 +82,44 @@ namespace EXUi
 			Loaded.Add(Asset, Texture);
 			return Texture;
 		}
+
+		/** The art of each shape (Scripts/make_hud_art.py): its name, the cut corner in its pixels, its size, the 9-slice. */
+		struct FShapeArt
+		{
+			const TCHAR* Name;
+			float Cut;
+			FVector2D Size;
+			FMargin Margin;
+		};
+		FShapeArt ShapeArt(EShape Shape)
+		{
+			switch (Shape)
+			{
+			case EShape::Card:
+				return { TEXT("ui_card"), 20.0f, FVector2D(128.0f, 128.0f), FMargin(0.25f) };
+			case EShape::Tab:
+				// Sliced across only: drawn at its own height, so the leaning sides keep their slope.
+				return { TEXT("ui_tab"), 48.0f, FVector2D(128.0f, 48.0f), FMargin(0.12f, 0.5f, 0.12f, 0.5f) };
+			default:
+				return { TEXT("ui_plate"), 20.0f, FVector2D(128.0f, 128.0f), FMargin(0.25f) };
+			}
+		}
+
+		bool ShapeBrush(EShape Shape, const TCHAR* Part, float Corner, FSlateBrush& Out)
+		{
+			const FShapeArt Art = ShapeArt(Shape);
+			UTexture2D* Texture = Icon(FString(Art.Name) + Part);
+			if (!Texture)
+			{
+				return false;
+			}
+			Out = FSlateBrush();
+			Out.SetResourceObject(Texture);
+			Out.ImageSize = Art.Size * (FMath::Max(Corner, 1.0f) / Art.Cut);
+			Out.DrawAs = ESlateBrushDrawType::Box;
+			Out.Margin = Art.Margin;
+			return true;
+		}
 	}
 
 	FSlateFontInfo Font(int32 Size, bool bBold, int32 LetterSpacing)
@@ -122,6 +163,14 @@ namespace EXUi
 		return Block;
 	}
 
+	void Lean(UWidget* Widget, float Degrees)
+	{
+		if (Widget)
+		{
+			Widget->SetRenderTransform(FWidgetTransform(FVector2D::ZeroVector, FVector2D(1.0f, 1.0f), FVector2D(Degrees, 0.0f), 0.0f));
+		}
+	}
+
 	UTextBlock* OutlinedText(UWidgetTree* Tree, const FString& Value, int32 Size, const FLinearColor& Color, int32 Spacing, int32 OutlineSize,
 		const FLinearColor& OutlineColor)
 	{
@@ -133,10 +182,31 @@ namespace EXUi
 		return Block;
 	}
 
+	FString OrbitronSafe(const FString& Value)
+	{
+		// Orbitron has no middle dot and no ordinal signs: a bullet and a degree sign stand in (1.º -> 1.°).
+		return Value.Replace(TEXT("\u00B7"), TEXT("\u2022")).Replace(TEXT("\u00BA"), TEXT("\u00B0")).Replace(TEXT("\u00AA"), TEXT("\u00B0"));
+	}
+
 	UTextBlock* TitleText(UWidgetTree* Tree, const FString& Value, int32 Size, const FLinearColor& Color, int32 Spacing)
 	{
+		UTextBlock* Block = Text(Tree, OrbitronSafe(Value), Size, Color, true, Spacing);
+		FSlateFontInfo Info = Orbitron(Size, Spacing);
+		Info.OutlineSettings.OutlineSize = FMath::Max(1, Size / 18);
+		Info.OutlineSettings.OutlineColor = Ink(0.85f);
+		Block->SetFont(Info);
+		Lean(Block);
+		return Block;
+	}
+
+	UTextBlock* LabelText(UWidgetTree* Tree, const FString& Value, int32 Size, const FLinearColor& Color, int32 Spacing)
+	{
 		UTextBlock* Block = Text(Tree, Value, Size, Color, true, Spacing);
-		Block->SetFont(Orbitron(Size, Spacing));
+		FSlateFontInfo Info = Inter(Size, 800, Spacing);
+		Info.OutlineSettings.OutlineSize = 1;
+		Info.OutlineSettings.OutlineColor = Ink(0.8f);
+		Block->SetFont(Info);
+		Lean(Block, -8.0f);
 		return Block;
 	}
 
@@ -186,41 +256,68 @@ namespace EXUi
 		return Holder;
 	}
 
+	void SetShapeBrush(UBorder* Border, EShape Shape, float Corner, const TCHAR* Part)
+	{
+		FSlateBrush Brush;
+		if (Border && ShapeBrush(Shape, Part, Corner, Brush))
+		{
+			Border->SetBrush(Brush);
+		}
+	}
+
+	UImage* ShapeImage(UWidgetTree* Tree, EShape Shape, const TCHAR* Part, float Corner, const FLinearColor& Tint)
+	{
+		UImage* Picture = Tree->ConstructWidget<UImage>(UImage::StaticClass());
+		FSlateBrush Brush;
+		if (ShapeBrush(Shape, Part, Corner, Brush))
+		{
+			Picture->SetBrush(Brush);
+			Picture->SetVisibility(ESlateVisibility::HitTestInvisible);
+		}
+		else
+		{
+			Picture->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		Picture->SetColorAndOpacity(Tint);
+		return Picture;
+	}
+
 	void FFrame::SetOutline(const FLinearColor& Color) const
 	{
-		for (UBorder* Edge : Edges)
+		if (Edge)
 		{
-			if (Edge)
-			{
-				Edge->SetBrushColor(Color);
-			}
+			Edge->SetColorAndOpacity(Color);
 		}
 	}
 
 	FFrame Frame(UWidgetTree* Tree, const FLinearColor& Outline, const FLinearColor& Fill, float OutlineWidth, const FMargin& Padding,
-		float TopWidth)
+		float TopWidth, float Corner, EShape Shape)
 	{
 		FFrame Result;
 		Result.Root = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
 		Result.Fill = Box(Tree, Fill, Padding);
+		SetShapeBrush(Result.Fill, Shape, Corner);
 		AddO(Result.Root, Result.Fill, HAlign_Fill, VAlign_Fill);
-		const float Top = TopWidth > 0.0f ? TopWidth : OutlineWidth;
-		const float Thickness[4] = { Top, OutlineWidth, OutlineWidth, OutlineWidth };
-		for (int32 Side = 0; Side < 4; ++Side)
+		if (OutlineWidth > 0.0f)
 		{
-			Result.Edges[Side] = Box(Tree, Outline);
-			const bool bHorizontal = Side < 2;
-			USizeBox* Holder = Sized(Tree, bHorizontal ? 0.0f : Thickness[Side], bHorizontal ? Thickness[Side] : 0.0f, Result.Edges[Side]);
-			AddO(Result.Root, Holder, bHorizontal ? HAlign_Fill : (Side == 2 ? HAlign_Left : HAlign_Right),
-				bHorizontal ? (Side == 0 ? VAlign_Top : VAlign_Bottom) : VAlign_Fill);
+			Result.Edge = ShapeImage(Tree, Shape, TEXT("_edge"), Corner, Outline);
+			AddO(Result.Root, Result.Edge, HAlign_Fill, VAlign_Fill);
+		}
+		if (TopWidth > 0.0f)
+		{
+			// Past the cut corner on the left, short of the right end.
+			Result.Accent = Box(Tree, Outline);
+			const float Inset = Shape == EShape::Plate ? Corner + 4.0f : 0.0f;
+			AddO(Result.Root, Sized(Tree, 0.0f, TopWidth, Result.Accent), HAlign_Fill, VAlign_Top, FMargin(Inset, 0.0f, 8.0f, 0.0f));
 		}
 		return Result;
 	}
 
 	UWidget* KeyCap(UWidgetTree* Tree, const FString& Key, bool bDark)
 	{
-		const FFrame Cap = Frame(Tree, bDark ? Ink(0.8f) : Sand(), bDark ? Ink(0.0f) : Bone(0.04f), 1.0f, FMargin(8.0f, 2.0f));
-		UTextBlock* Label = Text(Tree, Key, 11, bDark ? Ink() : Bone(), true);
+		const FFrame Cap = Frame(Tree, bDark ? Ink(0.85f) : AccentHot(0.6f), bDark ? Ink(0.0f) : Plate(0.7f), 1.0f, FMargin(8.0f, 2.0f), -1.0f,
+			5.0f);
+		UTextBlock* Label = Text(Tree, Key, 11, bDark ? Ink() : Fore(), true);
 		Label->SetJustification(ETextJustify::Center);
 		Cap.Fill->SetContent(Label);
 		Cap.Fill->SetHorizontalAlignment(HAlign_Center);
@@ -237,7 +334,7 @@ namespace EXUi
 		{
 			AddH(Row, KeyCap(Tree, Key), FMargin(0.0f, 0.0f, 7.0f, 0.0f));
 		}
-		AddH(Row, Text(Tree, Label, 12, Sand(), false), FMargin(2.0f, 0.0f, 0.0f, 0.0f));
+		AddH(Row, Text(Tree, Label, 12, Quiet(), false), FMargin(2.0f, 0.0f, 0.0f, 0.0f));
 		return Row;
 	}
 
@@ -352,12 +449,12 @@ namespace EXUi
 
 	UWidget* GemImage(UWidgetTree* Tree, float Size)
 	{
-		if (UTexture2D* Texture = Icon(TEXT("ui_gem")))
+		if (UTexture2D* Texture = Icon(TEXT("hud_coin")))
 		{
-			// The art has a glow round the diamond: drawn larger than the diamond itself.
-			return Sized(Tree, Size * 1.6f, Size * 1.6f, Image(Tree, Texture));
+			// The coin's disc fills most of its art (a faint glow round it).
+			return Sized(Tree, Size * 1.3f, Size * 1.3f, Image(Tree, Texture));
 		}
-		return Gem(Tree, Size, RustHot());
+		return Gem(Tree, Size, Gold());
 	}
 
 	UImage* Glow(UWidgetTree* Tree, const FLinearColor& Color)
@@ -365,18 +462,32 @@ namespace EXUi
 		return Sliced(Tree, TEXT("ui_glow"), Color, 0.45f);
 	}
 
-	UWidget* OrangeButton(UWidgetTree* Tree, UWidget* Content, const FMargin& Padding, float Width, float Height)
+	UWidget* ButtonFace(UWidgetTree* Tree, float Height)
+	{
+		UTexture2D* Texture = Icon(TEXT("ui_btn"));
+		if (!Texture)
+		{
+			return Box(Tree, Accent());
+		}
+		// 256 x 72 with the corners cut 16 px: 9-sliced so they stay small and sharp at the button's height.
+		UImage* Picture = Tree->ConstructWidget<UImage>(UImage::StaticClass());
+		FSlateBrush Brush;
+		Brush.SetResourceObject(Texture);
+		Brush.ImageSize = FVector2D(256.0f, 72.0f) * (FMath::Max(Height, 8.0f) / 72.0f);
+		Brush.DrawAs = ESlateBrushDrawType::Box;
+		Brush.Margin = FMargin(0.125f, 0.3f);
+		Picture->SetBrush(Brush);
+		Picture->SetVisibility(ESlateVisibility::HitTestInvisible);
+		return Picture;
+	}
+
+	UWidget* PrimaryButton(UWidgetTree* Tree, UWidget* Content, const FMargin& Padding, float Width, float Height)
 	{
 		UOverlay* Root = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-		// The glow (box-shadow 0 0 22px rgba(235,87,26,.5)) round the button, then the gradient and the content.
-		AddO(Root, Glow(Tree, Rust(0.55f)), HAlign_Fill, VAlign_Fill);
+		// The cyan glow round the button, then its face and the content.
+		AddO(Root, Glow(Tree, Accent(0.45f)), HAlign_Fill, VAlign_Fill);
 		UOverlay* Face = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-		AddO(Face, Box(Tree, Rust()), HAlign_Fill, VAlign_Fill);
-		if (UTexture2D* Gradient = Icon(TEXT("ui_button")))
-		{
-			UImage* Fill = Image(Tree, Gradient);
-			AddO(Face, Fill, HAlign_Fill, VAlign_Fill);
-		}
+		AddO(Face, ButtonFace(Tree, Height), HAlign_Fill, VAlign_Fill);
 		AddO(Face, Content, HAlign_Fill, VAlign_Fill, Padding);
 		AddO(Root, Sized(Tree, Width, Height, Face), HAlign_Fill, VAlign_Fill, FMargin(22.0f));
 		return Root;
@@ -385,7 +496,7 @@ namespace EXUi
 	FChipView Chip(UWidgetTree* Tree, int32 Size)
 	{
 		FChipView View;
-		const FFrame ChipFrame = EXUi::Frame(Tree, Bone(0.12f), Ink(0.35f), 1.0f, FMargin(8.0f, 2.0f, 8.0f, 3.0f));
+		const FFrame ChipFrame = EXUi::Frame(Tree, AccentHot(0.2f), Plate(0.6f), 1.0f, FMargin(8.0f, 2.0f, 8.0f, 3.0f), -1.0f, 5.0f);
 		View.Label = WeightText(Tree, TEXT(""), Size, Ok(), 800);
 		ChipFrame.Fill->SetContent(View.Label);
 		View.Root = ChipFrame.Root;
@@ -405,7 +516,7 @@ namespace EXUi
 		}
 		View.Root->SetVisibility(ESlateVisibility::HitTestInvisible);
 		SetText(View.Label, Text);
-		View.Label->SetColorAndOpacity(FSlateColor(Sign > 0 ? Ok() : Sign < 0 ? Hex(255, 90, 74) : Bone()));
+		View.Label->SetColorAndOpacity(FSlateColor(Sign > 0 ? Ok() : Sign < 0 ? Hex(255, 96, 80) : Fore()));
 	}
 
 	UHorizontalBoxSlot* AddH(UHorizontalBox* Parent, UWidget* Child, const FMargin& Padding, bool bFill, EVerticalAlignment VAlign)

@@ -28,6 +28,8 @@ public:
 	void Setup(const FVector& Left, const FVector& Right);
 	/** 0 hidden, 1 the next one, 2 just passed, 3 missed. */
 	void SetState(int32 InState);
+	/** The extraction gate at B, the last checkpoint: gold and taller (it was invisible before, player 2026-11-01). */
+	void SetFinish();
 
 private:
 	UPROPERTY() TObjectPtr<UStaticMeshComponent> PylonL;
@@ -39,4 +41,5 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> BeamMaterial;
 	int32 State = 0;
 	float Age = 0.0f;
+	bool bFinish = false;
 };

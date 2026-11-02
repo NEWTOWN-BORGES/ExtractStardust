@@ -8,6 +8,137 @@ espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde)
 
 O jogador fala português (PT). Responder em português.
 
+## MAPA 02 — SELVA ESMERALDA (jogador, 2026-11-02): os 10 setores feitos em Blender; falta o importador do Unreal
+
+"Um mapa novo de 12 a 13 minutos, de sobrevivência, em florestas, rios, África e Amazónia; muitas bifurcações (para
+cima, para baixo, esquerda, direita), muitas curvas, muitos saltos."
+- **Feito:** só o traçado (`Docs/PISTA_SELVA_ESMERALDA.md`, `Docs/SELVA_PLANTA.png`, `Docs/SELVA_PERFIL.png`), por
+  `python3 Scripts/selva/plan_selva.py` (dados em `Scripts/selva/selva_plano.json`).
+- **Números:** 74,9 km de A a B, 12:19 na linha ideal, 10 setores Amazónia/África, 21 bifurcações (4 por cima, 8 por
+  baixo, 9 para os lados) equilibradas pelo estilo (SKILL +5 s, RACING +2,5 s, SAFE −4 s) e 43 saltos, entre eles a
+  queda de 190 m da cascata.
+- **Em Blender, setor a setor** (jogador: "setor por setor, para garantir a melhor qualidade"; poucas fotos, em baixa
+  qualidade, para poupar tokens):
+  - `Scripts/selva/sculpt_selva.py <saída> S<n>` faz o terreno, a água, a estrada e a vegetação (kit nosso,
+    `jungle_kit.py`), e mostra uma folha de 6 fotos (`Docs/SELVA/S<n>_*.jpg`);
+  - S1 a S10 estão feitos (fotos em `Docs/SELVA/`). Em casa: `Scripts\selva\gerar_selva.ps1` gera os 10 setores para o
+    Unreal; falta escrever o importador do Unreal (secção 6 do documento). No S9 há uma bifurcação tripla no Zambeze. O jogador gostou muito do rio do S6: há troços em
+    que a estrada é o próprio rio (`RIVER_ROADS`, no S7 e a pôr no S8, S9 e S10). Em todos os setores há destroços baixos na
+    estrada (pedras, galhos, fetos; as naves passam por cima, a pedido do jogador). No S4 as estradas são ovais (paredes lisas dos
+    dois lados, de 14 a 4 m, para ultrapassar por elas: pedido do jogador). A estrada tem relevo natural (ondulações de lama
+    em manchas, charcos nas covas), a pedido do jogador;
+  - no S2 os ganchos são semi-ovais com parede. O jogador pediu, além das Pontes da Copa, um caminho por baixo: é o F3b.
+- **Por decidir com o jogador:** os perigos da selva (secção 5).
+- **Fotos HD** (`Docs/SELVA/HD`, com o nome do setor e de cada vista): S1 a S6 feitas. Ficaram em pausa (jogador, 2026-11-02,
+  para compilar em casa) o S7 a S10 e a foto 3D do mapa inteiro: `python3 Scripts/selva/fotos_hd.py <pasta> 7 8 9 10`, depois
+  `python3 Scripts/selva/render_selva_3d.py <pasta> Docs/SELVA/MAPA_SELVA_3D.jpg size=2400x1350 samples=32` (com os 10
+  setores gerados em `<pasta>/s1` ... `s10`).
+
+## ⚠ EM CASA, PASSO A PASSO: `Docs/CASA_PASSO_A_PASSO.md` (jogador, 2026-11-02: "não se esqueça de nada")
+
+Compilar, importar, gerar a pista nova, testar cada coisa feita desde domingo, o que mandar à IA, guardar no GitHub
+e empacotar. O `casa_tudo.ps1` recomeça num passo com `-Desde <passo>`; o `jogar.ps1` tem `-SemAcidentes`.
+
+## ⚠ EM CASA: A INTERFACE TEM DE FICAR IGUAL ÀS MAQUETAS (jogador, 2026-11-01)
+
+"Espero que venha tudo como nas maquetes; deixe isso bem assinalado para aí em casa fazer exatamente assim."
+- **Referência:** `Docs/UI_MAQUETAS/` (menu, nave, equipar, consumíveis, cofre, caixa, resultados) e
+  `Docs/HUD_CORRIDA_MAQUETA.png`.
+- **Depois de compilar e importar** (`Scripts\casa_tudo.ps1 -SemPista`, com o passo 3d), tirar foto de cada ecrã
+  (`HighResShot 1`) e comparar com a maqueta.
+- **Se for diferente, corrige-se o código, não a maqueta.** A lista do que tem de se ver e os passos estão em
+  `Docs/UI_MAQUETAS/README.md`.
+- **Logótipo:** fica laranja até o jogador escolher (ciano e branco já lhe foram mostrados).
+
+## PEDIDOS DE 2026-11-01 (nuvem, por compilar e testar em casa)
+
+- **Física nova** (`Docs/FISICA.md`; o jogador pediu e autorizou mexer na física e na câmara).
+  - **Subir, descer e quedas:** quatro almofadas que só empurram. A gravidade conta inteira, a nave tem inércia de
+    inclinação e no ar o nariz segue a trajetória. As aterragens comprimem e perdem velocidade.
+  - **Câmara:** segue a altura da nave com atraso (saltos e quedas) e leva um empurrão nos choques. Fora disso é a de
+    2026-10-20.
+  - **Choques tipo Burnout:** a quantidade de movimento reparte-se pelas massas. Raspar trava e tira casco. A pancada
+    fora do centro faz rodar, e uma pancada grande tira aderência e direção. O dano conta pela velocidade que a pancada
+    muda.
+  - **Mantém-se:** a viragem, a aderência e o drift não mudaram, e os saltos da pista dão a mesma distância.
+  - **Estudado** numa sandbox numérica (`Scripts/physics_sandbox`, gráficos `Docs/FISICA_*.png`).
+  - **Em casa:** `Scripts\jogar.ps1 -Modo Sandbox` (rampas, mesa, lombas, queda de 14 m, costelas e 7 bots, com linhas
+    `EXPHYS` no log). Afinar pela tabela da secção 5.
+
+- **Destroços e explosão nova** (`Docs/DESTROCOS.md`, fotos `Docs/DESTROCOS_<causa>.jpg`; o jogador pediu e autorizou).
+  - **Destroços:** quando o casco acaba, o casco carbonizado e cada módulo voam como peças separadas, com a velocidade
+    da nave (`AEXWreck`: caixas que batem pelos cantos; o nariz enterra-se e a carroçaria esmaga-se).
+  - **A causa decide as voltas:** de frente, cambalhota para trás; de lado, barrel roll; de nariz, cambalhota para a
+    frente; por trás ou por desgaste, cambalhotas com torção. Simulado em `Scripts/physics_sandbox/wreck.py` (números)
+    e `wreck_sims.py` (fotos em Blender).
+  - **Peças em bolas de fogo** (escolha do jogador): cada peça voa a arder, com as chamas para trás e um rasto de chamas
+    que vira fumo. Vídeos com a câmara e as texturas do jogo: `Docs/DESTROCOS_<causa>.mp4`, feitos com
+    `Scripts/physics_sandbox/wreck_video.py`.
+  - **Câmara:** câmara lenta 0,3× à volta do casco (tipo Burnout). Num takedown há uma câmara lenta curta.
+  - **Explosão:** texturas animadas feitas em Blender (`make_fx_flipbooks.py`, `SourceArt/FX`): clarão, 5 bolas de fogo
+    que arrefecem em fumo, segunda explosão, anel de choque e de poeira, fumo negro. O casco arde e deita fumo, com
+    fuligem e brasas (`M_FX_Char`).
+  - **Em casa:** passo 3d (`make_fx_assets.py`, ver `FXASSETS ... 0 problems`), depois `Scripts\jogar.ps1 -Modo Sandbox` e,
+    na consola, `EXBoom 0` a `4` (0 desgaste, 1 de frente, 2 lateral, 3 nariz, 4 traseira). Se as chamas saírem de
+    cabeça para baixo, pôr `FlipV = 1` no `M_FX_Flipbook`.
+
+- **Modo de teste** (jogador, 2026-11-02, ligado agora; desligar quando o teste acabar):
+  - **Acidentes à frente:** no Pelotão, aos ~6 s, 9,5 s e 13 s de corrida, o bot mais próximo 30-160 m à frente do
+    jogador explode. São três maneiras: por trás, de lado e de nariz (`AEXRaceDirector::CrashTest`, log
+    `EXRACE CRASHTEST`). Para ver a explosão e os destroços de perto. Desliga-se com `-EXNoCrashTest`.
+  - **Economia de teste** (`EXMeta::bTestEconomy`, `Docs/MODULOS.md` 7b): caixas a 250, 500 e 1000, um ou dois
+    raros/épicos em quase todas, e 5000 STARDUST no 1.º lugar. Com `false` volta a economia do jogo.
+- **Checkpoints:** o último era a meta B e não tinha portão: agora há um portão de extração dourado em B. Os pilares
+  de todos os portões ficam na borda real da estrada (antes procuravam o chão a partir de 60 m e podiam ficar em cima
+  de saliências, fora de vista: o penúltimo estava invisível). Cada portão escreve `EXRACE gate ...` no log.
+- **Inspetor da pista:** `Scripts\jogar.ps1 -Modo Inspecao` (`-EXInspect`). A nave corre a pista sozinha e escreve
+  `Saved\Inspect\relatorio.txt` com fotos: presa, fora da pista, embates, quedas, saltos longos, portões tapados ou
+  fora do sítio, fps baixos. Só percorre a linha principal (não os atalhos).
+- **Atalhos em bifurcação** (`sculpt_expedition_ab.py`, `fork_guides`): saem e voltam à estrada em Y (~2° na junção),
+  em vez de curvas de 90°. **Regerar a pista** (passos 2-4 do `casa_tudo.ps1`) para se verem no jogo. O modo `plan`
+  desenha agora também os atalhos.
+- **Setas de nitro (tipo Sonic)** antes de cada salto (`AEXBoostArrows`): encontradas no início da corrida pelo perfil de
+  altura da linha, sem refazer o mapa.
+- **Consumíveis em 3D** (`Scripts/make_consumables.py`): 6 modelos (`SourceArt/Consumables`), fotos nas cartas
+  (`SourceArt/UI/Thumbs/con_<id>.jpg`, passo 3d). **Cofre em grelha** de cartas (caixas, módulos e consumíveis).
+- **Épicos e lendários com design próprio, um por nave** (`ship_modules.py`, `TIER_DESIGNS`; tabela em `Docs/MODULOS.md` 8c).
+  O jogador rejeitou as peças comuns com dourado e luzes ("brega") e depois o mesmo desenho em todas as naves. Agora cada
+  chassi tem as suas peças, na pintura da nave e inspiradas em aerodinâmica real. A VORTEX fica com o primeiro conjunto (asa com fenda / asa em caixa, cauda em V / T, kit aero / streamliner); a STRIX
+  foi refeita (delta dupla / ogival, estabilizadores / anédricos, LERX). Exemplos: a BASTION tem asa em caixa,
+  a WRAITH tem asas em tandem e ponte entre as pontas da forquilha, a NOMAD tem cápsulas nas pontas das asas e câmaras de
+  plasma nas cápsulas. Comum, incomum e raro partilham a peça. **Motor:** por fora muda só a chama. O épico é mais
+  quente. O lendário tem plasma na cor da nave (`EXMeta::Flame(Engine, Nave)`: VORTEX carmim, BASTION ouro, STRIX azul,
+  WRAITH esmeralda, NOMAD violeta). Por dentro (raio-X), nada sai da carroçaria: o épico tem refrigeração regenerativa com tubos de cobre, coletores, cabos e
+  néon ciano; o lendário tem tubos em hélice e néon na cor da nave; há ligações conforme o chassi (STRIX e WRAITH). Ficheiros
+  `<nave>_<família>_ep/_lg.fbx` (wing, tail, armor, cooling, engine) e cartas `<nave>_<família>_ep/_lg.jpg`.
+  `AEXHoverCraft` monta-os pela raridade; o do motor só aparece no raio-X. As naves não mudaram.
+- **Cartas em todo o lado** (`EXHangarWidget`, `MakeMiniCard`): no EQUIPAR as peças do slot são cartas (2 × 2), nos
+  CONSUMÍVEIS o stock é cartas com a foto 3D (clicar põe-no no slot), a LOJA é uma grelha de cartas como o cofre.
+  **Cofre:** chips de filtro (TUDO, NÃO MONTADOS, MONTADOS, CAIXAS, CONSUMÍVEIS, por família), ordem (raridade, família,
+  valor) e "VENDER NÃO MONTADOS C/I" (comuns e incomuns por montar, confirma com segundo toque). Teclas no cofre: W/S
+  linha, A/D carta, Espaço filtro, T ordem, ⌫ vender não montados.
+- **Sinalética na pista** (`AEXTrackSigns`, posta pelo `AEXRaceDirector` no início): placas de chevrons do lado de fora
+  das curvas (raio < 450 m) e balizas com luz âmbar nas bordas onde não há parede (a areia); nada nos túneis.
+- **Porquinho mealheiro em sprites** (`SourceArt/UI/Piggy`, `Scripts/piggy_sprites/build.py`): recortado da folha do
+  jogador sem redesenhar (fundo removido, brilhos em RGBA), 10 animações + ícones, JSON com frames, pivot e FPS. Ver o
+  `README.md` da pasta (faltas no original assinaladas). Versão HD 2× por IA em `HD2x/` (Real-ESRGAN anime, sem
+  PyTorch: `upscale_hd.py`); **o HUD da corrida já usa o porquinho HD animado** (`UEXRaceHudWidget::RefreshPiggySprite`:
+  teletransporte à entrada, idle/piscar, moedas quando o porquinho cresce, salto e celebração na extração, choro se for
+  destruído). Importar com `Scripts/import_piggy.py` (passo 3d).
+- **HUD da corrida novo** (`Docs/HUD_CORRIDA.md`, maqueta `Docs/HUD_CORRIDA_MAQUETA.png`), a partir do conceito do jogador:
+  posição e classificação, cronómetro com checkpoint e barra A→B, porquinho com espólios, radar, PERIGO!, toast de
+  checkpoint, consumíveis em hexágonos, velocímetro com BOOST e estado da nave com planta. Arte em `make_hud_art.py`
+  (passo 3d importa os `hud_*`).
+- **Menus, hangar, cofre, caixas e resultados no estilo do HUD** (`Docs/MENU_HANGAR.md`, última secção; maquetas em
+  `Docs/UI_MAQUETAS/`). Têm placas azul-escuras com cantos cortados e bordas ciano, o STARDUST em dourado (a moeda do
+  porquinho) e Orbitron inclinado. A arte `ui_*` vem do `make_hud_art.py menu` e importa-se no passo 3d. O anel do prato
+  giratório passou a ciano. **Ícones 3D** em vez de planos: caixas em 3D (`make_caches.py`, `cache_<n>.jpg`), a peça
+  montada nos slots do EQUIPAR, os consumíveis nos slots rápidos e a nave com a peça nas cartas dos resultados.
+- **Refrigeração dentro da carroçaria** (pedido do jogador): nada de radiadores quadrados em cima. Vents = guelras nos
+  flancos; radiador = duas entradas NACA no deck com grelhas de saída; grid = tomadas laterais rentes e grelha atrás;
+  épica = guelras longas e NACA com contorno em carbono; lendária = canal longo no flanco com aletas lá dentro e saída
+  perfurada em titânio. Importar com os passos 3c e 3d.
+
 ## FEITO EM CASA A 2026-10-26 (ramo ccr-6888126d-pxbtcg, commits locais; builds `Builds\Naves*`)
 
 - **Câmara e condução de 2026-10-20 repostas** (valores de c79fecb). O jogador rejeitou a câmara de ápice e a
@@ -68,10 +199,8 @@ O jogador fala português (PT). Responder em português.
 - **Pilotos próprios por nave** (2026-10-27, `ship_kit.pilot`, `PILOTS`, `HELMETS`): corpo com medidas humanas reais
   (ANSUR II) e físico de cada nave (VORTEX alto e esguio, BASTION médio e forte, STRIX atleta, WRAITH magro, NOMAD
   veterano de barba), capacetes de corrida a partir de um perfil lateral (VORTEX aerodinâmico em gota, STRIX F1,
-  WRAITH facetado, BASTION blindado, NOMAD de rali com pala). As naves não mudaram. FBX regerados para VORTEX,
-  BASTION, STRIX e WRAITH; **a NOMAD falta regerar** (`python3 Scripts/build_nomad.py <pasta>` e copiar `nomad.fbx`,
-  `nomad.blend`, `modules/nomad_core.fbx` e `modules/nomad_skeleton.fbx`). Reimportar com `import_test_ships.py` e
-  `import_ship_modules.py`.
+  WRAITH facetado, BASTION blindado, NOMAD de rali com pala). As naves não mudaram. FBX regerados para as 5 naves
+  (a NOMAD em casa, `8bf822d`). Reimportar com `import_test_ships.py` e `import_ship_modules.py`.
 - **Plano da extração em corrida e da progressão:** `Docs/PLANO_EXTRACAO.md` (decisões do jogador na secção 6).
 
 ## NAVES NOVAS: falta pô-las no Unreal (2026-10-21; BASTION a 2026-10-25)

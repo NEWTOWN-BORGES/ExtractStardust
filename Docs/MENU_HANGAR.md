@@ -71,3 +71,58 @@ Os módulos, as caixas e os consumíveis estão em `Docs/MODULOS.md` (secção 1
 - **Menu:** logo em imagem, linhas e títulos em Orbitron, oficina iluminada (o menu escuro foi recusado).
 - **HUD da corrida** (`UEXRaceHudWidget`, maquete `hud.png`): posição e tempo, vidas e valor em risco, velocidade com
   as barras e os 4 consumíveis com ícones. O minimapa, a seta e as mensagens continuam no `AEXHud`.
+
+## O estilo do HUD em todos os ecrãs (2026-11-01)
+
+Pedido do jogador: "a mesma direção de arte para os menus iniciais, hangar e cofre... tudo profissional". O menu, o hangar
+(todos os separadores), o cofre, a caixa aberta e os resultados passam a ter o estilo do HUD da corrida
+(`Docs/HUD_CORRIDA.md`). Maquetas em `Docs/UI_MAQUETAS/` (menu, nave, equipar, cofre, caixa).
+
+- **Cores** (`EXUiStyle.h`):
+  - placas azul-escuras (`Plate`);
+  - ciano nas bordas, na seleção e no botão principal (`Accent`, `AccentHot`);
+  - dourado no STARDUST, nos prémios e nas estrelas (`Gold`);
+  - vermelho-laranja no perigo e nas perdas (`Danger`);
+  - verde nas vidas e nos ganhos (`Ok`);
+  - texto branco-azulado (`Fore`) e cinza-azulado (`Quiet`).
+
+  As cores antigas (`Rust`, `Bone`, `Sand`) saíram.
+- **Formas** (`Scripts/make_hud_art.py menu`, ficheiros `ui_*`):
+  - placas com dois cantos cortados, o de cima à esquerda e o de baixo à direita: painéis, linhas, chips e teclas;
+  - cartas com só o canto de baixo à direita cortado, porque a foto enche o topo;
+  - separadores inclinados como os números do HUD;
+  - o botão principal, de ciano a azul.
+
+  A arte é branca e o jogo pinta-a (`EXUi::Frame`, `SetShapeBrush`, `ShapeImage`). Serve assim para qualquer cor e
+  tamanho, e os cantos ficam nítidos.
+- **Letra:**
+  - títulos e números em Orbitron inclinado, com contorno escuro (`TitleText`);
+  - etiquetas em Inter extra negrito espaçado (`LabelText`).
+- **Seleção:**
+  - linha escolhida com fundo azul mais claro, um brilho ciano que se desvanece para a direita e borda ciano;
+  - separador aberto em ciano, com letras escuras;
+  - carta escolhida com contorno ciano;
+  - no cofre, o chip "VENDER NÃO MONTADOS C/I" fica a vermelho.
+- **STARDUST:** é sempre a moeda dourada do porquinho (`hud_coin`): na carteira, nos preços e nos valores.
+- **Oficina:** o anel do prato giratório e o letreiro passam a ciano (`EXHangarStage.cpp`, `Rim`).
+- **Cofre:** as três filas de cartas tapavam a barra de teclas. As cartas passam a 0,74 e o contador vai para a linha do
+  título.
+- **Maquetas:** `Scripts/ui_mockups/screens.py` desenha-as sobre um render aproximado da oficina
+  (`Scripts/ui_mockups/hangar_scene.py`), com a arte, as posições e os tamanhos do código.
+- **Importar e compilar:** o passo 3d do `casa_tudo.ps1` traz os `ui_*` novos (pelo `import_ui_icons.py`). Depois,
+  compilar com `Scripts\casa_tudo.ps1 -SemPista`.
+- **Ícones 3D** (pedido do jogador, 2026-11-01: "tem de mostrar os ícones 3D"). Onde havia um ícone plano, aparece agora
+  a foto 3D:
+  - as caixas STANDARD, ADVANCED e ELITE são caixotes 3D próprios (`Scripts/make_caches.py`), com as fotos em
+    `SourceArt/UI/Thumbs/cache_<n>.jpg` e os modelos em `SourceArt/Caches`. A cor de cada uma é ciano, azul e dourado;
+  - os slots do EQUIPAR mostram a peça montada. A peça de série mostra a nave;
+  - os slots rápidos dos CONSUMÍVEIS mostram o consumível em 3D;
+  - as cartas dos resultados mostram a nave com a peça, e o porquinho HD aparece no título do espólio.
+
+  O ícone plano só aparece enquanto as fotos não estiverem importadas (passo 3d).
+- **Resultados:**
+  - o título passa a 52, para caber com a medalha;
+  - o total e as colunas da classificação já não se sobrepõem;
+  - a etiqueta passa a ser só "SEGURA";
+  - o Orbitron não tem "·" nem "º", por isso o `TitleText` troca-os por "•" e "°" (`EXUi::OrbitronSafe`).
+

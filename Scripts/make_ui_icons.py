@@ -293,11 +293,12 @@ def art_gem():
 
 
 def art_dpad():
-    """The d-pad between the four quick slots, in its own colours: a dark cross with rust arrows."""
+    """The d-pad between the four quick slots, in its own colours (the HUD's look, 2026-11-01): a navy cross with a
+    cyan edge and cyan arrows."""
     s = 480
     im = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    dark, edge, rust = (26, 18, 13, 235), (242, 230, 204, 60), (235, 87, 26, 255)
+    dark, edge, rust = (8, 18, 38, 235), (70, 220, 255, 150), (70, 220, 255, 255)
     for rect in ((170, 30, 310, 450), (30, 170, 450, 310)):
         d.rectangle(rect, fill=dark, outline=edge, width=6)
     d.rectangle((176, 176, 304, 304), fill=dark)
@@ -390,8 +391,9 @@ def art_fade_v():
 
 
 def art_button():
-    """The orange buttons of the mock-ups in their own colours: #eb571a on the left to #ff7a3a on the right."""
-    a0, a1 = (235, 87, 26), (255, 122, 58)
+    """The primary buttons in their own colours (the HUD's look, 2026-11-01): cyan on the left to blue on the right.
+    The chamfered button drawn 9-sliced is ui_btn (Scripts/make_hud_art.py); this strip is for plain fills."""
+    a0, a1 = (70, 220, 255), (40, 120, 255)
     im = Image.new("RGBA", (256, 4))
     px = im.load()
     for x in range(256):

@@ -140,9 +140,10 @@ Os itens (F, G) dão profundidade depois de a extração ser clara.
 
 ## 6. Decisões do jogador ❓
 
-1. **Portões de extração antecipada** (3.3): sim ou não? Quantos, e a partir de que setores?
-2. **Janela em B** (3.4): fecha 60–90 s depois do 1.º? E quem fica de fora perde só a carga de corrida, ou também os
-   módulos?
+1. **Portões de extração antecipada** (3.3): ✅ o jogador quer, melhorados (2026-10-27: "já temos, mas vamos
+   melhorar"). A base já existe: os checkpoints obrigatórios com portões visíveis ao longe (feitos em casa, `5d08b79`).
+   Falta que alguns deles sejam também pontos de extração opcional, com a escolha "sair agora ou continuar".
+2. **Janela em B** (3.4): ❌ não é precisa (2026-10-27). Quem chega a B vivo extrai, como agora.
 3. **Carga de corrida a crescer por setor** (3.1): sim? Com que multiplicador máximo?
 4. **Combate entre naves:** continua sem armas (só empurrões e paredes)? Os consumíveis de 4.4 são todos defensivos ou
    de mobilidade.

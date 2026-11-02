@@ -146,7 +146,7 @@ void AEXHangarStage::Build()
 	const FLinearColor PlatformDark(0.16f, 0.17f, 0.19f);
 	const FLinearColor Steel(0.28f, 0.29f, 0.31f);
 	const FLinearColor Panel(1.0f, 0.97f, 0.92f);
-	const FLinearColor Rim(1.0f, 0.45f, 0.15f);
+	const FLinearColor Rim(0.10f, 0.75f, 1.0f);       // the turntable ring and the sign: the UI's cyan (2026-11-01)
 	const FLinearColor Cabinet(0.60f, 0.06f, 0.04f);
 	const FLinearColor Crate(0.90f, 0.32f, 0.06f);
 	const FRotator None = FRotator::ZeroRotator;

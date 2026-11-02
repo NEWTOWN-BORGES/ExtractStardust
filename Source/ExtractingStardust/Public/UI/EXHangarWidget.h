@@ -20,9 +20,10 @@ class UWrapBox;
 struct FEXHangarRow;
 
 /**
- * The hangar, as the mock-ups the player approved draw it (Docs/MENU_HANGAR.md, Docs/MODULOS.md sec. 10:
+ * The hangar, as the mock-ups the player approved lay it out (Docs/MENU_HANGAR.md, Docs/MODULOS.md sec. 10:
  * equip_wing.png, equip_engine.png, consumiveis.png, cofre.png): the workshop with the ship on the turntable and five
- * tabs over it, in the mock-ups' fonts (Inter, Orbitron), glows and icons.
+ * tabs over it. Drawn in the race HUD's look since 2026-11-01 (EXUi: navy plates with cut corners and cyan edges, gold
+ * STARDUST, Orbitron figures leaning forward), so the menu, the hangar and the race read as one game.
  * - NAVE: the roster (lives and stars of each ship), the ship's name over the turntable, its passive and what is at
  *   risk, the stats and LANÇAR EXPEDIÇÃO.
  * - EQUIPAR: the slots on the left (icon, module in its rarity's colour, class badge, insured shield), the pieces for
@@ -51,12 +52,12 @@ protected:
 private:
 	static constexpr int32 MaxChips = 6;
 
-	/** The frame round a line: fill, four edges, the colour bar on its left. */
+	/** The plate round a line: the fill, the selection's wash, the edge, the colour bar on its left. */
 	struct FLineFrame
 	{
 		UWidget* Root = nullptr;
 		UBorder* Fill = nullptr;
-		UBorder* Edges[4] = {};
+		UImage* Edge = nullptr;
 		UBorder* Bar = nullptr;
 		UImage* Wash = nullptr;
 	};
@@ -65,6 +66,10 @@ private:
 	{
 		FLineFrame Frame;
 		UImage* Icon = nullptr;
+		UWidget* IconBox = nullptr;
+		/** The fitted piece's 3D photo (the icon while the photos are not imported). */
+		UImage* Photo = nullptr;
+		UWidget* PhotoBox = nullptr;
 		UTextBlock* Label = nullptr;
 		UTextBlock* Title = nullptr;
 		UWidget* SizeBox = nullptr;
@@ -103,8 +108,12 @@ private:
 	{
 		UWidget* Root = nullptr;
 		UBorder* Fill = nullptr;
-		UBorder* Edges[4] = {};
+		UImage* Edge = nullptr;
 		UImage* Icon = nullptr;
+		UWidget* IconBox = nullptr;
+		/** The consumable's 3D photo (the icon while the photos are not imported). */
+		UImage* Photo = nullptr;
+		UWidget* PhotoBox = nullptr;
 		UTextBlock* Name = nullptr;
 		UBorder* Pips[2] = {};
 	};
@@ -134,7 +143,7 @@ private:
 		UWidget* Back = nullptr;
 		UImage* GlowOuter = nullptr;
 		UImage* GlowInner = nullptr;
-		UBorder* Edges[4] = {};
+		UImage* Edge = nullptr;
 		UBorder* ArtLine = nullptr;
 		UImage* Photo = nullptr;
 		UImage* Halo = nullptr;
@@ -181,11 +190,16 @@ private:
 	FStockView MakeStock();
 	FInfoView MakeInfo();
 	FCardView MakeCard(float Width, float Height, float ArtHeight);
+	/** A card built at the vault's size and shown at Scale of a full card (text and all), in a frame that shows the pick
+	 *  and takes the clicks: the cards everywhere (player, 2026-11-01), the pieces of EQUIPAR and the consumables. */
+	UBorder* MakeMiniCard(float Scale, FCardView& OutView);
 	UWidget* MakePanel(UWidget* Content, float Width, bool bAccentTop);
 	UWidget* BuildTopBar();
 	UWidget* BuildShipTitle();
 	UWidget* BuildSlotsPanel();
 	UWidget* BuildListPanel();
+	/** COFRE: the caches, modules and consumables as a grid of cards with their pictures (player, 2026-11-01). */
+	UWidget* BuildVaultPanel();
 	UWidget* BuildQuickPanel();
 	UWidget* BuildCandidatesPanel();
 	UWidget* BuildStockPanel();
@@ -213,19 +227,30 @@ private:
 	UPROPERTY(Transient) TObjectPtr<AEXRaceDirector> RaceDirector;
 	// Plain pointers into the widget tree (it owns the widgets and lives as long as this widget).
 	TArray<UBorder*> TabFills;
-	TArray<UBorder*> TabEdges;
+	TArray<UImage*> TabEdges;
 	TArray<UTextBlock*> TabTexts;
 	TArray<FSlotView> SlotViews;
 	TArray<FItemView> ListViews;
 	TArray<FShipView> ShipViews;
 	TArray<FTileView> TileViews;
-	TArray<FItemView> CandidateViews;
-	TArray<FStockView> StockViews;
+	TArray<FCardView> CandidateCards;
+	TArray<UBorder*> CandidateFrames;
+	TArray<FCardView> StockCards;
+	TArray<UBorder*> StockFrames;
+	/** The vault's filter chips: TUDO, NÃO MONTADOS, MONTADOS, CAIXAS, CONSUMÍVEIS, FAMÍLIA, ORDEM, VENDER. */
+	TArray<UBorder*> VaultChips;
+	TArray<UTextBlock*> VaultChipTexts;
+	UWidget* VaultChipBar = nullptr;
 	TArray<FInfoView> InfoViews;
 	TArray<FCardView> CardViews;
 	TArray<FStatView> StatViews;
 	TArray<FCalloutView> CalloutViews;
 	FCardView LookedCard;
+	TArray<FCardView> VaultViews;
+	TArray<UBorder*> VaultFrames;
+	UWidget* VaultPanel = nullptr;
+	UTextBlock* VaultTitle = nullptr;
+	UTextBlock* VaultMore = nullptr;
 	UTextBlock* WalletText = nullptr;
 	UTextBlock* ShipTitle = nullptr;
 	UTextBlock* ShipSubtitle = nullptr;
@@ -248,7 +273,7 @@ private:
 	UTextBlock* ActionText = nullptr;
 	UTextBlock* LivesText = nullptr;
 	UTextBlock* PreviewText = nullptr;
-	UBorder* PreviewEdges[4] = {};
+	UImage* PreviewEdge = nullptr;
 	UBorder* PreviewDiamond = nullptr;
 	UTextBlock* CacheTitle = nullptr;
 	UTextBlock* CacheSummary = nullptr;
