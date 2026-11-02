@@ -38,6 +38,7 @@ SAMPLES = int(OPTS.get('samples', 20))
 SECONDS = float(OPTS.get('seconds', 4.5))
 FPS = int(OPTS.get('fps', 24))
 TEST = OPTS.get('test') == '1'           # a few frames on one sheet instead of the video (a quick look)
+RESUME = OPTS.get('resume') == '1'       # keep the frames already rendered (an interrupted run goes on from there)
 G_DEBRIS = 14.7                           # AEXExplosion's gravity for debris and sparks (m/s^2)
 CANDELA_TO_W = 0.4 * 4.0 * math.pi        # the game's sun is 10 lux, this scene's sun 4 W/m^2: 1 cd ~ 5 W of point light
 
@@ -706,7 +707,9 @@ def render_cause(cause, objs):
             lo.location = Vector(lt[0])
             lo.data.energy = lt[1] * CANDELA_TO_W
         path = os.path.join(frames_dir, 'f%04d.png' % fi)
-        if TEST and fi not in test_frames(nframes):
+        if (TEST and fi not in test_frames(nframes)) or (RESUME and os.path.exists(path)):
+            if still is None and real >= 0.9 and os.path.exists(path):
+                still = path
             continue
         sc.render.filepath = path
         bpy.ops.render.render(write_still=True)
