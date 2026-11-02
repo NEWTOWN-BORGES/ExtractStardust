@@ -184,11 +184,17 @@ private:
 	void RefreshGates(int32 Passed, int32 JustPassed);
 	/** The player's craft, for the call-out sounds. */
 	AEXHoverCraft* PlayerCraft() const;
+	/** For testing (player, 2026-11-02): bots just ahead of the player blow up in the first seconds of the race. */
+	void CrashTest();
 	void ReturnToMenu();
 
 	EEXRaceMode Mode = EEXRaceMode::Solo;
 	int32 BotCount = 15;
 	bool bReady = false, bStarted = false, bOver = false, bTest = false, bMenu = false;
+	/** The start crashes (CrashTest): on unless -EXNoCrashTest, or in the automated test and the inspector. */
+	bool bCrashTest = true;
+	int32 CrashTestDone = 0;
+	float NextCrashTestTime = 6.0f;
 	int32 MenuChoice = 1;
 	int32 Pool = 0;
 	/** Serials for the bots' pieces (far from the player's). */

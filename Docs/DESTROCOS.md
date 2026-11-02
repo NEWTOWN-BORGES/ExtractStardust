@@ -177,6 +177,8 @@ Fotos em `Docs/DESTROCOS_<causa>.jpg`. Em cada uma:
    - 3 nariz;
    - 4 traseira.
    A nave volta 3 s depois. Log: `EXRACE BOOM`.
+   - **Em corrida:** no Pelotão (`Scripts\jogar.ps1 -Modo Bots`), três bots explodem à tua frente nos primeiros
+     segundos (modo de teste, `AEXRaceDirector::CrashTest`). Desliga-se com `-EXNoCrashTest`.
 3. Ver:
    - a câmara lenta e a câmara à volta;
    - o casco a voar em frente e às voltas;

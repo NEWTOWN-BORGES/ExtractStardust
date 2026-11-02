@@ -136,6 +136,10 @@ namespace EXMeta
 	constexpr int32 MaxStars = 7;
 	/** Chance that an ELITE CACHE holds one copy of a ship. */
 	constexpr float ShipCopyChance = 0.06f;
+	/** The test economy (player, 2026-11-02: "para testar: caixas mais baratas, 250, 500, 1000; probabilidade de épicos e
+	 *  raros muito maior, quase um ou dois em cada caixa; 5000 STARDUST no primeiro lugar"). false puts back the game's
+	 *  (Docs/MODULOS.md, secção 7b). */
+	constexpr bool bTestEconomy = true;
 	/** STARDUST a copy is worth when its ship already has all seven stars. */
 	constexpr int32 ShipCopyRefund = 8000;
 

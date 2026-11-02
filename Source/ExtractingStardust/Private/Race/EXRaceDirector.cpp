@@ -48,6 +48,7 @@ AEXRaceDirector::AEXRaceDirector()
 	bTest = FParse::Param(FCommandLine::Get(), TEXT("EXRaceTest"));
 	bInspect = FParse::Param(FCommandLine::Get(), TEXT("EXInspect"));
 	bTest |= bInspect;   // the inspector is a test run: the player's ship drives itself and the game quits at the end
+	bCrashTest = !bTest && !FParse::Param(FCommandLine::Get(), TEXT("EXNoCrashTest"));
 	TestLimitS = TestTimeLimitS;
 	FParse::Value(FCommandLine::Get(), TEXT("EXRaceSeconds="), TestLimitS);
 }
@@ -122,6 +123,10 @@ void AEXRaceDirector::Tick(float DeltaSeconds)
 	}
 
 	RaceTime += DeltaSeconds;
+	if (bCrashTest && Mode == EEXRaceMode::Bots)
+	{
+		CrashTest();
+	}
 	for (FEXRacer& Racer : Racers)
 	{
 		AEXHoverCraft* Craft = Racer.Craft;
@@ -589,6 +594,50 @@ void AEXRaceDirector::DropToPool(FEXRacer& Racer)
 	LastPoolTime = RaceTime;
 	Post(Value > 0 ? FString::Printf(TEXT("%s DESTRU\u00CDDO  \u00B7  +%s no porquinho (%d pe\u00E7as)"), *Racer.Name, *FString::FromInt(Value), Racer.Dropped.Num())
 		: FString::Printf(TEXT("%s DESTRU\u00CDDO (km %.1f)"), *Racer.Name, Racer.OutAtM / 1000.0f));
+}
+
+void AEXRaceDirector::CrashTest()
+{
+	// For testing (player, 2026-11-02: "quero que uma, duas, três naves se acidentem na minha frente para ver o efeito da
+	// explosão logo no início da corrida"): three bots just ahead of the player blow up in the first seconds, each a
+	// different way (shoved from behind, hit from the side, nose first; AEXHoverCraft::EXBoom), so the wreck, the fire
+	// and the explosion are seen close up at speed. -EXNoCrashTest switches it off; remove it when the test is done.
+	if (CrashTestDone >= 3 || RaceTime < NextCrashTestTime)
+	{
+		return;
+	}
+	const AEXHoverCraft* Me = PlayerCraft();
+	if (!Me || Me->IsEliminated())
+	{
+		return;
+	}
+	// the nearest bot 30-160 m ahead of the player along the race line, still racing and already fast
+	AEXHoverCraft* Pick = nullptr;
+	float Nearest = TNumericLimits<float>::Max();
+	for (const FEXRacer& Racer : Racers)
+	{
+		AEXHoverCraft* Craft = Racer.Craft;
+		if (Racer.bPlayer || Racer.bOut || Racer.bFinished || !IsValid(Craft) || Craft->IsEliminated())
+		{
+			continue;
+		}
+		const float Ahead = Craft->GetRaceProgressM() - Me->GetRaceProgressM();
+		if (Ahead > 30.0f && Ahead < 160.0f && Craft->GetSpeedKmh() > 200.0f && Ahead < Nearest)
+		{
+			Nearest = Ahead;
+			Pick = Craft;
+		}
+	}
+	if (!Pick)
+	{
+		NextCrashTestTime = RaceTime + 0.5f;   // nobody in reach yet: look again in half a second
+		return;
+	}
+	static const int32 Causes[3] = { 4, 2, 3 };
+	UE_LOG(LogTemp, Display, TEXT("EXRACE CRASHTEST %d/3 %s %.0f m ahead"), CrashTestDone + 1, *Pick->GetShipName(), Nearest);
+	Pick->EXBoom(Causes[CrashTestDone]);
+	++CrashTestDone;
+	NextCrashTestTime = RaceTime + 3.5f;
 }
 
 AEXHoverCraft* AEXRaceDirector::PlayerCraft() const

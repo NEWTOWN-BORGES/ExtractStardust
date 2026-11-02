@@ -51,6 +51,12 @@ O jogador fala português (PT). Responder em português.
     na consola, `EXBoom 0` a `4` (0 desgaste, 1 de frente, 2 lateral, 3 nariz, 4 traseira). Se as chamas saírem de
     cabeça para baixo, pôr `FlipV = 1` no `M_FX_Flipbook`.
 
+- **Modo de teste** (jogador, 2026-11-02, ligado agora; desligar quando o teste acabar):
+  - **Acidentes à frente:** no Pelotão, aos ~6 s, 9,5 s e 13 s de corrida, o bot mais próximo 30-160 m à frente do
+    jogador explode. São três maneiras: por trás, de lado e de nariz (`AEXRaceDirector::CrashTest`, log
+    `EXRACE CRASHTEST`). Para ver a explosão e os destroços de perto. Desliga-se com `-EXNoCrashTest`.
+  - **Economia de teste** (`EXMeta::bTestEconomy`, `Docs/MODULOS.md` 7b): caixas a 250, 500 e 1000, um ou dois
+    raros/épicos em quase todas, e 5000 STARDUST no 1.º lugar. Com `false` volta a economia do jogo.
 - **Checkpoints:** o último era a meta B e não tinha portão: agora há um portão de extração dourado em B. Os pilares
   de todos os portões ficam na borda real da estrada (antes procuravam o chão a partir de 60 m e podiam ficar em cima
   de saliências, fora de vista: o penúltimo estava invisível). Cada portão escreve `EXRACE gate ...` no log.

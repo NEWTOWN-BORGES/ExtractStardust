@@ -216,6 +216,26 @@ O HUD da corrida mostra as duas barras.
   - Quem extrai recupera os que não gastou.
   - Quem é destruído perde a carga.
 
+## 7b. Economia de teste (jogador, 2026-11-02; ligada agora)
+
+"Para testar: caixas mais baratas, 250, 500, 1000; probabilidade de épicos e raros muito maior, quase um ou dois em
+cada caixa; 5000 STARDUST no primeiro lugar." Está em `EXMeta::bTestEconomy = true`. Com `false` volta tudo aos
+valores do jogo.
+
+| | Jogo | Teste |
+|---|---|---|
+| STANDARD CACHE | 2500; 70 % comuns, 27 % incomuns, 3 % raros | **250**; 20 / 30 / 32 % raros / 18 % épicos; 1 raro garantido |
+| ADVANCED CACHE | 6000; 20 / 50 / 27 % raros / 3 % épicos; 1 raro garantido | **500**; 5 / 20 / 45 % raros / 30 % épicos; 1 raro e 1 épico garantidos |
+| ELITE CACHE | 10 000; 0 / 25 / 55 % raros / 20 % épicos; 1 épico, 4 raros ou melhor; 4 % lendário | **1000**; 0 / 5 / 45 % raros / 50 % épicos; 2 épicos, 4 raros ou melhor; 25 % lendário |
+| 1.º lugar | 1120 STARDUST | **5000** (os outros lugares iguais) |
+
+Uma caixa tem 4 a 6 componentes, por isso em média:
+- STANDARD: ~2,5 raros ou épicos;
+- ADVANCED: ~1,5 épicos;
+- ELITE: ~2,5 épicos.
+
+As promessas na loja dizem "TESTE".
+
 ## 8. Loja e caixas (Doc 03, secções 7 e 8)
 
 **Caixas:** 10 itens cada (4 a 6 componentes, o resto consumíveis). Só a ELITE pode trazer uma cópia de nave (secção 8b).
