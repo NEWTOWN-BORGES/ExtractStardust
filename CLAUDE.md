@@ -34,6 +34,11 @@ cima, para baixo, esquerda, direita), muitas curvas, muitos saltos."
   `python3 Scripts/selva/render_selva_3d.py <pasta> Docs/SELVA/MAPA_SELVA_3D.jpg size=2400x1350 samples=32` (com os 10
   setores gerados em `<pasta>/s1` ... `s10`).
 
+## ⚠ EM CASA, PASSO A PASSO: `Docs/CASA_PASSO_A_PASSO.md` (jogador, 2026-11-02: "não se esqueça de nada")
+
+Compilar, importar, gerar a pista nova, testar cada coisa feita desde domingo, o que mandar à IA, guardar no GitHub
+e empacotar. O `casa_tudo.ps1` recomeça num passo com `-Desde <passo>`; o `jogar.ps1` tem `-SemAcidentes`.
+
 ## ⚠ EM CASA: A INTERFACE TEM DE FICAR IGUAL ÀS MAQUETAS (jogador, 2026-11-01)
 
 "Espero que venha tudo como nas maquetes; deixe isso bem assinalado para aí em casa fazer exatamente assim."

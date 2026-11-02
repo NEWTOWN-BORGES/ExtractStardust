@@ -7,6 +7,8 @@
 #   powershell -ExecutionPolicy Bypass -File Scripts\casa_tudo.ps1
 #   ... -SemPista        so compila e importa as naves (o mapa Expedition fica como esta)
 #   ... -Metros 5        pista a 5 m (mais rapido, menos memoria)
+#   ... -Desde 3c        recomeca no passo 3c (os anteriores ja correram bem): 1, 2a, 2b, 3a, 3b, 3c, 3d, 3e ou 4
+# Guia completo, passo a passo: Docs/CASA_PASSO_A_PASSO.md
 # Antes: git pull do ramo; C:\rdd\kit, C:\rdd\moldes, C:\rdd\plantas e C:\rdd\strix.fbx feitos (ver CLAUDE.md).
 # Se um passo falhar, o script para e diz qual; a mensagem de erro e o que se mostra a IA.
 param(
@@ -15,7 +17,8 @@ param(
     [string]$Rdd = "C:\rdd",
     [double]$Metros = 3,
     [switch]$SemPista,
-    [switch]$SemCompilar
+    [switch]$SemCompilar,
+    [string]$Desde = ""
 )
 $ErrorActionPreference = "Stop"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -25,11 +28,15 @@ $EditorCmd = Join-Path $UE "Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 $Ab = "$Rdd\ab"
 $RootFwd = $Root -replace "\\", "/"  # o Unreal le "\n" de C:\Users\nilto como mudanca de linha: caminhos de scripts com "/"
 
+$script:Started = ($Desde -eq "")
 function Step($Name, $Exe, [string[]]$Arguments) {
+    if (-not $script:Started) {
+        if ($Name.Split(".")[0] -eq $Desde) { $script:Started = $true } else { Write-Host "(saltado) $Name"; return }
+    }
     Write-Host ""
     Write-Host "=== $Name ===" -ForegroundColor Cyan
     Write-Host "$Exe $($Arguments -join ' ')"
-    & $Exe @Arguments
+    if ($Exe -eq $Editor) { & $Exe @Arguments | Out-Null } else { & $Exe @Arguments }  # Out-Null: espera que o editor feche
     if ($LASTEXITCODE -ne 0) { throw "FALHOU: $Name (codigo $LASTEXITCODE)" }
 }
 

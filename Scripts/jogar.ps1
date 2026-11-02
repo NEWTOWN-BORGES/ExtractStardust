@@ -11,7 +11,9 @@
 #   -Modo Livre: voo livre, sem vidas nem corrida. Sem -Modo: o menu do jogo (Solo / Bots / Livre / Hangar).
 param(
     [ValidateSet("Menu", "Solo", "Bots", "Teste", "Inspecao", "Livre", "Hangar", "Sandbox")][string]$Modo = "Menu",
-    [string]$UE = "C:\Program Files\Epic Games\UE_5.8"
+    [string]$UE = "C:\Program Files\Epic Games\UE_5.8",
+    [switch]$SemAcidentes,   # desliga os acidentes de teste a frente do jogador (-EXNoCrashTest)
+    [string[]]$Extra = @()   # outras opcoes do jogo, entre aspas: -Extra "-EXLow"
 )
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Project = Join-Path $Root "ExtractingStardust.uproject"
@@ -26,4 +28,6 @@ switch ($Modo) {
     "Hangar" { $Arguments += "-EXMode=Hangar" }
     "Sandbox" { $Arguments += @("-EXSandbox", "-EXNoMenu") }   # a fisica: rampas, lombas, queda, costelas e bots para chocar (Docs/FISICA.md)
 }
+if ($SemAcidentes) { $Arguments += "-EXNoCrashTest" }
+$Arguments += $Extra
 & $Editor @Arguments
