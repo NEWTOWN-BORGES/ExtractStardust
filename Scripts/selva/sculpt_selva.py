@@ -331,13 +331,34 @@ def recipe_s4():
     return WL, G, np.zeros_like(G), dict()
 
 
-RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4}
+def recipe_s5():
+    """S5 Gruta das Raízes: a long hill held together by kapok roots. Its crest is F8 (over the top, through the roots);
+    under it the road runs through a wide cave, with F9 and the underground river beside it, lower down (section 4b)."""
+    G = membrane()
+    d, _fi, _sd = line_field(RP)
+    G = G + smoothstep(60.0, 450.0, d) * (24.0 * (fbm(XX, YY, 600.0, 511, 4) - 0.35))
+    f8 = [fd for fd in FD if "Raízes Gigantes" in fd["f"]["name"]][0]
+    d8, f8i, _s = line_field(f8["P"], reach=3)
+    G = np.maximum(G, at(f8["z"], f8i) - 1.5 - 0.22 * np.maximum(d8 - 18.0, 0.0) + 3.0 * (fbm(XX, YY, 80.0, 513, 3) - 0.5))
+    ib, isd = CAVE_SPAN[0] - rlo, CAVE_SPAN[1] - rlo
+    dC, fC, _s = line_field(RP[ib:isd], reach=3)
+    cover = at(RZ[ib:isd], fC) + 34.0 + 6.0 * fbm(XX, YY, 120.0, 515, 3) - 0.25 * np.maximum(dC - 70.0, 0.0)
+    G = np.maximum(G, np.where((dC < 400.0) & (fC > 2) & (fC < isd - ib - 3), cover, -1e9))
+    return -1000.0, G, np.zeros_like(G), dict()
+
+
+RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4, "S5": recipe_s5}
+CAVE_SPAN = None
+if SECTOR == "S5":                       # from the mouth to the way out (the jumps 'boca' and 'saída' of the plan)
+    CAVE_SPAN = (int(next(j["at_m"] for j in jumps if j["what"].startswith("boca"))) + 12,
+                 int(next(j["at_m"] for j in jumps if j["what"].startswith("saída"))) - 12)
 # Oval roads (jogador, 2026-11-02, S4: "acabou com as estradas artificiais; quero ovais que permitem ultrapassar pelas
 # paredes a alta velocidade; as paredes ficam pequenas à medida que se avança, vales pequenos"): a quarter-oval wall on
 # both sides, tangent to the floor and steepening towards the top (Red Dust Divide's curve walls), its height falling
 # along the sector; beyond it the hillside never rises faster than Red Dust's oval bank (25 -> 70 degrees), so even
 # where the walls are small the road runs in an oval valley. Per sector: (wall height at its start, at its end).
-OVAL = {"S4": (14.0, 4.0)}
+OVAL = {"S4": (14.0, 4.0), "S5": (4.0, 3.0)}
+# S5 (jogador: "estrada mista"): small oval walls up to the cave, the cave's own arch inside, a natural road after it
 # per sector: semi-oval walls on the outside of the hairpins (jogador, 2026-11-02: "retas, com algumas partes
 # semi-ovais"), the road and bank colours (sRGB), the jungle's mix, and how far hills roll beyond the box
 WALLS = {"S2": (12.0, 16.0)}
@@ -354,6 +375,9 @@ MIXES = {"S1": dict(interior=(("canopy_a", .36), ("canopy_c", .32), ("canopy_b",
                     band=(("shrub_a", .40), ("shrub_b", .25), ("canopy_b", .20), ("cecropia", .15)))}
 HILLS = {"S1": 0.3, "S2": 1.0, "S3": 1.0, "S4": 1.0}
 MIXES["S4"] = MIXES["S2"]
+MIXES["S5"] = MIXES["S1"]
+HILLS["S5"] = 1.0
+PAL["S5"] = dict(road=(0.46, 0.36, 0.26), wet=(0.27, 0.21, 0.15), bank=(0.30, 0.30, 0.17), rock=(0.30, 0.25, 0.21))
 MIXES["S3"] = dict(interior=(("canopy_a", .30), ("canopy_b", .25), ("canopy_c", .15), ("acai", .12), ("shrub_a", .10), ("buriti", .08)),
                    edge=(("shrub_a", .30), ("cecropia", .20), ("acai", .20), ("canopy_b", .20), ("shrub_b", .10)),
                    band=(("shrub_a", .35), ("shrub_b", .25), ("acai", .20), ("canopy_b", .20)))
@@ -425,7 +449,7 @@ def road_profile(P, z, natural, jumps_here):
             s = np.arange(len(z)) - i
             z = z + 6.0 * smoothstep(-160, -10, s) * (s < 0)
             recs.append(dict(what=j["what"], at_m=int(j["at_m"]), lip=float(z[i - 1]), drop_m=6.0))
-        elif j["what"].startswith(("crista", "lomba", "rampa", "ilha", "raiz", "rochedo")):   # a crest: up, and off
+        elif j["what"].startswith(("crista", "lomba", "rampa", "ilha", "raiz", "rochedo", "boca", "saída")):   # a crest
             s = np.arange(len(z)) - i
             z = z + 4.0 * smoothstep(-90, -4, s) * (s <= 4) + 4.0 * (1 - smoothstep(4, 50, s)) * (s > 4)
             recs.append(dict(what=j["what"], at_m=int(j["at_m"]), crest=float(z[i]), ramp_m=4.0))
@@ -509,7 +533,11 @@ for j in jumps:
 RZ2, JREC = road_profile(RP, RZ, H, roadjumps)
 H_nat = H.copy()
 H, D_ROAD, HW_ROAD, T_ROAD = lay_road(H, RP, RZ2, RW, "road", WALLS.get(SECTOR),
-                                       oval=(*OVAL[SECTOR], S0 - rlo, S1_ - rlo) if SECTOR in OVAL else None)
+                                       oval=(*OVAL[SECTOR], S0 - rlo, (CAVE_SPAN[0] - 70 if CAVE_SPAN else S1_) - rlo)
+                                       if SECTOR in OVAL else None)
+if CAVE_SPAN:                            # under the hill the road is not cut in: the cave is (section 4b)
+    _dz, _f, _s = line_field(RP[CAVE_SPAN[0] - rlo:CAVE_SPAN[1] - rlo], reach=3)
+    H = np.where((_dz < RW[CAVE_SPAN[0] - rlo] + 90.0) & (_f > 2) & (_f < CAVE_SPAN[1] - CAVE_SPAN[0] - 3), H_nat, H)
 D_FORK = np.full_like(H, 1e9)
 D_GFORK = np.full_like(H, 1e9)          # the forks on the ground only (no bridges): nothing may stand on them
 T_FORK = np.ones_like(H)
@@ -517,6 +545,10 @@ fork_rec = []
 for fd in FD:
     zf = fd["z"].copy()
     name = fd["f"]["name"]
+    if CAVE_SPAN and "Subterrâneo" in name:
+        fd["zs"] = zf
+        fork_rec.append(dict(name=name, z_min=float(zf.min()), z_max=float(zf.max()), cave=True))
+        continue
     if "Igapó" in name:              # through the flooded forest, at water level: the ships skim between the trees
         n = len(zf)
         mid = smoothstep(0, 220, np.arange(n)) * smoothstep(0, 220, n - 1 - np.arange(n))
@@ -533,6 +565,8 @@ for fd in FD:
         elif fj["what"] == "tronco":              # a giant trunk across: the deck humps over it
             zf = zf + 2.2 * smoothstep(-45, -2, s_) * (s_ <= 2) + 2.2 * (1 - smoothstep(2, 24, s_)) * (s_ > 2)
             fd.setdefault("logs", []).append(i)
+        elif fj["what"] == "descida":          # off the hill: up to a lip, 6 m down
+            zf = zf + 6.0 * smoothstep(-160, -10, s_) * (s_ < 0)
         elif fj["what"] == "ilha":             # from one island to the next: a kick and 36 m of rapids
             zf = zf + 2.4 * smoothstep(-60, -20, s_) * (s_ < -18)
             zf = np.where(np.abs(s_) <= 18, wl_at(fd["P"]) - 1.6, zf)
@@ -564,6 +598,47 @@ for fd in FD:
         fd.setdefault("decks", []).append((a, b, gaps))
     fd["zs"] = zf
     fork_rec.append(dict(name=name, z_min=float(zf.min()), z_max=float(zf.max()), bridge_m=int(high.sum())))
+CAVE = SKY = None
+H_TOP = H
+if CAVE_SPAN:
+    # 4b. The cave: under the hill (H_TOP, with F8 laid on it) a wide hall: the road's floor, and beside it, lower, F9
+    # and the underground river. The ceiling is an arch up to 24 m, never closer than 5 m under the hill's surface;
+    # where the hill is too thin there is no roof (open sinkholes), and skylights every ~230 m let the sun in.
+    ib, isd = CAVE_SPAN[0] - rlo, CAVE_SPAN[1] - rlo
+    dC, fC, _sC = line_field(RP[ib:isd], reach=3)
+    f9 = [fd for fd in FD if "Subterrâneo" in fd["f"]["name"]][0]
+    d9, f9i, s9 = line_field(f9["P"], reach=3)
+    hw0 = float(RW[ib])
+    CAVE = (dC < hw0 + 12.0) | (d9 < f9["hw"] + 34.0)
+    H_TOP = H.copy()
+    Hc = at(RZ2[ib:isd], fC) + RELIEF
+    Hc, d9b, _h9, t9 = lay_road(Hc, f9["P"], f9["zs"], f9["hw"], "fork")
+    T9 = f9["P"][np.minimum(np.arange(len(f9["P"])) + 5, len(f9["P"]) - 1)] - f9["P"][np.maximum(np.arange(len(f9["P"])) - 5, 0)]
+    T9 = T9 / np.maximum(np.linalg.norm(T9, axis=1, keepdims=True), 1e-9)
+    N9 = np.stack([-T9[:, 1], T9[:, 0]], 1)
+    mid9 = len(f9["P"]) // 2
+    road_side = np.sign(np.dot(RP[ib + int(np.argmin(np.hypot(*(RP[ib:isd] - f9["P"][mid9]).T)))] - f9["P"][mid9], N9[mid9]))
+    rivP = f9["P"] - N9 * road_side * (f9["hw"] + 16.0)
+    dR, fR, _sR = line_field(rivP, reach=3)
+    zR = at(f9["zs"], fR) - 2.0
+    Hc = np.where(dR < 10.0, np.minimum(Hc, zR - 2.5 + 2.5 * smoothstep(5.0, 10.0, dR)), Hc)
+    WLG = np.where(CAVE & (dR < 12.0), zR, WLG)
+    W = WLG
+    H = np.where(CAVE, Hc, H_TOP)
+    din = ndimage.distance_transform_edt(CAVE) * RES
+    CEIL = np.minimum(ndimage.gaussian_filter(np.where(CAVE, Hc, 0.0), 4.0) / np.maximum(ndimage.gaussian_filter(CAVE.astype(float), 4.0), 1e-3)
+                      + 24.0 * np.sqrt(np.clip(din / 22.0, 0, 1))
+                      + np.clip(din / 6.0, 0, 1) * (5.0 * (fbm(XX, YY, 28.0, 531, 3) - 0.5) + 2.0 * (fbm(XX, YY, 7.0, 533, 2) - 0.5)),
+                      H_TOP - 5.0)
+    ROOF = CAVE & (H_TOP - Hc > 12.0)
+    SKY = np.zeros_like(CAVE)
+    for k in range(ib + 160, isd - 100, 230):
+        SKY |= np.hypot(XX - RP[k, 0], YY - RP[k, 1]) < 11.0
+    ROOF &= ~SKY
+    T_ROAD = np.where(CAVE & (dC < hw0 + 1.0), 0.0, T_ROAD)
+    log("cave: %.0f m of roof cover, %d skylights, lower level and river beside it" % (ROOF.sum() * RES * RES / (2 * hw0 + 30),
+                                                                                       len(range(ib + 160, isd - 100, 230))))
+GROUND = np.where(CAVE, H_TOP, H) if CAVE is not None else H     # where plants stand (on the hill over the cave)
 D_EDGE = np.minimum(D_ROAD - HW_ROAD, D_FORK)              # metres from the nearest road or fork edge
 log("road laid: %d jumps, forks %s" % (len(JREC), [f["name"] for f in fork_rec]))
 
@@ -628,7 +703,7 @@ band = grid_at(D_EDGE, bx, by)
 bsel = (band > 8.0) & (band < 30.0) & (rng.random(len(bx)) < 0.55)
 px, py = np.concatenate([px, bx[bsel]]), np.concatenate([py, by[bsel]])
 EDGE_BAND = np.concatenate([np.zeros(len(px) - int(bsel.sum()), bool), np.ones(int(bsel.sum()), bool)])
-pz = bilinear(H, px, py)
+pz = bilinear(GROUND, px, py)
 pedge = grid_at(D_EDGE, px, py)
 pdepth = wl_at(np.c_[px, py]) - pz
 pig = grid_at(F.get("igapo", np.zeros_like(H)), px, py)
@@ -636,6 +711,9 @@ pfar = grid_at(np.minimum(D_ROAD, D_FORK + 30), px, py)
 keep = (pedge > 9.0) & ((pdepth < -0.05) | ((pig > 0.3) & (pdepth < 1.6))) & (grid_at(SLOPE, px, py) < 0.85)
 if WALL_MASK is not None:
     keep &= ~grid_at(WALL_MASK, px, py)
+if CAVE is not None:                     # over the cave: the hill's forest, away from F8 and the skylights
+    inc = grid_at(CAVE, px, py)
+    keep = np.where(inc, (grid_at(D_FORK, px, py) > 9.0) & ~grid_at(SKY, px, py) & (grid_at(H_TOP - H, px, py) > 12.0), keep)
 px, py, pz, pedge, pdepth, pig, pfar = px[keep], py[keep], pz[keep], pedge[keep], pdepth[keep], pig[keep], pfar[keep]
 EDGE_BAND = EDGE_BAND[keep]
 u = rng.random(len(px))
@@ -660,7 +738,7 @@ kind = np.where(EDGE_BAND, bandk, kind)
 kx = rng.uniform(X0, X1, int((X1 - X0) * (Y1 - Y0) / 150.0 ** 2))
 ky = rng.uniform(Y0, Y1, len(kx))
 ke = grid_at(D_EDGE, kx, ky)
-kd = wl_at(np.c_[kx, ky]) - bilinear(H, kx, ky)
+kd = wl_at(np.c_[kx, ky]) - bilinear(GROUND, kx, ky)
 okk = (ke > 26.0) & (kd < -0.2)
 hero = np.arange(0, len(RP), 420)
 hside = np.where(np.arange(len(hero)) % 2 == 0, 1.0, -1.0)
@@ -668,7 +746,7 @@ tdir = RP[np.minimum(hero + 5, len(RP) - 1)] - RP[np.maximum(hero - 5, 0)]
 tdir = tdir / np.maximum(np.linalg.norm(tdir, axis=1, keepdims=True), 1e-9)
 hx = RP[hero, 0] - tdir[:, 1] * hside * (RW[hero] + rng.uniform(34, 55, len(hero)))
 hy = RP[hero, 1] + tdir[:, 0] * hside * (RW[hero] + rng.uniform(34, 55, len(hero)))
-okh = (grid_at(D_EDGE, hx, hy) > 24.0) & (wl_at(np.c_[hx, hy]) - bilinear(H, hx, hy) < -0.2)
+okh = (grid_at(D_EDGE, hx, hy) > 24.0) & (wl_at(np.c_[hx, hy]) - bilinear(GROUND, hx, hy) < -0.2)
 kx, ky = np.concatenate([kx[okk], hx[okh]]), np.concatenate([ky[okk], hy[okh]])
 # no ordinary tree inside a kapok's crown
 if len(kx):
@@ -680,7 +758,7 @@ if len(kx):
     px, py, pz, kind, pfar, EDGE_BAND = px[clear], py[clear], pz[clear], kind[clear], pfar[clear], EDGE_BAND[clear]
 px = np.concatenate([px, kx])
 py = np.concatenate([py, ky])
-pz = np.concatenate([pz, bilinear(H, kx, ky)])
+pz = np.concatenate([pz, bilinear(GROUND, kx, ky)])
 kind = np.concatenate([kind, np.full(len(kx), K["kapok"])])
 pfar = np.concatenate([pfar, grid_at(np.minimum(D_ROAD, D_FORK + 30), kx, ky)])
 # far from the road: blobs instead of leaf cards; the understory there is never seen
@@ -704,14 +782,14 @@ for fd in FD:
         for i in range(30, len(P_) - 30, 70):
             for side in (1, -1):
                 q = P_[i] + np.array([-T_[i, 1], T_[i, 0]]) * side * (fd["hw"] + 3.4)
-                g = float(bilinear(H, q[0], q[1]))
+                g = float(bilinear(GROUND, q[0], q[1]))
                 if (grid_at(np.minimum(D_ROAD - HW_ROAD, D_GFORK), q[0], q[1]) < 8.0
                         or (WALL_MASK is not None and grid_at(WALL_MASK, q[0], q[1]))):
                     continue                      # never on the road or a fork on the ground (where the bridge crosses
                                                   # over them: the ravine), nor on a wall
                 tw.append((q[0], q[1], g, float(np.clip((Z_[i] - g + 5.0) / (0.74 * 51.0), 0.9, 1.45))))
 for fd in FD:
-    if "Sapopemas" in fd["f"]["name"]:
+    if "Sapopemas" in fd["f"]["name"] or "Raízes Gigantes" in fd["f"]["name"]:
         P_ = fd["P"]
         T_ = np.gradient(P_, axis=0)
         T_ = T_ / np.maximum(np.linalg.norm(T_, axis=1, keepdims=True), 1e-9)
@@ -719,7 +797,7 @@ for fd in FD:
             side = 1 if k % 2 else -1
             q = P_[i] + np.array([-T_[i, 1], T_[i, 0]]) * side * (fd["hw"] + rng.uniform(5.0, 8.0))
             if grid_at(np.minimum(D_ROAD - HW_ROAD, D_GFORK), q[0], q[1]) > 3.0:
-                tw.append((q[0], q[1], float(bilinear(H, q[0], q[1])), float(rng.uniform(0.85, 1.1))))
+                tw.append((q[0], q[1], float(bilinear(GROUND, q[0], q[1])), float(rng.uniform(0.85, 1.1))))
 if tw:
     tw = np.array(tw)
     px, py, pz = np.r_[px, tw[:, 0]], np.r_[py, tw[:, 1]], np.r_[pz, tw[:, 2]]
@@ -730,6 +808,27 @@ if len(tw):
     scl[-len(tw):] = tw[:, 3]
 young = np.r_[EDGE_BAND, np.zeros(len(px) - len(EDGE_BAND), bool)] & (kind == K["canopy_b"])
 scl = np.where(young, rng.uniform(0.45, 0.7, len(px)), scl)      # young trees at the edge
+# road debris (jogador, 2026-11-02: "galhos, arbustos pequenos, pedras no meio da estrada; não podem atrapalhar na
+# condução, as naves passam por cima"): stones, branches and ferns under 0.6 m, in patches, more towards the edges,
+# never in water; no collision
+SINK = np.full(len(px), 0.4)
+gx_d, gy_d = np.meshgrid(np.arange(X0 + 2.0, X1, 4.0), np.arange(Y0 + 2.0, Y1, 4.0))
+dxs = (gx_d + rng.uniform(-1.8, 1.8, gx_d.shape)).ravel()
+dys = (gy_d + rng.uniform(-1.8, 1.8, gy_d.shape)).ravel()
+onr = (grid_at(np.minimum(T_ROAD, T_FORK), dxs, dys) < 0.05) & (bilinear(H, dxs, dys) > wl_at(np.c_[dxs, dys]) + 0.3)
+ef = np.clip(grid_at(D_ROAD / np.maximum(HW_ROAD, 1.0), dxs, dys), 0, 1)
+pd = (0.012 + 0.08 * ef ** 2) * (0.3 + 1.4 * smoothstep(0.45, 0.62, fbm(dxs, dys, 60.0, 521, 2)))
+dsel = onr & (rng.random(len(dxs)) < pd)
+dxs, dys, ef = dxs[dsel], dys[dsel], ef[dsel]
+ud = rng.random(len(dxs))
+dk = np.where(ud < 0.28, K["stone_a"], np.where(ud < 0.45, K["stone_b"], np.where(ud < 0.72, K["branch"], K["fern"])))
+dk = np.where((dk == K["fern"]) & (ef < 0.6), K["stone_a"], dk)        # ferns only near the edges
+px, py = np.r_[px, dxs], np.r_[py, dys]
+pz = np.r_[pz, bilinear(H, dxs, dys)]
+kind = np.r_[kind, dk]
+yaw = np.r_[yaw, rng.uniform(0, 360, len(dxs))]
+scl = np.r_[scl, rng.uniform(0.7, 1.3, len(dxs))]
+SINK = np.r_[SINK, np.full(len(dxs), 0.03)]
 log("jungle: %d plants (%s)" % (len(px), ", ".join("%s %d" % (k, int((kind == i).sum())) for i, k in enumerate(jk.KINDS))))
 
 # ---------------------------------------------------------------------------------------------------- 7. files for Unreal
@@ -940,7 +1039,7 @@ scene.collection.children.link(kit)
 bpy.context.view_layer.layer_collection.children[kit.name].exclude = True
 pm = bpy.data.meshes.new("JunglePoints")
 pm.vertices.add(len(px))
-pm.vertices.foreach_set("co", np.stack([px - cx, py - cy, pz - 0.4], 1).astype(np.float32).ravel())
+pm.vertices.foreach_set("co", np.stack([px - cx, py - cy, pz - SINK], 1).astype(np.float32).ravel())
 for nm, typ, val in (("kind", "INT", kind.astype(np.int32)), ("yaw", "FLOAT", np.radians(yaw).astype(np.float32)),
                      ("scl", "FLOAT", scl.astype(np.float32))):
     at_ = pm.attributes.new(nm, typ, "POINT")
@@ -1172,6 +1271,106 @@ def haze_box(name, P, Z, width=110.0, height=40.0, density=0.008):
     o.data.materials.append(m)
 
 
+def cave_objects():
+    """The hill over the cave (its surface, coloured as the forest floor) and the cave's ceiling (an arch); root pillars
+    along the walls, curtains of roots high over the mouths, warm lights under the ceiling (in the game Lumen bounces
+    the skylights' sun round the cave; Cycles here needs help)."""
+    idx = -np.ones(H.shape, np.int64)
+    cells = np.argwhere(ROOF)
+    idx[cells[:, 0], cells[:, 1]] = np.arange(len(cells))
+    q = []
+    for dj, di in ((0, 0),):
+        a = idx[:-1, :-1]; b = idx[:-1, 1:]; c = idx[1:, 1:]; d = idx[1:, :-1]
+        ok = (a >= 0) & (b >= 0) & (c >= 0) & (d >= 0)
+        q = np.stack([a[ok], b[ok], c[ok], d[ok]], 1)
+    n = len(cells)
+    xs, ys = X0 + cells[:, 1] * RES - cx, Y0 + cells[:, 0] * RES - cy
+    vt = np.stack([xs, ys, H_TOP[cells[:, 0], cells[:, 1]]], 1)
+    vb = np.stack([xs, ys, CEIL[cells[:, 0], cells[:, 1]]], 1)
+    me_ = bpy.data.meshes.new("CaveRoof")
+    me_.from_pydata(np.vstack([vt, vb]).tolist(), [], np.vstack([q, q[:, ::-1] + n]).tolist())
+    ca_ = me_.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+    floor_c = (FLOOR[None] * (0.8 + 0.4 * nc[cells[:, 0], cells[:, 1]])[:, None]).astype(np.float32)
+    ca_.data.foreach_set("color", np.c_[np.vstack([floor_c, floor_c * 0.5]), np.ones(2 * n, np.float32)].ravel())
+    wa_ = me_.attributes.new("Wet", "FLOAT", "POINT")
+    wa_.data.foreach_set("value", np.zeros(2 * n, np.float32))
+    me_.materials.append(me.materials[0])
+    cm = bpy.data.materials.new("M_CaveCeiling")
+    cm.use_nodes = True
+    nt = cm.node_tree
+    for nd in list(nt.nodes):
+        nt.nodes.remove(nd)
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    nz = nt.nodes.new("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = 0.4; nz.inputs["Detail"].default_value = 8
+    nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (0.025, 0.02, 0.015, 1)
+    ramp.color_ramp.elements[1].color = (0.11, 0.085, 0.06, 1)
+    nt.links.new(nz.outputs["Fac"], ramp.inputs[0])
+    bs = nt.nodes.new("ShaderNodeBsdfPrincipled"); bs.inputs["Roughness"].default_value = 0.9
+    nt.links.new(ramp.outputs[0], bs.inputs["Base Color"])
+    bump = nt.nodes.new("ShaderNodeBump"); bump.inputs["Strength"].default_value = 0.8
+    nt.links.new(nz.outputs["Fac"], bump.inputs["Height"]); nt.links.new(bump.outputs[0], bs.inputs["Normal"])
+    jk.finish(cm, bs.outputs[0])
+    me_.materials.append(cm)
+    me_.polygons.foreach_set("material_index", np.r_[np.zeros(len(q), np.int32), np.ones(len(q), np.int32)])
+    me_.polygons.foreach_set("use_smooth", np.ones(2 * len(q), bool))
+    scene.collection.objects.link(bpy.data.objects.new("CaveRoof", me_))
+    mb = jk.MB()
+    ib, isd = CAVE_SPAN[0] - rlo, CAVE_SPAN[1] - rlo
+    hw0 = float(RW[ib])
+    f9 = [fd for fd in FD if "Subterrâneo" in fd["f"]["name"]][0]
+    d9g = line_field(f9["P"], reach=3)[0]
+    for k, i in enumerate(range(ib + 60, isd - 60, 90)):           # root pillars along the walls, never on F9
+        t = RP[i + 5] - RP[i - 5]
+        t = t / np.linalg.norm(t)
+        best = None
+        for side in (1, -1):
+            q_ = RP[i] + np.array([-t[1], t[0]]) * side * (hw0 + 8.0)
+            if grid_at(ROOF, q_[0], q_[1]) and grid_at(d9g, q_[0], q_[1]) > f9["hw"] + 30.0:
+                best = q_
+        if best is None:
+            continue
+        q_ = best
+        z0, z1 = float(bilinear(H, q_[0], q_[1])) - 1.0, float(bilinear(CEIL, q_[0], q_[1])) + 1.0
+        P0 = np.array([q_[0] - cx, q_[1] - cy, z0])
+        mb.tube([P0, P0 + (0, 0, (z1 - z0) * 0.5), P0 + (0, 0, z1 - z0)], [1.5, 0.9, 1.3], "bark", seg=10)
+        for a in range(3):
+            ang = 2 * math.pi * a / 3 + k
+            mb.tube([P0 + (0, 0, 4.0), P0 + (3.2 * math.cos(ang), 3.2 * math.sin(ang), 0.2)], [0.5, 0.2], "bark", seg=6)
+    for k in range(ib + 160, isd - 100, 230):                     # root bundles hanging round each skylight
+        for a in range(10):
+            ang = 2 * math.pi * a / 10 + k
+            q_ = RP[k] + np.array([math.cos(ang), math.sin(ang)]) * 15.0
+            if not grid_at(ROOF, q_[0], q_[1]):
+                continue
+            top = float(bilinear(CEIL, q_[0], q_[1]))
+            L = max(1.0, (top - float(RZ2[k])) - 10.0) * (0.4 + 0.5 * abs(math.sin(a * 2.3)))
+            mb.tube([np.array([q_[0] - cx, q_[1] - cy, top + 1.0]), np.array([q_[0] - cx, q_[1] - cy, top + 1.0 - L])],
+                    [0.3, 0.08], "bark", seg=5)
+    for i in (ib + 4, isd - 4):                                    # curtains of roots, high over the mouths
+        t = RP[i + 5] - RP[i - 5]
+        t = t / np.linalg.norm(t)
+        nrm = np.array([-t[1], t[0]])
+        top = float(bilinear(CEIL, RP[i, 0], RP[i, 1]))
+        flo = float(RZ2[i])
+        for u in np.linspace(-1, 1, 22):
+            q_ = RP[i] + nrm * u * (hw0 + 6.0)
+            L = max(1.0, (top - flo) - 9.0) * (0.35 + 0.3 * abs(math.sin(u * 7.0)))
+            mb.tube([np.array([q_[0] - cx, q_[1] - cy, top + 1.0]), np.array([q_[0] - cx, q_[1] - cy, top + 1.0 - L])],
+                    [0.18, 0.06], "bark", seg=5)
+    o = mb.build("CaveRoots", {"bark": bpy.data.materials["M_Bark_Kapok"]})
+    scene.collection.objects.link(o)
+    for i in range(ib + 40, isd - 20, 110):                        # warm light under the ceiling
+        lt = bpy.data.lights.new("CaveLight", "POINT")
+        lt.energy, lt.color, lt.shadow_soft_size = 6000.0, (1.0, 0.78, 0.55), 6.0
+        lo = bpy.data.objects.new("CaveLight", lt)
+        lo.location = (RP[i, 0] - cx, RP[i, 1] - cy, float(bilinear(CEIL, RP[i, 0], RP[i, 1])) - 4.0)
+        scene.collection.objects.link(lo)
+
+
+if CAVE_SPAN:
+    cave_objects()
 if SECTOR == "S3":
     falls_objects()
     for fd in FD:
@@ -1263,11 +1462,15 @@ def zroad(i):
     return float(RZ2[int(np.clip(i, 0, len(RZ2) - 1))])
 
 
+EXPO = {"piloto_gruta": 1.4, "piloto_F9": 1.4}
+
+
 def shot(name, eye, tgt, lens, haze=None):
     if ONLY and name not in ONLY:
         return
     jk.FOG.update(haze or dict(start=90.0, dist=2600.0, amount=0.88))
     jk.fog_group()
+    scene.view_settings.exposure = EXPO.get(name, 0.0)
     cam.data.lens = lens
     cam.location = eye
     cam.rotation_euler = (tgt - eye).to_track_quat("-Z", "Y").to_euler()
@@ -1366,6 +1569,8 @@ if SECTOR in WALLS:                      # into a hairpin, its wall on the outsi
     shot("gancho_ar", Vector((e_[0] - cx, e_[1] - cy, float(RZ2[apex]) + 95)),
          Vector((RP[apex, 0] - cx, RP[apex, 1] - cy, float(RZ2[apex]))), 24)
 pilot("piloto_reta", si(S0 + int(0.55 * (S1_ - S0))))
+if CAVE_SPAN:                            # in the cave, coming up to a skylight
+    pilot("piloto_gruta", si(CAVE_SPAN[0]) + 330, ahead=170)
 if SECTOR in OVAL:                       # the oval valley, from just above it, near the start (tallest walls)
     i_ = si(S0 + 700)
     t_ = RP[i_ + 10] - RP[i_ - 10]

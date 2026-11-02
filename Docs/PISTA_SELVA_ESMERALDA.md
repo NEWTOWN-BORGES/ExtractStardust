@@ -261,10 +261,39 @@ blender -b -P Scripts/selva/sculpt_selva.py -- C:/rdd/selva S1 [res=3] [samples=
 - **F7 Leito Seco:** um leito antigo em U, também com paredes ovais (8 m).
 - **Números:** cerca de 190 mil plantas, floresta do Congo.
 
+### Em todos os setores: destroços baixos na estrada
+
+Pedido do jogador: "galhos, arbustos pequenos, pedras no meio da estrada; não podem atrapalhar na condução, as naves
+passam por cima".
+- **O quê:** pedras, galhos caídos e fetos, todos abaixo de 0,6 m e sem colisão.
+- **Onde:** em manchas, sobretudo para as bordas; os fetos só junto às bordas. Nunca na água.
+- **No ficheiro de plantas:** são as espécies `stone_a`, `stone_b`, `branch` e `fern`.
+- **S1 a S4:** só os mostram quando forem regerados.
+
+### S5 Gruta das Raízes (feito, por aprovar)
+
+![S5](SELVA/S5_gruta_raizes.jpg)
+
+- **Estrada mista** (jogador): paredes ovais pequenas (4 a 3 m) até à boca da gruta, o arco da própria gruta lá
+  dentro e uma estrada natural à saída.
+- **O monte:** a crista é o F8 (Raízes Gigantes), que vai por cima entre sumaúmas. O monte cobre a estrada da boca à
+  saída e acaba numa face íngreme em cada boca.
+- **A gruta:**
+  - um salão largo, com teto em arco até 24 m, irregular, nunca a menos de 5 m da superfície do monte;
+  - onde o monte é fino fica aberto, como sumidouros, e há onze clarabóias, uma a cada ~230 m;
+  - raízes-pilar ao longo das paredes, molhos de raízes pendurados à volta das clarabóias e uma cortina de raízes
+    alta em cada boca;
+  - luz quente debaixo do teto (no jogo é o Lumen que faz isto).
+- **F9 Rio Subterrâneo:** o nível de baixo, ao lado da estrada dentro do mesmo salão, com o rio subterrâneo do lado
+  de fora.
+- **Saltos:** a boca e a saída da gruta são lombas de 4 m.
+- **No F8:** a raiz atravessada e a descida (um degrau de 6 m no fim do monte).
+- **Para o Unreal:** o teto da gruta é uma malha à parte, como as `caves/*.fbx` do Red Dust. O relevo tem o chão da
+  gruta e o teto tapa-o.
+
 ### Depois
 
-1. **S5 Gruta das Raízes** e os setores seguintes, um a um, com as fotos. Perguntar ao jogador se as estradas ovais
-   continuam nos setores seguintes.
+1. **S6 Mangue Labirinto** e os setores seguintes, um a um, com as fotos.
 2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);

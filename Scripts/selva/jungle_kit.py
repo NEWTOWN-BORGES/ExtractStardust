@@ -20,7 +20,9 @@ import bmesh
 import numpy as np
 
 KINDS = ["kapok", "canopy_a", "canopy_b", "canopy_c", "acai", "buriti", "cecropia", "shrub_a", "shrub_b",
-         "far_a", "far_b", "far_c", "far_kapok"]
+         "far_a", "far_b", "far_c", "far_kapok", "stone_a", "stone_b", "branch", "fern"]
+# The last four lie on the road (jogador, 2026-11-02: "galhos, arbustos pequenos, pedras no meio da estrada; não podem
+# atrapalhar, as naves passam por cima"): all under 0.6 m, no collision.
 FOG = dict(color=(0.60, 0.69, 0.74), strength=1.0, dist=2600.0, start=90.0, amount=0.88)
 
 
@@ -331,6 +333,7 @@ def make_materials(tex):
         bark_cecropia=bark_material("M_Bark_Cecropia", (0.55, 0.55, 0.50), (0.80, 0.79, 0.72), scale=3.0, rings=True),
         bark_palm=bark_material("M_Bark_Palm", (0.20, 0.18, 0.13), (0.38, 0.35, 0.27), scale=4.0, rings=True),
         blob=blob_material("M_FarCanopy", (0.022, 0.060, 0.012), (0.060, 0.125, 0.025)),
+        stone=bark_material("M_Stone", (0.13, 0.12, 0.10), (0.36, 0.34, 0.30), scale=1.6, moss=0.6),
         blob_kapok=blob_material("M_FarKapok", (0.030, 0.070, 0.016), (0.070, 0.135, 0.030)),
         ground_green=g,
     )
@@ -630,6 +633,39 @@ def shrub(rng, mats, name):
     return mb.build(name, mats)
 
 
+def stone(rng, mats, name, size):
+    mb = MB()
+    mb.blob((0, 0, size * 0.12), (size, size * rng.uniform(0.6, 0.9), size * 0.42), "stone", rng, subdiv=2, rough=0.35)
+    return mb.build(name, mats)
+
+
+def branch(rng, mats):
+    """A fallen branch lying on the road, with two or three twigs."""
+    mb = MB()
+    L = rng.uniform(2.6, 4.0)
+    P = _bent((-L / 2, 0, 0.09), (L / 2, rng.uniform(-0.4, 0.4), 0.06), 0.05, 6)
+    mb.tube(P, np.linspace(0.11, 0.05, 6), "bark", seg=6)
+    for k in range(int(rng.integers(2, 4))):
+        a = P[int(rng.integers(1, 5))]
+        side = 1 if k % 2 else -1
+        mb.tube([a, a + np.array([rng.uniform(0.2, 0.6), side * rng.uniform(0.5, 1.0), 0.02])], [0.05, 0.02], "bark", seg=4)
+    return mb.build("branch", mats)
+
+
+def fern(rng, mats):
+    """A low fern on the road's edge: fronds arching out, 0.4 m high."""
+    mb = MB()
+    n = int(rng.integers(9, 13))
+    for k in range(n):
+        az = 2 * math.pi * k / n + rng.normal(0, 0.15)
+        hd = np.array([math.cos(az), math.sin(az), 0.0])
+        tt = np.linspace(0, 1, 5)
+        L = rng.uniform(0.7, 1.05)
+        Q = hd[None] * L * tt[:, None] + np.array([0, 0, 1.0])[None] * (0.45 * np.sin(np.pi * tt * 0.8))[:, None]
+        mb.strip(Q, [np.cross(hd, (0, 0, 1))] * 5, np.linspace(0.18, 0.32, 5) * (1 - 0.5 * tt ** 2), "frond")
+    return mb.build("fern", mats)
+
+
 def build_kit(tex_dir, seed=11):
     """All the kinds, in a collection 'JungleKit' (excluded from the view: the scatter instances it). Returns
     (collection, materials). Objects are named '<NN>_<kind>' so the scatter's index matches KINDS."""
@@ -647,6 +683,8 @@ def build_kit(tex_dir, seed=11):
     fb = canopy(rng2, mats, "far_b", 22, 15, far=True, zlo=0.3, ncl=(6, 9))
     fc = canopy(rng2, mats, "far_c", 36, 26, far=True, zlo=0.5, ncl=(8, 12))
     objs += [fa, fb, fc, kp]
+    rng3 = np.random.default_rng(seed + 5)
+    objs += [stone(rng3, mats, "stone_a", 0.55), stone(rng3, mats, "stone_b", 0.9), branch(rng3, mats), fern(rng3, mats)]
     coll = bpy.data.collections.get("JungleKit") or bpy.data.collections.new("JungleKit")
     for i, (o, kind) in enumerate(zip(objs, KINDS)):
         o.name = "%02d_%s" % (i, kind)
