@@ -141,18 +141,53 @@ A extração continua igual: quem é destruído perde a carga para o porquinho e
 - chuva tropical que tira aderência;
 - mais tarde, os monstros da visão: crocodilos e hipopótamos nos rios, enxames no mangue.
 
-## 6. Próximos passos (depois de o jogador aprovar o traçado)
+## 6. Terreno em Blender, peça por peça (2026-11-02)
 
-1. **Terreno em Blender:** um `Scripts/selva/sculpt_selva.py` como o `sculpt_expedition_ab.py`.
-   - Os rios a correr ao lado da estrada, o delta e os mangues.
-   - A serra vermelha, a cascata com o lago, a gruta em três níveis com clarabóias, o tepui com falésias, a savana e a
-     garganta em zigue-zague.
-   - Fotos de piloto em cada setor.
-2. **Vegetação** (CC0 ou o nosso kit em Blender):
-   - floresta: sumaúmas com raízes em tábua, palmeiras, fetos arbóreos, lianas;
-   - mangue;
-   - savana: embondeiros e acácias;
-   - nada com colisão, como no deserto.
+Pedido do jogador: "vamos para o Blender fazer o mapa peça por peça". Cada setor é feito, fotografado e mostrado, e só
+depois se passa ao seguinte.
+
+```
+blender -b -P Scripts/selva/sculpt_selva.py -- C:/rdd/selva S1 [res=3] [samples=40] [size=1600x900] [noshots] [only=aerea,...]
+```
+
+(na nuvem corre com `python3` e o módulo `bpy`.)
+
+- **O kit da selva** (`Scripts/selva/jungle_kit.py`) é nosso, feito por código, sem assets de terceiros. As texturas
+  das folhas também são pintadas por código. Tem:
+  - sumaúma com sapopemas (as raízes em tábua) e copa em guarda-chuva;
+  - três árvores do dossel;
+  - touceira de açaí;
+  - buriti com folhas em leque;
+  - embaúba de tronco branco;
+  - dois arbustos;
+  - versões "ao longe" das árvores grandes, que são mais rápidas de desenhar.
+
+  Nada tem colisão. `export_kit()` escreve os FBX para o Unreal.
+- **Ficheiros para o Unreal** (como no Red Dust Divide):
+  - `selva_<S>_height.r16` e `selva_<S>.json`: o relevo, com a caixa, os metros por píxel, as alturas, o nível da água,
+    o perfil da estrada e os saltos;
+  - `selva_<S>_props.json`: cada planta, com espécie, posição, rotação e escala.
+
+### S1 Várzea Alagada (feito, por aprovar)
+
+- **Água:** fica a 16 m, metro e meio abaixo do ponto mais baixo da estrada.
+- **Floresta:** a cerca de um metro acima da água, com lagoas, o rio do delta (180 m de largura, com diques naturais
+  nas margens) e oito igarapés a atravessar a floresta.
+- **Estrada:** vai num aterro de areia por cima das lagoas e dos igarapés. Tem charcos e erva nas bermas, e a orla da
+  floresta é uma parede verde (arbustos, açaí, embaúbas e árvores novas).
+- **Vaus:** atravessa o rio em dois vaus (cerca de 520 m e 150 m), com a estrada 12 cm abaixo da água. As naves
+  deslizam rente à água. No Unreal, a colisão é o chão por baixo da água.
+- **Salto do igarapé (2,1 km):** uma rampa de 2,6 m até à margem e 32 m de água por cima.
+- **Tronco caído (4,4 km):** uma rampa de areia de 3,2 m até ao tronco de uma sumaúma morta (48 m, com musgo), atravessado
+  na estrada, e a queda do outro lado.
+- **F1 Igapó:** ao nível da água, dentro da floresta alagada, com árvores dentro de água dos dois lados.
+- **F2 Banco de Areia:** largo e em areia.
+- **Números:** cerca de 87 mil plantas e 220 sumaúmas. Há sumaúmas "heroínas" a cada ~420 m, junto à estrada.
+
+### Depois
+
+1. **S2 Serra Vermelha** e os setores seguintes, um a um, com as fotos.
+2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);
    - névoa húmida e luz filtrada pelas copas;

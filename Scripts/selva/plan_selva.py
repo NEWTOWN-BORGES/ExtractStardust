@@ -580,17 +580,20 @@ fig, ax = plt.subplots(figsize=(16, 13.2), dpi=120)
 fig.patch.set_facecolor("#081226")
 ax.set_facecolor("#081226")
 ax.imshow(biome_map(), origin="lower", extent=(0, SX / 1000, 0, SY / 1000), zorder=0)
-# rivers: the delta at A, the Congo along the rapids, the falls, the mangrove channels, the gallery river, the Zambezi
-# in the gorge, the Okavango at B
-for pts, w in (([(0, 900), (1800, 900), (3600, 1800), (5200, 1100), (7000, 900)], 3.2),
-               ([(10400, 6200), (10450, 5000), (10500, 4200), (10600, 3600), (11400, 3000), (13200, 2150), (14800, 2550),
-                 (16300, 2050), (18000, 2450), (20000, 2600)], 3.0),
-               ([(19500, 6900), (17600, 7300), (16000, 6600), (14400, 7300), (12600, 6900), (11800, 6300)], 2.4),
-               ([(7600, 10300), (5600, 10100), (3800, 10300), (2600, 9900), (1000, 10700), (300, 11300)], 2.0),
-               ([(1500, 12000), (3000, 11950), (3550, 12600), (4650, 12350), (5100, 13150), (6250, 12850), (6900, 13550),
-                 (8600, 13350)], 2.4),
-               ([(8600, 14300), (11000, 14100), (13000, 14500), (15500, 14700), (18000, 14600), (20000, 15200)], 2.6)):
-    river(ax, pts, w)
+# rivers (name, width m, control points): the delta at A, the Congo along the rapids, the falls, the mangrove channels,
+# the gallery river, the Zambezi in the gorge, the Okavango at B (also in the JSON, for the terrain: Scripts/selva/sculpt_selva.py)
+RIVERS = [
+    ("Delta de A", 180.0, [(0, 900), (1800, 900), (3600, 1800), (5200, 1100), (7000, 900)]),
+    ("Congo", 170.0, [(10400, 6200), (10450, 5000), (10500, 4200), (10600, 3600), (11400, 3000), (13200, 2150), (14800, 2550),
+                      (16300, 2050), (18000, 2450), (20000, 2600)]),
+    ("Canais do mangue", 130.0, [(19500, 6900), (17600, 7300), (16000, 6600), (14400, 7300), (12600, 6900), (11800, 6300)]),
+    ("Rio da galeria", 110.0, [(7600, 10300), (5600, 10100), (3800, 10300), (2600, 9900), (1000, 10700), (300, 11300)]),
+    ("Zambeze", 130.0, [(1500, 12000), (3000, 11950), (3550, 12600), (4650, 12350), (5100, 13150), (6250, 12850), (6900, 13550),
+                        (8600, 13350)]),
+    ("Okavango", 145.0, [(8600, 14300), (11000, 14100), (13000, 14500), (15500, 14700), (18000, 14600), (20000, 15200)]),
+]
+for _rn, wid, pts in RIVERS:
+    river(ax, pts, wid / 55.0)
 ax.annotate("salto de 190 m", (10.48, 4.05), color="white", fontsize=9, ha="right", xytext=(9.0, 5.3),
             arrowprops=dict(arrowstyle="->", color="white", lw=1.0), zorder=9)
 ax.text(10.55, 7.75, "TEPUI 520 m", color="#f3e3cf", fontsize=11, ha="center", va="center", fontweight="bold", zorder=9)
@@ -699,6 +702,7 @@ data = dict(
                 leave_m=int(f["leave"]), rejoin_m=int(f["rejoin"]), length_m=round(f["km"] * 1000), gain_s=round(f["gain"], 1),
                 points=f["p"][::5].round(1).tolist(), z=f["z"][::5].round(1).tolist()) for f in forks],
     jumps=[dict(at_m=int(j), what=w) for j, w in jumps_main] + [dict(fork=fn, at=int(j), what=w) for fn, j, w in jumps_fork],
+    rivers=[dict(name=rn, width_m=wid, points=catmull(pts, step=10.0)[0].round(1).tolist()) for rn, wid, pts in RIVERS],
 )
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "selva_plano.json"), "w", encoding="utf-8") as fh:
     json.dump(data, fh, ensure_ascii=False)
