@@ -453,8 +453,18 @@ def smooth_line(v, w):
 
 
 RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3, "S4": recipe_s4, "S5": recipe_s5, "S6": recipe_s6, "S7": recipe_s7,
-           "S8": recipe_s8}
-RIVER_FORKS = ("Floresta de Galeria", "Fundo da Garganta")   # forks that run on the river itself
+           "S8": recipe_s8, "S9": recipe_s9}
+RIVER_FORKS = ("Floresta de Galeria", "Fundo da Garganta", "Canal das Ilhas", "Rápidos do Zambeze")   # on the river
+
+
+def recipe_s9():
+    """S9 Garganta Vitória (Batoka, Zambezi): the road zigzags down a slope of dark basalt; the Zambezi's arms run below
+    it as the river forks F17, F17b (round a line of islands: with the road, three ways) and F17c (the rapids), each
+    carving its own channel; the old railway bridge F16 crosses over everything."""
+    G = membrane()
+    d, _fi, _sd = line_field(RP)
+    G = G + smoothstep(60.0, 400.0, d) * (40.0 * (fbm(XX, YY, 500.0, 911, 4) - 0.35))
+    return -1000.0, G, np.zeros_like(G), dict()
 WET_TREES = {"S6"}                       # mangroves stand in the water
 NO_KAPOK = {"S6"}
 CAVE_SPAN = None
@@ -470,7 +480,7 @@ OVAL = {"S4": (14.0, 4.0), "S5": (4.0, 3.0)}
 # S5 (jogador: "estrada mista"): small oval walls up to the cave, the cave's own arch inside, a natural road after it
 # per sector: semi-oval walls on the outside of the hairpins (jogador, 2026-11-02: "retas, com algumas partes
 # semi-ovais"), the road and bank colours (sRGB), the jungle's mix, and how far hills roll beyond the box
-WALLS = {"S2": (12.0, 16.0)}
+WALLS = {"S2": (12.0, 16.0), "S9": (12.0, 16.0)}
 STEEP_FORKS = ("Névoa",)                 # ledges: steep banks like the ravines (BAIXO)
 PAL = {"S1": dict(road=(0.60, 0.50, 0.37), wet=(0.36, 0.29, 0.21), bank=None),
        "S2": dict(road=(0.64, 0.31, 0.16), wet=(0.42, 0.20, 0.10), bank=(0.56, 0.25, 0.12)),
@@ -486,6 +496,11 @@ HILLS = {"S1": 0.3, "S2": 1.0, "S3": 1.0, "S4": 1.0}
 MIXES["S4"] = MIXES["S2"]
 MIXES["S5"] = MIXES["S1"]
 HILLS["S5"] = 1.0
+PAL["S9"] = dict(road=(0.38, 0.34, 0.30), wet=(0.22, 0.20, 0.18), bank=(0.30, 0.27, 0.22), rock=(0.17, 0.16, 0.16))
+HILLS["S9"] = 1.0
+MIXES["S9"] = dict(interior=(("canopy_b", .30), ("acacia", .20), ("canopy_a", .15), ("shrub_a", .25), ("baobab", .05), ("canopy_c", .05)),
+                   edge=(("shrub_a", .35), ("acacia", .20), ("mangrove", .15), ("canopy_b", .30)),
+                   band=(("shrub_b", .40), ("shrub_a", .30), ("acacia", .30)))
 PAL["S8"] = dict(road=(0.62, 0.40, 0.24), wet=(0.40, 0.25, 0.15), bank=(0.55, 0.42, 0.26))
 HILLS["S8"] = 0.6
 MIXES["S8"] = dict(interior=(("canopy_a", .30), ("canopy_c", .25), ("canopy_b", .20), ("acai", .10), ("shrub_a", .15)),
@@ -713,6 +728,8 @@ for fd in FD:
             zf = np.where(np.abs(s_) <= 15, zf - 55.0, zf)
         elif fj["what"] in ("descida", "mergulho"):   # off the hill / the tepui: up to a lip, 6 m down
             zf = zf + 6.0 * smoothstep(-160, -10, s_) * (s_ < 0)
+        elif fj["what"] == "rápido":           # a rapid on the river: up to a lip, 3 m down (the water steps too)
+            zf = zf + 3.0 * smoothstep(-100, -8, s_) * (s_ < 0)
         elif fj["what"] == "ilha":             # from one island to the next: a kick and 36 m of rapids
             zf = zf + 2.4 * smoothstep(-60, -20, s_) * (s_ < -18)
             zf = np.where(np.abs(s_) <= 18, wl_at(fd["P"]) - 1.6, zf)
@@ -1354,6 +1371,29 @@ def hut(mb, c, ang, zf, g):
         quad(P3(x, -2.5, zt), P3(x, 2.5, zt), P3(x, 0, zt + 2.2), P3(x, 0.01, zt + 2.2), "deck")
 
 
+def rust_material():
+    m = bpy.data.materials.get("M_Rust")
+    if m:
+        return m
+    m = bpy.data.materials.new("M_Rust")
+    m.use_nodes = True
+    nt = m.node_tree
+    for nd in list(nt.nodes):
+        nt.nodes.remove(nd)
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    nz = nt.nodes.new("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = 0.8; nz.inputs["Detail"].default_value = 8
+    nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (0.05, 0.02, 0.012, 1)
+    ramp.color_ramp.elements[1].color = (0.22, 0.08, 0.035, 1)
+    nt.links.new(nz.outputs["Fac"], ramp.inputs[0])
+    bs = nt.nodes.new("ShaderNodeBsdfPrincipled"); bs.inputs["Roughness"].default_value = 0.7
+    bs.inputs["Metallic"].default_value = 0.4
+    nt.links.new(ramp.outputs[0], bs.inputs["Base Color"])
+    jk.finish(m, bs.outputs[0])
+    return m
+
+
 def deck_object(name, P, Z, hw, gaps, style="copa"):
     """A canopy bridge: plank deck (1.2 m thick) with rope rails on posts, hung between pairs of giant trunks every
     ~70 m, a cross-beam under each pair; 'gaps' (index ranges) are left open (the broken bridge)."""
@@ -1402,6 +1442,16 @@ def deck_object(name, P, Z, hw, gaps, style="copa"):
             c_ = P[i] + N[i] * side * (hw + 9.0)
             hut(mb, c_, math.atan2(N[i, 1], N[i, 0]), float(Z[i]), float(bilinear(H, c_[0], c_[1])))
             mb.tube([pt(i, side * hw, -0.4), pt(i, side * (hw + 6.0), -0.4)], 0.45, "deck", seg=4)
+    if style == "ferro":                          # the old railway bridge: stone piers every 60 m
+        mats_d["deck"] = rust_material()
+        mats_d["rope"] = mats_d["deck"]
+        mats_d["stone"] = bpy.data.materials["M_Stone"]
+        for i in range(20, len(P) - 20, 60):
+            if not ok[min(i // 3, len(ok) - 1)]:
+                continue
+            g = float(bilinear(H, P[i, 0], P[i, 1]))
+            mb.tube([np.array([P[i, 0] - cx, P[i, 1] - cy, g - 2.0]), pt(i, 0.0, -1.2)], [3.2, 2.2], "stone", seg=8)
+            mb.tube([pt(i, hw, -1.4), pt(i, -hw, -1.4)], 0.6, "deck", seg=6)
     for i in (range(30, len(P) - 30, 70) if style == "copa" else []):   # cross-beams between each pair of kapoks
         ends = [P[i] + N[i] * sd_ * (hw + 3.4) for sd_ in (1, -1)]
         if ok[min(i // 3, len(ok) - 1)] and all(grid_at(np.minimum(D_ROAD - HW_ROAD, D_GFORK), e_[0], e_[1]) >= 8.0 for e_ in ends):
@@ -1637,7 +1687,8 @@ for lip_, d_, zt_, zb_, w_ in FALLS:
 for fd in FD:
     for k, (a, b, gaps) in enumerate(fd.get("decks", [])):
         deck_object("Ponte_%s_%d" % (fd["f"]["name"].split()[0], k), fd["P"][a:b], fd["zs"][a:b], fd["hw"],
-                    [(g0 - a, g1 - a) for g0, g1 in gaps], style="palafita" if "Palafitas" in fd["f"]["name"] else "copa")
+                    [(g0 - a, g1 - a) for g0, g1 in gaps],
+                    style="palafita" if "Palafitas" in fd["f"]["name"] else "ferro" if "Comboio" in fd["f"]["name"] else "copa")
     for i in fd.get("roots", []):       # a buttress root arching across the trail at the crest
         t = fd["P"][i + 5] - fd["P"][i - 5]
         t = t / np.linalg.norm(t)
