@@ -15,7 +15,7 @@ muitas curvas, muitos saltos, bifurcações para cima, para baixo, para a esquer
 |---|---|
 | A → B | **74,9 km** |
 | Linha ideal | **12:19** (média de 365 km/h; 550 no máximo, 160-250 nas curvas mais apertadas) |
-| Bifurcações | **19**: 4 por cima, 6 por baixo, 3 à esquerda, 6 à direita |
+| Bifurcações | **21**: 4 por cima, 8 por baixo, 3 à esquerda, 6 à direita |
 | Saltos | **43**: 27 na estrada e 16 nas bifurcações; o maior é a queda de 190 m da cascata |
 | Mundo | 20 × 16 km, de A (delta a sudoeste) a B (delta a nordeste) |
 
@@ -44,7 +44,7 @@ Script: `python3 Scripts/selva/plan_selva.py` (planta, perfil e `Scripts/selva/s
 | **S9 Garganta Vitória** | Zâmbia / Zimbabué | 8,5 | 8:49-10:16 | 168 → 38 m | O desfiladeiro em zigue-zague abaixo das Cataratas Vitória |
 | **S10 Delta do Okavango** | Botsuana | 12,5 | 10:16-12:19 | 37 → 10 m | Canais e ilhas do delta até à extração em B |
 
-## 3. As 19 bifurcações
+## 3. As 21 bifurcações
 
 **Entradas e saídas em Y** (jogador, 2026-11-02: "estavam muito brutas; têm de abrir e fechar em Y, que se possa entrar
 sem querer a alta velocidade"):
@@ -87,6 +87,8 @@ até valer o que o seu estilo pede:
 | **F15 Floresta de Galeria** | direita | SKILL | dentro da floresta de galeria, junto ao rio | 4.4 (5.4) | +4.7 s |
 | **F16 Ponte do Comboio** | **CIMA** | RACING | a velha ponte do comboio por cima da garganta, 60-70 m acima: corta os zigue-zagues | 6.1 (5.7) | +2.4 s |
 | **F17 Fundo da Garganta** | **BAIXO** | SKILL | o fundo da garganta, ao lado dos rápidos do Zambeze | 2.9 (3.5) | +4.7 s |
+| **F17b Canal das Ilhas** | **BAIXO** | RACING | o outro braço do Zambeze, do outro lado das ilhas: com o F17 e a estrada, três caminhos | 2.9 (3.6) | +2.2 s |
+| **F17c Rápidos do Zambeze** | **BAIXO** | SKILL | dentro do Zambeze, pelos rápidos, com dois degraus de água | 3.9 (4.3) | +4.5 s |
 | **F18 Calçada do Lago** | direita | RACING | calçada a direito por cima do lago | 4.2 (4.1) | +1.1 s |
 
 \* **F12:** o modelo de tempo não conta a subida de 440 m até ao topo, por isso o topo do tepui vale +8 s em vez dos
@@ -352,9 +354,27 @@ naves andam aí no rio mesmo".
   - uma lomba.
 - **Ao longe:** erva dourada à altura do chão, sem copa contínua.
 
+### S9 Garganta Vitória (feito, por aprovar)
+
+![S9](SELVA/S9_garganta_vitoria.jpg)
+
+- **Garganta:** a estrada desce em zigue-zague uma encosta de basalto escuro, com ganchos semi-ovais com parede, como no
+  S2.
+- **Bifurcação tripla no Zambeze** (jogador: "bifurcações nos rios; uma ou duas, e uma com três"): no mesmo sítio a
+  pista abre em três caminhos.
+  - **F17 Fundo da Garganta:** um braço do rio.
+  - **F17b Canal das Ilhas** (novo): o outro braço, do outro lado de uma fila de ilhas.
+  - **A estrada:** na encosta.
+  - Os dois braços andam dentro do rio, rente à água, com árvores de raízes-escora nas margens. Nenhuma árvore fica no
+    caminho.
+- **F17c Rápidos do Zambeze** (novo): mais à frente, dentro do rio, com dois degraus de água de 3 m.
+- **F16 Ponte do Comboio:** uma ponte velha de ferro ferrugento sobre pilares de pedra, que passa por cima dos rios e
+  da estrada. Um pilar fica dentro do F17b, de propósito (jogador: "dá realismo e perigo").
+- **Traçado:** passa a ter 21 bifurcações (4 por cima, 8 por baixo, 9 para os lados).
+
 ### Depois
 
-1. **S9 Garganta Vitória** e o S10, um a um, com as fotos.
+1. **S10 Delta do Okavango**, com as fotos.
 2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);

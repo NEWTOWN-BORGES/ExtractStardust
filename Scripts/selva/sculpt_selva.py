@@ -997,6 +997,8 @@ for Pr, hwr in RIVERS_DRIVEN:            # the river meets the land: stilt-roote
     for k, i in enumerate(range(10, len(Pr) - 10, 9)):
         side = 1 if k % 2 else -1
         q = Pr[i] + np.array([-Tr[i, 1], Tr[i, 0]]) * side * (hwr[i] + rng.uniform(1.0, 6.0))
+        if grid_at(np.minimum(D_ROAD - HW_ROAD, D_GFORK), q[0], q[1]) < 11.0:
+            continue                      # never in another river's or the road's way (F17 and F17b run side by side)
         tw.append((q[0], q[1], float(bilinear(GROUND, q[0], q[1])), float(rng.uniform(0.8, 1.25)), "mangrove"))
 if tw:
     tw_k = np.array([K[t_[4]] if len(t_) > 4 else K["kapok"] for t_ in tw])
@@ -1452,6 +1454,7 @@ def deck_object(name, P, Z, hw, gaps, style="copa"):
         for i in range(20, len(P) - 20, 60):
             if not ok[min(i // 3, len(ok) - 1)]:
                 continue
+            # (a pier may stand in a river the ships drive: jogador, 2026-11-02, "dá realismo e perigo")
             g = float(bilinear(H, P[i, 0], P[i, 1]))
             mb.tube([np.array([P[i, 0] - cx, P[i, 1] - cy, g - 2.0]), pt(i, 0.0, -1.2)], [3.2, 2.2], "stone", seg=8)
             mb.tube([pt(i, hw, -1.4), pt(i, -hw, -1.4)], 0.6, "deck", seg=6)
