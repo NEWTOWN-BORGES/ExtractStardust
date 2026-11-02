@@ -8,17 +8,22 @@ espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde)
 
 O jogador fala português (PT). Responder em português.
 
-## MAPA 02 — SELVA ESMERALDA (jogador, 2026-11-02): traçado feito, por aprovar
+## MAPA 02 — SELVA ESMERALDA (jogador, 2026-11-02): a fazer em Blender setor a setor (S1 e S2 feitos)
 
 "Um mapa novo de 12 a 13 minutos, de sobrevivência, em florestas, rios, África e Amazónia; muitas bifurcações (para
 cima, para baixo, esquerda, direita), muitas curvas, muitos saltos."
 - **Feito:** só o traçado (`Docs/PISTA_SELVA_ESMERALDA.md`, `Docs/SELVA_PLANTA.png`, `Docs/SELVA_PERFIL.png`), por
   `python3 Scripts/selva/plan_selva.py` (dados em `Scripts/selva/selva_plano.json`).
-- **Números:** 74,9 km de A a B, 12:19 na linha ideal, 10 setores Amazónia/África, 18 bifurcações (4 por cima, 5 por
+- **Números:** 74,9 km de A a B, 12:19 na linha ideal, 10 setores Amazónia/África, 19 bifurcações (4 por cima, 6 por
   baixo, 9 para os lados) equilibradas pelo estilo (SKILL +5 s, RACING +2,5 s, SAFE −4 s) e 43 saltos, entre eles a
   queda de 190 m da cascata.
-- **Seguinte, depois de o jogador aprovar:** o terreno em Blender (`sculpt_selva.py`, como o `sculpt_expedition_ab.py`),
-  a vegetação e o Unreal (secção 6 do documento). Perigos da selva por decidir com ele (secção 5).
+- **Em Blender, setor a setor** (jogador: "setor por setor, para garantir a melhor qualidade"; poucas fotos, em baixa
+  qualidade, para poupar tokens):
+  - `Scripts/selva/sculpt_selva.py <saída> S<n>` faz o terreno, a água, a estrada e a vegetação (kit nosso,
+    `jungle_kit.py`), e mostra uma folha de 6 fotos (`Docs/SELVA/S<n>_*.jpg`);
+  - S1 e S2 estão feitos; a seguir vem o S3 (secção 6 do documento);
+  - no S2 os ganchos são semi-ovais com parede. O jogador pediu, além das Pontes da Copa, um caminho por baixo: é o F3b.
+- **Por decidir com o jogador:** os perigos da selva (secção 5).
 
 ## ⚠ EM CASA: A INTERFACE TEM DE FICAR IGUAL ÀS MAQUETAS (jogador, 2026-11-01)
 
