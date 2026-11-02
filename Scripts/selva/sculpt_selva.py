@@ -254,21 +254,80 @@ def recipe_s2():
     return -1000.0, G + away * (relief - 9.0 * gully), np.zeros_like(G), dict()
 
 
-RECIPES = {"S1": recipe_s1, "S2": recipe_s2}
+LIP_S3, W_TOP, W_LOW = np.array([10500.0, 4205.0]), 248.5, 61.5
+
+
+def recipe_s3():
+    """S3 Salto Kaieteur (Guiana): the ridge-top plateau and its river, which leaps ~187 m off the escarpment into a
+    plunge pool at the head of a cliff-walled gorge. The road crosses the river on the slab above the lip and goes down
+    the long slope beside the gorge; the gorge widens downstream into the Congo's valley (S4)."""
+    G = membrane()
+    G += 5.0 * (fbm(XX, YY, 420.0, 301, 4) - 0.5) * smoothstep(20.0, 220.0, line_field(RP)[0])
+    rv = [r for r in rivers if r["name"] == "Congo"][0]["P"]
+    up = rv[rv[:, 1] >= LIP_S3[1]]
+    down = rv[rv[:, 1] <= LIP_S3[1]]
+    du, fu, _s = line_field(up, reach=3)
+    wu = 44.0 + 10.0 * np.sin(fu / 120.0)
+    plateau = (du < 700.0) & (YY > LIP_S3[1] - 4.0)
+    G = np.where(plateau, np.maximum(G, W_TOP + 2.5 + 3.0 * fbm(XX, YY, 150.0, 303, 3)), G)     # banks above the river
+    bed = W_TOP - 3.0
+    G = np.where(plateau, np.minimum(G, bed + (G - bed) * smoothstep(0.8 * wu, wu + 30.0, du)), G)
+    # the gorge: a floor 90 m wide at the pool, 310 m downstream, between 76-degree cliffs; nothing upstream of the lip
+    dg, fg, _s = line_field(down, reach=3)
+    sg = fg * 2.0
+    wg = 90.0 + np.clip(sg / 1500.0, 0, 1) * 220.0
+    floor = W_LOW - 4.0 - 0.0015 * sg
+    below = (YY < LIP_S3[1] - 8.0) | (np.hypot(XX - LIP_S3[0], YY - LIP_S3[1]) > 450.0)
+    jag = 22.0 * (fbm(XX, YY, 110.0, 311, 4) - 0.5)
+    wall = floor + np.maximum(0.0, dg - wg + jag) * 4.0
+    wall = wall + 2.5 * np.sin(wall / 7.0)                        # sandstone beds: ledges up the cliff
+    G = np.where(below, np.minimum(G, wall), G)
+    dp = np.hypot(XX - (LIP_S3[0] + 15.0), YY - (LIP_S3[1] - 150.0))         # the plunge pool
+    G = np.where(below, np.minimum(G, W_LOW - 12.0 + np.maximum(0.0, dp - 150.0 + jag) * 4.0), G)
+    WLs = np.where((du < wu + 40.0) & (YY > LIP_S3[1] - 2.0) & plateau, W_TOP, W_LOW)
+    k = int(np.argmin(np.hypot(RP[:, 0] - up[:, 0].mean(), 0) + np.min(np.hypot(RP[:, None, 0] - up[None, ::20, 0],
+                                                                                  RP[:, None, 1] - up[None, ::20, 1]), 1)))
+    half = float(bilinear(wu, RP[k, 0], RP[k, 1])) + 12.0
+    return WLs, G, np.zeros_like(G), dict(laje_half=half)
+
+
+RECIPES = {"S1": recipe_s1, "S2": recipe_s2, "S3": recipe_s3}
 # per sector: semi-oval walls on the outside of the hairpins (jogador, 2026-11-02: "retas, com algumas partes
 # semi-ovais"), the road and bank colours (sRGB), the jungle's mix, and how far hills roll beyond the box
 WALLS = {"S2": (12.0, 16.0)}
+STEEP_FORKS = ("Névoa",)                 # ledges: steep banks like the ravines (BAIXO)
 PAL = {"S1": dict(road=(0.60, 0.50, 0.37), wet=(0.36, 0.29, 0.21), bank=None),
-       "S2": dict(road=(0.64, 0.31, 0.16), wet=(0.42, 0.20, 0.10), bank=(0.56, 0.25, 0.12))}
+       "S2": dict(road=(0.64, 0.31, 0.16), wet=(0.42, 0.20, 0.10), bank=(0.56, 0.25, 0.12)),
+       "S3": dict(road=(0.52, 0.43, 0.34), wet=(0.30, 0.25, 0.20), bank=(0.46, 0.38, 0.31), rock=(0.33, 0.27, 0.26))}
 MIXES = {"S1": dict(interior=(("canopy_a", .36), ("canopy_c", .32), ("canopy_b", .20), ("acai", .07), ("shrub_a", .05)),
                     edge=(("shrub_a", .30), ("cecropia", .20), ("acai", .15), ("canopy_b", .20), ("shrub_b", .08), ("canopy_a", .07)),
                     band=(("shrub_a", .40), ("shrub_b", .22), ("acai", .16), ("canopy_b", .12), ("cecropia", .10))),
          "S2": dict(interior=(("canopy_a", .38), ("canopy_c", .36), ("canopy_b", .20), ("shrub_a", .06)),
                     edge=(("shrub_a", .30), ("cecropia", .25), ("canopy_b", .25), ("shrub_b", .12), ("canopy_a", .08)),
                     band=(("shrub_a", .40), ("shrub_b", .25), ("canopy_b", .20), ("cecropia", .15)))}
-HILLS = {"S1": 0.3, "S2": 1.0}
+HILLS = {"S1": 0.3, "S2": 1.0, "S3": 1.0}
+MIXES["S3"] = dict(interior=(("canopy_a", .30), ("canopy_b", .25), ("canopy_c", .15), ("acai", .12), ("shrub_a", .10), ("buriti", .08)),
+                   edge=(("shrub_a", .30), ("cecropia", .20), ("acai", .20), ("canopy_b", .20), ("shrub_b", .10)),
+                   band=(("shrub_a", .35), ("shrub_b", .25), ("acai", .20), ("canopy_b", .20)))
 W, H, WET, F = RECIPES[SECTOR]()
-log("natural ground %.1f-%.1f m, water at %.1f m" % (H.min(), H.max(), W))
+WLG = np.full_like(H, float(W)) if np.ndim(W) == 0 else np.asarray(W, float)
+W = WLG                                   # the water level, cell by cell
+
+
+def wl_at(P):
+    P = np.asarray(P, float)
+    return bilinear(WLG, P[:, 0], P[:, 1])
+
+
+log("natural ground %.1f-%.1f m, water at %.1f m" % (H.min(), H.max(), float(np.median(WLG))))
+# The road's own relief (jogador, 2026-11-02: "estrada muito plana; ondulações de lama, não em toda a estrada, natural,
+# não esculpido; sem as naves andarem aos saltos"): long, low swells everywhere (+-8 cm over ~30 m), and in muddy
+# patches (about 40 % of the road) deeper swells (+-22 cm) with mud undulations (+-9 cm over ~11 m). The steepest is a
+# few percent: the hover pads ride it. The edges wander +-1.2 m.
+MUD = smoothstep(0.42, 0.62, fbm(XX, YY, 90.0, 401, 3))
+SWELL = (fbm(XX, YY, 32.0, 403, 3) - 0.5) * 2.0
+RELIEF = SWELL * (0.08 + 0.14 * MUD) + MUD * (fbm(XX, YY, 11.0, 407, 2) - 0.5) * 0.18
+EDGE_WOBBLE = (fbm(XX, YY, 25.0, 409, 2) - 0.5) * 2.4
 
 
 # ---------------------------------------------------------------------------------------------------- 4. the road
@@ -291,7 +350,7 @@ def road_profile(P, z, natural, jumps_here):
         under = ndimage.binary_dilation(under, iterations=25)             # a ford starts before the water does
     k = np.hanning(161)
     w8 = ndimage.convolve1d(under.astype(float), k / k.sum(), mode="nearest")
-    z = z * (1 - w8) + (W - 0.12) * w8
+    z = z * (1 - w8) + (wl_at(P) - 0.12) * w8
     recs = []
     for j in jumps_here:
         i = int(j["i"])
@@ -300,13 +359,23 @@ def road_profile(P, z, natural, jumps_here):
             kick = 2.6 * smoothstep(-70, -18, s) * (s < -16)
             z = z + kick
             gap = np.abs(s) <= 16
-            z = np.where(gap, W - 1.6, z)
+            z = np.where(gap, wl_at(P) - 1.6, z)
             recs.append(dict(what=j["what"], at_m=int(j["at_m"]), lip=float(z[i - 17]), gap_m=32, kicker_m=2.6))
         elif j["what"] == "tronco caído":    # a sand ramp up to a giant fallen trunk, then the drop off its far side
             s = np.arange(len(z)) - i
             ramp = 3.2 * smoothstep(-60, -4, s) * (s <= 4) + 3.2 * (1 - smoothstep(4, 26, s)) * (s > 4)
             z = z + ramp
             recs.append(dict(what=j["what"], at_m=int(j["at_m"]), crest=float(z[i]), ramp_m=3.2))
+        elif j["what"].startswith("laje"):        # a kicker on the rock slab, and the river under the leap
+            s = np.arange(len(z)) - i
+            half = float(F.get("laje_half", 45.0))
+            z = z + 3.0 * smoothstep(-95, -half - 2, s) * (s < -half)
+            z = np.where(np.abs(s) <= half, wl_at(P) - 2.5, z)
+            recs.append(dict(what=j["what"], at_m=int(j["at_m"]), lip=float(z[i - int(half) - 1]), gap_m=int(2 * half), kicker_m=3.0))
+        elif j["what"].startswith(("degrau", "ressalto", "talude")):   # a step: up to a lip, then 6 m down
+            s = np.arange(len(z)) - i
+            z = z + 6.0 * smoothstep(-160, -10, s) * (s < 0)
+            recs.append(dict(what=j["what"], at_m=int(j["at_m"]), lip=float(z[i - 1]), drop_m=6.0))
         elif j["what"].startswith(("crista", "lomba", "rampa", "ilha", "raiz", "rochedo")):   # a crest: up, and off
             s = np.arange(len(z)) - i
             z = z + 4.0 * smoothstep(-90, -4, s) * (s <= 4) + 4.0 * (1 - smoothstep(4, 50, s)) * (s > 4)
@@ -341,8 +410,10 @@ def lay_road(H, P, z, hw, color_kind, walls=None, steep=False):
     hwv = at(hw, fi) if np.ndim(hw) else np.full_like(d, hw)
     diff = np.abs(zr - H)
     bankw = 4.0 + 0.9 * np.clip(diff, 0, 30) if steep else 10.0 + 2.2 * np.clip(diff, 0, 8)   # a ravine's walls are steep
-    t = smoothstep(hwv + 1.5, hwv + 1.5 + bankw, d)
-    H2 = zr * (1 - t) + H * t
+    hwe = hwv + EDGE_WOBBLE
+    t = smoothstep(hwe + 1.5, hwe + 1.5 + bankw, d)
+    surf = zr + RELIEF * smoothstep(0.3, 1.0, zr - WLG)             # no relief where it runs through water (fords)
+    H2 = surf * (1 - t) + H * t
     if walls:
         wh, ww = walls
         b, sg = bends(P)
@@ -369,6 +440,7 @@ RZ2, JREC = road_profile(RP, RZ, H, roadjumps)
 H_nat = H.copy()
 H, D_ROAD, HW_ROAD, T_ROAD = lay_road(H, RP, RZ2, RW, "road", WALLS.get(SECTOR))
 D_FORK = np.full_like(H, 1e9)
+D_GFORK = np.full_like(H, 1e9)          # the forks on the ground only (no bridges): nothing may stand on them
 T_FORK = np.ones_like(H)
 fork_rec = []
 for fd in FD:
@@ -377,7 +449,7 @@ for fd in FD:
     if "Igapó" in name:              # through the flooded forest, at water level: the ships skim between the trees
         n = len(zf)
         mid = smoothstep(0, 220, np.arange(n)) * smoothstep(0, 220, n - 1 - np.arange(n))
-        zf = zf * (1 - mid) + (W - 0.12) * mid
+        zf = zf * (1 - mid) + (wl_at(fd["P"]) - 0.12) * mid
     high = np.zeros(len(zf), bool)
     if fd["f"]["type"] == "CIMA":       # a bridge where it runs more than 6 m above the ground
         high = ndimage.binary_closing((zf - bilinear(H, fd["P"][:, 0], fd["P"][:, 1])) > 6.0, iterations=40)
@@ -393,10 +465,23 @@ for fd in FD:
         elif fj["what"].startswith("raiz") or fj["what"].startswith("raíz"):   # a giant root across: a crest
             zf = zf + 3.0 * smoothstep(-70, -3, s_) * (s_ <= 3) + 3.0 * (1 - smoothstep(3, 40, s_)) * (s_ > 3)
             fd.setdefault("roots", []).append(i)
-    for a, b in runs(~high):
+    ground = ~high
+    if "Cascata" in name:                 # off the lip: no road in the air, the gorge opens under the leap
+        drop = zf[np.minimum(np.arange(len(zf)) + 60, len(zf) - 1)] - zf
+        cand = np.flatnonzero(drop < -15.0)
+        if len(cand):
+            lip = int(cand[0]) + 8
+            land = int(np.flatnonzero((np.arange(len(zf)) > lip) & (zf < zf.min() + 4.0))[0])
+            fd["lip"], fd["land"] = lip, land
+            ground[lip:land] = False
+            dA, _fa, _sa = line_field(fd["P"][lip:land])
+            H = np.minimum(H, wl_at(fd["P"][land:land + 1])[0] - 3.0 + np.maximum(0.0, dA - 110.0) * 3.5)
+    for a, b in runs(ground):
         if b - a > 5:
-            H, dF, _hw, tF = lay_road(H, fd["P"][a:b], zf[a:b], fd["hw"], "fork", steep=fd["f"]["type"] == "BAIXO")
+            H, dF, _hw, tF = lay_road(H, fd["P"][a:b], zf[a:b], fd["hw"], "fork",
+                                      steep=fd["f"]["type"] == "BAIXO" or any(k_ in name for k_ in STEEP_FORKS))
             D_FORK = np.minimum(D_FORK, dF - fd["hw"])
+            D_GFORK = np.minimum(D_GFORK, dF - fd["hw"])
             T_FORK = np.minimum(T_FORK, tF)
     for a, b in runs(high):
         dF, _fi, _sd = line_field(fd["P"][a:b])
@@ -429,13 +514,19 @@ road_k = np.maximum(1 - T_ROAD, 1 - T_FORK)
 sand = np.clip(road_k * 1.3, 0, 1)
 col = col * (1 - sand[..., None]) + (SAND * (0.9 + 0.2 * nc[..., None]))[...] * sand[..., None]
 wsand = sand * smoothstep(0.6, -0.2, H - W)
-puddle = sand * smoothstep(0.62, 0.70, fbm(XX, YY, 14.0, 91, 4)) * (1 - T_ROAD)     # rain puddles and wet ruts
+puddle = sand * smoothstep(-0.05, -0.15, RELIEF) * (1 - T_ROAD)       # rain water in the dips of the mud
 wsand = np.maximum(wsand, 0.85 * puddle)
 col = col * (1 - wsand[..., None]) + WETSAND[None, None] * wsand[..., None]
 ED = np.minimum(np.abs(D_ROAD - HW_ROAD), np.abs(D_FORK))
 grass = smoothstep(5.0, 0.0, ED) * smoothstep(0.35, 0.55, fbm(XX, YY, 9.0, 97, 3)) * (H - W > 0.3) * (1 - sand)
 col = col * (1 - 0.8 * grass[..., None]) + MEADOW[None, None] * 0.8 * grass[..., None]
 WETNESS = np.clip(np.maximum(np.maximum(edge, wsand), puddle * 1.2), 0, 1)
+gy_, gx_ = np.gradient(H, RES)
+SLOPE = np.hypot(gx_, gy_)
+if PALS.get("rock"):
+    rk = smoothstep(0.75, 1.3, SLOPE) * (1 - sand)
+    rc = srgb(PALS["rock"]) * ((0.55 + 0.6 * fbm(XX, YY * 0.25, 8.0, 141, 3)) * (0.8 + 0.2 * np.sin(H / 5.5)))[..., None]
+    col = col * (1 - rk[..., None]) + rc * rk[..., None]
 if PALS["bank"]:
     bare = np.clip(np.abs(H - H_nat) - 0.8, 0, 1) * (1 - sand)
     col = col * (1 - bare[..., None]) + (srgb(PALS["bank"]) * (0.85 + 0.3 * nc[..., None])) * bare[..., None]
@@ -464,10 +555,10 @@ px, py = np.concatenate([px, bx[bsel]]), np.concatenate([py, by[bsel]])
 EDGE_BAND = np.concatenate([np.zeros(len(px) - int(bsel.sum()), bool), np.ones(int(bsel.sum()), bool)])
 pz = bilinear(H, px, py)
 pedge = grid_at(D_EDGE, px, py)
-pdepth = W - pz
+pdepth = wl_at(np.c_[px, py]) - pz
 pig = grid_at(F.get("igapo", np.zeros_like(H)), px, py)
 pfar = grid_at(np.minimum(D_ROAD, D_FORK + 30), px, py)
-keep = (pedge > 9.0) & ((pdepth < -0.05) | ((pig > 0.3) & (pdepth < 1.6)))
+keep = (pedge > 9.0) & ((pdepth < -0.05) | ((pig > 0.3) & (pdepth < 1.6))) & (grid_at(SLOPE, px, py) < 0.85)
 if WALL_MASK is not None:
     keep &= ~grid_at(WALL_MASK, px, py)
 px, py, pz, pedge, pdepth, pig, pfar = px[keep], py[keep], pz[keep], pedge[keep], pdepth[keep], pig[keep], pfar[keep]
@@ -494,7 +585,7 @@ kind = np.where(EDGE_BAND, bandk, kind)
 kx = rng.uniform(X0, X1, int((X1 - X0) * (Y1 - Y0) / 150.0 ** 2))
 ky = rng.uniform(Y0, Y1, len(kx))
 ke = grid_at(D_EDGE, kx, ky)
-kd = W - bilinear(H, kx, ky)
+kd = wl_at(np.c_[kx, ky]) - bilinear(H, kx, ky)
 okk = (ke > 26.0) & (kd < -0.2)
 hero = np.arange(0, len(RP), 420)
 hside = np.where(np.arange(len(hero)) % 2 == 0, 1.0, -1.0)
@@ -502,7 +593,7 @@ tdir = RP[np.minimum(hero + 5, len(RP) - 1)] - RP[np.maximum(hero - 5, 0)]
 tdir = tdir / np.maximum(np.linalg.norm(tdir, axis=1, keepdims=True), 1e-9)
 hx = RP[hero, 0] - tdir[:, 1] * hside * (RW[hero] + rng.uniform(34, 55, len(hero)))
 hy = RP[hero, 1] + tdir[:, 0] * hside * (RW[hero] + rng.uniform(34, 55, len(hero)))
-okh = (grid_at(D_EDGE, hx, hy) > 24.0) & (W - bilinear(H, hx, hy) < -0.2)
+okh = (grid_at(D_EDGE, hx, hy) > 24.0) & (wl_at(np.c_[hx, hy]) - bilinear(H, hx, hy) < -0.2)
 kx, ky = np.concatenate([kx[okk], hx[okh]]), np.concatenate([ky[okk], hy[okh]])
 # no ordinary tree inside a kapok's crown
 if len(kx):
@@ -539,8 +630,10 @@ for fd in FD:
             for side in (1, -1):
                 q = P_[i] + np.array([-T_[i, 1], T_[i, 0]]) * side * (fd["hw"] + 3.4)
                 g = float(bilinear(H, q[0], q[1]))
-                if grid_at(D_ROAD - HW_ROAD, q[0], q[1]) < 8.0 or (WALL_MASK is not None and grid_at(WALL_MASK, q[0], q[1])):
-                    continue                      # never on the road (where the bridge crosses over it) or a wall
+                if (grid_at(np.minimum(D_ROAD - HW_ROAD, D_GFORK), q[0], q[1]) < 8.0
+                        or (WALL_MASK is not None and grid_at(WALL_MASK, q[0], q[1]))):
+                    continue                      # never on the road or a fork on the ground (where the bridge crosses
+                                                  # over them: the ravine), nor on a wall
                 tw.append((q[0], q[1], g, float(np.clip((Z_[i] - g + 5.0) / (0.74 * 51.0), 0.9, 1.45))))
 for fd in FD:
     if "Sapopemas" in fd["f"]["name"]:
@@ -550,7 +643,7 @@ for fd in FD:
         for k, i in enumerate(range(700, len(P_) - 700, 42)):
             side = 1 if k % 2 else -1
             q = P_[i] + np.array([-T_[i, 1], T_[i, 0]]) * side * (fd["hw"] + rng.uniform(5.0, 8.0))
-            if grid_at(D_ROAD - HW_ROAD, q[0], q[1]) > 10.0:
+            if grid_at(np.minimum(D_ROAD - HW_ROAD, D_GFORK), q[0], q[1]) > 3.0:
                 tw.append((q[0], q[1], float(bilinear(H, q[0], q[1])), float(rng.uniform(0.85, 1.1))))
 if tw:
     tw = np.array(tw)
@@ -568,7 +661,7 @@ log("jungle: %d plants (%s)" % (len(px), ", ".join("%s %d" % (k, int((kind == i)
 zmin, zmax = float(H.min()) - 1.0, float(H.max()) + 1.0
 h16 = np.round((H - zmin) / (zmax - zmin) * 65535).astype("<u2")
 h16.tofile(os.path.join(OUT, "selva_%s_height.r16" % SECTOR))
-meta = dict(sector=SNAME, box=[X0, Y0, X1, Y1], res_m=RES, size=[NX, NY], z_min=zmin, z_max=zmax, water_m=W,
+meta = dict(sector=SNAME, box=[X0, Y0, X1, Y1], res_m=RES, size=[NX, NY], z_min=zmin, z_max=zmax, water_m=float(np.median(WLG)),
             note="r16: uint16 little-endian, row 0 = south (y = box[1]), height = z_min + v/65535*(z_max-z_min)",
             road=dict(from_m=int(rlo), points=RP[::5].round(2).tolist(), z=RZ2[::5].round(2).tolist()), jumps=JREC,
             forks=fork_rec)
@@ -622,7 +715,48 @@ def terrain_material():
     rough = nt.nodes.new("ShaderNodeMapRange"); rough.inputs[3].default_value, rough.inputs[4].default_value = 0.92, 0.3
     nt.links.new(wv.outputs["Fac"], rough.inputs[0])
     bs = nt.nodes.new("ShaderNodeBsdfPrincipled")
-    nt.links.new(sc.outputs[0], bs.inputs["Base Color"])
+    base_col = sc.outputs[0]
+    if PALS.get("rock"):                 # cliffs: sandstone in beds, dark streaks where water runs down
+        geo = nt.nodes.new("ShaderNodeNewGeometry")
+        sn = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(geo.outputs["Normal"], sn.inputs[0])
+        steep = nt.nodes.new("ShaderNodeMapRange")
+        steep.inputs[1].default_value, steep.inputs[2].default_value = 0.8, 0.5
+        nt.links.new(sn.outputs["Z"], steep.inputs[0])
+        sp = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(geo.outputs["Position"], sp.inputs[0])
+        nzr = nt.nodes.new("ShaderNodeTexNoise"); nzr.inputs["Scale"].default_value = 0.02
+        nt.links.new(geo.outputs["Position"], nzr.inputs["Vector"])
+        warp = nt.nodes.new("ShaderNodeMath"); warp.operation = "MULTIPLY_ADD"
+        warp.inputs[1].default_value, warp.inputs[2].default_value = 18.0, 0.0
+        nt.links.new(nzr.outputs["Fac"], warp.inputs[0])
+        zw = nt.nodes.new("ShaderNodeMath"); zw.operation = "ADD"
+        nt.links.new(sp.outputs["Z"], zw.inputs[0]); nt.links.new(warp.outputs[0], zw.inputs[1])
+        dv = nt.nodes.new("ShaderNodeMath"); dv.operation = "DIVIDE"; dv.inputs[1].default_value = 4.5
+        nt.links.new(zw.outputs[0], dv.inputs[0])
+        sinn = nt.nodes.new("ShaderNodeMath"); sinn.operation = "SINE"
+        nt.links.new(dv.outputs[0], sinn.inputs[0])
+        beds = nt.nodes.new("ShaderNodeMapRange")
+        beds.inputs[1].default_value, beds.inputs[2].default_value = -1.0, 1.0
+        beds.inputs[3].default_value, beds.inputs[4].default_value = 0.7, 1.08
+        nt.links.new(sinn.outputs[0], beds.inputs[0])
+        mpz = nt.nodes.new("ShaderNodeMapping"); mpz.inputs["Scale"].default_value = (1.0, 1.0, 0.06)
+        nt.links.new(geo.outputs["Position"], mpz.inputs["Vector"])
+        nzs = nt.nodes.new("ShaderNodeTexNoise"); nzs.inputs["Scale"].default_value = 0.35; nzs.inputs["Detail"].default_value = 6
+        nt.links.new(mpz.outputs[0], nzs.inputs["Vector"])
+        strk = nt.nodes.new("ShaderNodeMapRange")
+        strk.inputs[3].default_value, strk.inputs[4].default_value = 0.45, 1.25
+        nt.links.new(nzs.outputs["Fac"], strk.inputs[0])
+        rc1 = nt.nodes.new("ShaderNodeVectorMath"); rc1.operation = "SCALE"
+        rc1.inputs[0].default_value = tuple(float(v) for v in srgb(PALS["rock"]))
+        nt.links.new(beds.outputs[0], rc1.inputs["Scale"])
+        rc2 = nt.nodes.new("ShaderNodeVectorMath"); rc2.operation = "SCALE"
+        nt.links.new(rc1.outputs[0], rc2.inputs[0]); nt.links.new(strk.outputs[0], rc2.inputs["Scale"])
+        mixr = nt.nodes.new("ShaderNodeMix"); mixr.data_type = "RGBA"
+        nt.links.new(steep.outputs[0], mixr.inputs[0])
+        nt.links.new(sc.outputs[0], mixr.inputs[6]); nt.links.new(rc2.outputs[0], mixr.inputs[7])
+        base_col = mixr.outputs[2]
+    nt.links.new(base_col, bs.inputs["Base Color"])
     nt.links.new(rough.outputs[0], bs.inputs["Roughness"])
     bump = nt.nodes.new("ShaderNodeBump"); bump.inputs["Strength"].default_value = 0.35
     nz2 = nt.nodes.new("ShaderNodeTexNoise"); nz2.inputs["Scale"].default_value = 4.0; nz2.inputs["Detail"].default_value = 6
@@ -689,7 +823,21 @@ def water_material():
 
 me.materials.append(terrain_material())
 wme = bpy.data.meshes.new("Water")
-wme.from_pydata([(X0 - cx, Y0 - cy, W), (X1 - cx, Y0 - cy, W), (X1 - cx, Y1 - cy, W), (X0 - cx, Y1 - cy, W)], [], [(0, 1, 2, 3)])
+WX, WY = np.meshgrid(np.arange(X0, X1 + 1e-6, 6.0), np.arange(Y0, Y1 + 1e-6, 6.0))
+WLw, Hw = bilinear(WLG, WX, WY), bilinear(H, WX, WY)
+wv = Hw < WLw + 0.4
+iw = np.arange(WX.size).reshape(WX.shape)
+qw = np.stack([iw[:-1, :-1], iw[:-1, 1:], iw[1:, 1:], iw[1:, :-1]], -1)
+lw = np.stack([WLw[:-1, :-1], WLw[:-1, 1:], WLw[1:, 1:], WLw[1:, :-1]], -1)
+kq = (wv[:-1, :-1] | wv[:-1, 1:] | wv[1:, 1:] | wv[1:, :-1]) & (lw.max(-1) - lw.min(-1) < 0.5)
+qw = qw[kq]
+wme.vertices.add(WX.size)
+wme.vertices.foreach_set("co", np.stack([WX - cx, WY - cy, WLw], -1).astype(np.float32).ravel())
+wme.loops.add(qw.size)
+wme.loops.foreach_set("vertex_index", qw.astype(np.int32).ravel())
+wme.polygons.add(len(qw))
+wme.polygons.foreach_set("loop_start", np.arange(0, qw.size, 4, dtype=np.int32))
+wme.update(calc_edges=True)
 # beyond the box, for the photos only: the canopy goes on for ever, over hills that roll on (a coarse ring of terrain
 # at canopy height round the box, its inner edge just inside it)
 STEP_B, PAD_B = 40.0, 7000.0
@@ -831,7 +979,7 @@ def deck_object(name, P, Z, hw, gaps):
                 mb.tube([pt(i, side, 0.0), pt(i, side, 1.4)], 0.11, "deck", seg=4)
     for i in range(30, len(P) - 30, 70):         # the cross-beams between each pair of kapoks (section 6)
         ends = [P[i] + N[i] * sd_ * (hw + 3.4) for sd_ in (1, -1)]
-        if ok[min(i // 3, len(ok) - 1)] and all(grid_at(D_ROAD - HW_ROAD, e_[0], e_[1]) >= 8.0 for e_ in ends):
+        if ok[min(i // 3, len(ok) - 1)] and all(grid_at(np.minimum(D_ROAD - HW_ROAD, D_GFORK), e_[0], e_[1]) >= 8.0 for e_ in ends):
             mb.tube([pt(i, hw + 3.4, -1.3), pt(i, -(hw + 3.4), -1.3)], 0.45, "bark", seg=6)
     mats_d["bark"] = bpy.data.materials["M_Bark"]
     o = mb.build(name, mats_d)
@@ -839,6 +987,122 @@ def deck_object(name, P, Z, hw, gaps):
     return o
 
 
+def falls_objects():
+    """The water leaving the lip and falling into the pool: a curtain bowed out by its own speed, streaked white;
+    the spray: a cloud over the pool."""
+    d = np.array([0.08, -1.0]) / np.hypot(0.08, 1.0)
+    acr = np.array([-d[1], d[0]])
+    Hf = W_TOP - W_LOW
+    nu, nv = 26, 44
+    verts, faces = [], []
+    for j in range(nv + 1):
+        v = j / nv
+        out = 4.5 * math.sqrt(2 * Hf * v / 9.8)
+        for i in range(nu + 1):
+            u = i / nu - 0.5
+            q = LIP_S3 + acr * u * 100.0 * (1 + 0.2 * v) + d * (out + 2.0)
+            verts.append((q[0] - cx, q[1] - cy, W_TOP + 0.3 - Hf * v))
+    for j in range(nv):
+        for i in range(nu):
+            a = j * (nu + 1) + i
+            faces.append((a, a + 1, a + nu + 2, a + nu + 1))
+    me_ = bpy.data.meshes.new("Falls")
+    me_.from_pydata(verts, [], faces)
+    uvl = me_.uv_layers.new(name="UVMap")
+    uv = []
+    for fc in faces:
+        for vi in fc:
+            uv += [(vi % (nu + 1)) / nu, 1 - (vi // (nu + 1)) / nv]
+    uvl.data.foreach_set("uv", np.asarray(uv, np.float32))
+    m = bpy.data.materials.new("M_Falls")
+    m.use_nodes = True
+    nt = m.node_tree
+    for nd in list(nt.nodes):
+        nt.nodes.remove(nd)
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    mp = nt.nodes.new("ShaderNodeMapping"); mp.inputs["Scale"].default_value = (40.0, 1.5, 1.0)
+    nt.links.new(tc.outputs["UV"], mp.inputs["Vector"])
+    nz = nt.nodes.new("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = 3.0; nz.inputs["Detail"].default_value = 8
+    nt.links.new(mp.outputs[0], nz.inputs["Vector"])
+    al = nt.nodes.new("ShaderNodeMapRange"); al.inputs[1].default_value, al.inputs[2].default_value = 0.35, 0.65
+    al.inputs[3].default_value, al.inputs[4].default_value = 0.45, 1.0
+    nt.links.new(nz.outputs["Fac"], al.inputs[0])
+    bs = nt.nodes.new("ShaderNodeBsdfPrincipled")
+    bs.inputs["Base Color"].default_value = (0.85, 0.88, 0.90, 1)
+    bs.inputs["Roughness"].default_value = 0.35
+    bs.inputs["Emission Color"].default_value = (0.75, 0.80, 0.85, 1)
+    bs.inputs["Emission Strength"].default_value = 0.35
+    jk.finish(m, bs.outputs[0], al.outputs[0])
+    me_.materials.append(m)
+    o = bpy.data.objects.new("Falls", me_)
+    scene.collection.objects.link(o)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=12, radius=1.0,
+                                         location=(LIP_S3[0] + 15 - cx, LIP_S3[1] - 140 - cy, W_LOW + 45))
+    mist = bpy.context.active_object
+    mist.name = "Spray"
+    mist.scale = (210.0, 190.0, 95.0)
+    mm = bpy.data.materials.new("M_Spray")
+    mm.use_nodes = True
+    nt = mm.node_tree
+    for nd in list(nt.nodes):
+        nt.nodes.remove(nd)
+    vs = nt.nodes.new("ShaderNodeVolumePrincipled")
+    tco = nt.nodes.new("ShaderNodeTexCoord")
+    ln = nt.nodes.new("ShaderNodeVectorMath"); ln.operation = "LENGTH"
+    nt.links.new(tco.outputs["Object"], ln.inputs[0])
+    fall = nt.nodes.new("ShaderNodeMapRange")
+    fall.inputs[1].default_value, fall.inputs[2].default_value = 0.2, 1.0
+    fall.inputs[3].default_value, fall.inputs[4].default_value = 0.007, 0.0
+    nt.links.new(ln.outputs["Value"], fall.inputs[0])
+    nzv = nt.nodes.new("ShaderNodeTexNoise"); nzv.inputs["Scale"].default_value = 3.0
+    nt.links.new(tco.outputs["Object"], nzv.inputs["Vector"])
+    mulv = nt.nodes.new("ShaderNodeMath"); mulv.operation = "MULTIPLY"
+    nt.links.new(fall.outputs[0], mulv.inputs[0])
+    nt.links.new(nzv.outputs["Fac"], mulv.inputs[1])
+    nt.links.new(mulv.outputs[0], vs.inputs["Density"])
+    vs.inputs["Color"].default_value = (0.92, 0.94, 0.96, 1)
+    vs.inputs["Anisotropy"].default_value = 0.35
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    nt.links.new(vs.outputs[0], out.inputs["Volume"])
+    mist.data.materials.append(mm)
+
+
+def haze_box(name, P, Z, width=110.0, height=40.0, density=0.008):
+    """A low, broken haze along a stretch of track (the mist trail)."""
+    c = P.mean(0)
+    d = P[-1] - P[0]
+    L = float(np.linalg.norm(d))
+    bpy.ops.mesh.primitive_cube_add(size=2.0, location=(c[0] - cx, c[1] - cy, float(np.mean(Z)) + height * 0.6))
+    o = bpy.context.active_object
+    o.name = name
+    o.scale = (L / 2 + 60.0, width, height)
+    o.rotation_euler = (0, 0, math.atan2(d[1], d[0]))
+    m = bpy.data.materials.new("M_" + name)
+    m.use_nodes = True
+    nt = m.node_tree
+    for nd in list(nt.nodes):
+        nt.nodes.remove(nd)
+    vs = nt.nodes.new("ShaderNodeVolumePrincipled")
+    vs.inputs["Color"].default_value = (0.92, 0.94, 0.96, 1)
+    tco = nt.nodes.new("ShaderNodeTexCoord")
+    nzv = nt.nodes.new("ShaderNodeTexNoise"); nzv.inputs["Scale"].default_value = 4.0
+    nt.links.new(tco.outputs["Object"], nzv.inputs["Vector"])
+    mr = nt.nodes.new("ShaderNodeMapRange")
+    mr.inputs[1].default_value, mr.inputs[2].default_value = 0.4, 0.7
+    mr.inputs[3].default_value, mr.inputs[4].default_value = 0.0, density
+    nt.links.new(nzv.outputs["Fac"], mr.inputs[0])
+    nt.links.new(mr.outputs[0], vs.inputs["Density"])
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    nt.links.new(vs.outputs[0], out.inputs["Volume"])
+    o.data.materials.append(m)
+
+
+if SECTOR == "S3":
+    falls_objects()
+    for fd in FD:
+        if "Névoa" in fd["f"]["name"]:
+            n_ = len(fd["P"])
+            haze_box("NevoaTrilho", fd["P"][int(0.2 * n_):int(0.85 * n_)], fd["zs"][int(0.2 * n_):int(0.85 * n_)])
 for fd in FD:
     for k, (a, b, gaps) in enumerate(fd.get("decks", [])):
         deck_object("Ponte_%s_%d" % (fd["f"]["name"].split()[0], k), fd["P"][a:b], fd["zs"][a:b], fd["hw"],
@@ -997,6 +1261,17 @@ for fd in FD:
             Q = np.vstack([g["P"][a:b] for g in dk for a, b, _x in g["decks"]])[::4]
             dd = np.min(np.hypot(fd["P"][::4, None, 0] - Q[None, :, 0], fd["P"][::4, None, 1] - Q[None, :, 1]), axis=1)
             at_f = max(0, 4 * int(np.argmin(dd)) - 130)
+    if "lip" in fd:                        # just off the lip, over the void, the ship falling ahead
+        lip, land, P_ = fd["lip"], fd["land"], fd["P"]
+        i1, i2 = min(lip + 35, len(P_) - 1), min(lip + 95, len(P_) - 1)
+        if ship is not None:
+            t = P_[i2 + 1] - P_[i2 - 1]
+            ship.location = (P_[i2, 0] - cx, P_[i2, 1] - cy, float(zf[lip]) - 14.0)
+            ship.rotation_euler = Euler((math.radians(-14), 0, math.atan2(t[1], t[0]) - math.pi / 2))
+            ship.hide_render = False
+        shot("piloto_" + nm, Vector((P_[i1, 0] - cx, P_[i1, 1] - cy, float(zf[lip]) + 4.0)),
+             Vector((P_[land, 0] - cx, P_[land, 1] - cy, float(zf[land]))), 20)
+        continue
     if fd.get("decks"):                   # on the bridge, a little before its middle
         a, b, _g = max(fd["decks"], key=lambda r: r[1] - r[0])
         at_f = a + int(0.3 * (b - a))
@@ -1016,6 +1291,11 @@ if SECTOR in WALLS:                      # into a hairpin, its wall on the outsi
     shot("gancho_ar", Vector((e_[0] - cx, e_[1] - cy, float(RZ2[apex]) + 95)),
          Vector((RP[apex, 0] - cx, RP[apex, 1] - cy, float(RZ2[apex]))), 24)
 pilot("piloto_reta", si(S0 + int(0.55 * (S1_ - S0))))
+if SECTOR == "S3":                       # the falls, from down the gorge
+    if ship is not None:
+        ship.hide_render = True
+    shot("aerea_cascata", Vector((LIP_S3[0] + 120 - cx, LIP_S3[1] - 900 - cy, W_LOW + 260)),
+         Vector((LIP_S3[0] - cx, LIP_S3[1] - cy, W_LOW + 120)), 28, haze=dict(start=900.0, dist=14000.0, amount=0.6))
 mid = RP[si((S0 + S1_) // 2)]
 aerial("aerea", (mid[0] - 600, mid[1] - 1500), 620, (mid[0] + 400, mid[1] + 250), lens=24)
 aerial("aerea_partida", (RP[si(S0)][0] - 700, RP[si(S0)][1] - 900), 380, (RP[si(S0 + 900)][0], RP[si(S0 + 900)][1]), lens=28)

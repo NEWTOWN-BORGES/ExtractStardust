@@ -210,9 +210,40 @@ blender -b -P Scripts/selva/sculpt_selva.py -- C:/rdd/selva S1 [res=3] [samples=
 - **Números:** cerca de 154 mil plantas. A floresta é a do Congo, sem as palmeiras da Amazónia, com embaúbas
   (o *Musanga* africano é parecido).
 
+### Em todos os setores: a estrada tem relevo natural e as árvores não ficam no caminho
+
+- **Relevo da estrada** (jogador: "estrada muito plana; ondulações de lama, não em toda a estrada, natural, não
+  esculpido; sem as naves andarem aos saltos"):
+  - **Em toda a estrada:** ondas longas e baixas, de ±8 cm em ~30 m.
+  - **Nas manchas de lama** (cerca de 40 % da estrada): ondas de ±22 cm e ondulações de lama de ±9 cm em ~11 m.
+  - **Inclinação:** no máximo poucos por cento, e as almofadas acompanham.
+  - **Charcos:** ficam nas covas.
+  - **Bordas:** variam ±1,2 m.
+  - **Nos vaus:** não há relevo.
+- **Pilares-sumaúma da ponte:** nunca ficam em cima de uma estrada ou bifurcação no chão. Uma ficava no meio da
+  ravina F3b, por baixo da ponte (o jogador viu-a nas fotos).
+
+### S3 Salto Kaieteur (feito, por aprovar)
+
+![S3](SELVA/S3_salto_kaieteur.jpg)
+
+- **Planalto e rio:** o planalto do topo da serra tem um rio de 90-110 m de largura (água a 248,5 m).
+- **Cascata:** o rio cai ~187 m da escarpa para um lago de 150 m de raio (água a 61,5 m). A queda é uma cortina
+  branca arqueada pela própria velocidade, com névoa por cima do lago.
+- **Garganta:** começa no lago com 90 m de fundo e alarga até 310 m. As falésias têm 76°, com a linha recortada,
+  patamares e arenito em camadas com escorrências escuras. Não há árvores nas falésias.
+- **Laje da cascata (salto, 17,8 km):** a estrada cruza o rio 360 m antes da beira. Tem uma rampa de 3 m na laje de
+  pedra e salta o rio. O salto passou para este sítio no traçado.
+- **Descida:** depois da laje, a estrada desce a encosta ao lado da garganta. Tem o **degrau da descida**: uma
+  subida até uma beira e 6 m para baixo.
+- **F4 Salto da Cascata:** vai pelo planalto até à beira, ao lado da cascata. Não há estrada no ar: a garganta
+  abre-se por baixo do salto. Aterra no rio, lá em baixo, e segue pela margem até voltar à estrada.
+- **F5 Trilho da Névoa:** um desfiladeiro estreito de arenito com névoa, que corta por dentro da descida.
+- **Números:** cerca de 117 mil plantas: floresta da Guiana, com açaí e buriti.
+
 ### Depois
 
-1. **S3 Salto Kaieteur** e os setores seguintes, um a um, com as fotos.
+1. **S4 Corredeiras do Congo** e os setores seguintes, um a um, com as fotos.
 2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);

@@ -496,7 +496,7 @@ if ONLY:
 # ---------------------------------------------------------------------------------------------------- 4. the jumps
 # On the road: (sector, fraction of the sector, what); on the forks: (fork name, fraction, what).
 JUMPS = [
-    (0, 0.33, "igarapé"), (0, 0.70, "tronco caído"), (1, 0.95, "crista da serra"), (2, 0.30, "laje da cascata"),
+    (0, 0.33, "igarapé"), (0, 0.70, "tronco caído"), (1, 0.95, "crista da serra"), (2, 0.42, "laje da cascata"),
     (2, 0.78, "degrau da descida"), (3, 0.15, "afluente"), (3, 0.38, "rápido"), (3, 0.62, "afluente"), (3, 0.86, "rápido"),
     (4, 0.08, "boca da gruta"), (4, 0.90, "saída da gruta"), (5, 0.28, "canal"), (5, 0.55, "canal"), (5, 0.84, "raiz"),
     (6, 0.35, "talude"), (6, 0.80, "rampa de basalto"), (7, 0.18, "termiteira"), (7, 0.42, "rio de areia"),
