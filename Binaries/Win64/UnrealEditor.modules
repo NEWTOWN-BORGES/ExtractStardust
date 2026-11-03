@@ -1,0 +1,8 @@
+{
+	"BuildId": "55116800",
+	"Modules": 
+	{
+		"ExtractingStardust": "UnrealEditor-ExtractingStardust.dll",
+		"ExtractingStardustEditor": "UnrealEditor-ExtractingStardustEditor.dll"
+	}
+}

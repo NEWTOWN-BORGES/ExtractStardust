@@ -163,7 +163,8 @@ for name in caves:
     shutil.copy(os.path.join(caves_dir, name + ".fbx"), os.path.join(UE, "tunnels_gc", name + ".fbx"))
 json.dump({"size_x_m": SX, "size_y_m": SY, "cell_m": CELL, "z_m": [ZLO, ZHI], "tunnels": [],
            "grand_circuit": {"closed": False, "lap": {"points": main["points"], "width_m": [2.0 * v for v in main["half_width_m"]]},
-                             "tunnels": [{"name": n} for n in caves], "branches": {}},
+                             "tunnels": [{"name": n} for n in caves],
+                             "branches": {nm: {"points": b["points"]} for nm, b in route["branches"].items()}},
            "expedition": {k: route[k] for k in ("time_model", "sectors", "jumps", "landmarks", "water", "start_grid") if k in route}},
           open(os.path.join(UE, "canyon_field.json"), "w"))
 shutil.copy(os.path.join(AB, "ab_props.json"), os.path.join(UE, "props.json"))

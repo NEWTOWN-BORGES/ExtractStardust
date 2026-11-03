@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<title>EXTRACT STARDUST — preview do menu</title>
+<style>
+  html,body{margin:0;height:100%;font-family:Segoe UI,Arial,sans-serif}
+  body{background:linear-gradient(90deg,#1a120c 0 32%,transparent 58%),
+    linear-gradient(#c47a3a,#6a3a1c 40%,#1e140e);
+    color:#f2e6cc}
+  .dock{width:520px;height:100%;background:rgba(18,10,6,.88);padding:40px 32px 28px 36px;box-sizing:border-box}
+  .k{color:#eb571a;letter-spacing:.14em;font-size:11px;font-weight:700}
+  h1{margin:8px 0 0;font-size:36px;letter-spacing:.04em}
+  .sub{color:#eb571a;font-weight:700;margin:8px 0 10px}
+  .blurb{color:#9e8060;font-size:14px;max-width:28em}
+  .card{display:flex;align-items:center;height:86px;margin:8px 0;background:#24140c;border:0}
+  .card.on{background:#3d1608}
+  .bar{width:5px;height:86px;background:#eb571a;margin-right:8px}
+  .num{width:56px;text-align:center;color:#eb571a;font-weight:700}
+  .card h2{margin:0;font-size:16px}
+  .card p{margin:4px 0 0;color:#9e8060;font-size:12px}
+  .ship{margin-top:22px;display:flex;align-items:center;gap:8px}
+  .chev{width:44px;height:44px;background:#24140c;color:#f2e6cc;border:0;font-size:22px}
+  .name{width:280px;text-align:center;font-weight:700;font-size:18px}
+  .hint{margin-top:20px;color:#9e8060;font-size:10px}
+</style>
+</head>
+<body>
+<aside class="dock">
+  <div class="k">EXPEDIÇÃO  ·  RED DUST DIVIDE</div>
+  <div class="k" style="letter-spacing:.2em;margin-top:10px">EXTRACT</div>
+  <h1>STARDUST</h1>
+  <div class="sub">RACE.  SURVIVE.  EXTRACT.</div>
+  <p class="blurb">A → B. Quem cai perde o que levava. Quem corta a meta extrai.</p>
+  <div class="card"><div class="bar"></div><div class="num">01</div><div><h2>SOLO</h2><p>Tu sozinho contra o deserto. Chega vivo a B.</p></div></div>
+  <div class="card on"><div class="bar"></div><div class="num">02</div><div><h2>PELOTÃO 15</h2><p>Quinze rivais. Só quem sobrevive extrai.</p></div></div>
+  <div class="card"><div class="bar"></div><div class="num">03</div><div><h2>HANGAR</h2><p>Inspecciona as naves. Rato ou sticks para orbitar.</p></div></div>
+  <div class="k" style="margin-top:18px">NAVE</div>
+  <div class="ship"><button class="chev">‹</button><div class="name">STRIX</div><button class="chev">›</button></div>
+  <div class="hint">ENTER confirma · W/S navega · Tab troca nave — preview estático, não é o Unreal</div>
+</aside>
+</body>
+</html>

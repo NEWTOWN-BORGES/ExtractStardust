@@ -1,12 +1,21 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Game/EXMeta.h"
 #include "GameFramework/Pawn.h"
 #include "EXHoverCraft.generated.h"
 
 class UBoxComponent;
 class UCameraComponent;
 class UEXCraftFx;
+class UEXCraftAudio;
+struct FEXCraftAudioInput;
+class UEXProfileSave;
+class UEXHangarModel;
+class AEXWreck;
+class AEXHangarStage;
+class UMaterialInstanceDynamic;
+class UMaterialInterface;
 class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
@@ -21,6 +30,8 @@ UCLASS()
 class EXTRACTINGSTARDUST_API AEXHoverCraft : public APawn
 {
 	GENERATED_BODY()
+	/** The physics sandbox looks after its crafts (respawns, fuel, the readout on screen). */
+	friend class AEXPhysicsSandbox;
 
 public:
 	AEXHoverCraft();
@@ -33,19 +44,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Flight")
 	void SelectShip(int32 Index);
-
-	void EnterHangarPreview(const FVector& PreviewLocation);
-	void StartFromHangar();
-	void SetRaceGridStart(const FVector& Location, const FRotator& Rotation, const FVector& SurfaceNormal);
-	void ConfigureSurvivalRacer(bool bBot, int32 BotSlot, float Skill);
-	void SetSurvivalRaceRunning(bool bRunning);
-	void ApplySurvivalDamage(float Damage);
-	void EliminateFromSurvival();
-	bool IsSurvivalEliminated() const { return bSurvivalEliminated; }
-	float GetHullPercent() const { return HullPercent; }
-	bool IsSurvivalBot() const { return bSurvivalBot; }
-	FString GetSelectedShipName() const;
-	int32 GetSelectedShipIndex() const { return ShipIndex; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float MaxSpeedMps = 118.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Speed") float BoostTopMul = 1.16f;
@@ -83,16 +81,54 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftRecoverTime = 0.35f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Drift") float DriftBoost = 10.0f;
 
-	/** Soft, long spring (natural frequency ~1 Hz) so landings settle instead of bouncing. */
+	/** The hover (player, 2026-11-01: "mais realista a subir, descer, quedas"; Docs/FISICA.md, studied in
+	 *  Scripts/physics_sandbox/vertical.py). Four pads (nose, tail, both sides) push the craft up to its hover height and
+	 *  never pull it down: over a crest or off a lip it flies by itself when the ground falls away faster than gravity can
+	 *  follow. Gravity is whole at all times (climbs slow the craft, descents speed it up). Pitch and roll have inertia:
+	 *  the pads turn the craft on the ground, and in the air the nose slowly follows the flight path. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverHeightM = 1.5f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverStiffness = 40.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float HoverDamping = 1.25f;
+	/** The pads' spring (1/s^2) and damping ratio; the rebound is damped harder, so a squashed pad does not pop. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float PadStiffness = 45.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float PadDamping = 0.75f;
+	/** The most one pad pushes, in gravities. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float PadMaxG = 4.0f;
+	/** Seconds: the skirt averages short bumps (washboard) instead of being thrown by them. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float PadSmoothing = 0.06f;
+	/** Ground effect at top speed (m/s^2, fading with height): steadier at speed, still light over sharp crests. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float DownforceMps2 = 10.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float GravityMps2 = 22.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float SlopeGravityScale = 0.6f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float SurfaceAlignDegPerSec = 160.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AirLevelDegPerSec = 45.0f;
+	/** The share of the slope's pull along the ground (1 = real). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float SlopeGravityScale = 1.0f;
+	/** Radii of gyration of the hull (m) for pitch and roll, and the damping of both on the ground. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float PitchRadiusM = 1.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float RollRadiusM = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AttitudeDamping = 3.0f;
+	/** In the air: the nose turning to the flight path, its damping, and the roll levelling (the pilot's trim). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AirAlign = 5.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AirAlignDamping = 2.2f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float AirRollLevel = 4.0f;
+	/** A hard landing scrubs this share of the speed per m/s of landing speed above 6 m/s (at most 25 %). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float LandingScrub = 0.012f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallBounce = 0.3f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Hover") float WallScrapeLoss = 0.2f;
+
+	/** Crashes between ships (player, 2026-11-01: "como no Burnout: chocam, raspam, empurram, tiram vida e prejudicam a
+	 *  condução"; Docs/FISICA.md, Scripts/physics_sandbox/crash.py): the momentum is shared by the masses (a BASTION
+	 *  shoves a WRAITH), the rub drags the faster ship back and the slower forward, an off-centre knock spins the ship (a
+	 *  hit on the rear quarter turns it round), a big one takes the grip and dulls the steering for a moment. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashRestitution = 0.3f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashFriction = 0.35f;
+	/** The change of speed (m/s) a knock takes before it costs hull, and the hull per m/s above it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashSafeMps = 4.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashDamagePerMps = 1.8f;
+	/** Rubbing side to side: hull per second at 20 m/s of slip between the two. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float ScrapeDamagePerS = 6.0f;
+	/** The spin a knock gives (radius of gyration for yaw, m), its cap (rad/s) and how fast it dies away (1/s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashSpinRadiusM = 1.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashSpinMax = 2.6f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashSpinDecay = 2.0f;
+	/** How long a big knock upsets the handling (grip, steering, a wobble of the nose), in seconds. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Crash") float CrashWobbleSeconds = 1.1f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float BankMaxDeg = 22.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Visual") float NoseLeadMaxDeg = 5.0f;
@@ -123,8 +159,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float ShakeScale = 1.0f;
 	/** Share of the craft's visual bank that the camera follows. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CameraBankFollow = 0.5f;
+	/** Camera looks into the apex and hangs slightly outside the turn. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamLookIntoTurnDeg = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamOutboardM = 0.0f;
 	/** Peak camera jolt on a hard landing or wall hit, in degrees. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float LandingShakeDeg = 2.2f;
+	/** Jumps and falls (player, 2026-11-01): the camera follows the craft's height a little late (1/s; no lag on a steady
+	 *  climb, only when the craft's vertical speed changes), so a jump lifts the craft in the frame and a landing sinks the
+	 *  view before it settles; at most this far (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamVerticalLag = 4.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamVerticalLagMaxM = 2.5f;
+	/** A knock between ships shoves the view (s: metres of shove per m/s of the knock, through a quick spring). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float CamCrashKick = 0.5f;
 	/** How far the right stick orbits the camera around the craft. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Camera") float LookYawMaxDeg = 120.0f;
 
@@ -133,6 +179,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UStaticMeshComponent> ShipMesh;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UCameraComponent> Camera;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UEXCraftFx> Fx;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components") TObjectPtr<UEXCraftAudio> Audio;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight|Ships") TArray<TObjectPtr<UStaticMesh>> ShipMeshes;
 	/** Yaw that turns the imported test models (long axis on Y) to face +X. */
@@ -140,9 +187,115 @@ public:
 
 	/** For the HUD: the map's race line (metres, 5 m apart), the nearest point of it, the nose and the velocity. */
 	const TArray<FVector2D>& GetMapRoute() const { return MapRoute; }
+	/** The floor's half width (m; under 4 when the map has none) and the line's height (m) at each route sample. */
+	const TArray<float>& GetMapRouteHalfWidth() const { return MapRouteHalfW; }
+	const TArray<float>& GetMapRouteZ() const { return MapRouteZ; }
+
+	/** A knock from another ship (MoveWithCollision -> CrashWith): its change of speed (m/s) at a point; RamShare is the
+	 *  share of the damage it takes (less when it rammed with its nose), SlipMps the rub between the two, Dt the step. */
+	void TakeCrash(const FVector& DeltaVMps, const FVector& Point, const AEXHoverCraft* Other, float RamShare, float SlipMps, float Dt);
+	/** The ship's mass with its modules (kg), which shares the momentum in a crash. */
+	float GetCrashMassKg() const;
+	/** The loop the bots drive and the craft follows (the physics sandbox), in centimetres. */
+	void SetRoute(const TArray<FVector>& PointsCm);
+	/** The physics sandbox brings a blown-up ship back on its loop, whole. */
+	void Revive();
+	/** Console, to see each wreck (Docs/DESTROCOS.md): "EXBoom <cause>" blows this ship up as if it died that way:
+	 *  0 worn out by the scrapes (end over end), 1 head on into a rock (backflip), 2 hit from the side (barrel roll),
+	 *  3 nose first after a jump (cartwheel), 4 shoved from behind (end over end, pushed on). Best in the sandbox
+	 *  (Scripts\jogar.ps1 -Modo Sandbox), where the ship comes back 3 s later. */
+	UFUNCTION(Exec) void EXBoom(int32 Cause = 0);
+	bool IsEliminated() const { return bEliminated; }
+
+	// ---- Race rules (Docs/MODOS_DE_JOGO.md), switched on by AEXRaceDirector; off in free flight and the tests.
+	/** Lives by ship (plus the hull of the modules), damage from hard wall hits and hard landings, fuel and heat. */
+	void SetRaceRules();
+	/** Makes this craft a bot that drives itself along the race line (skill 0.8-1.0, lane offset from the line in m). */
+	void SetBot(int32 InShipIndex, float InSkill, float InLaneM);
+	/** Holds the craft on the grid (countdown, after the finish). */
+	void SetRaceHold(bool bHold) { bRaceHold = bHold; bGridLock = bGridLock && bHold; }
+	/** Showroom: the craft stands on the turntable of the workshop (AEXHangarStage) under a slow orbit camera, with the
+	 *  menu drawn over it. EnterHangar opens the hangar's tabs (UEXHangarModel): ship, modules, consumables, shop and
+	 *  vault, paid with the STARDUST of the profile. */
+	void EnterShowroom();
+	/** Back to where the craft stood before the showroom (the start of the race line). */
+	void ExitShowroom();
+	bool IsInShowroom() const { return bInShowroom; }
+	void EnterHangar();
+	/** From the hangar back to the menu: the craft stays on the turntable and the lights go down. */
+	void LeaveHangar();
+	bool IsInHangar() const { return bInHangar; }
+	/** The ships this craft can be (the meshes found), for the hangar roster. */
+	int32 GetShipCount() const { return ShipMeshes.Num(); }
+	FString GetShipNameAt(int32 Index) const;
+	/** Top speed before the ship's multiplier, m/s. */
+	float GetBaseTopSpeedMps() const { return BaseMaxSpeedMps > 0.0f ? BaseMaxSpeedMps : MaxSpeedMps; }
+	/** Race stats of a ship by name: lives, top speed against the base, speed into a wall that costs a life (m/s). */
+	static void GetShipRaceStats(const FString& Name, int32& OutLives, float& OutSpeedMul, float& OutWallHitMps);
+	/** The pilot's saved profile (wallet, modules, consumables), loaded on first use; the player's craft only. */
+	UEXProfileSave* EnsureProfile();
+	UEXProfileSave* GetProfile() const { return Profile; }
+	UEXHangarModel* GetHangarModel() const { return HangarModel; }
+	/** From the hangar's ship tab: start the expedition. */
+	void LaunchFromHangar() { HangarLaunch(); }
+
+	// ---- Modules and consumables (Docs/MODULOS.md)
+	/** The modules this craft flies with, by EEXFamily (an empty item is the stock part): the race stats, the pieces on
+	 *  the hull, the engine's flame and the nitro's colour. */
+	void SetModules(const TArray<FEXItem>& InModules);
+	const TArray<FEXItem>& GetModules() const { return Modules; }
+	/** Final stats of the ship and its modules (EEXStat order). */
+	int32 GetStat(EEXStat Stat) const { return ResolvedStats[FMath::Clamp(static_cast<int32>(Stat), 0, EXMeta::StatCount - 1)]; }
+	/** The four quick slots carried into the race: keys 1-4, d-pad up, down, left and right. */
+	void SetQuickSlots(const TArray<FEXQuickSlot>& InSlots);
+	const TArray<FEXQuickSlot>& GetQuickSlots() const { return QuickSlots; }
+	/** Fuel and heat, 0-100. Without fuel the craft has half its top speed; at 100 heat it overheats (no nitro until 40). */
+	float GetFuel() const { return Fuel; }
+	float GetHeat() const { return Heat; }
+	bool IsOverheated() const { return bOverheated; }
+	float GetNitro() const { return Nitro; }
+	/** A repair under way (foam or nanogel): 0-1 done, -1 when none. */
+	float GetRepairProgress() const { return RepairTotal > 0.0f ? 1.0f - RepairLeft / RepairTotal : -1.0f; }
+	float GetStabilizerLeft() const { return StabLeft; }
+	/** The last quick slot used and when (world time), for the HUD; -1 if none. */
+	int32 GetLastQuickSlot() const { return LastQuickSlot; }
+	float GetLastQuickTime() const { return LastQuickTime; }
+	/** Hangar preview: the craft wears this build. Looking at a slot inside the hull (engine, propulsion, reactor,
+	 *  utility) the bodywork goes, the skeleton shows and the engine runs with its flame. */
+	void PreviewModules(const TArray<FEXItem>& InModules, EEXFamily Focus);
+	/** Where a module sits on the ship, in the world (the hangar pins its notes there): the piece on the hull, else a
+	 *  point of the hull for the parts inside it (engine and propulsion at the back, the reactor in the middle). */
+	bool GetModuleAnchor(EEXFamily Family, FVector& OutWorld) const;
+	/** No more ship changes once the race is on. */
+	void LockShip() { bShipLocked = true; }
+	/** Puts the craft at a place and heading, at rest (grid slots, respawns). */
+	void PlaceAt(const FVector& Location, float YawDeg);
+	void Eliminate();
+	bool IsBot() const { return bBot; }
+	int32 GetLives() const { return Lives; }
+	/** The hull (player, 2026-10-26: a health bar as in the Unity version, not lives): 0..1 of the ship's maximum. */
+	float GetHullFrac() const { return HullMax > 0.0f ? FMath::Clamp(Hull / HullMax, 0.0f, 1.0f) : 0.0f; }
+	float GetHull() const { return Hull; }
+	/** Puts the craft back on the race line where it is (the R key; the track inspector uses it when stuck). */
+	void PutBackOnLine() { RespawnOnRoute(); }
+	float GetHullMax() const { return HullMax; }
+	int32 GetMaxLives() const { return MaxLives; }
+	/** World time of the last life lost (the HUD flashes it), -1 if none. */
+	float GetLastHitTime() const { return LastHitTime; }
+	FString GetShipName() const;
+	int32 GetShipIndex() const { return ShipIndex; }
+	float GetSpeedKmh() const { return FMath::Abs(ForwardSpeedMps) * 3.6f; }
+	float GetTopSpeedKmh() const { return MaxSpeedMps * 3.6f; }
+	/** A sound call-out on this craft (UEXCraftAudio::Chime kinds). */
+	void PlayChime(int32 Kind);
+	void SetBotCatchUp(float Value) { BotCatchUp = Value; }
+	/** Furthest point reached along the race line, in metres (never jumps more than 600 m at once). */
+	float GetRaceProgressM() const { return RaceProgressM; }
 	int32 GetRouteIndex() const { return RouteIndex; }
 	FVector GetHeading() const { return Heading; }
 	FVector GetFlightVelocity() const { return VelocityCmps; }
+	float GetThrottle() const { return ThrottleInput; }
+	bool IsBoosting() const { return bBoosting; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -156,7 +309,6 @@ private:
 	void RunFlightTest(float Dt);
 	void RunDesertTest(float Dt);
 	void RunTour(float Dt);
-	void UpdateBotAI(float Dt);
 
 	void InputThrottle(float Value) { ThrottleInput = FMath::Clamp(Value, 0.0f, 1.0f); }
 	void InputBrake(float Value) { BrakeInput = FMath::Clamp(Value, 0.0f, 1.0f); }
@@ -175,7 +327,42 @@ private:
 	void Ship2() { SelectShip(1); }
 	void Ship3() { SelectShip(2); }
 	void Ship4() { SelectShip(3); }
+	void Ship5() { SelectShip(4); }
 	void CycleCamera() { CameraMode = (CameraMode + 1) % 4; bCamInitialized = false; }
+	void UseQuick(int32 Slot);
+	void Quick1() { UseQuick(0); }
+	void Quick2() { UseQuick(1); }
+	void Quick3() { UseQuick(2); }
+	void Quick4() { UseQuick(3); }
+	void MenuUp() { SendMenu(-1); }
+	void MenuDown() { SendMenu(1); }
+	void MenuConfirm() { SendMenu(0); }
+	void UpdateHangar(float Dt);
+	void HangarZoomIn();
+	void HangarZoomOut();
+	void HangarToggleAutoRotate();
+	void HangarBack();
+	void HangarConfirm();
+	void InputHangarPitch(float Value) { HangarPitchInput = FMath::Clamp(Value, -1.0f, 1.0f); }
+	void InputHangarYaw(float Value) { HangarYawInput = FMath::Clamp(Value, -10.0f, 10.0f); }
+	void InputHangarOrbit(float Value) { HangarOrbitInput = FMath::Clamp(Value, -1.0f, 1.0f); }
+	void InputHangarZoom(float Value) { HangarZoomInput = FMath::Clamp(Value, -1.0f, 1.0f); }
+	void HangarTabPrev();
+	void HangarTabNext();
+	void HangarClear();
+	void HangarInsure();
+	void HangarLaunch();
+	void RefreshModuleVisuals();
+	UStaticMesh* LoadPiece(const FString& Ship, const FString& Piece);
+	/** Fuel, heat, repairs and the stabiliser, every frame of a race. */
+	void UpdateRaceSystems(float Dt);
+	/** Top speed against MaxSpeedMps now: no fuel, overheating, a repair under way, the REDLINE-X perk. */
+	float SpeedCapMul() const;
+	void SendMenu(int32 Step);
+	void DriveBot(float Dt);
+	void LoseLife();
+	void RespawnOnRoute();
+	void ApplyShipStats();
 
 	FVector VelocityCmps = FVector::ZeroVector;
 	FVector Heading = FVector::ForwardVector;
@@ -187,6 +374,28 @@ private:
 	float HeightM = 0.0f, Nitro = 1.0f, ForwardSpeedMps = 0.0f, LateralSpeedMps = 0.0f, LongAccelMps2 = 0.0f;
 	float YawRate = 0.0f, GripBlend = 1.0f, SlipRad = 0.0f, DriftCharge = 0.0f, MiniTurboFlash = 0.0f;
 	float AirTimeSeconds = 0.0f, ImpactShake = 0.0f, SparkCooldown = 0.0f;
+	/** The hover pads (StepFlight): their smoothed heights (m) last step and now, and the attitude's rates (rad/s): pitch
+	 *  (nose up +) and roll (right side up +). */
+	float PadHeightM[4] = { 1.5f, 1.5f, 1.5f, 1.5f }, PadPrevM[4] = { 1.5f, 1.5f, 1.5f, 1.5f };
+	float PitchRate = 0.0f, RollRate = 0.0f;
+	/** Crashes: the spin a knock left (rad/s), the handling upset (1 just hit, 0 recovered), the scrape's hull waiting to be
+	 *  taken, and a short guard between two big knocks. */
+	float CrashSpin = 0.0f, CrashWobble = 0.0f, ScrapePending = 0.0f, CrashCooldown = 0.0f, CrashSparkCooldown = 0.0f;
+	void CrashWith(AEXHoverCraft& Other, const FHitResult& Hit, float Dt);
+	/** How the ship dies decides how its wreck tumbles (Eliminate): the last knock (its change of speed, m/s, where, when)
+	 *  and the last hard landing. */
+	FVector LastKnockDV = FVector::ZeroVector, LastKnockPoint = FVector::ZeroVector;
+	float LastKnockTime = -100.0f, LastLandingTime = -100.0f, LastLandingSpeed = 0.0f;
+	/** The crash camera (the player blown up): slow motion and a camera round the flying wreck, like Burnout's; and the
+	 *  short slow motion of a takedown. Real seconds, not slowed ones. */
+	TWeakObjectPtr<AEXWreck> CrashWreck;
+	bool bCrashCam = false;
+	float CrashCamReal = 0.0f, TakedownSlowmo = 0.0f;
+	FVector CrashCamPos = FVector::ZeroVector, CrashCamDir = FVector::ForwardVector;
+	void UpdateCrashCam(float Dt);
+	/** The sandbox's numbers (-EXPhysLog or the sandbox): the jump under way. */
+	bool bPhysLog = false;
+	float JumpPeakZCm = 0.0f, JumpTakeoffMps = 0.0f;
 	float VisualRoll = 0.0f, VisualPitch = 0.0f, VisualYaw = 0.0f, HoverBobTime = 0.0f;
 	int32 ShipIndex = 0, CameraMode = 0;
 
@@ -194,25 +403,20 @@ private:
 	bool bCamInitialized = false, bCamWasBoosting = false;
 	FVector CamOffsetCm = FVector::ZeroVector, CamSmoothUp = FVector::UpVector, CamSmoothHeading = FVector::ForwardVector;
 	float CamFovV = 62.0f, CamKick = 0.0f, CamKickVel = 0.0f, CamBoostPunch = 0.0f, CamDriftSwing = 0.0f, CamLastSpeed = 0.0f;
-	float LookYawInput = 0.0f, CamLookYaw = 0.0f, CamJolt = 0.0f, CamJoltTime = 0.0f;
+	float LookYawInput = 0.0f, CamLookYaw = 0.0f, CamJolt = 0.0f, CamJoltTime = 0.0f, CamApexYaw = 0.0f, WallThreat = 0.0f;
+	/** The camera's late follow of the craft's height (m, m/s) and the shove of a knock (m, m/s). */
+	float CamSmoothZ = 0.0f, CamSmoothZVel = 0.0f;
+	FVector CamShove = FVector::ZeroVector, CamShoveVel = FVector::ZeroVector;
 	FVector GroundPointCm = FVector::ZeroVector;
 	bool bLookBack = false;
-	bool bSurvivalParticipant = false;
-	bool bSurvivalBot = false;
-	bool bSurvivalRunning = false;
-	bool bSurvivalEliminated = false;
-	float HullPercent = 100.0f;
-	float BotSkill = 0.75f;
-	float BotLaneOffsetM = 0.0f;
-	float BotBoostCooldown = 0.0f;
-	float ImpactDamageCooldown = 0.0f;
-	int32 BotSlot = INDEX_NONE;
 
 	// Automated flight test (-EXFlightTest): scripted inputs, screenshots and telemetry log.
-	bool bFlightTest = false, bTestWallPlaced = false, bDesertTest = false, bHangarPreview = false;
+	bool bFlightTest = false, bTestWallPlaced = false, bDesertTest = false;
 	int32 TestPathIndex = 0;
 	/** The map's own race line (a spline tagged EXRoute), sampled every 5 m, in metres; empty on maps without one. */
 	TArray<FVector2D> MapRoute;
+	TArray<float> MapRouteHalfW;
+	TArray<float> MapRouteZ;
 	/** Nearest race line sample to the craft, followed every frame. */
 	int32 RouteIndex = 0;
 	float TestStuckSeconds = 0.0f;
@@ -221,10 +425,76 @@ private:
 
 	// Camera tour of the sector (-EXFlightTest -EXTour): fixed viewpoints of the geology, one screenshot each.
 	bool bTour = false;
-	float PreviewTime = 0.0f;
-	FVector HangarPreviewLocation = FVector::ZeroVector;
 	/** -EXLook="x,y,z,yaw,pitch;..." (Unreal metres, degrees): views that replace the S01 tour on any map. */
 	TArray<TPair<FVector, FRotator>> LookViews;
 	FVector TourCameraLocation = FVector::ZeroVector;
 	FRotator TourCameraRotation = FRotator::ZeroRotator;
+
+	// Race rules state.
+	bool bRaceRules = false, bBot = false, bRaceHold = false, bShipLocked = false, bEliminated = false;
+	int32 Lives = 0, MaxLives = 0;
+	/** Hull points: 100 for a three-life ship, more for the sturdy ones. Damage as in the Unity version: (impact speed - 12
+	 *  m/s) x 1.1 into a wall (x 0.6 into another craft), (landing speed - 17 m/s) x 1.4; none in the first 10 s. */
+	float Hull = 100.0f, HullMax = 100.0f, RaceSeconds = 0.0f, RepairAmount = 0.0f, EliminatedAt = -1.0f;
+	void ApplyHullDamage(float Amount, bool bForce = false);
+	float BaseMaxSpeedMps = 0.0f, WallHitMps = 1.0e6f, LandingHitMps = 1.0e6f;
+	float HitCooldown = 0.0f, LastHitTime = -1.0f, RaceProgressM = 0.0f;
+	// The tuned handling before the modules (BeginPlay), so the module stats never compound.
+	float BaseAccelMps2 = 0.0f, BaseBoostAccelMps2 = 0.0f, BaseTurnLow = 0.0f, BaseTurnHigh = 0.0f, BaseGripRedirect = 0.0f;
+	float BaseGripLateralMax = 0.0f, BaseNitroSeconds = 0.0f;
+	// Modules, consumables, fuel and heat.
+	TArray<FEXItem> Modules;
+	TArray<FEXQuickSlot> QuickSlots;
+	int32 ResolvedStats[EXMeta::StatCount] = {};
+	float Fuel = 100.0f, Heat = 0.0f, RepairLeft = 0.0f, RepairTotal = 0.0f, RepairSlow = 0.0f, StabLeft = 0.0f;
+	float LastQuickTime = -100.0f, QuickCooldown = 0.0f;
+	float FuelBurnPerKm = 1.2f, HeatCoolPerS = 8.0f, BoostHeatPerS = 14.0f, RepairTimeMul = 1.0f;
+	bool bOverheated = false, bRedline = false, bXRay = false;
+	int32 LastQuickSlot = -1, AppliedHangarVersion = -1, AppliedHangarShip = -1;
+	float PreviewEnginePower = 0.0f, HangarOrbitInput = 0.0f, HangarZoomInput = 0.0f;
+	/** The module pieces on the hull: wings, tail, armour (the body kit), cooling, and the utility module inside the
+	 *  nose, which only the x-ray view shows (attached to ShipMesh, no offset). */
+	UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> ModuleMeshes;
+	/** The x-ray view: structure, engines, reactor, cockpit, without the bodywork. */
+	UPROPERTY() TObjectPtr<UStaticMeshComponent> SkeletonMesh;
+	UPROPERTY() TObjectPtr<UMaterialInterface> GlowMaterial;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> ReactorGlow;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> UtilityGlow;
+	/** /Game/Ships/<SHIP>/SM_<SHIP>_<piece>, loaded once (a missing piece is remembered as null). */
+	UPROPERTY(Transient) TMap<FString, TObjectPtr<UStaticMesh>> PieceCache;
+	/** EXPERF: frames, seconds and the worst frame since the last log line. */
+	int32 PerfFrames = 0;
+	float PerfSeconds = 0.0f;
+	float PerfWorstMs = 0.0f;
+	UPROPERTY(Transient) TObjectPtr<UEXHangarModel> HangarModel;
+	float LastGroundZCm = 0.0f;
+	/** Wall closeness on each side (0 far, 1 touching), from the camera's wall probes; the sound uses them. */
+	float WallNearLeft = 0.0f, WallNearRight = 0.0f, AudioHitCooldown = 0.0f;
+	// Hangar and cargo.
+	UPROPERTY(Transient) TObjectPtr<UEXProfileSave> Profile;
+	UPROPERTY(Transient) TObjectPtr<AEXHangarStage> HangarStage;
+	FVector PreHangarLocation = FVector::ZeroVector;
+	FRotator PreHangarRotation = FRotator::ZeroRotator;
+	bool bInShowroom = false, bQtyArmed = true, bZoomArmed = true;
+	/** On the grid (placed by PlaceAt, until the start): the craft stays on its slot, facing down the line. */
+	bool bGridLock = false;
+	/** The orbit camera's distance now (it glides to HangarOrbitDist). */
+	float HangarCamDist = 1250.0f;
+	/** Equipping: the point and the distance the camera glides to (the part being changed), the part it swung round to. */
+	FVector HangarFocusPoint = FVector::ZeroVector;
+	float HangarZoomDist = 0.0f;
+	int32 HangarZoomFamily = -1;
+	float HangarSwingLeft = 0.0f, HangarSwingYaw = 0.0f;
+	/** The frame the hangar was closed with Esc (the same press must not also quit from the menu). */
+	uint64 HangarBackFrame = 0;
+	float HangarYawInput = 0.0f;
+	void FillAudioOthers(FEXCraftAudioInput& Sound) const;
+	float BotSkill = 1.0f, BotLaneM = 0.0f, BotPhase = 0.0f, BotStuckSeconds = 0.0f, BotTime = 0.0f;
+	/** The race director's catch-up for a bot: its pace and top speed times this (behind the player > 1). */
+	float BotCatchUp = 1.0f;
+
+	// Hangar mode state.
+	bool bInHangar = false, bHangarAutoRotate = true;
+	float HangarOrbitYaw = 40.0f, HangarOrbitPitch = 14.0f, HangarOrbitDist = 680.0f;
+	float HangarIdleTime = 0.0f, HangarPitchInput = 0.0f;
 };

@@ -1,24 +1,36 @@
 #include "Flight/EXHoverCraft.h"
 
+#include "Misc/App.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "CoreGlobals.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Flight/EXCraftAudio.h"
 #include "Flight/EXCraftFx.h"
+#include "Flight/EXExplosion.h"
+#include "Flight/EXWreck.h"
 #include "GameFramework/PlayerStart.h"
 #include "World/EXDesertTerrain.h"
 #include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "HAL/PlatformMisc.h"
 #include "Math/RotationMatrix.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "Race/EXRaceDirector.h"
+#include "Game/EXHangarModel.h"
+#include "Game/EXProfile.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "World/EXHangarStage.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
 
@@ -52,6 +64,57 @@ namespace
 		return 16.0f / 9.0f;
 	}
 
+	/** Race stats by ship (Docs/MODOS_DE_JOGO.md; a first proposal, to tune with the player): the faster the more
+	 *  fragile. Lives; top speed against the tuned handling; the speed into a wall and the landing speed (m/s) that
+	 *  cost a life. Looked up by the mesh name (SM_VORTEX -> VORTEX). */
+	struct FShipRaceStats
+	{
+		const TCHAR* Name;
+		int32 Lives;
+		float SpeedMul;
+		float WallHitMps;
+		float LandingHitMps;
+	};
+	const FShipRaceStats ShipRaceStats[] = {
+		{ TEXT("VORTEX"), 2, 1.06f, 20.0f, 26.0f },
+		{ TEXT("STRIX"), 3, 1.03f, 24.0f, 28.0f },
+		{ TEXT("WRAITH"), 3, 1.00f, 24.0f, 28.0f },
+		{ TEXT("NOMAD"), 4, 0.96f, 28.0f, 31.0f },
+		{ TEXT("BASTION"), 5, 0.93f, 32.0f, 34.0f },
+	};
+
+	// Showroom camera (menu and hangar, AEXHangarStage): distance and pitch in the menu. Player, 2026-10-25: the menu
+	// shows the garage lit (no dark silhouette), so the exposure is left alone and the vignette stays light.
+	constexpr float ShowroomDistCm = 1250.0f;
+	constexpr float ShowroomPitchDeg = 8.0f;
+	constexpr float ShowroomExposureBias = -0.4f;   // the menu: the room a little darker, the lit craft standing out
+	constexpr float ShowroomLitExposureBias = -0.3f;
+	constexpr float ShowroomVignette = 0.25f;
+
+	/** The engine nozzles of the new ships in the ship's frame (Blender metres: front -Y, up +Z), from the module
+	 *  manifests that Scripts/ship_modules.py writes (<ship>_modules.json); the radius is the nozzle's. */
+	struct FShipNozzles
+	{
+		const TCHAR* Ship;
+		float RadiusM;
+		int32 Count;
+		float Points[3][3];
+	};
+	const FShipNozzles ShipNozzles[] = {
+		{ TEXT("STRIX"), 0.16f, 2, { { 0.0f, 3.08f, 0.54f }, { 0.0f, 3.08f, 0.98f }, { 0.0f, 0.0f, 0.0f } } },
+		{ TEXT("WRAITH"), 0.17f, 3, { { 0.0f, 3.0f, 0.56f }, { -0.45f, 3.0f, 0.56f }, { 0.45f, 3.0f, 0.56f } } },
+		{ TEXT("NOMAD"), 0.16f, 3, { { 0.0f, 3.4f, 1.4f }, { -1.02f, 1.8f, 1.3f }, { 1.02f, 1.8f, 1.3f } } },
+		{ TEXT("VORTEX"), 0.20f, 1, { { 0.0f, 2.6f, 0.475f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } } },
+		{ TEXT("BASTION"), 0.30f, 1, { { 0.0f, 3.33f, 0.66f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } } },
+	};
+	/** The module pieces on the ship mesh (utility inside the nose), in the order of AEXHoverCraft::ModuleMeshes. */
+	// The engine's slot shows only an epic or legendary engine's insides, in the x-ray view (Scripts/ship_modules.py);
+	// outside, an engine changes only its flame or plasma (EXMeta::Flame).
+	const EEXFamily CraftExterior[] = { EEXFamily::Wings, EEXFamily::Tail, EEXFamily::Armor, EEXFamily::Cooling, EEXFamily::Utility,
+		EEXFamily::Engine };
+	const TCHAR* const CraftExteriorNames[] = { TEXT("ModuleWings"), TEXT("ModuleTail"), TEXT("ModuleArmor"), TEXT("ModuleCooling"),
+		TEXT("ModuleUtility"), TEXT("ModuleEngine") };
+
 	/** The previous game used vertical FOV; Unreal cameras take horizontal FOV. */
 	float HorizontalFov(float VerticalDeg)
 	{
@@ -74,12 +137,29 @@ AEXHoverCraft::AEXHoverCraft()
 	ShipMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShipMesh"));
 	ShipMesh->SetupAttachment(VisualPivot);
 	ShipMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// The module pieces are exported in the ship's frame (Scripts/ship_modules.py): on the ship mesh with no offset.
+	for (const TCHAR* PieceName : CraftExteriorNames)
+	{
+		UStaticMeshComponent* Piece = CreateDefaultSubobject<UStaticMeshComponent>(PieceName);
+		Piece->SetupAttachment(ShipMesh);
+		Piece->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Piece->SetGenerateOverlapEvents(false);
+		ModuleMeshes.Add(Piece);
+	}
+	SkeletonMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Skeleton"));
+	SkeletonMesh->SetupAttachment(ShipMesh);
+	SkeletonMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SkeletonMesh->SetGenerateOverlapEvents(false);
+	SkeletonMesh->SetVisibility(false);
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Glow(TEXT("/Game/FX/M_FX_Glow.M_FX_Glow"));
+	GlowMaterial = Glow.Object;
 
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Strix(TEXT("/Game/ShipsV2/SM_V2_STRIX.SM_V2_STRIX"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Wraith(TEXT("/Game/ShipsV2/SM_V2_WRAITH.SM_V2_WRAITH"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Nomad(TEXT("/Game/ShipsV2/SM_V2_NOMAD.SM_V2_NOMAD"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Vortex(TEXT("/Game/ShipsV2/SM_V2_VORTEX.SM_V2_VORTEX"));
-	for (UStaticMesh* Mesh : { Strix.Object, Nomad.Object, Vortex.Object, Wraith.Object })
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Strix(TEXT("/Game/TestShips/SM_STRIX.SM_STRIX"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Wraith(TEXT("/Game/TestShips/SM_WRAITH.SM_WRAITH"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Nomad(TEXT("/Game/TestShips/SM_NOMAD.SM_NOMAD"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Bastion(TEXT("/Game/TestShips/SM_BASTION.SM_BASTION"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Vortex(TEXT("/Game/TestShips/SM_VORTEX.SM_VORTEX"));
+	for (UStaticMesh* Mesh : { Strix.Object, Wraith.Object, Nomad.Object, Bastion.Object, Vortex.Object })
 	{
 		if (Mesh)
 		{
@@ -98,19 +178,35 @@ AEXHoverCraft::AEXHoverCraft()
 	Camera->PostProcessSettings.MotionBlurAmount = 0.5f;
 	Camera->PostProcessSettings.bOverride_MotionBlurMax = true;
 	Camera->PostProcessSettings.MotionBlurMax = 8.0f;
+	Camera->PostProcessSettings.bOverride_SceneFringeIntensity = true;
+	Camera->PostProcessSettings.SceneFringeIntensity = 0.0f;
+	Camera->PostProcessSettings.bOverride_VignetteIntensity = true;
+	Camera->PostProcessSettings.VignetteIntensity = 0.35f;
 
 	Fx = CreateDefaultSubobject<UEXCraftFx>(TEXT("Fx"));
+	Audio = CreateDefaultSubobject<UEXCraftAudio>(TEXT("Audio"));
 }
 
 void AEXHoverCraft::BeginPlay()
 {
 	Super::BeginPlay();
+	BaseMaxSpeedMps = MaxSpeedMps;
+	BaseAccelMps2 = AccelerationMps2;
+	BaseBoostAccelMps2 = BoostAccelerationMps2;
+	BaseTurnLow = TurnRateLow;
+	BaseTurnHigh = TurnRateHigh;
+	BaseGripRedirect = GripRedirect;
+	BaseGripLateralMax = GripLateralMax;
+	BaseNitroSeconds = NitroSeconds;
+	Modules.SetNum(EXMeta::FamilyCount);
 	StartLocation = GetActorLocation();
+	LastGroundZCm = StartLocation.Z - 300.0f;
 	StartRotation = FRotator(0.0f, GetActorRotation().Yaw, 0.0f);
 	Heading = StartRotation.Vector();
 	Fx->Initialize(VisualPivot);
 	SelectShip(0);
 	bFlightTest = FParse::Param(FCommandLine::Get(), TEXT("EXFlightTest"));
+	bPhysLog = FParse::Param(FCommandLine::Get(), TEXT("EXPhysLog")) || FParse::Param(FCommandLine::Get(), TEXT("EXSandbox"));
 	for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
 	{
 		bDesertTest = bFlightTest && It->ActorHasTag(TEXT("EXWorld"));
@@ -127,6 +223,8 @@ void AEXHoverCraft::BeginPlay()
 			{
 				const FVector Point = Spline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 				MapRoute.Add(FVector2D(Point.X / CmPerM, Point.Y / CmPerM));
+				MapRouteZ.Add(Point.Z / CmPerM);
+				MapRouteHalfW.Add(Spline->GetScaleAtDistanceAlongSpline(Distance).Y);
 			}
 			break;
 		}
@@ -169,34 +267,108 @@ void AEXHoverCraft::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction(TEXT("Drift"), IE_Pressed, this, &AEXHoverCraft::DriftPressed);
 	PlayerInputComponent->BindAction(TEXT("Drift"), IE_Released, this, &AEXHoverCraft::DriftReleased);
 	PlayerInputComponent->BindAction(TEXT("ResetCraft"), IE_Pressed, this, &AEXHoverCraft::ResetToStart);
-	PlayerInputComponent->BindAction(TEXT("QuitGame"), IE_Pressed, this, &AEXHoverCraft::QuitPressed);
+	PlayerInputComponent->BindAction(TEXT("QuitGame"), IE_Pressed, this, &AEXHoverCraft::QuitPressed).bExecuteWhenPaused = true;
 	PlayerInputComponent->BindAction(TEXT("NextShip"), IE_Pressed, this, &AEXHoverCraft::NextShip);
 	PlayerInputComponent->BindAction(TEXT("PrevShip"), IE_Pressed, this, &AEXHoverCraft::PrevShip);
 	PlayerInputComponent->BindAction(TEXT("Ship1"), IE_Pressed, this, &AEXHoverCraft::Ship1);
 	PlayerInputComponent->BindAction(TEXT("Ship2"), IE_Pressed, this, &AEXHoverCraft::Ship2);
 	PlayerInputComponent->BindAction(TEXT("Ship3"), IE_Pressed, this, &AEXHoverCraft::Ship3);
 	PlayerInputComponent->BindAction(TEXT("Ship4"), IE_Pressed, this, &AEXHoverCraft::Ship4);
+	PlayerInputComponent->BindAction(TEXT("Ship5"), IE_Pressed, this, &AEXHoverCraft::Ship5);
 	PlayerInputComponent->BindAction(TEXT("ToggleCamera"), IE_Pressed, this, &AEXHoverCraft::CycleCamera);
+	PlayerInputComponent->BindAction(TEXT("Consumable1"), IE_Pressed, this, &AEXHoverCraft::Quick1);
+	PlayerInputComponent->BindAction(TEXT("Consumable2"), IE_Pressed, this, &AEXHoverCraft::Quick2);
+	PlayerInputComponent->BindAction(TEXT("Consumable3"), IE_Pressed, this, &AEXHoverCraft::Quick3);
+	PlayerInputComponent->BindAction(TEXT("Consumable4"), IE_Pressed, this, &AEXHoverCraft::Quick4);
+	// The pause menu works while the game is paused.
+	PlayerInputComponent->BindAction(TEXT("MenuUp"), IE_Pressed, this, &AEXHoverCraft::MenuUp).bExecuteWhenPaused = true;
+	PlayerInputComponent->BindAction(TEXT("MenuDown"), IE_Pressed, this, &AEXHoverCraft::MenuDown).bExecuteWhenPaused = true;
+	PlayerInputComponent->BindAction(TEXT("MenuConfirm"), IE_Pressed, this, &AEXHoverCraft::MenuConfirm).bExecuteWhenPaused = true;
+	PlayerInputComponent->BindAxis(TEXT("HangarPitch"), this, &AEXHoverCraft::InputHangarPitch);
+	PlayerInputComponent->BindAxis(TEXT("HangarYaw"), this, &AEXHoverCraft::InputHangarYaw);
+	PlayerInputComponent->BindAxis(TEXT("HangarOrbit"), this, &AEXHoverCraft::InputHangarOrbit);
+	PlayerInputComponent->BindAxis(TEXT("HangarZoom"), this, &AEXHoverCraft::InputHangarZoom);
+	PlayerInputComponent->BindAction(TEXT("HangarTabPrev"), IE_Pressed, this, &AEXHoverCraft::HangarTabPrev);
+	PlayerInputComponent->BindAction(TEXT("HangarTabNext"), IE_Pressed, this, &AEXHoverCraft::HangarTabNext);
+	PlayerInputComponent->BindAction(TEXT("HangarClear"), IE_Pressed, this, &AEXHoverCraft::HangarClear);
+	PlayerInputComponent->BindAction(TEXT("HangarInsure"), IE_Pressed, this, &AEXHoverCraft::HangarInsure);
+	PlayerInputComponent->BindAction(TEXT("HangarZoomIn"), IE_Pressed, this, &AEXHoverCraft::HangarZoomIn);
+	PlayerInputComponent->BindAction(TEXT("HangarZoomOut"), IE_Pressed, this, &AEXHoverCraft::HangarZoomOut);
+	PlayerInputComponent->BindAction(TEXT("HangarToggleAuto"), IE_Pressed, this, &AEXHoverCraft::HangarToggleAutoRotate);
+	PlayerInputComponent->BindAction(TEXT("HangarBack"), IE_Pressed, this, &AEXHoverCraft::HangarBack);
 }
 
 void AEXHoverCraft::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (bHangarPreview)
+	if (IsPlayerControlled())
 	{
-		PreviewTime += DeltaSeconds;
-		SetActorRotation(FRotator(0.0f, PreviewTime * 8.0f, 0.0f));
-		VisualPivot->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, FMath::Sin(PreviewTime * 1.2f) * 5.0f), FRotator::ZeroRotator);
-
-		const float Radius = ShipMesh && ShipMesh->GetStaticMesh()
-			? FMath::Max(500.0f, ShipMesh->GetBounds().SphereRadius)
-			: 700.0f;
-		const FVector CameraLocation = HangarPreviewLocation + FVector(-Radius * 2.3f, -Radius * 3.0f, Radius * 1.1f);
-		Camera->SetWorldLocationAndRotation(CameraLocation, (HangarPreviewLocation - CameraLocation).Rotation());
-		Camera->SetFieldOfView(48.0f);
+		// EXPERF (2026-11-02): the frame rate every 10 s and each hitch over 60 ms go to the log, to see what still stutters.
+		const float RealDt = static_cast<float>(FApp::GetDeltaTime());
+		++PerfFrames;
+		PerfSeconds += RealDt;
+		PerfWorstMs = FMath::Max(PerfWorstMs, RealDt * 1000.0f);
+		if (RealDt > 0.06f)
+		{
+			UE_LOG(LogTemp, Display, TEXT("EXPERF hitch %.0f ms (%s)"), RealDt * 1000.0f, bInShowroom ? TEXT("hangar") : TEXT("corrida"));
+		}
+		if (PerfSeconds >= 10.0f)
+		{
+			UE_LOG(LogTemp, Display, TEXT("EXPERF %.0f fps em media, pior imagem %.0f ms (%s)"), PerfFrames / PerfSeconds, PerfWorstMs,
+				bInShowroom ? TEXT("hangar") : TEXT("corrida"));
+			PerfFrames = 0;
+			PerfSeconds = 0.0f;
+			PerfWorstMs = 0.0f;
+		}
+	}
+	if (bEliminated)
+	{
+		if (bCrashCam && IsPlayerControlled())
+		{
+			UpdateCrashCam(DeltaSeconds);
+		}
+		if (Audio)
+		{
+			// The explosion rings out for the player who blew up, then silence.
+			FEXCraftAudioInput Silent;
+			Silent.ShipName = GetShipName();
+			Silent.bViewer = IsPlayerControlled() && GetWorld()->GetTimeSeconds() - EliminatedAt < 2.5f;
+			Silent.bRaceHold = true;
+			Audio->UpdateAudio(DeltaSeconds, Silent);
+		}
 		return;
 	}
-	if (bTour)
+	if (bInShowroom)
+	{
+		UpdateHangar(DeltaSeconds);
+		Fx->TickPreview(DeltaSeconds, PreviewEnginePower);
+		if (Audio)
+		{
+			FEXCraftAudioInput In;
+			In.ShipName = GetShipName();
+			In.bHangar = true;
+			In.Music = 1.0f;   // the menu and the hangar play the ambient music
+			In.bGrounded = true;
+			In.bViewer = true;
+			Audio->UpdateAudio(DeltaSeconds, In);
+		}
+		return;
+	}
+	HitCooldown = FMath::Max(0.0f, HitCooldown - DeltaSeconds);
+	AudioHitCooldown = FMath::Max(0.0f, AudioHitCooldown - DeltaSeconds);
+	if (TakedownSlowmo > 0.0f)
+	{
+		// A takedown (the player blew a rival up): a short slow motion, then back to speed.
+		TakedownSlowmo -= DeltaSeconds / FMath::Max(0.05f, UGameplayStatics::GetGlobalTimeDilation(this));
+		UGameplayStatics::SetGlobalTimeDilation(this, TakedownSlowmo <= 0.0f ? 1.0f
+			: (TakedownSlowmo > 0.3f ? 0.4f : FMath::Lerp(1.0f, 0.4f, TakedownSlowmo / 0.3f)));
+	}
+	const bool bViewer = IsPlayerControlled();
+	if (bBot)
+	{
+		DriveBot(DeltaSeconds);
+	}
+	else if (bTour)
 	{
 		RunTour(DeltaSeconds);
 	}
@@ -208,42 +380,63 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	{
 		RunFlightTest(DeltaSeconds);
 	}
-	ImpactDamageCooldown = FMath::Max(0.0f, ImpactDamageCooldown - DeltaSeconds);
-	const bool bWaitingForSurvivalStart = bSurvivalParticipant && !bSurvivalRunning;
-	if (bWaitingForSurvivalStart)
+	bGridLock = bGridLock && bRaceHold;   // the grid lock ends with the start (a respawn never re-arms it)
+	if (bRaceHold)
 	{
+		// On the grid (countdown) or past the finish: the craft hovers where it is.
 		ThrottleInput = 0.0f;
-		BrakeInput = 0.0f;
-		SteerInput = 0.0f;
+		BrakeInput = 1.0f;
 		bBoostHeld = false;
 		bDriftHeld = false;
-		VelocityCmps = FVector::ZeroVector;
-		ForwardSpeedMps = 0.0f;
-		LateralSpeedMps = 0.0f;
+		if (bGridLock)
+		{
+			SteerInput = 0.0f;   // bots too: nobody turns on the grid
+		}
 	}
-	else if (bSurvivalBot && bSurvivalRunning)
+	if (bRaceRules && !bRaceHold)
 	{
-		UpdateBotAI(DeltaSeconds);
+		UpdateRaceSystems(DeltaSeconds);
 	}
-	if (!bLost && !bWaitingForSurvivalStart)
+	if (!bLost)
 	{
 		// Fixed small steps keep the hover spring stable through frame hitches.
 		float Remaining = FMath::Min(DeltaSeconds, 0.1f);
-		while (Remaining > KINDA_SMALL_NUMBER)
+		while (Remaining > KINDA_SMALL_NUMBER && !bEliminated)
 		{
 			const float Step = FMath::Min(Remaining, 1.0f / 60.0f);
 			StepFlight(Step);
 			Remaining -= Step;
 		}
+		if (bRaceHold && bGridLock)
+		{
+			// Player, 2026-10-26: the crafts stood scattered at the start. On the grid each stays on its slot, in line,
+			// facing down the track, hovering; all go at the same instant when the director lets go.
+			const FVector Here = GetActorLocation();
+			SetActorLocation(FVector(StartLocation.X, StartLocation.Y, Here.Z), false, nullptr, ETeleportType::TeleportPhysics);
+			VelocityCmps = FVector(0.0f, 0.0f, VelocityCmps.Z);
+			YawRate = 0.0f;
+			Heading = FVector::VectorPlaneProject(StartRotation.Vector(), SurfaceUp).GetSafeNormal(UE_SMALL_NUMBER, StartRotation.Vector());
+			SetActorRotation(FRotationMatrix::MakeFromXZ(Heading, SurfaceUp).ToQuat());
+		}
 		if (GetActorLocation().Z < LostBelowZCm)
 		{
 			bLost = true;
 			VelocityCmps = FVector::ZeroVector;
+			if (bRaceRules)
+			{
+				// In a race a fall out of the world costs a life; the craft comes back on the line.
+				HitCooldown = 0.0f;
+				ApplyHullDamage(HullMax * 0.25f, true);
+				if (!bEliminated)
+				{
+					RespawnOnRoute();
+				}
+			}
 		}
 	}
-	if (bSurvivalParticipant && bSurvivalRunning && bLost)
+	if (bEliminated)
 	{
-		EliminateFromSurvival();
+		return;
 	}
 	if (MapRoute.Num() > 0)
 	{
@@ -275,9 +468,17 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 			}
 		}
 		RouteIndex = Best;
+		const float ReachedM = RouteIndex * 5.0f;
+		if (ReachedM > RaceProgressM && ReachedM - RaceProgressM < 600.0f)
+		{
+			RaceProgressM = ReachedM;
+		}
 	}
 	UpdateVisuals(DeltaSeconds);
-	UpdateCamera(DeltaSeconds);
+	if (bViewer)
+	{
+		UpdateCamera(DeltaSeconds);
+	}
 	if (bTour)
 	{
 		Camera->SetWorldLocationAndRotation(TourCameraLocation, TourCameraRotation);
@@ -289,78 +490,105 @@ void AEXHoverCraft::Tick(float DeltaSeconds)
 	FxInput.Heading = Heading;
 	FxInput.SurfaceUp = SurfaceUp;
 	FxInput.GroundPoint = GroundPointCm;
-	FxInput.CameraLocation = Camera->GetComponentLocation();
+	// The camera on screen (a bot's own camera is never used): the effects thin out with distance from it.
+	const APlayerCameraManager* ViewCamera = bViewer ? nullptr : UGameplayStatics::GetPlayerCameraManager(this, 0);
+	FxInput.CameraLocation = ViewCamera ? ViewCamera->GetCameraLocation() : Camera->GetComponentLocation();
 	FxInput.CameraForward = Camera->GetForwardVector();
 	FxInput.SpeedAlpha = FMath::Clamp(ForwardSpeedMps / MaxSpeedMps, 0.0f, 1.2f);
 	FxInput.Throttle = ThrottleInput;
-	// Keep the 15 AI craft silent; their one-shot cues would otherwise stack into a noisy crowd.
-	FxInput.AudioScale = bSurvivalBot ? 0.0f : 1.0f;
 	FxInput.HeightM = HeightM;
 	FxInput.bGrounded = bGrounded;
 	FxInput.bBoosting = bBoosting;
 	FxInput.bDrifting = bDrifting;
+	FxInput.bViewer = bViewer;
 	Fx->UpdateFx(DeltaSeconds, FxInput);
-	ShowTelemetry();
+	if (Audio)
+	{
+		FEXCraftAudioInput Sound;
+		Sound.ShipName = GetShipName();
+		Sound.TopSpeedMps = BaseMaxSpeedMps > 0.0f ? BaseMaxSpeedMps : MaxSpeedMps;
+		Sound.WallLeft = WallNearLeft * FMath::Clamp(ForwardSpeedMps / 60.0f, 0.0f, 1.0f);
+		Sound.WallRight = WallNearRight * FMath::Clamp(ForwardSpeedMps / 60.0f, 0.0f, 1.0f);
+		if (bViewer)
+		{
+			FillAudioOthers(Sound);
+		}
+		Sound.SpeedMps = ForwardSpeedMps;
+		Sound.Throttle = ThrottleInput;
+		Sound.Steer = SteerInput;
+		Sound.HeightM = HeightM;
+		Sound.Impact = FMath::Max(ImpactShake, WallThreat);
+		Sound.bBoosting = bBoosting;
+		Sound.bGrounded = bGrounded;
+		Sound.bDrifting = bDrifting;
+		Sound.bRaceHold = bRaceHold;
+		Sound.bViewer = bViewer;
+		Audio->UpdateAudio(DeltaSeconds, Sound);
+	}
+	// The telemetry lines are for the tests only (player, 2026-10-26: "não quero nada a poluir o jogo").
+	if (bViewer && (bFlightTest || bDesertTest || bTour || FParse::Param(FCommandLine::Get(), TEXT("EXDebugText"))))
+	{
+		ShowTelemetry();
+	}
 }
 
 void AEXHoverCraft::StepFlight(float Dt)
 {
 	const FVector Location = GetActorLocation();
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(EXHoverProbe), false, this);
-	const float ProbeReachCm = FMath::Max(HoverHeightM * CmPerM * 3.0f, 1200.0f);
+	const float ReachM = HoverHeightM * 3.0f;
+	// The sphere under the craft: the ground point and normal for the effects and the landing, and the height when the
+	// pads see nothing.
 	FHitResult GroundHit;
-	const bool bHit = GetWorld()->SweepSingleByChannel(GroundHit, Location, Location - SurfaceUp * ProbeReachCm,
+	const bool bHit = GetWorld()->SweepSingleByChannel(GroundHit, Location, Location - SurfaceUp * (ReachM * CmPerM),
 		FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(ProbeRadiusCm), Params);
 	HeightM = bHit ? (GroundHit.bStartPenetrating ? 0.3f : (GroundHit.Distance + ProbeRadiusCm) / CmPerM) : 99.0f;
 	FVector GroundNormal = bHit ? FVector(GroundHit.ImpactNormal) : FVector::UpVector;
-	bool bHasProbePlane = false;
-	int32 NumProbeHits = 0;
-	// Four line probes under the hull (nose, tail, both sides): the height is their average and the ground is the
-	// plane they span, so single terrain triangles no longer shake the craft. The sphere above stays as the fallback.
+	// The four hover pads (nose, tail, both sides), each a line down the craft's up. Their heights are smoothed a little
+	// (the skirt averages the ground under it: a washboard does not throw the craft), except the first touch.
+	const FVector Fwd = Heading.GetSafeNormal();
+	const FVector Side = FVector::CrossProduct(SurfaceUp, Fwd).GetSafeNormal();
+	const float PadForwardM[4] = { 1.6f, -1.6f, 0.0f, 0.0f };
+	const float PadSideM[4] = { 0.0f, 0.0f, 0.9f, -0.9f };
+	const float Smooth = 1.0f - FMath::Exp(-Dt / FMath::Max(0.01f, PadSmoothing));
+	bool bPadHit[4] = {};
+	FVector PadPoints[4];
+	int32 PadHits = 0;
+	float PadSum = 0.0f;
+	for (int32 Pad = 0; Pad < 4; ++Pad)
 	{
-		const FVector Fwd = Heading.GetSafeNormal();
-		const FVector Side = FVector::CrossProduct(SurfaceUp, Fwd).GetSafeNormal();
-		const FVector Offsets[4] = { Fwd * 160.0f, -Fwd * 160.0f, Side * 90.0f, -Side * 90.0f };
-		FVector Points[4];
-		float HeightSum = 0.0f;
-		int32 Count = 0;
-		for (int32 Probe = 0; Probe < 4; ++Probe)
+		FHitResult PadHit;
+		const FVector Start = Location + (Fwd * PadForwardM[Pad] + Side * PadSideM[Pad]) * CmPerM;
+		bPadHit[Pad] = GetWorld()->LineTraceSingleByChannel(PadHit, Start, Start - SurfaceUp * (ReachM * CmPerM), ECC_Visibility, Params);
+		const float Raw = bPadHit[Pad] ? PadHit.Distance / CmPerM : ReachM;
+		PadPrevM[Pad] = PadHeightM[Pad];
+		PadHeightM[Pad] = !bPadHit[Pad] || PadHeightM[Pad] >= ReachM - 0.01f ? Raw : PadHeightM[Pad] + (Raw - PadHeightM[Pad]) * Smooth;
+		if (bPadHit[Pad])
 		{
-			FHitResult ProbeHit;
-			const FVector Start = Location + Offsets[Probe];
-			if (GetWorld()->LineTraceSingleByChannel(ProbeHit, Start, Start - SurfaceUp * ProbeReachCm, ECC_Visibility, Params))
-			{
-				Points[Count++] = ProbeHit.ImpactPoint;
-				HeightSum += ProbeHit.Distance / CmPerM;
-			}
-		}
-		NumProbeHits = Count;
-		if (Count >= 3 && !GroundHit.bStartPenetrating)
-		{
-			const FVector Plane = Count == 4
-				? FVector::CrossProduct(Points[0] - Points[1], Points[2] - Points[3]).GetSafeNormal()
-				: FVector::CrossProduct(Points[1] - Points[0], Points[2] - Points[0]).GetSafeNormal();
-			GroundNormal = FVector::DotProduct(Plane, SurfaceUp) < 0.0f ? -Plane : Plane;
-			bHasProbePlane = true;
-			HeightM = bHit ? FMath::Min(HeightM, HeightSum / Count + 0.25f) : HeightSum / Count;
-			if (!bHit)
-			{
-				GroundPointCm = (Points[0] + Points[1] + Points[2]) / 3.0f;
-			}
+			PadPoints[PadHits++] = PadHit.ImpactPoint;
+			PadSum += PadHeightM[Pad];
 		}
 	}
-	if (bHit)
+	if (PadHits == 4 && !GroundHit.bStartPenetrating)
 	{
-		GroundPointCm = FVector(GroundHit.ImpactPoint);
+		// The ground is the plane the pads span (single terrain triangles do not shake the craft).
+		const FVector Plane = FVector::CrossProduct(PadPoints[0] - PadPoints[1], PadPoints[2] - PadPoints[3]).GetSafeNormal();
+		GroundNormal = FVector::DotProduct(Plane, SurfaceUp) < 0.0f ? -Plane : Plane;
+		HeightM = FMath::Min(HeightM, PadSum / 4.0f + 0.25f);   // never above what the sphere sees (walls, lips)
 	}
+	GroundPointCm = bHit ? FVector(GroundHit.ImpactPoint) : Location - SurfaceUp * (HoverHeightM * CmPerM);
 	const bool bWasGrounded = bGrounded;
 	const float AirTimeBefore = AirTimeSeconds;
-	bGrounded = (bHit || bHasProbePlane) && FVector::DotProduct(GroundNormal, SurfaceUp) > 0.5f && HeightM < HoverHeightM + 4.0f;
+	// On the ground while the pads carry it (beyond ~2 m they push nothing: the craft is flying).
+	bGrounded = PadHits >= 2 && FVector::DotProduct(GroundNormal, SurfaceUp) > 0.5f && HeightM < HoverHeightM * 1.9f;
 	AirTimeSeconds = bGrounded ? 0.0f : AirTimeSeconds + Dt;
-
-	SurfaceUp = FMath::VInterpNormalRotationTo(SurfaceUp, bGrounded ? GroundNormal : FVector::UpVector, Dt,
-		bGrounded ? SurfaceAlignDegPerSec : AirLevelDegPerSec);
-	Heading = FVector::VectorPlaneProject(Heading, SurfaceUp).GetSafeNormal(UE_SMALL_NUMBER, Heading);
+	if (bGrounded)
+	{
+		LastGroundZCm = GroundPointCm.Z;
+	}
+	CrashWobble = FMath::Max(0.0f, CrashWobble - Dt / FMath::Max(0.1f, CrashWobbleSeconds));
+	CrashCooldown = FMath::Max(0.0f, CrashCooldown - Dt);
+	CrashSparkCooldown = FMath::Max(0.0f, CrashSparkCooldown - Dt);
 
 	FVector V = VelocityCmps / CmPerM;
 	const float Speed = V.Size();
@@ -371,14 +599,15 @@ void AEXHoverCraft::StepFlight(float Dt)
 	bBraking = bGrounded && !bDrifting && (BrakeInput > 0.05f || bDriftHeld);
 	const float BrakeStrength = FMath::Max(BrakeInput, bDriftHeld ? 1.0f : 0.0f);
 
-	bBoosting = bBoostHeld && Nitro > 0.0f && ThrottleInput > 0.1f;
+	bBoosting = bBoostHeld && Nitro > 0.0f && ThrottleInput > 0.1f && !bOverheated;
 	Nitro = bBoosting ? FMath::Max(0.0f, Nitro - Dt / NitroSeconds)
 		: FMath::Min(1.0f, Nitro + Dt * (NitroRegen + (bWasDrifting ? NitroDriftRegen : 0.0f) + (bGrounded ? 0.0f : NitroAirRegen)));
 
-	FVector Acceleration = FVector::ZeroVector;
+	// Whole gravity, always: a climb slows the craft, a descent speeds it up, a fall is a fall.
+	FVector Acceleration(0.0f, 0.0f, -GravityMps2);
 	if (bGrounded)
 	{
-		const float TopSpeed = MaxSpeedMps * (bBoosting ? BoostTopMul : 1.0f);
+		const float TopSpeed = MaxSpeedMps * SpeedCapMul() * (bBoosting ? BoostTopMul : 1.0f);
 		float Thrust = 0.0f;
 		if (Forward < TopSpeed)
 		{
@@ -406,14 +635,13 @@ void AEXHoverCraft::StepFlight(float Dt)
 		{
 			Acceleration -= V / Speed * DriftDecel;
 		}
-		// Critically damped hover spring along the surface normal. It never pulls down harder than about
-		// gravity, so the craft can fly off crests and ramps instead of being glued to the ground.
-		const float NormalSpeed = FVector::DotProduct(V, SurfaceUp);
-		const FVector Gravity = FVector(0.0f, 0.0f, -GravityMps2);
-		const float SpringAcceleration = FMath::Max(HoverStiffness * (HoverHeightM - HeightM), -GravityMps2 * 1.3f);
-		const float GravityAlongSurface = FVector::DotProduct(Gravity, SurfaceUp);
-		Acceleration += SurfaceUp * (SpringAcceleration - 2.0f * FMath::Sqrt(HoverStiffness) * HoverDamping * NormalSpeed - GravityAlongSurface);
-		Acceleration += FVector::VectorPlaneProject(Gravity, SurfaceUp) * SlopeGravityScale;
+		// Ground effect at speed, fading as the craft lifts (so a sharp crest still makes it light).
+		const float Lift = FMath::Clamp(1.0f - (HeightM - HoverHeightM) / HoverHeightM, 0.0f, 1.0f);
+		Acceleration -= SurfaceUp * (DownforceMps2 * FMath::Square(FMath::Min(Speed / MaxSpeedMps, 1.3f)) * Lift);
+		if (SlopeGravityScale < 1.0f)
+		{
+			Acceleration -= FVector::VectorPlaneProject(FVector(0.0f, 0.0f, -GravityMps2), SurfaceUp) * (1.0f - SlopeGravityScale);
+		}
 	}
 	else
 	{
@@ -421,8 +649,53 @@ void AEXHoverCraft::StepFlight(float Dt)
 		AirForward.Z = FMath::Min(AirForward.Z, 0.2f);
 		const float Ratio = FMath::Clamp(Forward / MaxSpeedMps, 0.0f, 1.0f);
 		Acceleration += AirForward.GetSafeNormal(UE_SMALL_NUMBER, Heading) * (AccelerationMps2 * AirThrust * (1.0f - Ratio * Ratio) * ThrottleInput);
-		Acceleration.Z -= GravityMps2;
 	}
+	// The pads push along the craft's up, never pull: a spring to the hover height that carries the weight, damped (the
+	// rebound harder, so a squashed pad does not pop the craft into the air). Off-centre pushes turn the craft: the
+	// nose rises onto a ramp, dips over a crest, slaps down on a nose-first landing.
+	float PitchAccel = 0.0f;
+	float RollAccel = 0.0f;
+	{
+		const float Preload = GravityMps2 * FMath::Max(0.0f, SurfaceUp.Z);
+		const float PadC = 2.0f * PadDamping * FMath::Sqrt(PadStiffness);
+		for (int32 Pad = 0; Pad < 4; ++Pad)
+		{
+			if (!bPadHit[Pad])
+			{
+				continue;
+			}
+			const float HDot = (PadHeightM[Pad] - PadPrevM[Pad]) / Dt;
+			const float C = HDot > 0.0f ? PadC * 1.6f : PadC;
+			const float Push = 0.25f * FMath::Clamp(PadStiffness * (HoverHeightM - PadHeightM[Pad]) + Preload - C * HDot, 0.0f, PadMaxG * GravityMps2);
+			Acceleration += SurfaceUp * Push;
+			PitchAccel += Push * PadForwardM[Pad] / FMath::Square(PitchRadiusM);
+			RollAccel += Push * PadSideM[Pad] / FMath::Square(RollRadiusM);
+		}
+	}
+	if (bGrounded)
+	{
+		PitchAccel -= AttitudeDamping * PitchRate;
+		RollAccel -= AttitudeDamping * RollRate;
+	}
+	else
+	{
+		// In the air the nose turns slowly to the flight path (no snapping level), and the pilot trims the roll level.
+		const FVector Dir = Speed > 5.0f ? V / Speed : Fwd;
+		const float PathError = FMath::Asin(FMath::Clamp(FVector::DotProduct(Dir, SurfaceUp), -1.0f, 1.0f));
+		PitchAccel += AirAlign * PathError * FMath::Clamp(Speed / MaxSpeedMps, 0.25f, 1.0f) - AirAlignDamping * PitchRate;
+		RollAccel += -AirRollLevel * FMath::Asin(FMath::Clamp(Side.Z, -1.0f, 1.0f)) - AirAlignDamping * RollRate;
+		if (SurfaceUp.Z < 0.3f)
+		{
+			// Upside down or on its side: right it firmly.
+			RollAccel *= 3.0f;
+			PitchAccel += -3.0f * AirAlign * FMath::Asin(FMath::Clamp(Fwd.Z, -1.0f, 1.0f));
+		}
+	}
+	PitchRate += PitchAccel * Dt;
+	RollRate += RollAccel * Dt;
+	// Nose up tilts the up vector back, right side up tilts it to the left.
+	SurfaceUp = (SurfaceUp - Fwd * (PitchRate * Dt) - Side * (RollRate * Dt)).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	Heading = FVector::VectorPlaneProject(Heading, SurfaceUp).GetSafeNormal(UE_SMALL_NUMBER, Heading);
 	Acceleration -= V * (AeroDrag * Speed);
 	V += Acceleration * Dt;
 
@@ -439,9 +712,11 @@ void AEXHoverCraft::StepFlight(float Dt)
 			const float SignedAngle = FMath::Atan2(FVector::DotProduct(SurfaceUp, FVector::CrossProduct(Tangential, Heading)),
 				FVector::DotProduct(Tangential, Heading));
 			SlipRad = SignedAngle;
-			GripBlend = bDrifting ? 0.0f : FMath::Min(1.0f, GripBlend + Dt / FMath::Max(0.05f, DriftRecoverTime));
-			float LateralMax = FMath::Lerp(DriftLateralMax, GripLateralMax, GripBlend) * (bBraking ? BrakeGripMul : 1.0f);
-			float Redirect = FMath::Lerp(DriftRedirect, GripRedirect, GripBlend);
+			GripBlend = bDrifting ? 0.0f : FMath::Min(1.0f - 0.6f * CrashWobble, GripBlend + Dt / FMath::Max(0.05f, DriftRecoverTime));
+			// The Stabilizer Shot holds the line harder for its 8 seconds.
+			const float StabMul = StabLeft > 0.0f ? 1.35f : 1.0f;
+			float LateralMax = FMath::Lerp(DriftLateralMax, GripLateralMax, GripBlend) * (bBraking ? BrakeGripMul : 1.0f) * StabMul;
+			float Redirect = FMath::Lerp(DriftRedirect, GripRedirect, GripBlend) * StabMul;
 			const float SlipOverDeg = FMath::RadiansToDegrees(FMath::Abs(SignedAngle)) - DriftMaxSlipDeg;
 			if (SlipOverDeg > 0.0f)
 			{
@@ -480,7 +755,9 @@ void AEXHoverCraft::StepFlight(float Dt)
 
 	// Steering builds a yaw rate; entering a drift kicks the nose in, and the kick stops at the slip limit.
 	const float TurnMul = bDrifting ? DriftTurnMul : bBraking ? BrakeTurnMul : 1.0f;
-	const float TurnRate = FMath::Lerp(TurnRateLow, TurnRateHigh, FMath::Clamp(Speed / MaxSpeedMps, 0.0f, 1.0f)) * TurnMul * (bGrounded ? 1.0f : AirTurnMul);
+	// A big knock dulls the steering for a moment (CrashWobble).
+	const float TurnRate = FMath::Lerp(TurnRateLow, TurnRateHigh, FMath::Clamp(Speed / MaxSpeedMps, 0.0f, 1.0f)) * TurnMul * (bGrounded ? 1.0f : AirTurnMul)
+		* (1.0f - 0.6f * CrashWobble);
 	YawRate = FMath::Lerp(YawRate, SteerInput * (Forward < -0.5f ? -1.0f : 1.0f) * TurnRate, Damp(SteerResponse, Dt));
 	if (bDrifting && !bWasDrifting)
 	{
@@ -490,18 +767,45 @@ void AEXHoverCraft::StepFlight(float Dt)
 	{
 		YawRate = FMath::Lerp(YawRate, 0.0f, Damp(8.0f, Dt));
 	}
-	Heading = Heading.RotateAngleAxis(FMath::RadiansToDegrees(YawRate * Dt), SurfaceUp);
+	// A knock's spin turns the nose on its own and dies away; a big knock also wobbles it.
+	CrashSpin *= FMath::Exp(-CrashSpinDecay * Dt);
+	const float Wobble = CrashWobble * 0.35f * FMath::Sin(HoverBobTime * 9.0f);
+	Heading = Heading.RotateAngleAxis(FMath::RadiansToDegrees((YawRate + CrashSpin + Wobble) * Dt), SurfaceUp);
 
 	if (bGrounded && !bWasGrounded && AirTimeBefore > 0.08f)
 	{
-		// Touchdown: the camera dips and jolts, and the sand bursts out around the craft.
-		const float LandingSpeed = FMath::Max(0.0f, -FVector::DotProduct(V, SurfaceUp));
-		CamKickVel -= FMath::Min(LandingSpeed * 0.06f, 1.4f);
+		// Touchdown: the pads squash, a hard landing scrubs speed, the camera dips and jolts, the sand bursts out.
+		const float LandingSpeed = FMath::Max(0.0f, -FVector::DotProduct(V, GroundNormal));
+		if (LandingSpeed > 6.0f)
+		{
+			V *= 1.0f - FMath::Min(0.25f, LandingScrub * (LandingSpeed - 6.0f));
+		}
+		CamKickVel -= FMath::Min(LandingSpeed * 0.07f, 1.8f);
 		CamJolt = FMath::Max(CamJolt, FMath::Clamp(LandingSpeed / 14.0f, 0.15f, 1.0f));
 		if (LandingSpeed > 3.0f)
 		{
 			Fx->LandingBurst(GroundPointCm, SurfaceUp, FMath::Clamp(LandingSpeed / 15.0f, 0.3f, 1.0f));
+			if (Audio)
+			{
+				Audio->Landing(FMath::Clamp(LandingSpeed / 20.0f, 0.2f, 1.0f));
+			}
 		}
+		LastLandingTime = GetWorld()->GetTimeSeconds();
+		LastLandingSpeed = LandingSpeed;
+		if (LandingSpeed > 20.0f)
+		{
+			ApplyHullDamage((LandingSpeed - 20.0f) * 1.0f);   // a hard landing (race rules only)
+		}
+		if (bPhysLog && AirTimeBefore > 0.3f)
+		{
+			UE_LOG(LogTemp, Display, TEXT("EXPHYS jump %s air=%.2fs peak=%.1fm takeoff=%.0fkmh land=%.1fm/s pitch=%.0f"), *GetShipName(), AirTimeBefore,
+				(JumpPeakZCm - GroundPointCm.Z) / CmPerM, JumpTakeoffMps * 3.6f, LandingSpeed, FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(Fwd.Z, -1.0f, 1.0f))));
+		}
+	}
+	if (!bGrounded)
+	{
+		JumpPeakZCm = bWasGrounded ? Location.Z : FMath::Max(JumpPeakZCm, Location.Z);
+		JumpTakeoffMps = bWasGrounded ? Speed : JumpTakeoffMps;
 	}
 
 	const float PreviousForward = ForwardSpeedMps;
@@ -532,8 +836,19 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 			continue;
 		}
 		const FVector Normal = Hit.Normal;
-		const FVector IncomingVelocity = VelocityCmps;
-		const float IntoSpeed = FVector::DotProduct(VelocityCmps, Normal);
+		AEXHoverCraft* OtherCraft = Cast<AEXHoverCraft>(Hit.GetActor());
+		if (IsValid(OtherCraft))
+		{
+			// Another ship is not a wall (player, 2026-11-01): both take the knock, by their masses (CrashWith).
+			if (!OtherCraft->bEliminated)
+			{
+				CrashWith(*OtherCraft, Hit, Dt);
+			}
+			Delta = FVector::VectorPlaneProject(Delta * (1.0f - Hit.Time), Normal);
+			continue;
+		}
+		const FVector OtherVelocity = FVector::ZeroVector;
+		const float IntoSpeed = FVector::DotProduct(VelocityCmps - OtherVelocity, Normal);
 		if (IntoSpeed < 0.0f)
 		{
 			// Steep surfaces are walls: bounce a little and lose speed. Gentle ones just redirect the craft.
@@ -544,6 +859,24 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 				VelocityCmps *= 1.0f - FMath::Clamp(WallScrapeLoss * (-IntoSpeed / CmPerM) / 20.0f, 0.0f, 0.5f);
 			}
 			ImpactShake = FMath::Max(ImpactShake, FMath::Clamp(-IntoSpeed / CmPerM / 25.0f, 0.0f, 1.0f));
+			if (bWall && Audio && AudioHitCooldown <= 0.0f && -IntoSpeed / CmPerM > 8.0f)
+			{
+				AudioHitCooldown = 0.15f;
+				Audio->Bang(FMath::Clamp((-IntoSpeed / CmPerM - 8.0f) / 25.0f, 0.15f, 0.9f));
+			}
+			if (bWall)
+			{
+				// What the impact speed has above 16 m/s (player, 2026-10-26: destroyed too easily); ApplyHullDamage caps
+				// one hit at 40 % of the hull. The ships' knocks are CrashWith's.
+				const float ImpactMps = -IntoSpeed / CmPerM;
+				LastKnockDV = Normal * ImpactMps * (1.0f + WallBounce);
+				LastKnockPoint = Hit.ImpactPoint;
+				LastKnockTime = GetWorld()->GetTimeSeconds();
+				if (ImpactMps > 16.0f)
+				{
+					ApplyHullDamage((ImpactMps - 16.0f) * 0.85f);
+				}
+			}
 			if (bWall)
 			{
 				CamJolt = FMath::Max(CamJolt, FMath::Clamp(-IntoSpeed / CmPerM / 20.0f, 0.0f, 1.0f));
@@ -554,27 +887,222 @@ void AEXHoverCraft::MoveWithCollision(float Dt)
 				}
 			}
 		}
-		if (IntoSpeed < -300.0f && ImpactDamageCooldown <= 0.0f)
-		{
-			AEXHoverCraft* OtherCraft = Cast<AEXHoverCraft>(Hit.GetActor());
-			if (bSurvivalParticipant && bSurvivalRunning && OtherCraft && OtherCraft->bSurvivalParticipant && OtherCraft->bSurvivalRunning)
-			{
-				const float RelativeSpeedMps = (IncomingVelocity - OtherCraft->GetFlightVelocity()).Size() / CmPerM;
-				const float Damage = FMath::Clamp((RelativeSpeedMps - 8.0f) * 0.65f, 4.0f, 55.0f);
-				ApplySurvivalDamage(Damage);
-				OtherCraft->ApplySurvivalDamage(Damage);
-				ImpactDamageCooldown = 0.28f;
-				OtherCraft->ImpactDamageCooldown = FMath::Max(OtherCraft->ImpactDamageCooldown, 0.28f);
-			}
-			else if (bSurvivalParticipant && bSurvivalRunning && FVector::DotProduct(Normal, SurfaceUp) < 0.6f)
-			{
-				const float ImpactSpeedMps = -IntoSpeed / CmPerM;
-				ApplySurvivalDamage(FMath::Clamp((ImpactSpeedMps - 10.0f) * 0.55f, 2.0f, 48.0f));
-				ImpactDamageCooldown = 0.28f;
-			}
-		}
 		Delta = FVector::VectorPlaneProject(Delta * (1.0f - Hit.Time), Normal);
 	}
+}
+
+void AEXHoverCraft::CrashWith(AEXHoverCraft& Other, const FHitResult& Hit, float Dt)
+{
+	// Burnout-style knocks (player, 2026-11-01; Docs/FISICA.md, Scripts/physics_sandbox/crash.py). The normal points from
+	// the other ship to this one. The momentum is shared by the masses with a little bounce; the rub along the contact
+	// drags the faster ship back and the slower one forward (trading paint), within the friction.
+	const FVector N = Hit.Normal;
+	const FVector VA = VelocityCmps / CmPerM;
+	const FVector VB = Other.VelocityCmps / CmPerM;
+	const FVector Rel = VA - VB;
+	const float Closing = FVector::DotProduct(Rel, N);
+	const FVector Tangent = Rel - N * Closing;
+	const float Slip = Tangent.Size();
+	const float MA = GetCrashMassKg();
+	const float MB = Other.GetCrashMassKg();
+	const float InvSum = 1.0f / MA + 1.0f / MB;
+	FVector Impulse = FVector::ZeroVector;   // on this ship (kg m/s); the other takes the opposite
+	if (Closing < 0.0f)
+	{
+		const float J = -(1.0f + CrashRestitution) * Closing / InvSum;
+		Impulse = N * J;
+		if (Slip > 0.5f)
+		{
+			Impulse -= Tangent / Slip * FMath::Min(CrashFriction * J, Slip / InvSum);
+		}
+	}
+	else if (Slip > 3.0f)
+	{
+		// Pressed side by side: the scrape still drags a little each step.
+		Impulse -= Tangent / Slip * FMath::Min(Slip / InvSum, CrashFriction * GravityMps2 * Dt / InvSum);
+	}
+	// Who rammed whom: the ship whose nose went into the other takes less of the damage (as in Burnout).
+	const bool bARams = FVector::DotProduct(Heading, -N) > 0.6f && FVector::DotProduct(VA, -N) > FVector::DotProduct(VB, -N);
+	const bool bBRams = FVector::DotProduct(Other.Heading, N) > 0.6f && FVector::DotProduct(VB, N) > FVector::DotProduct(VA, N);
+	TakeCrash(Impulse / MA, Hit.ImpactPoint, &Other, bARams ? 0.6f : 1.0f, Slip, Dt);
+	Other.TakeCrash(-Impulse / MB, Hit.ImpactPoint, this, bBRams ? 0.6f : 1.0f, Slip, Dt);
+	if (Other.bEliminated && !bEliminated)
+	{
+		UE_LOG(LogTemp, Display, TEXT("EXRACE TAKEDOWN %s%s -> %s"), *GetShipName(), bBot ? TEXT("") : TEXT(" (jogador)"), *Other.GetShipName());
+		if (IsPlayerControlled())
+		{
+			TakedownSlowmo = 0.9f;   // a short slow motion as the rival's wreck goes (Burnout)
+		}
+	}
+	if (bPhysLog || Other.bPhysLog)
+	{
+		UE_LOG(LogTemp, Display, TEXT("EXPHYS crash %s(%.0fkg) x %s(%.0fkg) closing=%.1f slip=%.1f dv=%.1f/%.1f m/s"), *GetShipName(), MA,
+			*Other.GetShipName(), MB, -Closing, Slip, Impulse.Size() / MA, Impulse.Size() / MB);
+	}
+}
+
+void AEXHoverCraft::TakeCrash(const FVector& DeltaVMps, const FVector& Point, const AEXHoverCraft* Other, float RamShare, float SlipMps, float Dt)
+{
+	if (bEliminated)
+	{
+		return;
+	}
+	// BASTION's passive (INERTIAL ANCHOR): knocks move it less.
+	const float Anchor = GetShipName().Equals(TEXT("BASTION"), ESearchCase::IgnoreCase) ? 0.75f : 1.0f;
+	const FVector DV = DeltaVMps * Anchor;
+	const float Kick = DV.Size();
+	VelocityCmps += DV * CmPerM;
+	if (Kick > 3.0f)
+	{
+		LastKnockDV = DV;
+		LastKnockPoint = Point;
+		LastKnockTime = GetWorld()->GetTimeSeconds();
+	}
+	// An off-centre knock spins the ship: on the rear quarter it turns it round, on the nose it pushes it aside.
+	const FVector Lever = (Point - GetActorLocation()) / CmPerM;
+	const float Torque = FVector::DotProduct(FVector::CrossProduct(Lever, DV), SurfaceUp);
+	CrashSpin = FMath::Clamp(CrashSpin + Torque / FMath::Square(FMath::Max(0.5f, CrashSpinRadiusM)), -CrashSpinMax, CrashSpinMax);
+	// A big knock takes the grip and dulls the steering for a moment.
+	if (Kick > 2.5f)
+	{
+		CrashWobble = FMath::Max(CrashWobble, FMath::Clamp(Kick / 18.0f, 0.15f, 1.0f));
+		GripBlend = FMath::Min(GripBlend, 1.0f - 0.7f * CrashWobble);
+	}
+	// Hull: what the knock changed of the speed above CrashSafeMps (the lighter ship changes more), less for the one who
+	// rammed; a rub side to side costs a little at a time.
+	ScrapePending += ScrapeDamagePerS * FMath::Clamp(SlipMps / 20.0f, 0.0f, 2.0f) * Dt;
+	const float Damage = FMath::Max(0.0f, Kick - CrashSafeMps) * CrashDamagePerMps * RamShare;
+	if (Damage > 0.0f && CrashCooldown <= 0.0f)
+	{
+		HitCooldown = 0.0f;
+		ApplyHullDamage(Damage + ScrapePending);
+		ScrapePending = 0.0f;
+		CrashCooldown = 0.2f;
+	}
+	else if (ScrapePending >= 3.0f && HitCooldown <= 0.0f)
+	{
+		ApplyHullDamage(ScrapePending);
+		ScrapePending = 0.0f;
+	}
+	// Sparks where they touch, the bang, the shake and the shove of the view.
+	if (CrashSparkCooldown <= 0.0f && (Kick > 1.5f || SlipMps > 4.0f))
+	{
+		CrashSparkCooldown = 0.05f;
+		const FVector Away = (GetActorLocation() - Point).GetSafeNormal();
+		Fx->ImpactSparks(Point, Away, VelocityCmps, FMath::Clamp(FMath::Max(Kick / 15.0f, SlipMps / 30.0f), 0.2f, 1.0f));
+	}
+	if (Kick > 4.0f && Audio && AudioHitCooldown <= 0.0f)
+	{
+		AudioHitCooldown = 0.15f;
+		Audio->Bang(FMath::Clamp(Kick / 25.0f, 0.2f, 1.0f));
+	}
+	ImpactShake = FMath::Max(ImpactShake, FMath::Clamp(Kick / 20.0f, 0.0f, 1.0f));
+	CamJolt = FMath::Max(CamJolt, FMath::Clamp(Kick / 16.0f, 0.0f, 1.0f));
+	CamShoveVel -= DV * CamCrashKick;
+	(void)Other;
+}
+
+float AEXHoverCraft::GetCrashMassKg() const
+{
+	const EXMeta::FShipDef& Ship = EXMeta::Ship(GetShipName());
+	return FMath::Max(600.0f, static_cast<float>(Ship.MassKg) + static_cast<float>(ResolvedStats[static_cast<int32>(EEXStat::Mass)]));
+}
+
+void AEXHoverCraft::SetRoute(const TArray<FVector>& PointsCm)
+{
+	MapRoute.Reset();
+	MapRouteZ.Reset();
+	MapRouteHalfW.Reset();
+	for (const FVector& Point : PointsCm)
+	{
+		MapRoute.Add(FVector2D(Point.X / CmPerM, Point.Y / CmPerM));
+		MapRouteZ.Add(Point.Z / CmPerM);
+		MapRouteHalfW.Add(20.0f);
+	}
+	RouteIndex = 0;
+}
+
+void AEXHoverCraft::Revive()
+{
+	bEliminated = false;
+	SetActorHiddenInGame(false);
+	SetActorEnableCollision(true);
+	Hull = HullMax;
+	Lives = MaxLives;
+	CrashSpin = CrashWobble = ScrapePending = 0.0f;
+	if (bCrashCam)
+	{
+		bCrashCam = false;
+		UGameplayStatics::SetGlobalTimeDilation(this, 1.0f);
+	}
+	RespawnOnRoute();
+	bGridLock = false;
+}
+
+void AEXHoverCraft::EXBoom(int32 Cause)
+{
+	// The last knock or landing as each way of dying leaves it, then the end of the hull (Eliminate reads them).
+	if (bEliminated || !GetWorld())
+	{
+		return;
+	}
+	const float Now = GetWorld()->GetTimeSeconds();
+	const FVector Fwd = Heading.GetSafeNormal();
+	const FVector Right = FVector::CrossProduct(SurfaceUp, Fwd).GetSafeNormal();
+	const float Mps = FMath::Max(VelocityCmps.Size() / CmPerM, 1.0f);
+	LastKnockTime = LastLandingTime = -100.0f;
+	if (Cause == 1 || Cause == 2 || Cause == 4)
+	{
+		LastKnockDV = Cause == 1 ? -Fwd * FMath::Max(10.0f, 1.3f * Mps) : (Cause == 2 ? Right * 22.0f : Fwd * 12.0f + Right * 4.0f);
+		LastKnockPoint = GetActorLocation() + (Cause == 1 ? Fwd * 250.0f : (Cause == 2 ? -Right * 120.0f : -Fwd * 250.0f - Right * 60.0f));
+		LastKnockTime = Now;
+		VelocityCmps += LastKnockDV * CmPerM;
+	}
+	else if (Cause == 3)
+	{
+		LastLandingTime = Now;
+		LastLandingSpeed = 25.0f;
+	}
+	UE_LOG(LogTemp, Display, TEXT("EXRACE BOOM %s cause %d at %.0f km/h"), *GetShipName(), Cause, Mps * 3.6f);
+	Hull = 0.0f;
+	Lives = 0;
+	Eliminate();
+}
+
+void AEXHoverCraft::UpdateCrashCam(float Dt)
+{
+	// Real time (the world runs slowed): 1.6 s of slow motion, then back to speed over 0.8 s.
+	const float Real = Dt / FMath::Max(0.05f, UGameplayStatics::GetGlobalTimeDilation(this));
+	CrashCamReal += Real;
+	const float Dilation = CrashCamReal < 1.6f ? 0.3f : FMath::Lerp(0.3f, 1.0f, FMath::Clamp((CrashCamReal - 1.6f) / 0.8f, 0.0f, 1.0f));
+	UGameplayStatics::SetGlobalTimeDilation(this, Dilation);
+	const AEXWreck* Wreck = CrashWreck.Get();
+	if (!Wreck)
+	{
+		return;
+	}
+	// The camera goes round the hull, from beside and behind it to beside and ahead, close and a little above.
+	const FVector WreckAt = Wreck->GetMainLocation();   // not "Hull": that is the craft's hull points
+	FVector Flat = Wreck->GetMainVelocity();
+	Flat.Z = 0.0;
+	if (Flat.Size() > 300.0 && FVector::DotProduct(Flat.GetSafeNormal(), CrashCamDir) > -0.2)
+	{
+		CrashCamDir = FMath::VInterpNormalRotationTo(CrashCamDir, Flat.GetSafeNormal(), Real, 90.0f);
+	}
+	const FVector Side = FVector::CrossProduct(FVector::UpVector, CrashCamDir).GetSafeNormal();
+	const float Orbit = FMath::DegreesToRadians(FMath::Min(-115.0f + 45.0f * CrashCamReal, 20.0f));
+	const FVector Desired = WreckAt + (CrashCamDir * FMath::Cos(Orbit) + Side * FMath::Sin(Orbit)) * 1500.0f + FVector(0.0, 0.0, 450.0);
+	CrashCamPos = FMath::VInterpTo(CrashCamPos, Desired, Real, 3.5f);
+	FVector Position = CrashCamPos;
+	FHitResult Block;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(EXCrashCam), false, this);
+	if (GetWorld()->SweepSingleByChannel(Block, WreckAt + FVector(0.0, 0.0, 150.0), CrashCamPos, FQuat::Identity, ECC_Camera,
+		FCollisionShape::MakeSphere(35.0f), Params))
+	{
+		Position = Block.Location;
+	}
+	Camera->SetWorldLocationAndRotation(Position, (WreckAt - Position).Rotation());
+	Camera->SetFieldOfView(HorizontalFov(FMath::Lerp(58.0f, 48.0f, FMath::Clamp(CrashCamReal / 2.0f, 0.0f, 1.0f))));
 }
 
 void AEXHoverCraft::UpdateVisuals(float Dt)
@@ -632,6 +1160,9 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 		CamSmoothHeading = HeadingDir;
 		CamFovV = FovMinV;
 		CamOffsetCm = (-HeadingDir * BaseDistance + UpPosition * BaseHeight) * CmPerM;
+		CamSmoothZ = CraftLocation.Z / CmPerM;
+		CamSmoothZVel = VelocityCmps.Z / CmPerM;
+		CamShove = CamShoveVel = FVector::ZeroVector;
 		bCamInitialized = true;
 	}
 	CamSmoothUp = BlendNormal(CamSmoothUp, UpPosition, Damp(CamUpSmoothing, Dt));
@@ -641,7 +1172,28 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	// swings to the outside of the slide.
 	CamLookYaw = FMath::Lerp(CamLookYaw, bLookBack ? 180.0f : LookYawInput * LookYawMaxDeg, Damp(bLookBack ? 18.0f : 7.0f, Dt));
 	CamDriftSwing = FMath::Lerp(CamDriftSwing, bDrifting ? FMath::Clamp(-LateralSpeedMps * 0.7f, -20.0f, 20.0f) : 0.0f, Damp(bDrifting ? 3.0f : 2.0f, Dt));
-	const FVector ViewHeading = CamSmoothHeading.RotateAngleAxis(CamLookYaw + CamDriftSwing, CamSmoothUp);
+	CamApexYaw = FMath::Lerp(CamApexYaw, SteerVisual * SpeedAlpha * CamLookIntoTurnDeg, Damp(5.0f, Dt));
+	const FVector ViewHeading = CamSmoothHeading.RotateAngleAxis(CamLookYaw + CamDriftSwing + CamApexYaw, CamSmoothUp);
+
+	float NearWall = 0.0f;
+	{
+		FCollisionQueryParams WallParams(SCENE_QUERY_STAT(EXWallThreat), false, this);
+		const FVector Side = FVector::CrossProduct(CamSmoothUp, CamSmoothHeading).GetSafeNormal();   // to the right
+		for (int32 Sign : { -1, 1 })
+		{
+			FHitResult WallHit;
+			float Near = 0.0f;
+			const FVector Start = CraftLocation + CamSmoothUp * 80.0f;
+			if (GetWorld()->SweepSingleByChannel(WallHit, Start, Start + Side * Sign * 900.0f, FQuat::Identity, ECC_Visibility,
+				FCollisionShape::MakeSphere(20.0f), WallParams))
+			{
+				Near = 1.0f - FMath::Clamp(WallHit.Distance / 900.0f, 0.0f, 1.0f);
+			}
+			NearWall = FMath::Max(NearWall, Near);
+			(Sign < 0 ? WallNearLeft : WallNearRight) = Near;
+		}
+	}
+	WallThreat = FMath::FInterpTo(WallThreat, NearWall * SpeedAlpha, Dt, 8.0f);
 	if (bBoosting && !bCamWasBoosting)
 	{
 		CamBoostPunch = 1.0f;
@@ -654,15 +1206,32 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	CamLastSpeed = Speed;
 	const float Distance = BaseDistance + CamDistanceAtSpeedM * SpeedAlpha + Pull;
 	const float Height = BaseHeight + CamHeightAtSpeedM * SpeedAlpha;
-	const FVector DesiredOffset = (-ViewHeading * Distance + CamSmoothUp * Height) * CmPerM;
+	const FVector Outboard = FVector::CrossProduct(CamSmoothUp, ViewHeading).GetSafeNormal() * (-SteerVisual * CamOutboardM * SpeedAlpha);
+	const FVector DesiredOffset = (-ViewHeading * Distance + CamSmoothUp * Height + Outboard) * CmPerM;
 	CamOffsetCm = FMath::Lerp(CamOffsetCm, DesiredOffset, Damp(CamOffsetStiffness, Dt));
 
 	// Landing kick: a small spring that dips the camera when the craft touches down.
 	CamKickVel += (-CamKick * 60.0f - CamKickVel * 12.0f) * Dt;
 	CamKick += CamKickVel * Dt;
 
+	// Jumps and falls (player, 2026-11-01): the camera follows the craft's height a little late. It follows the vertical
+	// speed too, so a steady climb leaves no lag; only a change (the take-off, the fall, the landing) shows: the craft
+	// rises in the frame on a jump and the view sinks a moment on landing.
+	{
+		const float W = FMath::Max(0.5f, CamVerticalLag) * (bGrounded ? 1.6f : 1.0f);
+		const float CraftZ = CraftLocation.Z / CmPerM;
+		const float CraftVz = VelocityCmps.Z / CmPerM;
+		CamSmoothZVel += (W * W * (CraftZ - CamSmoothZ) + 2.0f * W * (CraftVz - CamSmoothZVel)) * Dt;
+		CamSmoothZ += CamSmoothZVel * Dt;
+		CamSmoothZ = FMath::Clamp(CamSmoothZ, CraftZ - CamVerticalLagMaxM, CraftZ + CamVerticalLagMaxM);
+	}
+	// A knock between ships shoves the view and springs back.
+	CamShoveVel += (-CamShove * 81.0f - CamShoveVel * 10.0f) * Dt;
+	CamShove += CamShoveVel * Dt;
+	const FVector Lag = FVector(0.0f, 0.0f, CamSmoothZ * CmPerM - CraftLocation.Z) + CamShove.GetClampedToMaxSize(2.0f) * CmPerM;
+
 	const FVector Pivot = CraftLocation + CraftUp * 120.0f;
-	const FVector Desired = CraftLocation + CamOffsetCm + CamSmoothUp * (CamKick * CmPerM);
+	const FVector Desired = CraftLocation + CamOffsetCm + CamSmoothUp * (CamKick * CmPerM) + Lag;
 	FVector Position = Desired;
 	const FVector ToDesired = Desired - Pivot;
 	const float Length = ToDesired.Size();
@@ -677,6 +1246,8 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 
 	// The camera leans a little with the craft's bank, and vibrates lightly near top speed.
 	Rotation.Roll += VisualRoll * CameraBankFollow;
+	// Player, 2026-10-26: the camera and the feel of 2026-10-20 (before the apex camera and the deep lean): the light
+	// top-speed vibration only, no wall shake.
 	const float Shake = ShakeScale * TopSpeedShakeDeg * FMath::Clamp((SpeedAlpha - 0.85f) / 0.15f, 0.0f, 1.0f) * (bBoosting ? 1.6f : 1.0f);
 	Rotation.Pitch += FMath::Sin(HoverBobTime * 31.0f) * Shake;
 	Rotation.Yaw += FMath::Sin(HoverBobTime * 23.0f + 1.3f) * Shake;
@@ -696,11 +1267,16 @@ void AEXHoverCraft::UpdateCamera(float Dt)
 	const float TargetFovV = FMath::Lerp(FovMinV, FovMaxV, 0.3f * SpeedAlpha + 0.7f * Vertigo) + (bBoosting ? FovBoostV : 0.0f);
 	CamFovV = FMath::Lerp(CamFovV, TargetFovV, Damp(3.0f, Dt));
 	Camera->SetFieldOfView(HorizontalFov(CamFovV + 7.0f * CamBoostPunch * CamBoostPunch));
+	// The race view as on 2026-10-20 (the hangar changes these while it is open).
+	Camera->PostProcessSettings.MotionBlurAmount = 0.5f;
+	Camera->PostProcessSettings.SceneFringeIntensity = 0.0f;
+	Camera->PostProcessSettings.VignetteIntensity = 0.35f;
+	Camera->PostProcessSettings.bOverride_AutoExposureBias = false;
 }
 
 void AEXHoverCraft::SelectShip(int32 Index)
 {
-	if (ShipMeshes.Num() == 0)
+	if (ShipMeshes.Num() == 0 || bShipLocked)
 	{
 		return;
 	}
@@ -713,205 +1289,544 @@ void AEXHoverCraft::SelectShip(int32 Index)
 	ShipMesh->SetRelativeLocation(-ModelRotation.RotateVector(Mesh ? Mesh->GetBounds().Origin : FVector::ZeroVector));
 	if (Mesh)
 	{
-		const FVector HalfSize = ModelRotation.RotateVector(Mesh->GetBounds().BoxExtent).GetAbs();
-		Fx->SetShipHalfSize(HalfSize);
-		auto Nozzle = [&HalfSize](float Side, float Height)
+		Fx->SetShipHalfSize(ModelRotation.RotateVector(Mesh->GetBounds().BoxExtent).GetAbs());
+	}
+	if (bInShowroom && !bInHangar && Profile && !bBot)
+	{
+		Modules = Profile->EquippedCopy(GetShipName());   // the menu shows each ship with what it flies
+	}
+	RefreshModuleVisuals();
+	if (bRaceRules)
+	{
+		ApplyShipStats();
+	}
+	if (Profile && !bBot)
+	{
+		Profile->ShipIndex = ShipIndex;
+	}
+}
+
+FString AEXHoverCraft::GetShipNameAt(int32 Index) const
+{
+	return ShipMeshes.IsValidIndex(Index) && ShipMeshes[Index] ? ShipMeshes[Index]->GetName().Replace(TEXT("SM_"), TEXT("")) : FString();
+}
+
+void AEXHoverCraft::GetShipRaceStats(const FString& Name, int32& OutLives, float& OutSpeedMul, float& OutWallHitMps)
+{
+	const FShipRaceStats* Stats = &ShipRaceStats[2];
+	for (const FShipRaceStats& Candidate : ShipRaceStats)
+	{
+		if (Name.Equals(Candidate.Name, ESearchCase::IgnoreCase))
 		{
-			return FVector(-HalfSize.X * 0.90f, HalfSize.Y * Side, HalfSize.Z * Height);
-		};
-		TArray<FVector> Engines;
-		switch (ShipIndex)
-		{
-		case 0: // STRIX: two thrusters stacked vertically at the centre of the tail.
-			Engines = { Nozzle(0.0f, -0.34f), Nozzle(0.0f, 0.34f) };
-			break;
-		case 1: // NOMAD: three thrusters in a horizontal row across the tail.
-			Engines = { Nozzle(-0.52f, 0.0f), Nozzle(0.0f, 0.0f), Nozzle(0.52f, 0.0f) };
-			break;
-		case 2: // VORTEX: one central tail thruster.
-			Engines = { Nozzle(0.0f, 0.0f) };
-			break;
-		default: // WRAITH: central rear thruster, plus two raised side thrusters.
-			Engines = { Nozzle(0.0f, -0.05f), Nozzle(-0.48f, 0.42f), Nozzle(0.48f, 0.42f) };
+			Stats = &Candidate;
 			break;
 		}
-		Fx->SetEngineAnchors(Engines);
 	}
-}
-
-void AEXHoverCraft::UpdateBotAI(float Dt)
-{
-	if (MapRoute.Num() < 4 || bSurvivalEliminated)
-	{
-		ThrottleInput = 0.0f;
-		SteerInput = 0.0f;
-		bBoostHeld = false;
-		bDriftHeld = false;
-		return;
-	}
-
-	const int32 Count = MapRoute.Num();
-	const FVector Location = GetActorLocation();
-	const FVector2D Here(Location.X / CmPerM, Location.Y / CmPerM);
-	const float LookAheadM = FMath::Clamp(12.0f + FMath::Max(0.0f, ForwardSpeedMps) * 0.45f, 12.0f, 36.0f);
-	const int32 Lead = FMath::Clamp(FMath::RoundToInt(LookAheadM / 5.0f), 2, 12);
-	const int32 TargetIndex = (RouteIndex + Lead) % Count;
-	const FVector2D RouteTangent = (MapRoute[(TargetIndex + 2) % Count] - MapRoute[(TargetIndex - 2 + Count) % Count]).GetSafeNormal();
-	const FVector2D RouteRight(-RouteTangent.Y, RouteTangent.X);
-	const FVector2D Target = MapRoute[TargetIndex] + RouteRight * BotLaneOffsetM;
-	const FVector2D Desired = (Target - Here).GetSafeNormal();
-	const FVector2D Nose(Heading.X, Heading.Y);
-	const float Angle = FMath::Atan2(Nose ^ Desired, Nose | Desired);
-	SteerInput = FMath::Clamp(Angle * 2.0f, -1.0f, 1.0f);
-	ThrottleInput = 1.0f;
-	BrakeInput = 0.0f;
-	bDriftHeld = ForwardSpeedMps > 42.0f && FMath::Abs(Angle) > 0.28f;
-
-	BotBoostCooldown = FMath::Max(0.0f, BotBoostCooldown - Dt);
-	if (bBoostHeld)
-	{
-		if (FMath::Abs(Angle) > 0.22f || Nitro < 0.15f)
-		{
-			bBoostHeld = false;
-			BotBoostCooldown = 1.6f + (1.0f - BotSkill) * 1.8f;
-		}
-	}
-	else if (BotBoostCooldown <= 0.0f && ForwardSpeedMps > 24.0f && FMath::Abs(Angle) < 0.14f && Nitro > 0.35f)
-	{
-		bBoostHeld = true;
-		BotBoostCooldown = 3.8f + (1.0f - BotSkill) * 3.0f;
-	}
-}
-
-void AEXHoverCraft::EnterHangarPreview(const FVector& PreviewLocation)
-{
-	bHangarPreview = true;
-	HangarPreviewLocation = PreviewLocation;
-	VelocityCmps = FVector::ZeroVector;
-	ThrottleInput = 0.0f;
-	BrakeInput = 0.0f;
-	SteerInput = 0.0f;
-	bBoostHeld = false;
-	bDriftHeld = false;
-	SetActorLocationAndRotation(HangarPreviewLocation, FRotator::ZeroRotator, false, nullptr, ETeleportType::TeleportPhysics);
-	Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	bCamInitialized = false;
-}
-
-void AEXHoverCraft::StartFromHangar()
-{
-	bHangarPreview = false;
-	PreviewTime = 0.0f;
-	Collision->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	ResetToStart();
-}
-
-void AEXHoverCraft::SetRaceGridStart(const FVector& Location, const FRotator& Rotation, const FVector& SurfaceNormal)
-{
-	const FVector Up = SurfaceNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
-	const FVector Forward = FVector::VectorPlaneProject(Rotation.Vector(), Up).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
-	StartLocation = Location;
-	StartRotation = FRotationMatrix::MakeFromXZ(Forward, Up).Rotator();
-	SetActorLocationAndRotation(StartLocation, StartRotation, false, nullptr, ETeleportType::TeleportPhysics);
-	VelocityCmps = FVector::ZeroVector;
-	Heading = Forward;
-	SurfaceUp = Up;
-	ForwardSpeedMps = 0.0f;
-	LateralSpeedMps = 0.0f;
-	LongAccelMps2 = 0.0f;
-	AirTimeSeconds = 0.0f;
-	HeightM = HoverHeightM;
-	bGrounded = true;
-	bLost = false;
-	bCamInitialized = false;
-}
-
-void AEXHoverCraft::ConfigureSurvivalRacer(bool bBot, int32 InBotSlot, float Skill)
-{
-	bSurvivalParticipant = true;
-	bSurvivalBot = bBot;
-	bSurvivalRunning = false;
-	bSurvivalEliminated = false;
-	BotSlot = InBotSlot;
-	BotSkill = FMath::Clamp(Skill, 0.25f, 1.0f);
-	HullPercent = 100.0f;
-	ImpactDamageCooldown = 0.0f;
-	BotLaneOffsetM = bBot ? (static_cast<float>(InBotSlot % 5) - 2.0f) * 4.0f : 0.0f;
-	BotBoostCooldown = 1.0f + static_cast<float>(FMath::Max(0, InBotSlot % 7)) * 0.32f;
-	if (bBot)
-	{
-		MaxSpeedMps = FMath::Lerp(88.0f, 112.0f, BotSkill);
-	}
-}
-
-void AEXHoverCraft::SetSurvivalRaceRunning(bool bRunning)
-{
-	bSurvivalRunning = bRunning;
-	if (!bRunning)
-	{
-		ThrottleInput = 0.0f;
-		BrakeInput = 0.0f;
-		SteerInput = 0.0f;
-		bBoostHeld = false;
-		bDriftHeld = false;
-		VelocityCmps = FVector::ZeroVector;
-	}
-}
-
-void AEXHoverCraft::ApplySurvivalDamage(float Damage)
-{
-	if (!bSurvivalParticipant || !bSurvivalRunning || bSurvivalEliminated || Damage <= 0.0f)
-	{
-		return;
-	}
-	HullPercent = FMath::Max(0.0f, HullPercent - Damage);
-	if (HullPercent <= 0.0f)
-	{
-		EliminateFromSurvival();
-	}
-}
-
-void AEXHoverCraft::EliminateFromSurvival()
-{
-	if (bSurvivalEliminated)
-	{
-		return;
-	}
-	bSurvivalEliminated = true;
-	ThrottleInput = 0.0f;
-	BrakeInput = 0.0f;
-	SteerInput = 0.0f;
-	bBoostHeld = false;
-	bDriftHeld = false;
-	VelocityCmps = FVector::ZeroVector;
-	Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	VisualPivot->SetVisibility(false, true);
-	Fx->StopAudio();
-	SetActorTickEnabled(false);
-}
-
-FString AEXHoverCraft::GetSelectedShipName() const
-{
-	return ShipMeshes.IsValidIndex(ShipIndex) && ShipMeshes[ShipIndex]
-		? ShipMeshes[ShipIndex]->GetName().Replace(TEXT("SM_V2_"), TEXT(""))
-		: FString(TEXT("NAVE"));
+	OutLives = Stats->Lives;
+	OutSpeedMul = Stats->SpeedMul;
+	OutWallHitMps = Stats->WallHitMps;
 }
 
 void AEXHoverCraft::ResetToStart()
 {
+	if (bInShowroom)
+	{
+		return;   // the craft stays on the turntable (R and the gamepad's top button mean other things there)
+	}
+	if (bRaceRules)
+	{
+		// In a race there is no going back to the start: the craft is put back on the line where it is.
+		if (!bEliminated && !bRaceHold)
+		{
+			RespawnOnRoute();
+		}
+		return;
+	}
+	PlaceAt(StartLocation, StartRotation.Yaw);
+	Nitro = 1.0f;
+}
+
+void AEXHoverCraft::PlaceAt(const FVector& Location, float YawDeg)
+{
+	StartLocation = Location;
+	StartRotation = FRotator(0.0f, YawDeg, 0.0f);
 	SetActorLocationAndRotation(StartLocation, StartRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	LastGroundZCm = Location.Z - 300.0f;
 	VelocityCmps = FVector::ZeroVector;
 	Heading = StartRotation.Vector();
+	bGridLock = true;
 	SurfaceUp = FVector::UpVector;
 	YawRate = 0.0f;
-	Nitro = 1.0f;
+	PitchRate = RollRate = CrashSpin = CrashWobble = 0.0f;
+	for (int32 Pad = 0; Pad < 4; ++Pad)
+	{
+		PadHeightM[Pad] = PadPrevM[Pad] = HoverHeightM;
+	}
 	AirTimeSeconds = 0.0f;
 	bLost = false;
 	bCamInitialized = false;
 }
 
+FString AEXHoverCraft::GetShipName() const
+{
+	return ShipMeshes.IsValidIndex(ShipIndex) && ShipMeshes[ShipIndex]
+		? ShipMeshes[ShipIndex]->GetName().Replace(TEXT("SM_"), TEXT("")) : FString(TEXT("?"));
+}
+
+void AEXHoverCraft::SetRaceRules()
+{
+	bRaceRules = true;
+	Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+	Collision->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+	ApplyShipStats();
+}
+
+void AEXHoverCraft::ApplyShipStats()
+{
+	const FString Name = GetShipName();
+	const FShipRaceStats* Stats = &ShipRaceStats[2];
+	for (const FShipRaceStats& Candidate : ShipRaceStats)
+	{
+		if (Name.Equals(Candidate.Name, ESearchCase::IgnoreCase))
+		{
+			Stats = &Candidate;
+			break;
+		}
+	}
+	// The modules (Docs/MODULOS.md sec. 5): every point a module adds over the ship's own stat moves the tuned handling
+	// a little; hull adds lives; efficiency, cooling and repair drive the fuel, the heat and the consumables.
+	TArray<const FEXItem*> Fitted;
+	for (const FEXItem& Item : Modules)
+	{
+		Fitted.Add(Item.IsValid() ? &Item : nullptr);
+	}
+	// The player's ship counts its stars (a copy of the ship from an ELITE CACHE each); the bots have none.
+	EXMeta::Resolve(Name, Fitted, ResolvedStats, Profile && !bBot ? Profile->StarsOf(Name) : 0);
+	const EXMeta::FShipDef& Ship = EXMeta::Ship(Name);
+	auto Delta = [this, &Ship](EEXStat Stat)
+	{
+		const int32 Index = static_cast<int32>(Stat);
+		return static_cast<float>(ResolvedStats[Index] - (Index < EXMeta::CoreStats ? Ship.Stats[Index] : 0));
+	};
+	const float MassFactor = FMath::Sqrt(Ship.MassKg / FMath::Max(1.0f, Ship.MassKg + static_cast<float>(ResolvedStats[static_cast<int32>(EEXStat::Mass)])));
+	MaxLives = EXMeta::Lives(Name, ResolvedStats[static_cast<int32>(EEXStat::Hull)]);
+	Lives = MaxLives;
+	HullMax = FMath::Max(70.0f, 100.0f * MaxLives / 3.0f);
+	Hull = HullMax;
+	MaxSpeedMps = BaseMaxSpeedMps * Stats->SpeedMul * (1.0f + 0.0057f * Delta(EEXStat::Speed));
+	AccelerationMps2 = BaseAccelMps2 * (1.0f + 0.006f * Delta(EEXStat::Accel)) * MassFactor;
+	BoostAccelerationMps2 = BaseBoostAccelMps2 * (1.0f + 0.004f * Delta(EEXStat::Boost)) * MassFactor;
+	NitroSeconds = BaseNitroSeconds * (1.0f + 0.006f * Delta(EEXStat::Boost));
+	// Wings and tails (player, 2026-10-26: "caudas e asas se sintam de verdade"): 2% of turn and of side grip per point,
+	// so a wing at its +9 ceiling turns ~18% better. With nothing fitted the handling is the original one.
+	TurnRateLow = BaseTurnLow * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Handling));
+	TurnRateHigh = BaseTurnHigh * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Handling));
+	GripRedirect = BaseGripRedirect * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Stability));
+	GripLateralMax = BaseGripLateralMax * FMath::Max(0.5f, 1.0f + 0.02f * Delta(EEXStat::Stability));
+	const float HullMul = (1.0f + 0.006f * Delta(EEXStat::Hull)) * (EXMeta::HasPerk(Fitted, TEXT("aegis")) ? 1.25f : 1.0f);
+	WallHitMps = Stats->WallHitMps * HullMul;
+	LandingHitMps = Stats->LandingHitMps * HullMul;
+	// Fuel: % per km flat out. NOMAD (92) uses ~65% of a 59 km expedition, VORTEX (49) ~80% (more with nitro).
+	FuelBurnPerKm = 236.9f / (ResolvedStats[static_cast<int32>(EEXStat::Efficiency)] + 123.0f);
+	HeatCoolPerS = 4.0f + 0.08f * ResolvedStats[static_cast<int32>(EEXStat::Cooling)];
+	bRedline = EXMeta::HasPerk(Fitted, TEXT("redline"));
+	BoostHeatPerS = 14.0f * (bRedline ? 1.15f : 1.0f);
+	RepairTimeMul = FMath::Max(0.4f, 1.0f - 0.03f * ResolvedStats[static_cast<int32>(EEXStat::Repair)]);
+	Fuel = 100.0f;
+	Heat = 0.0f;
+	bOverheated = false;
+	RepairLeft = RepairTotal = RepairSlow = StabLeft = 0.0f;
+	RaceSeconds = 0.0f;
+}
+
+void AEXHoverCraft::SetBot(int32 InShipIndex, float InSkill, float InLaneM)
+{
+	bBot = true;
+	BotSkill = FMath::Clamp(InSkill, 0.5f, 1.0f);
+	BotLaneM = InLaneM;
+	BotPhase = FMath::FRandRange(0.0f, 2.0f * PI);
+	SelectShip(InShipIndex);
+}
+
+void AEXHoverCraft::PlayChime(int32 Kind)
+{
+	if (Audio && IsPlayerControlled())
+	{
+		Audio->Chime(Kind);
+	}
+}
+
+void AEXHoverCraft::LoseLife()
+{
+	ApplyHullDamage(HullMax / FMath::Max(1, MaxLives), true);
+}
+
+void AEXHoverCraft::ApplyHullDamage(float Amount, bool bForce)
+{
+	// No damage on the grid, after the finish, in the first 10 s of the race (the pack sorts itself out) or twice in one
+	// scrape; a fall out of the world always counts.
+	if (!bRaceRules || bEliminated || bRaceHold || Amount <= 0.0f || (!bForce && (RaceSeconds < 10.0f || HitCooldown > 0.0f)))
+	{
+		return;
+	}
+	HitCooldown = 0.25f;
+	if (!bForce)
+	{
+		Amount = FMath::Min(Amount, HullMax * 0.4f);   // no single knock takes more than 40 %
+	}
+	Hull = FMath::Max(0.0f, Hull - Amount);
+	Lives = Hull <= 0.0f ? 0 : FMath::Max(1, FMath::CeilToInt(Hull / HullMax * MaxLives));
+	if (Amount >= 5.0f)
+	{
+		LastHitTime = GetWorld()->GetTimeSeconds();   // the red flash
+		if (Audio)
+		{
+			Audio->Bang(FMath::Clamp(Amount / 40.0f, 0.3f, 1.0f));
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("EXRACE HIT %s%s -%.0f hull=%.0f/%.0f at %.1f km"), *GetShipName(), bBot ? TEXT("") : TEXT(" (jogador)"), Amount, Hull, HullMax,
+		RaceProgressM / 1000.0f);
+	if (Hull <= 0.0f)
+	{
+		Eliminate();
+	}
+}
+
+void AEXHoverCraft::Eliminate()
+{
+	// The hull is gone: the craft blows up (fireball, flash, debris, smoke) where it was, carried on by its speed.
+	FActorSpawnParameters BlastParams;
+	BlastParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	const FVector V = VelocityCmps / CmPerM;
+	const float Speed = V.Size();
+	if (AEXExplosion* Blast = GetWorld()->SpawnActor<AEXExplosion>(GetActorLocation(), FRotator::ZeroRotator, BlastParams))
+	{
+		Blast->Ignite(VelocityCmps, FMath::Clamp(0.7f + Speed / 200.0f, 0.7f, 1.3f));
+	}
+	// The wreck (player, 2026-11-01): the charred hull flies on with the speed it had and tumbles, each module a piece
+	// of its own. How it died sets the tumble (Scripts/physics_sandbox/wreck.py, Docs/DESTROCOS.md).
+	if (AEXWreck* Wreck = GetWorld()->SpawnActor<AEXWreck>(GetActorLocation(), FRotator::ZeroRotator, BlastParams))
+	{
+		const FVector Fwd = Heading.GetSafeNormal();
+		const FVector Up = SurfaceUp;
+		const FVector Right = FVector::CrossProduct(Up, Fwd).GetSafeNormal();
+		const float Now = GetWorld()->GetTimeSeconds();
+		const bool bKnock = Now - LastKnockTime < 0.4f && LastKnockDV.Size() > 3.0f;
+		const bool bLanding = Now - LastLandingTime < 0.4f && LastLandingSpeed > 15.0f;
+		const FVector Knock = bKnock ? LastKnockDV : FVector::ZeroVector;
+		const float KnockSize = Knock.Size();
+		const float Tumble = FMath::Clamp(Speed / 12.0f, 3.0f, 11.0f);
+		FRandomStream Random(FMath::Rand());
+		// The blast kicks it up a little.
+		FVector HullVel = V + Up * Random.FRandRange(5.0f, 9.0f) + Right * Random.FRandRange(-1.5f, 1.5f);
+		FVector Spin;
+		if (bKnock && FVector::DotProduct(Knock, Fwd) < -0.5f * KnockSize && KnockSize > 8.0f)
+		{
+			// Head on (a rock, a wall, a ship the other way): the nose stops and the tail goes over it, a backflip.
+			Spin = Right * (-0.9f * Tumble) + Fwd * Random.FRandRange(-2.0f, 2.0f) + Up * Random.FRandRange(-1.0f, 1.0f);
+			HullVel += Up * 3.0f;
+		}
+		else if (bKnock && FMath::Abs(FVector::DotProduct(Knock, Right)) > 0.6f * KnockSize)
+		{
+			// From the side (a T-bone, a shove into the wall): it barrel-rolls away from the hit, the top going the way it is
+			// pushed, so the ground under it keeps the roll going (a roll the other way dies on the first touch).
+			const float Side = FMath::Sign(FVector::DotProduct(Knock, Right));
+			Spin = Fwd * (-Side * 1.35f * Tumble) + Up * Random.FRandRange(-3.0f, 3.0f) + Right * Random.FRandRange(-1.5f, 1.5f);
+			HullVel += Up * 3.0f;
+		}
+		else if (bLanding)
+		{
+			// Nose first into the ground after a jump: it cartwheels on forward.
+			Spin = Right * (0.6f * Tumble) + Fwd * Random.FRandRange(-1.0f, 1.0f);
+			HullVel += Up * 2.0f;
+		}
+		else
+		{
+			// From behind (a PIT) or worn out by the scrapes: end over end, forward, with a twist ("cambalhotas").
+			Spin = Right * Tumble + Fwd * Random.FRandRange(-3.0f, 3.0f) + Up * Random.FRandRange(-2.5f, 2.5f);
+			HullVel += Fwd * (bKnock ? 4.0f : 0.0f);
+		}
+		if (bKnock)
+		{
+			// The knock's own lever adds its spin.
+			Spin += FVector::CrossProduct((LastKnockPoint - GetActorLocation()) / CmPerM, Knock) / 4.0f;
+		}
+		auto MaterialsOf = [](const UStaticMeshComponent* Component)
+		{
+			TArray<UMaterialInterface*> Out;
+			for (int32 Index = 0; Index < Component->GetNumMaterials(); ++Index)
+			{
+				Out.Add(Component->GetMaterial(Index));
+			}
+			return Out;
+		};
+		if (ShipMesh && ShipMesh->GetStaticMesh())
+		{
+			Wreck->AddPiece(ShipMesh->GetStaticMesh(), MaterialsOf(ShipMesh), ShipMesh->GetComponentTransform(), GetCrashMassKg(), HullVel * CmPerM, Spin);
+		}
+		// The modules come off, charred, thrown out from the hull and spinning on their own.
+		for (UStaticMeshComponent* Module : ModuleMeshes)
+		{
+			if (!Module || !Module->GetStaticMesh() || !Module->IsVisible())
+			{
+				continue;
+			}
+			const FVector Out = (Module->Bounds.Origin - GetActorLocation()).GetSafeNormal();
+			const FVector PieceVel = V * 0.95f + Out * Random.FRandRange(7.0f, 14.0f) + Up * Random.FRandRange(3.0f, 8.0f) + Random.VRand() * 1.5f;
+			Wreck->AddPiece(Module->GetStaticMesh(), MaterialsOf(Module), Module->GetComponentTransform(), 110.0f, PieceVel * CmPerM,
+				Random.VRand() * Random.FRandRange(6.0f, 14.0f));
+		}
+		if (IsPlayerControlled())
+		{
+			// Burnout's crash camera: slow motion, the camera round the flying wreck.
+			CrashWreck = Wreck;
+			bCrashCam = true;
+			CrashCamReal = 0.0f;
+			// The way the wreck flies, unless it comes back at the camera (bounced off a wall): then the ship's heading,
+			// so the camera stays on the open side.
+			const FVector FlatV(V.X, V.Y, 0.0f);
+			CrashCamDir = Speed > 2.0f && FVector::DotProduct(FlatV, Fwd) >= 0.0 ? FlatV.GetSafeNormal() : FVector(Fwd.X, Fwd.Y, 0.0f).GetSafeNormal();
+			CrashCamPos = Camera->GetComponentLocation();
+			UGameplayStatics::SetGlobalTimeDilation(this, 0.3f);
+		}
+	}
+	if (Audio)
+	{
+		Audio->Bang(1.0f);
+		Audio->Landing(1.0f);
+	}
+	EliminatedAt = GetWorld()->GetTimeSeconds();
+	bEliminated = true;
+	VelocityCmps = FVector::ZeroVector;
+	ThrottleInput = 0.0f;
+	SetActorHiddenInGame(true);
+	SetActorEnableCollision(false);
+}
+
+void AEXHoverCraft::FillAudioOthers(FEXCraftAudioInput& Sound) const
+{
+	// The nearest racers as heard from the camera: distance attenuation, pan, Doppler (a stylised speed of sound,
+	// 420 m/s, so a pass at 500 km/h bends the pitch without going cartoonish) and air muffling far away.
+	const FVector Ear = Camera->GetComponentLocation();
+	const FVector Right = Camera->GetRightVector();
+	TArray<TPair<float, const AEXHoverCraft*>, TInlineAllocator<32>> Near;
+	for (TActorIterator<AEXHoverCraft> It(GetWorld()); It; ++It)
+	{
+		const AEXHoverCraft* Other = *It;
+		if (Other == this || Other->IsEliminated() || Other->IsHidden() || Other->IsInHangar())
+		{
+			continue;
+		}
+		const float DistM = FVector::Dist(Other->GetActorLocation(), Ear) / CmPerM;
+		if (DistM < 500.0f)
+		{
+			Near.Add(TPair<float, const AEXHoverCraft*>(DistM, Other));
+		}
+	}
+	Near.Sort([](const TPair<float, const AEXHoverCraft*>& A, const TPair<float, const AEXHoverCraft*>& B) { return A.Key < B.Key; });
+	constexpr float SoundSpeedMps = 420.0f;
+	for (int32 K = 0; K < FMath::Min(Near.Num(), 8); ++K)
+	{
+		const AEXHoverCraft* Other = Near[K].Value;
+		const float DistM = FMath::Max(1.0f, Near[K].Key);
+		const FVector ToOther = (Other->GetActorLocation() - Ear).GetSafeNormal();
+		const float SourceToward = -FVector::DotProduct(Other->GetFlightVelocity(), ToOther) / CmPerM;
+		const float ListenerToward = FVector::DotProduct(VelocityCmps, ToOther) / CmPerM;
+		FEXCraftAudioOther& Out = Sound.Others.AddDefaulted_GetRef();
+		Out.ShipName = Other->GetShipName();
+		Out.Speed01 = FMath::Max(0.0f, Other->GetSpeedKmh() / 3.6f) / FMath::Max(1.0f, BaseMaxSpeedMps > 0.0f ? BaseMaxSpeedMps : MaxSpeedMps);
+		Out.Throttle = Other->GetThrottle();
+		Out.bBoosting = Other->IsBoosting();
+		Out.Gain = 1.0f / (1.0f + FMath::Pow(DistM / 15.0f, 1.4f));
+		Out.Pan = FMath::Clamp(FVector::DotProduct(ToOther, Right), -1.0f, 1.0f);
+		Out.PitchMul = FMath::Clamp((SoundSpeedMps + ListenerToward) / FMath::Max(60.0f, SoundSpeedMps - SourceToward), 0.6f, 1.7f);
+		Out.Muffle = FMath::Clamp(DistM / 250.0f, 0.0f, 1.0f);
+	}
+}
+
+void AEXHoverCraft::SendMenu(int32 Step)
+{
+	if (bInHangar)
+	{
+		if (HangarModel)
+		{
+			if (Step == 0)
+			{
+				HangarModel->Confirm();
+			}
+			else
+			{
+				HangarModel->Move(Step);
+			}
+		}
+		return;
+	}
+	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
+	{
+		It->MenuInput(Step);
+		break;
+	}
+}
+
+void AEXHoverCraft::UseQuick(int32 Slot)
+{
+	// Keys 1-4 and the d-pad: in the hangar they pick ships and move through the lists; on the track they use the slot.
+	if (bInShowroom || !bRaceRules || bEliminated || bRaceHold || !QuickSlots.IsValidIndex(Slot) || QuickCooldown > 0.0f)
+	{
+		return;
+	}
+	FEXQuickSlot& Quick = QuickSlots[Slot];
+	const EEXConsumable Kind = static_cast<EEXConsumable>(Quick.Kind);
+	if (Quick.Count <= 0 || Kind == EEXConsumable::None)
+	{
+		return;
+	}
+	// Doc 03 sec. 6. A consumable that would do nothing now is kept.
+	bool bUsed = true;
+	switch (Kind)
+	{
+	case EEXConsumable::Coolant:
+		bUsed = Heat > 1.0f;
+		Heat = FMath::Max(0.0f, Heat - 45.0f);
+		bOverheated = bOverheated && Heat > 40.0f;
+		break;
+	case EEXConsumable::Foam:
+	case EEXConsumable::Nanogel:
+		bUsed = Hull < HullMax && RepairLeft <= 0.0f;
+		if (bUsed)
+		{
+			const bool bFoam = Kind == EEXConsumable::Foam;
+			RepairAmount = HullMax * (bFoam ? 0.5f : 0.25f);   // half the hull back over 8 s, or a quarter over 2.5 s
+			RepairTotal = RepairLeft = (bFoam ? 8.0f : 2.5f) * RepairTimeMul;
+			RepairSlow = (bFoam ? 0.10f : 0.25f) * RepairTimeMul;
+		}
+		break;
+	case EEXConsumable::Fuel:
+		bUsed = Fuel < 99.0f;
+		Fuel = FMath::Min(100.0f, Fuel + 30.0f);
+		break;
+	case EEXConsumable::Stabilizer:
+		StabLeft = 8.0f;
+		break;
+	case EEXConsumable::Surge:
+		bUsed = Nitro < 0.95f;
+		if (bUsed)
+		{
+			Nitro = FMath::Min(1.0f, Nitro + 0.7f);
+			Heat = FMath::Min(100.0f, Heat + 12.0f);
+		}
+		break;
+	default:
+		bUsed = false;
+		break;
+	}
+	if (!bUsed)
+	{
+		return;
+	}
+	--Quick.Count;
+	LastQuickSlot = Slot;
+	LastQuickTime = GetWorld()->GetTimeSeconds();
+	QuickCooldown = 0.4f;
+	UE_LOG(LogTemp, Display, TEXT("EXRACE QUICK %d %s left=%d lives=%d fuel=%.0f heat=%.0f"), Slot + 1, EXMeta::Consumable(Kind).Id, Quick.Count,
+		Lives, Fuel, Heat);
+}
+
+void AEXHoverCraft::RespawnOnRoute()
+{
+	if (MapRoute.Num() < 3)
+	{
+		PlaceAt(StartLocation, StartRotation.Yaw);
+		return;
+	}
+	const int32 I = FMath::Clamp(RouteIndex, 0, MapRoute.Num() - 2);
+	const FVector2D Dir = (MapRoute[I + 1] - MapRoute[I]).GetSafeNormal();
+	const FVector2D Spot = MapRoute[I] + FVector2D(-Dir.Y, Dir.X) * BotLaneM;
+	// The ground is found from just above the last floor the craft stood on (not from the sky: the cave has a roof).
+	FVector Location(Spot.X * CmPerM, Spot.Y * CmPerM, LastGroundZCm + 300.0f);
+	FHitResult Hit;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(EXRespawn), true, this);
+	if (GetWorld()->LineTraceSingleByChannel(Hit, FVector(Location.X, Location.Y, LastGroundZCm + 1500.0f),
+		FVector(Location.X, Location.Y, LastGroundZCm - 20000.0f), ECC_Visibility, Params))
+	{
+		Location.Z = Hit.ImpactPoint.Z + HoverHeightM * CmPerM + 100.0f;
+	}
+	PlaceAt(Location, FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X)));
+	HitCooldown = 2.0f;
+}
+
+void AEXHoverCraft::DriveBot(float Dt)
+{
+	// A bot drives like the desert test's autopilot: aims ~35 m ahead on its lane, slows for the tightest bend in the
+	// next 250 m (about 2.2 g of side grip, less for weaker bots), boosts on long straights if it is a good one.
+	BotTime += Dt;
+	const int32 Count = MapRoute.Num();
+	if (Count < 20)
+	{
+		ThrottleInput = 0.0f;
+		BrakeInput = 1.0f;
+		return;
+	}
+	const FVector Location = GetActorLocation();
+	const int32 Aim = FMath::Min(RouteIndex + 7, Count - 2);
+	const FVector2D Dir = (MapRoute[Aim + 1] - MapRoute[Aim]).GetSafeNormal();
+	// Weaker bots wander in their lane, but only once the pack has spread out (not off the grid).
+	const float Lane = BotLaneM + (1.1f - BotSkill) * 25.0f * FMath::Sin(BotTime * 0.15f + BotPhase) * FMath::Clamp(RaceProgressM / 1500.0f, 0.0f, 1.0f);
+	const FVector2D Target = MapRoute[Aim] + FVector2D(-Dir.Y, Dir.X) * Lane;
+	const FVector ToTarget = FVector(Target.X * CmPerM - Location.X, Target.Y * CmPerM - Location.Y, 0.0f).GetSafeNormal();
+	const FVector Flat = Heading.GetSafeNormal2D();
+	const float AngleDeg = FMath::RadiansToDegrees(FMath::Atan2(FVector::CrossProduct(Flat, ToTarget).Z, FVector::DotProduct(Flat, ToTarget)));
+	SteerInput = FMath::Clamp(AngleDeg / 18.0f, -1.0f, 1.0f);
+	float TightestM = 10000.0f;
+	for (int32 Look = RouteIndex; Look + 10 < FMath::Min(RouteIndex + 50, Count); Look += 2)
+	{
+		const FVector2D A = MapRoute[Look];
+		const FVector2D B = MapRoute[Look + 5];
+		const FVector2D C = MapRoute[Look + 10];
+		const double Cross = FMath::Abs((B - A) ^ (C - B));
+		if (Cross > KINDA_SMALL_NUMBER)
+		{
+			TightestM = FMath::Min(TightestM, static_cast<float>(FVector2D::Distance(A, B) * FVector2D::Distance(B, C) * FVector2D::Distance(C, A) / (2.0 * Cross)));
+		}
+	}
+	// Weaker bots misjudge bends now and then: a slow swell of their cornering speed, up to 8 % too fast.
+	const float Misjudge = 1.0f + (1.0f - BotSkill) * 0.45f * FMath::Max(0.0f, FMath::Sin(BotTime * 0.31f + 2.0f * BotPhase));
+	// Harder bots (player, 2026-10-30): more grip in the bends (~2.6 g), the catch-up on top.
+	const float TargetSpeed = FMath::Min(MaxSpeedMps * BotSkill * BotCatchUp, FMath::Sqrt(26.0f * TightestM) * (0.85f + 0.15f * BotSkill) * Misjudge * BotCatchUp);
+	ThrottleInput = ForwardSpeedMps < TargetSpeed ? 1.0f : 0.0f;
+	BrakeInput = (ForwardSpeedMps > TargetSpeed + 6.0f || (FMath::Abs(AngleDeg) > 50.0f && ForwardSpeedMps > 30.0f)) ? 1.0f : 0.0f;
+	bBoostHeld = BotSkill > 0.88f && TightestM > 600.0f && FMath::Abs(AngleDeg) < 10.0f;   // nitro on every fair straight
+	bDriftHeld = false;
+	// Stuck against a wall or in a hole: back on the line after 3 s, as a player would press R.
+	BotStuckSeconds = !bRaceHold && BotTime > 8.0f && ForwardSpeedMps < 5.0f ? BotStuckSeconds + Dt : 0.0f;
+	if (BotStuckSeconds > 3.0f)
+	{
+		BotStuckSeconds = 0.0f;
+		RespawnOnRoute();
+	}
+}
+
 void AEXHoverCraft::QuitPressed()
 {
+	if (bInHangar)
+	{
+		HangarBack();
+		return;
+	}
+	// Esc is HangarBack too: the press that just closed the hangar must not quit the game from the menu.
+	if (GFrameCounter == HangarBackFrame)
+	{
+		return;
+	}
+	// In a race Esc pauses (and resumes) instead of quitting.
+	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
+	{
+		if (It->TogglePause())
+		{
+			return;
+		}
+		break;
+	}
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
 		PlayerController->ConsoleCommand(TEXT("quit"));
@@ -926,14 +1841,14 @@ void AEXHoverCraft::ShowTelemetry() const
 	}
 	static const TCHAR* CameraNames[] = { TEXT("perto"), TEXT("longe"), TEXT("lado"), TEXT("frente") };
 	const FString ShipName = ShipMeshes.IsValidIndex(ShipIndex) && ShipMeshes[ShipIndex]
-		? ShipMeshes[ShipIndex]->GetName().Replace(TEXT("SM_V2_"), TEXT("")) : FString(TEXT("?"));
+		? ShipMeshes[ShipIndex]->GetName().Replace(TEXT("SM_"), TEXT("")) : FString(TEXT("?"));
 	GEngine->AddOnScreenDebugMessage(9101, 0.0f, FColor::White, FString::Printf(TEXT("%s   %4.0f km/h   %s   nitro %3.0f%%   camara %s%s%s"),
 		*ShipName, FMath::Abs(ForwardSpeedMps) * 3.6f, bGrounded ? TEXT("HOVER") : TEXT("NO AR"), Nitro * 100.0f,
 		CameraNames[FMath::Clamp(CameraMode, 0, 3)], bDrifting ? TEXT("   DRIFT") : TEXT(""), MiniTurboFlash > 0.0f ? TEXT("   MINI-TURBO!") : TEXT("")));
 	GEngine->AddOnScreenDebugMessage(9102, 0.0f, FColor::Yellow,
-		TEXT("Comando PS: R2 acelerar  L2 travar  analogico esq. virar  X nitro  R1/L1 drift  analogico dir. olhar  R3 olhar atras  Triangulo recomecar  Circulo camara  Setas nave"));
+		TEXT("Comando PS: R2 acelerar  L2 travar  analogico esq. virar  X nitro  R1/L1 drift  analogico dir. olhar  R3 olhar atras  Triangulo recomecar  Circulo camara  Setas nave  Quadrado kit medico"));
 	GEngine->AddOnScreenDebugMessage(9104, 0.0f, FColor::Silver,
-		TEXT("Teclado: W acelerar  S travar  A-D virar  Shift nitro  Espaco drift  Q-E olhar  B olhar atras  R recomecar  C camara  1-5 nave  Esc sair"));
+		TEXT("Teclado: W acelerar  S travar  A-D virar  Shift nitro  Espaco drift  Q-E olhar  B olhar atras  R recomecar  C camara  1-5 nave  H kit medico  Esc sair"));
 	if (bLost)
 	{
 		GEngine->AddOnScreenDebugMessage(9103, 0.0f, FColor::Red, TEXT("NAVE PERDIDA - carrega R / Triangulo para recomecar"));
@@ -1163,4 +2078,647 @@ void AEXHoverCraft::RunFlightTest(float Dt)
 		UE_LOG(LogTemp, Display, TEXT("EXFLIGHT DONE"));
 		FPlatformMisc::RequestExit(false);
 	}
+}
+
+
+void AEXHoverCraft::EnterShowroom()
+{
+	if (bInShowroom || bBot)
+	{
+		return;
+	}
+	HangarStage = AEXHangarStage::FindOrSpawn(GetWorld());
+	if (!HangarStage)
+	{
+		return;
+	}
+	EnsureProfile();
+	if (!HangarModel)
+	{
+		HangarModel = NewObject<UEXHangarModel>(this);
+		HangarModel->Bind(this);
+	}
+	bInShowroom = true;
+	bRaceHold = true;
+	bShipLocked = false;
+	VelocityCmps = FVector::ZeroVector;
+	ForwardSpeedMps = 0.0f;
+	LateralSpeedMps = 0.0f;
+	HangarOrbitYaw = 215.0f;
+	HangarOrbitPitch = ShowroomPitchDeg;
+	HangarOrbitDist = ShowroomDistCm;
+	HangarCamDist = ShowroomDistCm;
+	bHangarAutoRotate = true;
+	HangarIdleTime = 0.0f;
+	HoverBobTime = 0.0f;
+	if (Profile)
+	{
+		SelectShip(Profile->ShipIndex);
+		PreviewModules(Profile->EquippedCopy(GetShipName()), EEXFamily::Wings);
+	}
+	// Onto the turntable; back to the start of the race line when the showroom closes.
+	PreHangarLocation = GetActorLocation();
+	PreHangarRotation = GetActorRotation();
+	SetActorLocationAndRotation(HangarStage->GetPlatformTop() + FVector(0.0f, 0.0f, 110.0f), FRotator(0.0f, 35.0f, 0.0f), false, nullptr,
+		ETeleportType::TeleportPhysics);
+	HangarStage->SetLightTarget(1.0f);   // the workshop lights come on, row after row, when the game opens
+	if (Camera)
+	{
+		Camera->SetUsingAbsoluteLocation(true);
+		Camera->SetUsingAbsoluteRotation(true);
+	}
+}
+
+void AEXHoverCraft::ExitShowroom()
+{
+	if (!bInShowroom)
+	{
+		return;
+	}
+	bInShowroom = false;
+	bInHangar = false;
+	bCamInitialized = false;
+	bXRay = false;
+	PreviewEnginePower = 0.0f;
+	AppliedHangarVersion = -1;
+	if (Profile)
+	{
+		Profile->ShipIndex = ShipIndex;
+		EXEconomy::Save(Profile);
+	}
+	SetActorLocationAndRotation(PreHangarLocation, PreHangarRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	Heading = PreHangarRotation.Vector();
+	SurfaceUp = FVector::UpVector;
+	VelocityCmps = FVector::ZeroVector;
+	if (VisualPivot)
+	{
+		VisualPivot->SetRelativeLocation(FVector::ZeroVector);
+		VisualPivot->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+	if (Camera)
+	{
+		Camera->PostProcessSettings.bOverride_AutoExposureBias = false;
+	}
+}
+
+void AEXHoverCraft::EnterHangar()
+{
+	EnterShowroom();
+	if (!bInShowroom)
+	{
+		return;
+	}
+	bInHangar = true;
+	bQtyArmed = true;
+	HangarOrbitDist = 900.0f;
+	HangarOrbitPitch = 14.0f;
+	bHangarAutoRotate = true;
+	HangarIdleTime = 0.0f;
+	if (HangarModel)
+	{
+		HangarModel->Open();
+	}
+	AppliedHangarVersion = -1;
+	if (HangarStage)
+	{
+		HangarStage->SetLightTarget(1.0f);
+	}
+}
+
+void AEXHoverCraft::LeaveHangar()
+{
+	if (!bInHangar)
+	{
+		return;
+	}
+	bInHangar = false;
+	HangarOrbitDist = ShowroomDistCm;
+	bHangarAutoRotate = true;
+	// Back in the menu the ship shows what it will fly with.
+	if (Profile)
+	{
+		PreviewModules(Profile->EquippedCopy(GetShipName()), EEXFamily::Wings);
+	}
+	if (Profile)
+	{
+		Profile->ShipIndex = ShipIndex;
+		EXEconomy::Save(Profile);
+	}
+}
+
+void AEXHoverCraft::UpdateHangar(float Dt)
+{
+	if (bInHangar)
+	{
+		// Orbit: mouse or right stick; zoom: wheel, PageUp/PageDown or the triggers. Q/E or the shoulders change the tab,
+		// W/S the row (MenuUp/MenuDown), A/D or the left stick the choice in it; Tab, 1-5 and the d-pad sides the ship.
+		// With the mouse cursor on (the tabs and pieces are clicked) the mouse turns the ship only while the right button
+		// is held, so reaching for a piece does not spin it; the gamepad stick always does.
+		float MouseYaw = HangarYawInput;
+		float MousePitch = HangarPitchInput;
+		if (const APlayerController* Pc = Cast<APlayerController>(GetController()))
+		{
+			if (Pc->bShowMouseCursor && !Pc->IsInputKeyDown(EKeys::RightMouseButton))
+			{
+				MouseYaw = 0.0f;
+				MousePitch = FMath::Abs(Pc->GetInputAnalogKeyState(EKeys::Gamepad_RightY)) > 0.1f ? MousePitch : 0.0f;
+			}
+		}
+		const float YawDelta = HangarOrbitInput * 120.0f * Dt + MouseYaw * 0.6f;
+		const float PitchDelta = MousePitch * 50.0f * Dt;
+		if (!FMath::IsNearlyZero(YawDelta) || !FMath::IsNearlyZero(PitchDelta))
+		{
+			bHangarAutoRotate = false;
+			HangarIdleTime = 0.0f;
+			HangarOrbitYaw += YawDelta;
+			HangarOrbitPitch += PitchDelta;
+		}
+		else
+		{
+			HangarIdleTime += Dt;
+			if (HangarIdleTime > 4.0f)
+			{
+				bHangarAutoRotate = true;
+			}
+		}
+		if (bHangarAutoRotate)
+		{
+			HangarOrbitYaw += 16.0f * Dt;
+		}
+		// One step per push of A/D or the left stick.
+		if (FMath::Abs(SteerInput) > 0.6f && bQtyArmed)
+		{
+			bQtyArmed = false;
+			if (HangarModel)
+			{
+				HangarModel->Change(SteerInput > 0.0f ? 1 : -1);
+			}
+		}
+		else if (FMath::Abs(SteerInput) < 0.3f)
+		{
+			bQtyArmed = true;
+		}
+		if (!FMath::IsNearlyZero(HangarZoomInput))
+		{
+			HangarOrbitDist = FMath::Clamp(HangarOrbitDist - HangarZoomInput * 500.0f * Dt, 320.0f, ShowroomDistCm);
+		}
+		if (HangarModel)
+		{
+			HangarModel->Tick(Dt);
+			// The ship on the turntable wears what the pilot is looking at.
+			if (HangarModel->GetVersion() != AppliedHangarVersion || AppliedHangarShip != ShipIndex)
+			{
+				AppliedHangarVersion = HangarModel->GetVersion();
+				AppliedHangarShip = ShipIndex;
+				PreviewModules(HangarModel->GetPreviewBuild(), HangarModel->GetFocus());
+			}
+		}
+	}
+	else
+	{
+		// The menu: a slow orbit from a low, heroic angle (the mouse belongs to the menu here).
+		HangarOrbitYaw += 9.0f * Dt;
+		HangarOrbitPitch = FMath::FInterpTo(HangarOrbitPitch, ShowroomPitchDeg, Dt, 1.5f);
+	}
+	HangarOrbitYaw = FMath::Fmod(HangarOrbitYaw, 360.0f);
+	HangarCamDist = FMath::FInterpTo(HangarCamDist, HangarOrbitDist, Dt, 3.0f);
+
+	HoverBobTime += Dt;
+	const float BobZ = FMath::Sin(HoverBobTime * 1.6f) * 4.0f;
+	VisualRoll = FMath::FInterpTo(VisualRoll, 0.0f, Dt, 6.0f);
+	VisualPitch = FMath::FInterpTo(VisualPitch, 0.0f, Dt, 6.0f);
+	VisualYaw = FMath::FInterpTo(VisualYaw, 0.0f, Dt, 6.0f);
+	if (VisualPivot)
+	{
+		VisualPivot->SetRelativeLocation(FVector(0.0f, 0.0f, BobZ));
+		VisualPivot->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+
+	// The camera stays inside the room: above the floor and under the ceiling lights, whatever the pitch and zoom.
+	// Equipping, the camera closes in on the part being changed and swings round to its side (player, 2026-10-29: "faz
+	// um zoom para a peça modificada"); the parts inside the hull are shown in x-ray from a little closer.
+	FVector WantFocus = GetActorLocation() + FVector(0.0f, 0.0f, 20.0f);
+	float WantDist = HangarCamDist;
+	if (HangarModel && HangarModel->GetTab() == EEXHangarTab::Equip && ShipMesh)
+	{
+		const EEXFamily Focus = HangarModel->GetFocus();
+		FBox Box(ForceInit);
+		for (int32 K = 0; K < ModuleMeshes.Num() && K < static_cast<int32>(UE_ARRAY_COUNT(CraftExterior)); ++K)
+		{
+			if (CraftExterior[K] == Focus && ModuleMeshes[K] && ModuleMeshes[K]->GetStaticMesh())
+			{
+				Box += ModuleMeshes[K]->Bounds.GetBox();
+			}
+		}
+		WantFocus = Box.IsValid ? Box.GetCenter() : ShipMesh->Bounds.Origin;
+		WantDist = Box.IsValid ? FMath::Clamp(Box.GetExtent().Size() * 3.4f, 320.0f, HangarCamDist * 0.8f) : HangarCamDist * 0.72f;
+		if (static_cast<int32>(Focus) != HangarZoomFamily)
+		{
+			HangarZoomFamily = static_cast<int32>(Focus);
+			const FVector2D Side(WantFocus - ShipMesh->Bounds.Origin);
+			if (Box.IsValid && Side.Size() > 60.0f)
+			{
+				HangarSwingYaw = FMath::RadiansToDegrees(FMath::Atan2(-Side.Y, -Side.X));
+				HangarSwingLeft = 0.9f;
+			}
+		}
+	}
+	else
+	{
+		HangarZoomFamily = -1;
+	}
+	if (HangarSwingLeft > 0.0f)
+	{
+		HangarSwingLeft -= Dt;
+		HangarOrbitYaw += FMath::FindDeltaAngleDegrees(HangarOrbitYaw, HangarSwingYaw) * FMath::Min(1.0f, Dt * 5.0f);
+	}
+	const bool bFirstFrame = HangarZoomDist <= 0.0f;
+	HangarFocusPoint = bFirstFrame ? WantFocus : FMath::VInterpTo(HangarFocusPoint, WantFocus, Dt, 4.0f);
+	HangarZoomDist = bFirstFrame ? WantDist : FMath::FInterpTo(HangarZoomDist, WantDist, Dt, 4.0f);
+	const FVector TargetFocus = HangarFocusPoint;
+	const float FocusZ = HangarStage ? TargetFocus.Z - HangarStage->GetActorLocation().Z : 155.0f;
+	const float LowDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp((60.0f - FocusZ) / HangarZoomDist, -1.0f, 1.0f)));
+	const float HighDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp((900.0f - FocusZ) / HangarZoomDist, -1.0f, 1.0f)));
+	HangarOrbitPitch = FMath::Clamp(HangarOrbitPitch, FMath::Max(-10.0f, LowDeg), FMath::Min(75.0f, HighDeg));
+	const FRotator OrbitRot(-HangarOrbitPitch, HangarOrbitYaw, 0.0f);
+	const FVector CamLoc = TargetFocus - OrbitRot.Vector() * HangarZoomDist;
+	Camera->SetWorldLocationAndRotation(CamLoc, OrbitRot);
+	Camera->SetFieldOfView(58.0f);
+
+	// While the lights come on the exposure and vignette follow them; lit, the garage is shown as it is.
+	const float Lights = HangarStage ? HangarStage->GetLightLevel() : 1.0f;
+	Camera->PostProcessSettings.bOverride_AutoExposureBias = true;
+	Camera->PostProcessSettings.AutoExposureBias = FMath::Lerp(ShowroomExposureBias, ShowroomLitExposureBias, Lights);
+	Camera->PostProcessSettings.VignetteIntensity = FMath::Lerp(ShowroomVignette, 0.15f, Lights);
+	Camera->PostProcessSettings.MotionBlurAmount = 0.0f;
+	Camera->PostProcessSettings.SceneFringeIntensity = 0.0f;
+}
+
+UEXProfileSave* AEXHoverCraft::EnsureProfile()
+{
+	if (!Profile && !bBot)
+	{
+		Profile = EXEconomy::Load();
+	}
+	return Profile;
+}
+
+void AEXHoverCraft::HangarLaunch()
+{
+	if (!bInHangar)
+	{
+		return;
+	}
+	// The director takes the craft back to the start (ExitShowroom) and sets the race up.
+	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
+	{
+		It->LaunchExpedition();
+		return;
+	}
+	ExitShowroom();
+}
+
+void AEXHoverCraft::HangarZoomIn()
+{
+	if (bInHangar)
+	{
+		HangarOrbitDist = FMath::Clamp(HangarOrbitDist - 60.0f, 320.0f, ShowroomDistCm);
+	}
+}
+
+void AEXHoverCraft::HangarZoomOut()
+{
+	if (bInHangar)
+	{
+		HangarOrbitDist = FMath::Clamp(HangarOrbitDist + 60.0f, 320.0f, ShowroomDistCm);
+	}
+}
+
+void AEXHoverCraft::HangarToggleAutoRotate()
+{
+	if (!bInHangar)
+	{
+		return;
+	}
+	if (HangarModel && HangarModel->IsOpening())
+	{
+		HangarModel->Alt();   // Space shows every card of the cache at once
+		return;
+	}
+	bHangarAutoRotate = !bHangarAutoRotate;
+	HangarIdleTime = 0.0f;
+}
+
+void AEXHoverCraft::HangarBack()
+{
+	// Esc is QuitGame too (which comes back here): one press does one thing.
+	if (!bInHangar || HangarBackFrame == GFrameCounter)
+	{
+		return;
+	}
+	HangarBackFrame = GFrameCounter;
+	if (HangarModel && HangarModel->IsOpening())
+	{
+		HangarModel->CloseCache();   // Esc closes the cards first (everything in it is already in the vault)
+		return;
+	}
+	LeaveHangar();
+	for (TActorIterator<AEXRaceDirector> It(GetWorld()); It; ++It)
+	{
+		It->OpenMenu();
+		break;
+	}
+}
+
+void AEXHoverCraft::HangarTabPrev()
+{
+	if (bInHangar && HangarModel)
+	{
+		HangarModel->Tab(-1);
+	}
+}
+
+void AEXHoverCraft::HangarTabNext()
+{
+	if (bInHangar && HangarModel)
+	{
+		HangarModel->Tab(1);
+	}
+}
+
+void AEXHoverCraft::HangarClear()
+{
+	if (bInHangar && HangarModel)
+	{
+		HangarModel->Clear();
+	}
+}
+
+void AEXHoverCraft::HangarInsure()
+{
+	if (bInHangar && HangarModel)
+	{
+		HangarModel->Insure();
+	}
+}
+
+void AEXHoverCraft::SetModules(const TArray<FEXItem>& InModules)
+{
+	Modules = InModules;
+	Modules.SetNum(EXMeta::FamilyCount);
+	bXRay = false;
+	PreviewEnginePower = 0.0f;
+	RefreshModuleVisuals();
+	if (bRaceRules)
+	{
+		ApplyShipStats();
+	}
+}
+
+void AEXHoverCraft::SetQuickSlots(const TArray<FEXQuickSlot>& InSlots)
+{
+	QuickSlots = InSlots;
+	QuickSlots.SetNum(EXMeta::QuickSlots);
+	LastQuickSlot = -1;
+	LastQuickTime = -100.0f;
+}
+
+bool AEXHoverCraft::GetModuleAnchor(EEXFamily Family, FVector& OutWorld) const
+{
+	const int32 K = static_cast<int32>(Family);
+	if (ModuleMeshes.IsValidIndex(K) && ModuleMeshes[K] && ModuleMeshes[K]->IsVisible() && ModuleMeshes[K]->GetStaticMesh())
+	{
+		OutWorld = ModuleMeshes[K]->Bounds.Origin;
+		return true;
+	}
+	const UStaticMeshComponent* Body = bXRay && SkeletonMesh && SkeletonMesh->IsVisible() ? SkeletonMesh.Get() : ShipMesh.Get();
+	if (!Body || !VisualPivot)
+	{
+		return false;
+	}
+	const FVector Forward = VisualPivot->GetForwardVector();
+	const FVector Up = VisualPivot->GetUpVector();
+	const FBoxSphereBounds& Bounds = Body->Bounds;
+	const float Half = FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y);
+	switch (Family)
+	{
+	case EEXFamily::Engine:
+	case EEXFamily::Propulsion:
+		OutWorld = Bounds.Origin - Forward * Half * 0.85f;
+		return true;
+	case EEXFamily::Reactor:
+		OutWorld = Bounds.Origin - Forward * Half * 0.2f + Up * Bounds.BoxExtent.Z * 0.3f;
+		return true;
+	case EEXFamily::Utility:
+		OutWorld = Bounds.Origin + Forward * Half * 0.6f;
+		return true;
+	default:
+		OutWorld = Bounds.Origin;
+		return true;
+	}
+}
+
+void AEXHoverCraft::PreviewModules(const TArray<FEXItem>& InModules, EEXFamily Focus)
+{
+	Modules = InModules;
+	Modules.SetNum(EXMeta::FamilyCount);
+	// Engine, propulsion, reactor and the utility module sit inside the hull: the x-ray view, with the engine running
+	// (the nitro colour shows on the propulsion slot).
+	bXRay = Focus == EEXFamily::Engine || Focus == EEXFamily::Propulsion || Focus == EEXFamily::Reactor || Focus == EEXFamily::Utility;
+	PreviewEnginePower = Focus == EEXFamily::Engine ? 0.85f : (Focus == EEXFamily::Propulsion ? 1.0f : (bXRay ? 0.35f : 0.0f));
+	RefreshModuleVisuals();
+}
+
+UStaticMesh* AEXHoverCraft::LoadPiece(const FString& Ship, const FString& Piece)
+{
+	const FString Up = Ship.ToUpper();
+	const FString Key = Up + TEXT("_") + Piece;
+	if (const TObjectPtr<UStaticMesh>* Found = PieceCache.Find(Key))
+	{
+		return Found->Get();
+	}
+	// Scripts/import_ship_modules.py: /Game/Ships/<SHIP>/SM_<SHIP>_<piece>. Missing until the pieces are imported.
+	const FString Path = FString::Printf(TEXT("/Game/Ships/%s/SM_%s_%s.SM_%s_%s"), *Up, *Up, *Piece, *Up, *Piece);
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	PieceCache.Add(Key, Mesh);
+	return Mesh;
+}
+
+void AEXHoverCraft::RefreshModuleVisuals()
+{
+	if (!ShipMesh || !SkeletonMesh)
+	{
+		return;
+	}
+	const FString Ship = GetShipName();
+	UStaticMesh* Full = ShipMeshes.IsValidIndex(ShipIndex) ? ShipMeshes[ShipIndex].Get() : nullptr;
+	// With the pieces imported the hull is the core (no wings) and the modules go on it; without them, the whole ship.
+	UStaticMesh* Core = LoadPiece(Ship, TEXT("core"));
+	UStaticMesh* Skeleton = Core ? LoadPiece(Ship, TEXT("skeleton")) : nullptr;
+	const bool bShowSkeleton = bXRay && Skeleton != nullptr;
+	ShipMesh->SetStaticMesh(Core ? Core : Full);
+	ShipMesh->SetVisibility(!bShowSkeleton);
+	auto Fitted = [this](EEXFamily Family) -> const FEXItem*
+	{
+		const int32 Index = static_cast<int32>(Family);
+		return Modules.IsValidIndex(Index) && Modules[Index].IsValid() ? &Modules[Index] : nullptr;
+	};
+	for (int32 K = 0; K < ModuleMeshes.Num() && K < static_cast<int32>(UE_ARRAY_COUNT(CraftExterior)); ++K)
+	{
+		UStaticMesh* Mesh = nullptr;
+		if (Core)
+		{
+			const FEXItem* Item = Fitted(CraftExterior[K]);
+			const EXMeta::FModuleDef* Def = Item ? EXMeta::Find(*Item) : nullptr;
+			// Epics and legendaries have designs of their own (player, 2026-11-01; Scripts/ship_modules.py section 7):
+			// <family>_ep / <family>_lg (a slotted or a box wing, a V or a T tail, an aero kit or a streamliner, gills or
+			// a flank channel, confinement coils or a plasma torus inside the engine); the common piece when the variant
+			// is not imported.
+			const EEXRarity Rarity = Item ? static_cast<EEXRarity>(Item->Rarity) : EEXRarity::Common;
+			const TCHAR* Tier = Rarity == EEXRarity::Legendary ? TEXT("_lg") : (Rarity == EEXRarity::Epic ? TEXT("_ep") : nullptr);
+			const TCHAR* Family = CraftExterior[K] == EEXFamily::Wings ? TEXT("wing") : CraftExterior[K] == EEXFamily::Tail ? TEXT("tail")
+				: CraftExterior[K] == EEXFamily::Armor ? TEXT("armor") : CraftExterior[K] == EEXFamily::Cooling ? TEXT("cooling")
+				: CraftExterior[K] == EEXFamily::Engine ? TEXT("engine") : nullptr;
+			if (Item && Tier && Family)
+			{
+				Mesh = LoadPiece(Ship, FString(Family) + Tier);
+			}
+			if (!Mesh && CraftExterior[K] != EEXFamily::Engine && Def && !Def->Piece.IsEmpty())
+			{
+				Mesh = LoadPiece(Ship, Def->Piece);
+			}
+			if (!Mesh && CraftExterior[K] == EEXFamily::Wings)
+			{
+				Mesh = LoadPiece(Ship, TEXT("wing_stock"));
+			}
+		}
+		// Only a piece that changed loses its overrides: clearing and setting them again on every call rebuilt the render
+		// state of every module at each step in the hangar (EXPERF, 2026-11-02).
+		if (ModuleMeshes[K]->SetStaticMesh(Mesh))
+		{
+			ModuleMeshes[K]->EmptyOverrideMaterials();
+		}
+		// The utility module sits inside the nose and an epic/legendary engine's insides inside the engine
+		// (Scripts/ship_modules.py): only the x-ray view shows them.
+		const bool bInside = CraftExterior[K] == EEXFamily::Utility || CraftExterior[K] == EEXFamily::Engine;
+		ModuleMeshes[K]->SetVisibility(Mesh != nullptr && bShowSkeleton == bInside);
+		if (bInside && Mesh && GlowMaterial)
+		{
+			if (!UtilityGlow)
+			{
+				UtilityGlow = UMaterialInstanceDynamic::Create(GlowMaterial, this);
+				UtilityGlow->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.37f, 0.89f, 1.0f));
+				UtilityGlow->SetScalarParameterValue(TEXT("Intensity"), 20.0f);
+			}
+			const TArray<FStaticMaterial>& Slots = Mesh->GetStaticMaterials();
+			for (int32 Slot = 0; Slot < Slots.Num(); ++Slot)
+			{
+				if (Slots[Slot].MaterialSlotName.ToString().Contains(TEXT("Utility_Glow")) && ModuleMeshes[K]->GetMaterial(Slot) != UtilityGlow)
+				{
+					ModuleMeshes[K]->SetMaterial(Slot, UtilityGlow);
+				}
+			}
+		}
+	}
+	if (SkeletonMesh->SetStaticMesh(Skeleton))
+	{
+		SkeletonMesh->EmptyOverrideMaterials();   // the glow slots differ from ship to ship
+	}
+	SkeletonMesh->SetVisibility(bShowSkeleton);
+	if (Skeleton && GlowMaterial)
+	{
+		// The reactor glows in the colour of its module.
+		if (!ReactorGlow)
+		{
+			ReactorGlow = UMaterialInstanceDynamic::Create(GlowMaterial, this);
+		}
+		ReactorGlow->SetVectorParameterValue(TEXT("Color"), EXMeta::ReactorGlow(Fitted(EEXFamily::Reactor)));
+		ReactorGlow->SetScalarParameterValue(TEXT("Intensity"), 25.0f);
+		const TArray<FStaticMaterial>& Slots = Skeleton->GetStaticMaterials();
+		for (int32 Slot = 0; Slot < Slots.Num(); ++Slot)
+		{
+			if (Slots[Slot].MaterialSlotName.ToString().Contains(TEXT("Reactor_Glow")) && SkeletonMesh->GetMaterial(Slot) != ReactorGlow)
+			{
+				SkeletonMesh->SetMaterial(Slot, ReactorGlow);
+			}
+		}
+	}
+	// The engine's flame and the nitro's colour, out of the ship's real nozzles.
+	const EXMeta::FFlameStyle Flame = EXMeta::Flame(Fitted(EEXFamily::Engine), Ship);
+	Fx->SetFlameStyle(Flame.Outer, Flame.Core, Flame.Length, Flame.Radius, Flame.Diamonds, Flame.bSparks, EXMeta::NitroColour(Fitted(EEXFamily::Propulsion)));
+	TArray<FVector> Anchors;
+	float NozzleRadiusCm = 0.0f;
+	for (const FShipNozzles& Nozzles : ShipNozzles)
+	{
+		if (Full && Ship.Equals(Nozzles.Ship, ESearchCase::IgnoreCase))
+		{
+			const FRotator ModelRotation(0.0f, ModelYawOffsetDeg, 0.0f);
+			const FVector Origin = Full->GetBounds().Origin;
+			for (int32 Index = 0; Index < Nozzles.Count; ++Index)
+			{
+				// Blender (x, y, z) m -> the imported mesh (x, -y, z) cm -> the craft's frame, as SelectShip places the mesh.
+				const FVector InMesh(Nozzles.Points[Index][0] * CmPerM, -Nozzles.Points[Index][1] * CmPerM, Nozzles.Points[Index][2] * CmPerM);
+				Anchors.Add(ModelRotation.RotateVector(InMesh - Origin));
+			}
+			NozzleRadiusCm = Nozzles.RadiusM * CmPerM;
+		}
+	}
+	Fx->SetNozzles(Anchors, NozzleRadiusCm);
+}
+
+void AEXHoverCraft::UpdateRaceSystems(float Dt)
+{
+	if (bEliminated)
+	{
+		return;
+	}
+	RaceSeconds += Dt;
+	// Fuel by distance, more flat out and on nitro (efficiency sets the rate); heat from the nitro, cooled by the
+	// cooling stat; repairs and the stabiliser run out.
+	const float DistanceKm = VelocityCmps.Size() * Dt / CmPerM / 1000.0f;
+	Fuel = FMath::Max(0.0f, Fuel - FuelBurnPerKm * DistanceKm * (0.35f + 0.65f * ThrottleInput) * (bBoosting ? 2.0f : 1.0f));
+	Heat = FMath::Clamp(Heat + (bBoosting ? BoostHeatPerS : -HeatCoolPerS) * Dt, 0.0f, 100.0f);
+	if (!bOverheated && Heat >= 100.0f)
+	{
+		bOverheated = true;
+		UE_LOG(LogTemp, Display, TEXT("EXRACE OVERHEAT %s"), *GetShipName());
+	}
+	else if (bOverheated && Heat <= 40.0f)
+	{
+		bOverheated = false;
+	}
+	if (RepairLeft > 0.0f)
+	{
+		Hull = FMath::Min(HullMax, Hull + RepairAmount / FMath::Max(0.1f, RepairTotal) * FMath::Min(Dt, RepairLeft));
+		Lives = FMath::Max(1, FMath::CeilToInt(Hull / HullMax * MaxLives));
+		RepairLeft -= Dt;
+		if (RepairLeft <= 0.0f)
+		{
+			RepairLeft = RepairTotal = RepairSlow = 0.0f;
+			UE_LOG(LogTemp, Display, TEXT("EXRACE REPAIRED %s hull=%.0f"), *GetShipName(), Hull);
+		}
+	}
+	StabLeft = FMath::Max(0.0f, StabLeft - Dt);
+	QuickCooldown = FMath::Max(0.0f, QuickCooldown - Dt);
+}
+
+float AEXHoverCraft::SpeedCapMul() const
+{
+	if (!bRaceRules)
+	{
+		return 1.0f;
+	}
+	float Mul = 1.0f;
+	Mul *= Fuel <= 0.0f ? 0.5f : 1.0f;
+	Mul *= bOverheated ? 0.9f : 1.0f;
+	Mul *= RepairLeft > 0.0f ? 1.0f - RepairSlow : 1.0f;
+	// REDLINE-X: above 90% of the top speed, 3% more.
+	Mul *= bRedline && ForwardSpeedMps > 0.9f * MaxSpeedMps ? 1.03f : 1.0f;
+	Mul *= bBot ? BotCatchUp : 1.0f;
+	return Mul;
+}
+
+void AEXHoverCraft::HangarConfirm()
+{
+	HangarLaunch();
 }

@@ -7,10 +7,13 @@ public class ExtractingStardust : ModuleRules
 	public ExtractingStardust(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		// Many files keep their own constants in anonymous namespaces (CmPerM, ColorParam...): compiled one by one, never
+		// merged into unity blobs where the names collide (2026-11-02, after the cloud work came in).
+		bUseUnity = false;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "Slate", "SlateCore" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "InputDevice" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "ApplicationCore", "InputDevice", "Slate", "SlateCore", "AssetRegistry" });
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
@@ -18,9 +21,6 @@ public class ExtractingStardust : ModuleRules
 			PublicSystemLibraries.AddRange(new string[] { "hid.lib", "setupapi.lib" });
 		}
 
-		// Uncomment if you are using Slate UI
-		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-		
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 
