@@ -394,8 +394,13 @@ powershell -ExecutionPolicy Bypass -File Scripts\selva\gerar_selva.ps1 [-Saida C
 - **Instalação:** instala o `scipy` no Python do Blender, uma vez.
 - **Saída:** gera os 10 setores, cada um com o relevo `.r16` + `.json` (caixa, alturas, perfil da estrada e saltos),
   as plantas `_props.json` e a cena `.blend`.
-- **Falta:** o importador do Unreal para a Selva, que junta os relevos dos setores, as plantas, o teto da gruta, as
-  cascatas e as pontes, como o `EXDesertBuilder` faz no Red Dust Divide.
+- **Unreal:** o importador está em `Scripts/selva/importar_selva.ps1`; junta os relevos a 3 m por amostra, as plantas e
+  os materiais, e monta `/Game/Maps/Selva` com `EXDesertBuilder`.
+- **Limites da pista:** a exportação marca árvores existentes entre 8 e 16 m para lá da margem da pista e das
+  bifurcações. Ao reconstruir o mapa, só os troncos recebem cilindros de colisão invisíveis; folhas e copas continuam sem colisão.
+  Executar de novo o importador depois de atualizar o código para aplicar estes colisores.
+- **GitHub:** `Content/Maps/Selva.umap` excede 100 MB e não é enviado; ficam no repositório o código do importador e os
+  assets leves do kit.
 2. **Vegetação:** o mangue (raízes aéreas), a savana (embondeiros e acácias), os fetos e as lianas.
 3. **Unreal:**
    - água (rios, cascata, lago);

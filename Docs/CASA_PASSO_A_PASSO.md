@@ -137,9 +137,13 @@ Diz-me para desligar o modo de teste: os acidentes à frente e a economia de tes
 
 ## 7. Mapa 02 Selva Esmeralda
 
-- Os 10 setores estão feitos em Blender (fotos em `Docs\SELVA` e `Docs\SELVA\HD`), mas **ainda não entram no
-  Unreal**: falta o importador (secção 6 de `Docs/PISTA_SELVA_ESMERALDA.md`).
-- **Opcional agora**, para confirmar que o Blender de casa os gera:
+- Os 10 setores estão feitos em Blender (fotos em `Docs\SELVA` e `Docs\SELVA\HD`) e o importador Unreal está em
+  `Scripts\selva\importar_selva.ps1`.
+- O mapa mantém o terreno a 3 m por amostra. O código põe colisão só nos troncos das árvores que ladeiam a pista e as
+  bifurcações; as folhas e as copas não colidem. Depois de atualizar o código, executar o importador para reconstruir
+  `Content\Maps\Selva.umap`.
+- O `.umap` gerado tem mais de 100 MB e fica fora do GitHub; o código e os assets leves do kit são enviados.
+- **Opcional**, para gerar os 10 setores de novo:
   `powershell -ExecutionPolicy Bypass -File Scripts\selva\gerar_selva.ps1`
   - Grava em `C:\rdd\selva\S1` a `S10` o relevo, as plantas e a cena, e demora alguns minutos por setor.
   - Com `-Fotos` faz também as fotos.

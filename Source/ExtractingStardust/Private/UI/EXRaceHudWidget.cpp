@@ -445,13 +445,13 @@ UWidget* UEXRaceHudWidget::BuildSlots(UWidgetTree* Tree)
 
 UWidget* UEXRaceHudWidget::BuildSpeed(UWidgetTree* Tree)
 {
-	// The speed on the plate with its brackets, KM/H, and the boost (the nitro) as a segmented bar with its bolt.
+	// A compact speed panel leaves a clear gap before the ship status panel on the lower right.
 	UOverlay* Box = Tree->ConstructWidget<UOverlay>(UOverlay::StaticClass());
-	EXUi::AddO(Box, Art(Tree, TEXT("hud_speed"), 640.0f, 225.0f), HAlign_Fill, VAlign_Fill);
+	EXUi::AddO(Box, Art(Tree, TEXT("hud_speed"), 470.0f, 176.0f), HAlign_Fill, VAlign_Fill);
 	UVerticalBox* Column = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	SpeedText = Figure(Tree, TEXT("0"), 70, White());
+	SpeedText = Figure(Tree, TEXT("0"), 48, White());
 	EXUi::AddV(Column, SpeedText, FMargin(0.0f), HAlign_Center);
-	EXUi::AddV(Column, Label(Tree, TEXT("KM/H"), 16, CyanSoft(), 200), FMargin(0.0f, -6.0f, 0.0f, 6.0f), HAlign_Center);
+	EXUi::AddV(Column, Label(Tree, TEXT("KM/H"), 12, CyanSoft(), 160), FMargin(0.0f, -4.0f, 0.0f, 4.0f), HAlign_Center);
 	UHorizontalBox* Boost = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	EXUi::AddH(Boost, Art(Tree, TEXT("hud_bolt"), 26.0f, 26.0f), FMargin(0.0f, 0.0f, 6.0f, 0.0f), false, VAlign_Center);
 	EXUi::AddH(Boost, Label(Tree, TEXT("BOOST"), 15, White(), 100), FMargin(0.0f, 0.0f, 10.0f, 0.0f), false, VAlign_Center);
@@ -459,13 +459,13 @@ UWidget* UEXRaceHudWidget::BuildSpeed(UWidgetTree* Tree)
 	{
 		UBorder* Segment = EXUi::Box(Tree, White(0.12f));
 		BoostSegments.Add(Segment);
-		USizeBox* Cell = EXUi::Sized(Tree, 18.0f, 14.0f, Segment);
+		USizeBox* Cell = EXUi::Sized(Tree, 14.0f, 12.0f, Segment);
 		Italic(Cell, -20.0f);
-		EXUi::AddH(Boost, Cell, FMargin(Index > 0 ? 4.0f : 0.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
+		EXUi::AddH(Boost, Cell, FMargin(Index > 0 ? 3.0f : 0.0f, 0.0f, 0.0f, 0.0f), false, VAlign_Center);
 	}
 	EXUi::AddV(Column, Boost, FMargin(0.0f), HAlign_Center);
-	EXUi::AddO(Box, Column, HAlign_Center, VAlign_Center, FMargin(0.0f, 4.0f, 0.0f, 10.0f));
-	return EXUi::Sized(Tree, 640.0f, 225.0f, Box);
+	EXUi::AddO(Box, Column, HAlign_Center, VAlign_Center, FMargin(0.0f, 4.0f, 0.0f, 8.0f));
+	return EXUi::Sized(Tree, 470.0f, 176.0f, Box);
 }
 
 UWidget* UEXRaceHudWidget::BuildStatus(UWidgetTree* Tree)

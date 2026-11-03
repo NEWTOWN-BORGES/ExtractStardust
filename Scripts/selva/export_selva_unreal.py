@@ -8,7 +8,7 @@
 #  - unreal/world_track.png: the road and the forks at their floor widths (signed distance, as for the desert);
 #  - canyon_field.json: the road as "grand_circuit.lap" (points on the ground, widths) and the forks as its branches;
 #  - props.json: the jungle of every sector (meshes SM_Selva_<kind>, yaw and uniform scale).
-# Usage: blender -b -P Scripts/selva/export_selva_unreal.py -- C:/rdd/selva     (or any Python with numpy)
+# Usage: blender -b -P Scripts/selva/export_selva_unreal.py -- C:/rdd/selva     (Blender Python with numpy and scipy)
 import json
 import os
 import struct
@@ -16,6 +16,7 @@ import sys
 import zlib
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
 ROOT = argv[0] if argv else "C:/rdd/selva"
@@ -63,6 +64,29 @@ for n_ in range(1, 11):
     m_ = json.load(open(os.path.join(ROOT, "S%d" % n_, "selva_S%d.json" % n_), encoding="utf-8"))
     ROAD_XYZ += [(p_[0], p_[1], z_) for p_, z_ in zip(m_["road"]["points"], m_["road"]["z"])]
 ROAD_XYZ = np.array(ROAD_XYZ, float)
+# The trees in the first green band, on both sides of the road and forks, delimit the route. Keep the visual trees
+# non-colliding; the Unreal builder adds an invisible cylinder only around each marked trunk.
+ROAD_SAMPLES, ROAD_HALF_WIDTHS = [], []
+for line in [plan["route"]] + plan["forks"]:
+    line_xy = np.asarray(line["points"], float)
+    half_width = np.broadcast_to(np.asarray(line.get("half_width", 8.0), float), (len(line_xy),))
+    for i in range(len(line_xy) - 1):
+        delta = line_xy[i + 1] - line_xy[i]
+        samples = max(1, int(np.ceil(np.linalg.norm(delta) / 4.0)))
+        t = np.arange(samples, dtype=float) / samples
+        ROAD_SAMPLES.extend(line_xy[i][None, :] + t[:, None] * delta)
+        ROAD_HALF_WIDTHS.extend([half_width[i]] * samples)
+    ROAD_SAMPLES.append(line_xy[-1])
+    ROAD_HALF_WIDTHS.append(half_width[-1])
+ROAD_TREE = cKDTree(np.asarray(ROAD_SAMPLES))
+ROAD_HALF_WIDTHS = np.asarray(ROAD_HALF_WIDTHS)
+LIMITER_TRUNKS = {
+    # radius, collision height, and lower offset from the tree's root, in metres; stop below the crown/foliage.
+    "kapok": (1.35, 34.0, 0.0), "canopy_a": (0.50, 13.0, 0.0), "canopy_b": (0.42, 9.0, 0.0),
+    "canopy_c": (0.68, 20.0, 0.0), "acai": (0.28, 9.0, 0.0), "buriti": (0.30, 17.0, 0.0),
+    "cecropia": (0.22, 12.0, 0.0), "mangrove": (0.28, 5.0, 1.5), "baobab": (2.5, 12.0, 0.0),
+    "acacia": (0.32, 3.5, 0.0),
+}
 for n in range(1, 11):
     s = "S%d" % n
     folder = os.path.join(ROOT, s)
@@ -104,8 +128,20 @@ for n in range(1, 11):
                     continue
                 water.append({"x": round((tx + bx) * 0.5 - SX / 2.0, 1), "y": round((ty + by) * 0.5 - SY / 2.0, 1), "z": round(z, 2),
                               "sx": round(bx - tx, 1), "sy": round(by - ty, 1), "sector": s})
-    for kind, x, y, z, yaw, scl in json.load(open(os.path.join(folder, "selva_%s_props.json" % s))):
-        props.append({"mesh": "SM_Selva_" + kind, "x": round(x - SX / 2.0, 2), "y": round(y - SY / 2.0, 2), "z": z, "yaw": yaw, "scale": scl})
+    sector_props = json.load(open(os.path.join(folder, "selva_%s_props.json" % s)))
+    track_xy = np.asarray([[p[1], p[2]] for p in sector_props], float)
+    if len(track_xy):
+        distances, nearest = ROAD_TREE.query(track_xy, k=8, workers=-1)
+        edge_distance = np.min(distances - ROAD_HALF_WIDTHS[nearest], axis=1)
+    else:
+        edge_distance = np.empty(0)
+    for (kind, x, y, z, yaw, scl), edge_m in zip(sector_props, edge_distance):
+        prop = {"mesh": "SM_Selva_" + kind, "x": round(x - SX / 2.0, 2), "y": round(y - SY / 2.0, 2),
+                "z": z, "yaw": yaw, "scale": scl}
+        if kind in LIMITER_TRUNKS and 8.0 <= edge_m <= 16.0:
+            radius, height, bottom = LIMITER_TRUNKS[kind]
+            prop.update({"track_limiter": True, "trunk_radius_m": radius, "trunk_height_m": height, "trunk_bottom_m": bottom})
+        props.append(prop)
     print("SELVA %s box %s, %d x %d, water %.1f m" % (s, meta["box"], nx, ny, meta["water_m"]))
 # Thinning for the frame rate (~1.5 million plants in the ten sectors): every big tree stays; the small ones (shrubs,
 # ferns, stones, branches) keep a third; then at most 350 000 in all, at random.

@@ -1007,8 +1007,10 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 	AddEdgeWalls(World, FBox2D(FVector2D(-HalfX + 1000.0, -HalfY + 1000.0), FVector2D(HalfX - 1000.0, HalfY - 1000.0)), 20000.0f);
 
 	// Props: one instanced component per mesh. Rotation as the world placed them (Blender XYZ: tilt x, tilt y, yaw),
-	// mirrored with Y: roll keeps tilt x, pitch and yaw change sign.
+	// mirrored with Y: roll keeps tilt x, pitch and yaw change sign. Selva track trees also get invisible trunk-only
+	// collision cylinders; the rendered tree instances remain collision-free, so leaves and crowns never block a ship.
 	TMap<FString, TArray<FTransform>> ByMesh;
+	TMap<FIntPoint, TArray<FTransform>> SelvaTrackLimiters;
 	for (const TSharedPtr<FJsonValue>& Value : Props->GetArrayField(TEXT("props")))
 	{
 		const TSharedPtr<FJsonObject> Prop = Value->AsObject();
@@ -1039,8 +1041,22 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 		{
 			Scale = FVector(Prop->GetNumberField(TEXT("scale")));
 		}
-		ByMesh.FindOrAdd(Prop->GetStringField(TEXT("mesh"))).Add(FTransform(FRotator(-RotY, -RotZ, RotX),
-			WorldToUnreal(Prop->GetNumberField(TEXT("x")), Prop->GetNumberField(TEXT("y")), Prop->GetNumberField(TEXT("z"))), Scale));
+		const double X = Prop->GetNumberField(TEXT("x"));
+		const double Y = Prop->GetNumberField(TEXT("y"));
+		const double Z = Prop->GetNumberField(TEXT("z"));
+		const FVector Location = WorldToUnreal(X, Y, Z);
+		ByMesh.FindOrAdd(Prop->GetStringField(TEXT("mesh"))).Add(FTransform(FRotator(-RotY, -RotZ, RotX), Location, Scale));
+		bool bTrackLimiter = false;
+		if (Prop->TryGetBoolField(TEXT("track_limiter"), bTrackLimiter) && bTrackLimiter)
+		{
+			const double RadiusM = Prop->GetNumberField(TEXT("trunk_radius_m")) * Scale.X;
+			const double HeightM = Prop->GetNumberField(TEXT("trunk_height_m")) * Scale.Z;
+			const double BottomM = Prop->GetNumberField(TEXT("trunk_bottom_m")) * Scale.Z;
+			const FVector TrunkCenter = Location + FVector(0.0, 0.0, (BottomM + HeightM * 0.5) * CmPerM);
+			const FVector TrunkScale(2.0 * RadiusM, 2.0 * RadiusM, HeightM);
+			const FIntPoint Block(FMath::FloorToInt(TrunkCenter.X / 100000.0), FMath::FloorToInt(TrunkCenter.Y / 100000.0));
+			SelvaTrackLimiters.FindOrAdd(Block).Add(FTransform(FRotator::ZeroRotator, TrunkCenter, TrunkScale));
+		}
 	}
 	int32 Placed = 0;
 	for (const TPair<FString, TArray<FTransform>>& Group : ByMesh)
@@ -1093,6 +1109,31 @@ bool UEXDesertBuilder::BuildWorldMap(const FString& WorldFolder, const FString& 
 		Placed += Group.Value.Num();
 	}
 	UE_LOG(LogTemp, Display, TEXT("EXWORLD props placed %d in %d meshes"), Placed, ByMesh.Num());
+	if (SelvaTrackLimiters.Num() > 0)
+	{
+		UStaticMesh* TrunkProxy = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+		if (TrunkProxy)
+		{
+			int32 Trunks = 0;
+			for (const TPair<FIntPoint, TArray<FTransform>>& Block : SelvaTrackLimiters)
+			{
+				if (UHierarchicalInstancedStaticMeshComponent* Colliders = AddInstances(World, TrunkProxy, Block.Value, true, 0.0f,
+					TEXT("World/Selva/TrackLimits")))
+				{
+					Colliders->SetVisibility(false, true);
+					Colliders->SetCastShadow(false);
+					Colliders->SetCanEverAffectNavigation(false);
+					Colliders->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+					Trunks += Block.Value.Num();
+				}
+			}
+			UE_LOG(LogTemp, Display, TEXT("EXWORLD Selva track limiters: %d trunks in %d blocks"), Trunks, SelvaTrackLimiters.Num());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("EXWORLD could not load the cylinder for Selva trunk collisions"));
+		}
+	}
 
 	// Water (the Selva's rivers and lakes): flat tiles at their water level (export_selva_unreal.py), without collision:
 	// the craft ride on the riverbed under a film of water, as in Blender (solid, a tile over a descending road was a wall

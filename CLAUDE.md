@@ -8,12 +8,12 @@ espólios na meta; loadout no hangar, sem pickups na pista; monstros mais tarde)
 
 O jogador fala português (PT). Responder em português.
 
-## MAPA 02 — SELVA ESMERALDA (jogador, 2026-11-02): os 10 setores feitos em Blender; falta o importador do Unreal
+## MAPA 02 — SELVA ESMERALDA (jogador, 2026-11-02): 10 setores em Blender; importador Unreal
 
 "Um mapa novo de 12 a 13 minutos, de sobrevivência, em florestas, rios, África e Amazónia; muitas bifurcações (para
 cima, para baixo, esquerda, direita), muitas curvas, muitos saltos."
-- **Feito:** só o traçado (`Docs/PISTA_SELVA_ESMERALDA.md`, `Docs/SELVA_PLANTA.png`, `Docs/SELVA_PERFIL.png`), por
-  `python3 Scripts/selva/plan_selva.py` (dados em `Scripts/selva/selva_plano.json`).
+- **Feito:** traçado (`Docs/PISTA_SELVA_ESMERALDA.md`, `Docs/SELVA_PLANTA.png`, `Docs/SELVA_PERFIL.png`), setores S1-S10
+  em Blender e importador Unreal (`Scripts/selva/importar_selva.ps1`, mapa `/Game/Maps/Selva`).
 - **Números:** 74,9 km de A a B, 12:19 na linha ideal, 10 setores Amazónia/África, 21 bifurcações (4 por cima, 8 por
   baixo, 9 para os lados) equilibradas pelo estilo (SKILL +5 s, RACING +2,5 s, SAFE −4 s) e 43 saltos, entre eles a
   queda de 190 m da cascata.
@@ -21,19 +21,22 @@ cima, para baixo, esquerda, direita), muitas curvas, muitos saltos."
   qualidade, para poupar tokens):
   - `Scripts/selva/sculpt_selva.py <saída> S<n>` faz o terreno, a água, a estrada e a vegetação (kit nosso,
     `jungle_kit.py`), e mostra uma folha de 6 fotos (`Docs/SELVA/S<n>_*.jpg`);
-  - S1 a S10 estão feitos (fotos em `Docs/SELVA/`). Em casa: `Scripts\selva\gerar_selva.ps1` gera os 10 setores para o
-    Unreal; falta escrever o importador do Unreal (secção 6 do documento). No S9 há uma bifurcação tripla no Zambeze. O jogador gostou muito do rio do S6: há troços em
+  - S1 a S10 estão feitos (fotos em `Docs/SELVA/`). `Scripts\selva\gerar_selva.ps1` gera os setores para o Unreal.
+    No S9 há uma bifurcação tripla no Zambeze. O jogador gostou muito do rio do S6: há troços em
     que a estrada é o próprio rio (`RIVER_ROADS`, no S7 e a pôr no S8, S9 e S10). Em todos os setores há destroços baixos na
     estrada (pedras, galhos, fetos; as naves passam por cima, a pedido do jogador). No S4 as estradas são ovais (paredes lisas dos
     dois lados, de 14 a 4 m, para ultrapassar por elas: pedido do jogador). A estrada tem relevo natural (ondulações de lama
     em manchas, charcos nas covas), a pedido do jogador;
   - no S2 os ganchos são semi-ovais com parede. O jogador pediu, além das Pontes da Copa, um caminho por baixo: é o F3b.
 - **Por decidir com o jogador:** os perigos da selva (secção 5).
-- **No Unreal (2026-11-02, sessão de casa + nuvem):** `importar_selva.ps1` (compila o editor, kit, mundo, importação, mapa
-  `/Game/Maps/Selva`). Árvores com materiais próprios (`/Game/Selva/Mat`). Água em blocos de 400 m, nunca acima da
+- **Unreal (2026-11-03):** `importar_selva.ps1` compila o editor, importa o kit e o mundo, e monta o mapa
+  `/Game/Maps/Selva`. Árvores com materiais próprios (`/Game/Selva/Mat`). Água em blocos de 400 m, nunca acima da
   estrada e sem colisão: a placa sólida destruía a nave aos 2,07 km. Chão próprio: `download_polyhaven.py` escolhe
   as fotos CC0 de chão de floresta e escreve `SourceArt/PolyHaven/selva_ground.json`; o `M_Selva` usa-as sem as
-  ondulações do deserto. Menu: linha MAPA (Red Dust Divide / Selva Esmeralda).
+  ondulações do deserto. Menu: linha MAPA (Red Dust Divide / Selva Esmeralda). O código marca árvores existentes a
+  8-16 m da margem da pista e das bifurcações para receberem colisores cilíndricos invisíveis só nos troncos; folhas,
+  copas e o resto da vegetação ficam sem colisão. A resolução continua nos 3 m; reconstruir o mapa aplica a colisão.
+  O `Selva.umap` local excede o limite de 100 MB do GitHub e não é enviado; é reconstruído pelo importador no PC.
 - **Fotos HD** (`Docs/SELVA/HD`, com o nome do setor e de cada vista): S1 a S6 feitas. Ficaram em pausa (jogador, 2026-11-02,
   para compilar em casa) o S7 a S10 e a foto 3D do mapa inteiro: `python3 Scripts/selva/fotos_hd.py <pasta> 7 8 9 10`, depois
   `python3 Scripts/selva/render_selva_3d.py <pasta> Docs/SELVA/MAPA_SELVA_3D.jpg size=2400x1350 samples=32` (com os 10
